@@ -77,17 +77,27 @@ PAIRS = [
     ('border', 'surface-container', 0, 'EXEMPT: decorative hairline'),
 ]
 
-# Depools status family. Lives in lib/config/depools_status_tokens.dart, not in DESIGN.md,
-# because design:sync only reads the canonical token set. Kept here so it is still checked.
-STATUS = {
-    'in-stock': ('#1F7434', '#30DB5B'),
-    'low-stock': ('#8A3E00', '#FFD426'),
-    'out-of-stock': ('#5A5A5E', '#AEAEB2'),
-    'expiring': ('#A82B00', '#FFB340'),
-    'expired': ('#D70015', '#FF6961'),
-    'wasted': ('#6B5439', '#B59469'),
-    'ai': ('#00697C', '#5DE6FF'),
-}
+STATUS_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_status_tokens.dart'
+
+
+def parse_status() -> dict[str, dict[str, tuple[str, str]]]:
+    """Read the status supplement so it is checked from its real source.
+
+    Returns {family: {role: (light, dark)}} where role is 'solid', 'soft' or
+    'soft-foreground'.
+    """
+    families: dict[str, dict[str, tuple[str, str]]] = {}
+    pattern = re.compile(
+        r"^\s*'(?:bg|text)-([a-z-]+?)(-soft-foreground|-soft)?':\s*"
+        r"'(?:bg|text)-\[(#[0-9A-Fa-f]{6})\]\s+dark:(?:bg|text)-\[(#[0-9A-Fa-f]{6})\]'"
+    )
+    for line in STATUS_TOKENS.read_text().splitlines():
+        if not (m := pattern.match(line)):
+            continue
+        family, suffix, light, dark = m.groups()
+        role = {None: 'solid', '-soft': 'soft', '-soft-foreground': 'soft-foreground'}[suffix]
+        families.setdefault(family, {})[role] = (light, dark)
+    return families
 
 
 def main() -> int:
@@ -114,17 +124,38 @@ def main() -> int:
         label = f'{fg} / {bg}'
         print(f'{label:<44}{rl:>8.2f}{mark_l:>4}{rd:>8.2f}{mark_d:>4}{need if need else "-":>6}')
 
+    status = parse_status()
+
     print()
-    print('STATUS FAMILY (4.5:1 required, they are rendered as badge text)')
+    print(f'STATUS SOLIDS on surface-container ({len(status)} families, parsed from '
+          f'{STATUS_TOKENS.name})')
     print('-' * 78)
-    for name, (light, dark) in STATUS.items():
+    for name, roles in status.items():
+        light, dark = roles['solid']
         rl = contrast(light, colors['surface-container']['light'])
         rd = contrast(dark, colors['surface-container']['dark'])
         if rl < 4.5:
-            failures.append(f'status {name} light {rl:.2f} < 4.5')
+            failures.append(f'status {name} solid light {rl:.2f} < 4.5')
         if rd < 4.5:
-            failures.append(f'status {name} dark {rd:.2f} < 4.5')
+            failures.append(f'status {name} solid dark {rd:.2f} < 4.5')
         print(f'{name:<44}{rl:>8.2f}{"   OK" if rl >= 4.5 else "  FAIL":>4}'
+              f'{rd:>8.2f}{"   OK" if rd >= 4.5 else "  FAIL":>4}{4.5:>6}')
+
+    print()
+    print('STATUS BADGES: soft-foreground on its own soft background')
+    print('-' * 78)
+    for name, roles in status.items():
+        if 'soft' not in roles or 'soft-foreground' not in roles:
+            failures.append(f'status {name} is missing a soft or soft-foreground token')
+            continue
+        fg_l, fg_d = roles['soft-foreground']
+        bg_l, bg_d = roles['soft']
+        rl, rd = contrast(fg_l, bg_l), contrast(fg_d, bg_d)
+        if rl < 4.5:
+            failures.append(f'badge {name} light {rl:.2f} < 4.5')
+        if rd < 4.5:
+            failures.append(f'badge {name} dark {rd:.2f} < 4.5')
+        print(f'{name + " badge":<44}{rl:>8.2f}{"   OK" if rl >= 4.5 else "  FAIL":>4}'
               f'{rd:>8.2f}{"   OK" if rd >= 4.5 else "  FAIL":>4}{4.5:>6}')
 
     print()

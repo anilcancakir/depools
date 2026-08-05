@@ -11,6 +11,7 @@ import 'config/logging.dart';
 import 'config/broadcasting.dart';
 import 'config/deeplink.dart';
 import 'config/wind_theme.g.dart';
+import 'config/depools_status_tokens.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:magic_devtools/magic_devtools.dart';
 import 'package:magic_starter/magic_starter.dart' show MagicStarter;
@@ -47,7 +48,15 @@ void main() async {
 
   // Theme generated from DESIGN.md via `design:sync`. Regenerate with:
   //   dart run bin/dispatcher.dart design:sync
-  final windTheme = WindThemeData(colors: designColors, aliases: designAliases);
+  //
+  // The status aliases are a hand-authored supplement: design:sync only emits the
+  // 17 canonical semantic roles, so the inventory status vocabulary
+  // (in-stock, expiring, expired, wasted, ai, ...) is merged in on top. It comes
+  // second so a status key would win a collision, and there are none today.
+  final windTheme = WindThemeData(
+    colors: designColors,
+    aliases: {...designAliases, ...depoolsStatusAliases},
+  );
 
   // Adopt the wind theme across every magic_starter sub-theme in one call, so
   // the starter's navigation, form, auth, and layout surfaces derive from the
