@@ -53,9 +53,15 @@ void main() async {
   // 17 canonical semantic roles, so the inventory status vocabulary
   // (in-stock, expiring, expired, wasted, ai, ...) is merged in on top. It comes
   // second so a status key would win a collision, and there are none today.
+  //
+  // fontFamilies binds the two bundled families to Wind's `font-sans` and
+  // `font-mono` utilities. `sans` also becomes the Material text theme default,
+  // so Inter applies without every widget asking for it; `font-mono` is reached
+  // for explicitly on quantities and codes.
   final windTheme = WindThemeData(
     colors: designColors,
     aliases: {...designAliases, ...depoolsStatusAliases},
+    fontFamilies: const {'sans': 'Inter', 'mono': 'Geist Mono'},
   );
 
   // Adopt the wind theme across every magic_starter sub-theme in one call, so

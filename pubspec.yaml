@@ -90,6 +90,23 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Self-hosted rather than fetched at runtime: the app must render correctly
+  # offline and on first launch, and Turkish text must never fall back. Both
+  # files are the canonical variable fonts from google/fonts, and both were
+  # checked to carry all twelve Turkish glyphs (Ğ ğ İ ı Ş ş Ç ç Ö ö Ü ü).
+  #
+  # Wind resolves these through `fontFamilies` in lib/main.dart: `font-sans`
+  # maps to Inter and is the default for every text style, `font-mono` maps to
+  # Geist Mono and is used for quantities, prices and barcodes so digit columns
+  # align. See the typography section of DESIGN.md.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+    - family: Geist Mono
+      fonts:
+        - asset: assets/fonts/GeistMono-Variable.ttf
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
