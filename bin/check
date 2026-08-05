@@ -173,12 +173,34 @@ run_backend_test() { cd backend && php artisan config:clear >/dev/null && php ar
 # that is supposed to obey it, which is the gap this closes.
 run_design_tokens() { bin/design-tokens; }
 
+# The committed pubspec.lock must be the hosted-only resolution. A lock generated
+# while pubspec_overrides.yaml is active encodes `path: "../magic"` and friends,
+# which resolve on this machine and nowhere else, so committing one silently
+# breaks every CI run and deploy. Day-to-day local `pub get` rewrites the lock
+# that way constantly, which is exactly why this needs a gate rather than a note
+# in .gitignore. Only the STAGED content is checked: a dirty working copy during
+# local development is expected and fine.
+run_lockfile() {
+    staged=$(git show :pubspec.lock 2>/dev/null) || {
+        echo "pubspec.lock is not tracked; commit the hosted-only lock (see .gitignore)" >&2
+        return 1
+    }
+    if printf '%s' "$staged" | grep -q 'path: "\.\.'; then
+        echo "pubspec.lock encodes local sibling paths. Regenerate it hosted-only:" >&2
+        echo "  mv pubspec_overrides.yaml /tmp/ && flutter pub get && git add pubspec.lock" >&2
+        echo "  mv /tmp/pubspec_overrides.yaml ." >&2
+        return 1
+    fi
+    echo "lockfile: hosted-only, no local paths"
+}
+
 echo "check: ${SCOPES# } | $TOTAL_CORES cores, $LANE per suite$([ "$FAST" -eq 1 ] && echo ' | static only')"
 prepare
 echo
 
 wants flutter && start "flutter-analyze" run_flutter_analyze
 wants flutter && start "design-tokens" run_design_tokens
+wants flutter && start "lockfile" run_lockfile
 wants backend && start "backend-pint" run_backend_pint
 
 if [ "$FAST" -eq 0 ]; then

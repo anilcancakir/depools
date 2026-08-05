@@ -56,13 +56,23 @@ pubspec_overrides.yaml
 # Local QA report (not part of the published example)
 /REPORT.md
 
-# pubspec.lock is NOT committed here, unlike a normal application. This project
-# is a template that gets forked, and its lock can only ever be generated with
-# pubspec_overrides.yaml active, so every committed lock encodes
-# `path: "../magic"` and friends: paths that do not exist in a fork. A fork's
-# first `flutter pub get` writes a correct lock against the hosted constraints
-# in pubspec.yaml.
-pubspec.lock
+# pubspec.lock IS committed here, unlike the magic_example template this was
+# forked from. That template could not commit one: it is forked, and its lock
+# could only ever be generated with pubspec_overrides.yaml active, so it always
+# encoded `path: "../magic"` and friends. Depools is the application, not the
+# template, and an application needs a lock or a deploy is not reproducible.
+#
+# The catch that reasoning was protecting against is real and still applies: a
+# lock generated while pubspec_overrides.yaml is active encodes local sibling
+# paths that exist on no CI runner or deploy host. So the committed lock must be
+# the hosted-only one, regenerated with the overrides moved aside:
+#
+#   mv pubspec_overrides.yaml /tmp/ && flutter pub get && git add pubspec.lock
+#   mv /tmp/pubspec_overrides.yaml .
+#
+# `bin/check` fails when the lock contains a local path, so a wrong one cannot be
+# committed by accident. Day-to-day local `pub get` runs will dirty the lock with
+# paths; leave those unstaged.
 
 # Design preview: the stitched full-page render is redundant, the section PNGs are the record
 docs/design-preview/00-full-page.png
