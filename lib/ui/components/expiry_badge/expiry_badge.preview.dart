@@ -41,10 +41,10 @@ class ExpiryBadgePreview extends StatelessWidget {
           ],
         ),
         WText(
-          'Tarihi olmayan parti hiç rozet göstermez, aşağıda bilerek boş:',
+          'Tarihi olmayan parti hiç rozet göstermez: ExpiryBadge.maybe null döner, '
+          'böylece ebeveynin gap ayırıcısı da oluşmaz.',
           className: 'text-xs text-fg-muted',
         ),
-        ExpiryBadge(label: 'gösterilmez', daysUntilExpiry: null),
       ],
     );
   }

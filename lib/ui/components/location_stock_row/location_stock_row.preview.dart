@@ -24,6 +24,7 @@ class LocationStockRowPreview extends StatelessWidget {
             WText('Toplam 5 adet, iki konumda', className: 'text-xs text-fg-muted'),
             LocationStockRow(
               path: 'Mutfak › Buzdolabı',
+              amount: 3,
               quantity: '3',
               unit: 'adet',
               lotsLabel: '3 parti',
@@ -32,6 +33,7 @@ class LocationStockRowPreview extends StatelessWidget {
             ),
             LocationStockRow(
               path: 'Kiler › Raf 2',
+              amount: 2,
               quantity: '2',
               unit: 'adet',
               lotsLabel: '1 parti',
@@ -46,16 +48,17 @@ class LocationStockRowPreview extends StatelessWidget {
             WText('Uzun yol ve boş konum', className: 'text-base font-semibold text-fg'),
             LocationStockRow(
               path: 'Depo › Koridor B › Raf 14 › Kutu 3 › Alt Bölme',
+              amount: 18.5,
               quantity: '18,50',
               unit: 'kg',
               lotsLabel: '2 parti',
             ),
             LocationStockRow(
               path: 'Derin Dondurucu',
+              amount: 0,
               quantity: '0',
               unit: 'kg',
               lotsLabel: 'parti yok',
-              isEmpty: true,
             ),
           ],
         ),

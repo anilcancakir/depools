@@ -83,12 +83,14 @@ class ProductShowView extends StatelessWidget {
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
+          className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: 'Konum değiştir',
           child: const WIcon(_moveIcon),
         ),
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
+          className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: 'Etiket bas',
           child: const WIcon(_labelIcon),
         ),
@@ -159,6 +161,7 @@ class ProductShowView extends StatelessWidget {
             onPressed: () {},
             intent: ButtonIntent.ghost,
             size: ButtonSize.sm,
+            className: 'min-h-11 min-w-11 justify-center',
             semanticLabel: 'Barkod tara',
             child: const WIcon(_scanIcon),
           ),
@@ -169,6 +172,14 @@ class ProductShowView extends StatelessWidget {
     );
   }
 
+  /// Deliberately NOT routed through [Quantity], despite both being mono runs.
+  ///
+  /// A barcode has no amount and no unit, so passing it through would mean lying
+  /// about `amount:`, and `Quantity` derives its muted-zero treatment from exactly
+  /// that field: `amount: 0` silently greys the code out. The review suggested the
+  /// reuse and `quantity.preview.dart` appeared to demonstrate it, but that demo was
+  /// wrong too and has been removed. A code and a quantity share a typeface and
+  /// nothing else.
   Widget _buildBarcodeRow(String code, String meta) {
     return WDiv(
       className: 'flex flex-row items-center justify-between gap-3 py-2',
@@ -201,7 +212,7 @@ class ProductShowView extends StatelessWidget {
           className: 'flex flex-col gap-1',
           children: [
             WText('Toplam stok', className: 'text-xs text-fg-muted'),
-            const Quantity(value: '5', unit: 'adet', size: QuantitySize.lg),
+            const Quantity(amount: 5, formatted: '5', unit: 'adet', size: QuantitySize.lg),
           ],
         ),
         WDiv(
@@ -248,6 +259,7 @@ class ProductShowView extends StatelessWidget {
         SectionHeader(label: 'Konumlar', count: '2 konum'),
         LocationStockRow(
           path: 'Mutfak › Buzdolabı',
+          amount: 3,
           quantity: '3',
           unit: 'adet',
           lotsLabel: '3 parti',
@@ -256,6 +268,7 @@ class ProductShowView extends StatelessWidget {
         ),
         LocationStockRow(
           path: 'Kiler › Raf 2',
+          amount: 2,
           quantity: '2',
           unit: 'adet',
           lotsLabel: '1 parti',
@@ -272,6 +285,7 @@ class ProductShowView extends StatelessWidget {
       children: [
         SectionHeader(label: 'Partiler', count: '4 parti'),
         LotRow(
+          remainingAmount: 1,
           remaining: '1',
           unit: 'adet',
           expiryLabel: 'Süresi geçti',
@@ -279,6 +293,7 @@ class ProductShowView extends StatelessWidget {
           receivedLabel: '28 Tem alındı',
         ),
         LotRow(
+          remainingAmount: 1,
           remaining: '1',
           unit: 'adet',
           expiryLabel: '2 gün',
@@ -287,6 +302,7 @@ class ProductShowView extends StatelessWidget {
           lotCode: 'L2408-33',
         ),
         LotRow(
+          remainingAmount: 2,
           remaining: '2',
           unit: 'adet',
           expiryLabel: '9 gün',
@@ -294,6 +310,7 @@ class ProductShowView extends StatelessWidget {
           receivedLabel: '5 Ağu alındı',
         ),
         LotRow(
+          remainingAmount: 0,
           remaining: '0',
           unit: 'adet',
           expiryLabel: '12 Tem',
@@ -321,6 +338,7 @@ class ProductShowView extends StatelessWidget {
         ),
         const MovementRow(
           reason: 'Satın alındı',
+          deltaAmount: 2,
           delta: '+2',
           unit: 'adet',
           meta: 'Fiş taraması · 5 Ağu 18:22',
@@ -328,6 +346,7 @@ class ProductShowView extends StatelessWidget {
         ),
         const MovementRow(
           reason: 'Tüketildi',
+          deltaAmount: -1,
           delta: '-1',
           unit: 'adet',
           meta: 'Anılcan · bugün 09:14',
@@ -335,6 +354,7 @@ class ProductShowView extends StatelessWidget {
         ),
         const MovementRow(
           reason: 'Zayi: bozuldu',
+          deltaAmount: -1,
           delta: '-1',
           unit: 'adet',
           meta: 'Anılcan · bugün 09:15',
@@ -342,6 +362,7 @@ class ProductShowView extends StatelessWidget {
         ),
         const MovementRow(
           reason: 'Sayım düzeltmesi',
+          deltaAmount: 1,
           delta: '+1',
           unit: 'adet',
           meta: 'Asistan onaylı · dün 21:40',

@@ -25,6 +25,9 @@ import 'lot_row.recipe.dart';
 /// ```
 @immutable
 class LotRow extends StatelessWidget {
+  /// The raw remaining amount, used to derive the zero treatment.
+  final num remainingAmount;
+
   /// The remaining quantity, already formatted for the locale.
   final String remaining;
 
@@ -45,11 +48,16 @@ class LotRow extends StatelessWidget {
   final String? lotCode;
 
   /// Whether this lot has reached zero.
+  ///
+  /// Derived by the caller from the ledger rather than from [remainingAmount],
+  /// because a lot closed at zero and a lot that momentarily reads zero mid-count
+  /// are different states.
   final bool isDepleted;
 
   /// Creates a [LotRow].
   const LotRow({
     super.key,
+    required this.remainingAmount,
     required this.remaining,
     this.unit,
     this.expiryLabel,
@@ -72,15 +80,18 @@ class LotRow extends StatelessWidget {
             WDiv(
               className: slots['meta'],
               children: [
-                if (expiryLabel != null)
-                  ExpiryBadge(label: expiryLabel!, daysUntilExpiry: daysUntilExpiry),
+                ?ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry),
                 if (lotCode != null) WText(lotCode!, className: slots['code']),
               ],
             ),
             if (receivedLabel != null) WText(receivedLabel!, className: slots['received']),
           ],
         ),
-        Quantity(value: remaining, unit: unit, isZero: isDepleted),
+        Quantity(
+          amount: isDepleted ? 0 : remainingAmount,
+          formatted: remaining,
+          unit: unit,
+        ),
       ],
     );
   }

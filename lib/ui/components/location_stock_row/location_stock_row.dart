@@ -32,6 +32,9 @@ class LocationStockRow extends StatelessWidget {
   /// The already-joined location path, for example `'Kiler › Raf 2'`.
   final String path;
 
+  /// The raw amount at this location, used to derive the zero treatment.
+  final num amount;
+
   /// The quantity at this location, already formatted for the locale.
   final String quantity;
 
@@ -47,25 +50,28 @@ class LocationStockRow extends StatelessWidget {
   /// Days until that earliest expiry.
   final int? daysUntilExpiry;
 
-  /// Whether this location currently holds none of the product.
-  final bool isEmpty;
-
   /// Creates a [LocationStockRow].
   const LocationStockRow({
     super.key,
     required this.path,
+    required this.amount,
     required this.quantity,
     this.unit,
     this.lotsLabel,
     this.expiryLabel,
     this.daysUntilExpiry,
-    this.isEmpty = false,
   });
+
+  /// Whether this location currently holds none of the product.
+  ///
+  /// Derived rather than passed, so the muted treatment cannot drift from the
+  /// number beside it.
+  bool get holdsNone => amount == 0;
 
   @override
   Widget build(BuildContext context) {
     final slots = locationStockRowRecipe()(
-      variants: {'state': isEmpty ? 'empty' : 'stocked'},
+      variants: {'state': holdsNone ? 'empty' : 'stocked'},
     );
 
     return WDiv(
@@ -81,9 +87,8 @@ class LocationStockRow extends StatelessWidget {
         WDiv(
           className: slots['trailing'],
           children: [
-            Quantity(value: quantity, unit: unit, isZero: isEmpty),
-            if (expiryLabel != null)
-              ExpiryBadge(label: expiryLabel!, daysUntilExpiry: daysUntilExpiry),
+            Quantity(amount: amount, formatted: quantity, unit: unit),
+            ?ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry),
           ],
         ),
       ],

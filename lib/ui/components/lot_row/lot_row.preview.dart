@@ -24,6 +24,7 @@ class LotRowPreview extends StatelessWidget {
             WText('Pınar Süt Tam Yağlı 1 lt', className: 'text-base font-semibold text-fg'),
             WText('Buzdolabı · 3 parti', className: 'text-xs text-fg-muted'),
             LotRow(
+              remainingAmount: 1,
               remaining: '1',
               unit: 'adet',
               expiryLabel: 'Süresi geçti',
@@ -31,6 +32,7 @@ class LotRowPreview extends StatelessWidget {
               receivedLabel: '28 Tem alındı',
             ),
             LotRow(
+              remainingAmount: 1,
               remaining: '1',
               unit: 'adet',
               expiryLabel: '2 gün',
@@ -39,6 +41,7 @@ class LotRowPreview extends StatelessWidget {
               lotCode: 'L2408-33',
             ),
             LotRow(
+              remainingAmount: 1,
               remaining: '1',
               unit: 'adet',
               expiryLabel: '9 gün',
@@ -46,6 +49,7 @@ class LotRowPreview extends StatelessWidget {
               receivedLabel: '5 Ağu alındı',
             ),
             LotRow(
+              remainingAmount: 0,
               remaining: '0',
               unit: 'adet',
               expiryLabel: '12 Tem',
@@ -60,7 +64,8 @@ class LotRowPreview extends StatelessWidget {
           children: [
             WText('Ayçiçek Yağı 5 lt', className: 'text-base font-semibold text-fg'),
             WText('Tarihsiz bir parti hiç rozet göstermez', className: 'text-xs text-fg-muted'),
-            LotRow(remaining: '2', unit: 'adet', receivedLabel: '1 Ağu alındı'),
+            LotRow(remainingAmount: 2,
+              remaining: '2', unit: 'adet', receivedLabel: '1 Ağu alındı'),
           ],
         ),
       ],

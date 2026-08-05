@@ -68,6 +68,39 @@ class ExpiryBadge extends StatelessWidget {
     this.className,
   });
 
+  /// Returns a badge, or null when there is no date to show.
+  ///
+  /// Use this instead of constructing one and letting it render nothing. A widget
+  /// that returns an empty box still occupies a slot in its parent's `children`,
+  /// and wind injects a gap separator between all children unconditionally, so a
+  /// self-hiding badge left a phantom gap: 4px under the quantity in
+  /// `LocationStockRow`'s trailing column, 8px before the lot code in `LotRow`'s
+  /// meta row. Rows ended up taller than their siblings and the quantity column
+  /// stopped aligning down the list.
+  ///
+  /// Pair it with a null-aware element so the slot disappears entirely:
+  ///
+  /// ```dart
+  /// children: [?ExpiryBadge.maybe(label: l, daysUntilExpiry: d)]
+  /// ```
+  static ExpiryBadge? maybe({
+    String? label,
+    int? daysUntilExpiry,
+    int urgentWithinDays = 3,
+    String? className,
+  }) {
+    if (label == null || daysUntilExpiry == null) {
+      return null;
+    }
+
+    return ExpiryBadge(
+      label: label,
+      daysUntilExpiry: daysUntilExpiry,
+      urgentWithinDays: urgentWithinDays,
+      className: className,
+    );
+  }
+
   /// The urgency implied by [daysUntilExpiry].
   ExpiryUrgency get urgency {
     final days = daysUntilExpiry;

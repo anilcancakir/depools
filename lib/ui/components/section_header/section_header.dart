@@ -13,11 +13,13 @@ import 'section_header.recipe.dart';
 /// "3 parti" rather than forcing this widget to know how to pluralise in a language
 /// where pluralisation does not work like English.
 ///
-/// **[action] must be something tappable.** The row reserves a 44px minimum height
-/// for it, which is the touch-target floor, and the count deliberately sits on the
-/// left so the right side reads as the one interactive spot. Passing a bare [WText]
-/// here produces a control that looks like a link and does nothing, which is worse
-/// than no action at all.
+/// **[action] must be something tappable, and must carry its own hit target.** The
+/// row's `min-h-11` sizes the ROW, not the action inside it: an icon-only `MSButton`
+/// centred in that row still lays out at its own padding, around 26dp, well under
+/// the 44pt floor. Give it `className: 'p-3'` or an explicit `min-h-11 min-w-11`.
+/// The count sits on the left so the right side reads as the one interactive spot.
+/// Passing a bare [WText] here produces a control that looks like a link and does
+/// nothing, which is worse than no action at all.
 ///
 /// ### Example
 ///

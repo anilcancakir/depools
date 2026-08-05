@@ -25,6 +25,7 @@ class MovementRowPreview extends StatelessWidget {
             WText('Son hareketler', className: 'text-xs text-fg-muted'),
             MovementRow(
               reason: 'Satın alındı',
+              deltaAmount: 3,
               delta: '+3',
               unit: 'adet',
               meta: 'Fiş taraması · 5 Ağu 18:22',
@@ -32,6 +33,7 @@ class MovementRowPreview extends StatelessWidget {
             ),
             MovementRow(
               reason: 'Tüketildi',
+              deltaAmount: -1,
               delta: '-1',
               unit: 'adet',
               meta: 'Anılcan · bugün 09:14',
@@ -39,6 +41,7 @@ class MovementRowPreview extends StatelessWidget {
             ),
             MovementRow(
               reason: 'Zayi: bozuldu',
+              deltaAmount: -1,
               delta: '-1',
               unit: 'adet',
               meta: 'Anılcan · bugün 09:15',
@@ -46,6 +49,7 @@ class MovementRowPreview extends StatelessWidget {
             ),
             MovementRow(
               reason: 'Sayım düzeltmesi',
+              deltaAmount: -0.5,
               delta: '-0,5',
               unit: 'kg',
               meta: 'Asistan onaylı · dün 21:40',
@@ -59,6 +63,7 @@ class MovementRowPreview extends StatelessWidget {
             WText('Uzun etiket ve büyük miktar', className: 'text-base font-semibold text-fg'),
             MovementRow(
               reason: 'Tedarikçiden alındı, e-Fatura ile eşleşti',
+              deltaAmount: 1240.00,
               delta: '+1.240,00',
               unit: 'kg',
               meta: 'Yudum Gıda · e-Fatura FT2026-88421 · 1 Ağu 11:05',

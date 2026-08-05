@@ -8,8 +8,10 @@ import 'package:magic/magic.dart';
 /// that distinction, so it has to be visible here too or the UI would imply a
 /// distinction the data does not make.
 ///
-/// The delta keeps its sign in the text rather than relying on colour, so the
-/// direction survives for a user who cannot separate the tints.
+/// The delta itself is rendered by `Quantity`, which owns mono value-plus-unit
+/// everywhere in the app; only the icon is tinted from here. The delta keeps its
+/// sign in the text rather than relying on colour, so the direction survives for a
+/// user who cannot separate the tints.
 WindSlotRecipe movementRowRecipe() {
   return const WindSlotRecipe(
     slots: {
@@ -19,14 +21,13 @@ WindSlotRecipe movementRowRecipe() {
       'body': 'flex flex-col gap-0.5 flex-1 min-w-0',
       'reason': 'text-sm font-medium text-fg truncate',
       'meta': 'text-xs text-fg-muted truncate',
-      'delta': 'font-mono text-sm font-medium',
     },
     variants: {
       'direction': {
-        'inbound': {'icon': 'size-4 text-in-stock', 'delta': 'text-in-stock'},
-        'outbound': {'icon': 'size-4 text-fg-muted', 'delta': 'text-fg'},
-        'waste': {'icon': 'size-4 text-wasted', 'delta': 'text-wasted'},
-        'correction': {'icon': 'size-4 text-fg-muted', 'delta': 'text-fg-muted'},
+        'inbound': {'icon': 'size-4 text-in-stock'},
+        'outbound': {'icon': 'size-4 text-fg-muted'},
+        'waste': {'icon': 'size-4 text-wasted'},
+        'correction': {'icon': 'size-4 text-fg-muted'},
       },
     },
     defaultVariants: {'direction': 'outbound'},

@@ -21,26 +21,27 @@ class QuantityPreview extends StatelessWidget {
         WDiv(
           className: 'flex flex-row items-end gap-6',
           children: [
-            Quantity(value: '3', unit: 'adet', size: QuantitySize.sm),
-            Quantity(value: '18,50', unit: 'kg', size: QuantitySize.md),
-            Quantity(value: '1.240,00', unit: 'kg', size: QuantitySize.lg),
+            Quantity(amount: 3, formatted: '3', unit: 'adet', size: QuantitySize.sm),
+            Quantity(amount: 18.5, formatted: '18,50', unit: 'kg', size: QuantitySize.md),
+            Quantity(amount: 1240, formatted: '1.240,00', unit: 'kg', size: QuantitySize.lg),
           ],
         ),
         WDiv(
           className: 'flex flex-row items-center gap-6',
           children: [
-            Quantity(value: '0', unit: 'kg', isZero: true),
-            Quantity(value: '2', unit: 'koli', muted: true),
-            Quantity(value: '8690123456789'),
+            Quantity(amount: 0, formatted: '0', unit: 'kg'),
+            Quantity(amount: 2, formatted: '2', unit: 'koli', tone: QuantityTone.muted),
+            Quantity(amount: 12, formatted: '12', unit: 'adet', tone: QuantityTone.inbound),
+            Quantity(amount: -1, formatted: '-1', unit: 'adet', tone: QuantityTone.waste),
           ],
         ),
         WDiv(
           className: 'flex flex-col items-end gap-1 p-3 rounded-md bg-surface-container-high',
           children: [
-            Quantity(value: '1.240,00', unit: 'kg'),
-            Quantity(value: '18,50', unit: 'kg'),
-            Quantity(value: '111,11', unit: 'kg'),
-            Quantity(value: '0,80', unit: 'kg'),
+            Quantity(amount: 1240, formatted: '1.240,00', unit: 'kg'),
+            Quantity(amount: 18.5, formatted: '18,50', unit: 'kg'),
+            Quantity(amount: 111.11, formatted: '111,11', unit: 'kg'),
+            Quantity(amount: 0.8, formatted: '0,80', unit: 'kg'),
           ],
         ),
       ],
