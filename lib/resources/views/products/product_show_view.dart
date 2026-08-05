@@ -384,6 +384,11 @@ class ProductShowView extends StatelessWidget {
       child: MSButton(
         onPressed: () {},
         fullWidth: true,
+        // `fullWidth` stretches the button with SizedBox(width: infinity), but the
+        // button recipe's base carries `items-center` and no `justify-center`, so a
+        // stretched button leaves its label at the main-axis start. Without this the
+        // text sits against the left edge of a full-width bar.
+        className: 'justify-center',
         child: const WText('Hareket ekle'),
       ),
     );
