@@ -8,6 +8,7 @@ import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/foundations.preview.dart';
 import 'preview/login_screen.preview.dart';
+import 'preview/product_show_screen.preview.dart';
 import 'preview/profile_screen.preview.dart';
 import 'preview/register_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
@@ -69,6 +70,11 @@ List<PreviewEntry> previewEntries() {
       label: 'MovementRow',
       slug: 'movement_row',
       builder: (_) => const MovementRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductShowScreen',
+      slug: 'product_show_screen',
+      builder: (_) => const ProductShowScreenPreview(),
     ),
     PreviewEntry(
       label: 'ProfileScreen',
