@@ -1,0 +1,108 @@
+name: CI
+
+# The gate on every pull request. `bin/check` is the same thing locally; these
+# jobs exist so a green claim is a measurement rather than a report.
+#
+# Unlike a forked product repo, this one resolves its siblings from pub.dev, so CI
+# needs no sibling checkouts. The gitignored pubspec_overrides.yaml that points
+# them at local trees during development is absent here on purpose: CI resolving
+# the PUBLISHED versions is what catches a dependency on unreleased sibling code.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Only for pull requests: cancelling a main run would leave that commit with no
+  # green record at all.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  instructions:
+    name: Instruction mirrors
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: CLAUDE.md is a symlink to AGENTS.md
+        run: |
+          if [ ! -L CLAUDE.md ] || [ "$(readlink CLAUDE.md)" != "AGENTS.md" ]; then
+            echo "CLAUDE.md must be a symlink to AGENTS.md so both tools read one file." >&2
+            exit 1
+          fi
+      - name: .github mirrors are current
+        run: bin/sync-instructions --check
+
+  flutter:
+    name: Flutter (analyze + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
+
+  # PHP 8.4 rather than the ^8.3 composer.json declares, because the committed
+  # lock resolves symfony 8.1, which requires php >=8.4.1: `composer install` on
+  # 8.3 dies in a wall of "Problem N" lines that read like a corrupt lock and are
+  # really a platform mismatch. 8.4 is the floor the lock actually demands, and a
+  # boilerplate is worth testing at its floor rather than at the newest release.
+  backend:
+    name: Backend (pint + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, sqlite3, bcmath, intl, zip, gd
+          coverage: none
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      # A Blade view that calls @vite throws without a manifest, and public/build is
+      # gitignored, so a page test would fail on Vite rather than on its subject.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Build assets
+        run: npm ci && npm run build
+      - name: Pint
+        run: vendor/bin/pint --test
+      - name: Tests
+        run: php artisan test
+
+  # Checkout is the whole setup: `bin/design-tokens` is bash, awk and grep over
+  # `lib/**/*.dart`, so it needs neither Flutter nor a dependency install and runs
+  # in well under a second. A new job rather than a step inside the Flutter one, so
+  # a raw colour literal reports as its own line instead of hiding behind an
+  # analyze failure.
+  design-tokens:
+    name: Design tokens
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Scan for raw color literals
+        run: bin/design-tokens

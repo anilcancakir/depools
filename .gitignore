@@ -1,0 +1,69 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+.artisan/
+
+# Local sibling-package path wiring (dev only)
+pubspec_overrides.yaml
+
+# Secrets (never commit; .env.example is the template)
+
+# ac orchestration artifacts (plan + evidence)
+.ac/
+
+# Local QA report (not part of the published example)
+/REPORT.md
+
+# pubspec.lock is NOT committed here, unlike a normal application. This project
+# is a template that gets forked, and its lock can only ever be generated with
+# pubspec_overrides.yaml active, so every committed lock encodes
+# `path: "../magic"` and friends: paths that do not exist in a fork. A fork's
+# first `flutter pub get` writes a correct lock against the hosted constraints
+# in pubspec.yaml.
+pubspec.lock
+
+# Design preview: the stitched full-page render is redundant, the section PNGs are the record
+docs/design-preview/00-full-page.png
+docs/design-preview/.playwright-cli/
