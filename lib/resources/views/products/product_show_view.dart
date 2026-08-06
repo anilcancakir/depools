@@ -378,9 +378,14 @@ class ProductShowView extends StatelessWidget {
             onPressed: () {},
             intent: ButtonIntent.ghost,
             size: ButtonSize.sm,
-            className: 'min-h-11 justify-center',
+            // `axis-min`, not `justify-center`. MSButton's inner row is a Flutter Row,
+            // which defaults to MainAxisSize.max, so a button handed free space fills
+            // it: this one grew to half the card width and read as a filled panel
+            // rather than a link. `justify-center` only centres the content inside
+            // that stretched box; `axis-min` is what stops the stretching.
+            className: 'min-h-11 axis-min',
             child: const WDiv(
-              className: 'flex flex-row items-center gap-0.5',
+              className: 'flex flex-row items-center gap-0.5 axis-min',
               children: [WText('Tümü'), WIcon(_chevronIcon, className: 'size-4')],
             ),
           ),
