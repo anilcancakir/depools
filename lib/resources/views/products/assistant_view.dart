@@ -10,6 +10,7 @@ import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/shopping_row/shopping_row.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
+import 'activity_panel.dart';
 import 'product_fixtures.dart';
 import 'shopping_fixtures.dart';
 
@@ -54,6 +55,7 @@ class AssistantView extends StatelessWidget {
   static const IconData _sendIcon = Icons.arrow_upward;
   static const IconData _cameraIcon = Icons.photo_camera_outlined;
   static const IconData _micIcon = Icons.mic_none_outlined;
+  static const IconData _activityIcon = Icons.history;
 
   /// Whether the conversation has started.
   ///
@@ -73,6 +75,18 @@ class AssistantView extends StatelessWidget {
     return MSPageScaffold(
       title: 'Asistan',
       subtitle: 'Yarı otomatik · stok değişikliği onay ister',
+      // The activity panel opens from the header in BOTH shells (D50). Here the writes
+      // are already in the transcript, so this is the cross-cutting view of everything
+      // else; in inventory mode it is the only one.
+      actions: [
+        MSButton(
+          onPressed: () => ActivityPanel.show(context),
+          intent: ButtonIntent.ghost,
+          className: 'min-h-11 min-w-11 justify-center',
+          semanticLabel: 'Hareketler',
+          child: const WIcon(_activityIcon),
+        ),
+      ],
       children: [
         _buildOverview(),
         if (hasTranscript) ..._buildTranscript() else _buildOpeners(),

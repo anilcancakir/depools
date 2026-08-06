@@ -500,6 +500,39 @@ inventory mode they are on each product's movement list. The panel is the cross-
 screen would be a third place the same rows live, and a permanent sidebar would give
 occasional review permanent real estate.
 
+### D51. Undo appends a compensating movement, and both rows stay visible
+
+The ledger is append-only, so there is no version of undo that removes anything. Reversing a
+write appends a `correction` referencing the original, and the feed shows the pair: the
+correction on top, the original faded beneath it.
+
+Collapsing the pair into one row was the tempting alternative and it is wrong twice over.
+The balance is the sum of the deltas, so a history that hid one of them would not reconcile
+by hand, which is exactly what `forecasting.md`'s second criterion asks a person to do. And
+an audit trail whose visible row count differs from the ledger's is one nobody can trust at
+the moment they most need to.
+
+The cost is real and accepted: a mis-tap followed by an immediate undo leaves two rows
+forever. That is what an append-only ledger means, and the alternative trades a permanent
+correctness property for a temporary tidiness one.
+
+Presentation detail that came out of the screenshot: the faded row keeps its NOTE at full
+foreground weight. `text-fg-disabled` under a 50% fade is unreadable, and "Geri alındı" is
+the one thing the row still has to say.
+
+### D52. Undo is offered exactly when it would work, and otherwise the row says why
+
+Validity is a question about ledger state, not about a clock, so there is **no time window**.
+An undo a month old is fine if the compensating movement would still keep the invariants; an
+undo from a minute ago is impossible if a later movement already consumed the lot.
+
+When it would not work, the row carries the blocking fact where the button would have been:
+`Geri alınamaz · bu partiden 0,8 kg kaldı`. Not a greyed button, for the reason established
+across this whole design: a disabled `MSButton` in this theme is visually indistinguishable
+from a live one, and even a visibly disabled control with no reason is a dead end.
+
+A correction is not itself undoable. Undoing an undo is a third movement nobody asked for.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

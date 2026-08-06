@@ -34,6 +34,17 @@ enum MovementDirection {
 /// than carried only by the tint, which is what keeps the direction readable for a
 /// user who cannot separate the colours.
 ///
+/// **One row, three places.** This renders in a product's own history, in the activity
+/// panel across every product, and inside the assistant transcript when a write happens.
+/// That is deliberate (D49): three renderings of the same fact are three chances to
+/// disagree about it, and undo therefore lives HERE rather than in whichever surface
+/// happens to show the movement.
+///
+/// [note] and [isReversed] are what make that possible. A reversed movement is struck
+/// through and keeps its place, because the compensating entry sits beside it and the
+/// balance only reconciles by hand if both are visible (D51). [note] carries either the
+/// undo affordance's absence-reason or a pointer to the entry that reversed this one.
+///
 /// ### Example
 ///
 /// ```dart
@@ -70,6 +81,25 @@ class MovementRow extends StatelessWidget {
   /// Which way this movement pushed stock.
   final MovementDirection direction;
 
+  /// Whether a later correction reversed this entry.
+  ///
+  /// The row stays in place, struck through. It is not removed and it is not collapsed
+  /// into its correction, because the append-only ledger keeps both and
+  /// `forecasting.md` asks for balances that reconcile against the visible history by
+  /// hand (D51).
+  final bool isReversed;
+
+  /// An already-localised trailing note, shown under the meta line.
+  ///
+  /// Carries the reason an undo is unavailable, or what reversed this entry. It is a
+  /// note rather than a disabled button on purpose: a greyed control with no reason is
+  /// a dead end, and a disabled `MSButton` is visually indistinguishable from a live one
+  /// in this theme, measured.
+  final String? note;
+
+  /// The trailing action, normally undo. Absent when there is nothing to offer.
+  final Widget? action;
+
   /// Creates a [MovementRow].
   const MovementRow({
     super.key,
@@ -79,6 +109,9 @@ class MovementRow extends StatelessWidget {
     required this.direction,
     this.unit,
     this.meta,
+    this.isReversed = false,
+    this.note,
+    this.action,
   });
 
   /// The delta's tone, mapped from the direction.
@@ -100,7 +133,9 @@ class MovementRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final slots = movementRowRecipe()(variants: {'direction': direction.name});
+    final slots = movementRowRecipe()(
+      variants: {'direction': direction.name, 'state': isReversed ? 'reversed' : 'live'},
+    );
 
     return WDiv(
       className: slots['root'],
@@ -114,11 +149,18 @@ class MovementRow extends StatelessWidget {
               children: [
                 WText(reason, className: slots['reason']),
                 if (meta != null) WText(meta!, className: slots['meta']),
+                if (note != null) WText(note!, className: slots['note']),
               ],
             ),
           ],
         ),
-        Quantity(amount: deltaAmount, formatted: delta, unit: unit, tone: _tone),
+        WDiv(
+          className: slots['trailing'],
+          children: [
+            Quantity(amount: deltaAmount, formatted: delta, unit: unit, tone: _tone),
+            ?action,
+          ],
+        ),
       ],
     );
   }

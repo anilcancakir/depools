@@ -656,6 +656,21 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### MovementRow
+
+- **File**: `lib/ui/components/movement_row/`
+- **Class**: `MovementRow`
+- **Token bindings**: `text-in-stock` (inbound), `text-wasted` (waste), `text-fg-muted`, `text-fg-disabled` (the note), `opacity-50` (reversed)
+- **What it is**: one entry in the append-only ledger, with its undo affordance. Renders in a product's history, in the activity panel, and in the assistant transcript.
+- **Anti-patterns**:
+  - Do not build a second movement row for a new surface. Three renderings of one fact are three chances to disagree about it, which is why `action` and `note` are on this component rather than on the panel.
+  - Do not hide or collapse a reversed entry. D51: the ledger keeps both rows and the balance only reconciles by hand if both are visible.
+  - Do not dim the note along with the row. `text-fg-disabled` under `opacity-50` is unreadable, and the note is the reason the row faded.
+  - Do not offer a disabled undo. D52: when the compensating movement would break an invariant, the row states the blocking fact where the button would be.
+  - Do not assume the primary line is the reason. In a cross-product feed the product leads; the rule is that the primary line carries whatever separates a row from its neighbours.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`

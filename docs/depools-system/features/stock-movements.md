@@ -68,6 +68,43 @@ A bag of nails goes out in whole nails, so a product with no content declaration
 
 Everything is preselected on open, so the button is honestly live rather than looking live and refusing. That matters more here than elsewhere: `MSButton`'s `disabled` produces no visible change in the primary intent (measured), so a sheet that opens incomplete shows a button that lies.
 
+## Undo
+
+**Undo is a movement, not a delete** (D51). The ledger is append-only, so reversing a write
+appends a compensating `correction` that references the original. Both rows stay visible:
+the correction on top, the original beneath it and faded. Collapsing the pair would be
+tidier and would hide half the arithmetic, and `forecasting.md` asks for balances that
+reconcile against the visible history by hand.
+
+The plain consequence, worth stating because it is what a user will not expect: **undo does
+not make anything disappear.** It makes a second thing happen, and both are in the history.
+
+The faded row keeps its note at full weight. `text-fg-disabled` under a 50% fade is not
+readable, and "Geri alındı" is the one thing that row still has to say: the fade is for the
+data, not for the reason it faded.
+
+**An undo that cannot work says so before it is tapped** (D52). Validity is a question about
+ledger state, not about a clock, so there is no time window: undo is offered exactly when
+the compensating movement would keep the invariants. When it would not, the row carries the
+blocking fact where the button would have been (`Geri alınamaz · bu partiden 0,8 kg kaldı`).
+A greyed control with no reason is a dead end, and in this theme a disabled button is
+visually indistinguishable from a live one.
+
+A correction is not itself undoable. Undoing an undo is a third movement nobody asked for;
+the user records the thing they meant instead.
+
+## Where movements are read
+
+Three surfaces, one row. `MovementRow` renders in a product's own history, in the activity
+panel across every product, and in the assistant transcript when a write happens. Three
+renderings of one fact are three chances to disagree about it, which is why undo lives on
+the row rather than on whichever surface is showing it.
+
+What differs between them is only which fact leads. On a product page every row shares the
+product, so the reason distinguishes them; in a cross-product feed twelve rows reading
+"Satın alma" distinguish nothing, so the product leads and the reason moves into the meta.
+One rule: the primary line carries whatever separates this row from its neighbours.
+
 ## What is not designed yet
 - **Undo.** The ledger is append-only, so an undo is a compensating movement rather than a delete. Whether the sheet offers one immediately after a commit, and for how long, is open.
 - **Bulk entry.** A receipt scan produces many lines at once and cannot go through a sheet per line. That belongs to `receipt-ingestion.md` and it is why these two sheets stay single-product.

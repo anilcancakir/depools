@@ -10,6 +10,7 @@ import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'product_filter_sheet.dart';
+import 'activity_panel.dart';
 import 'product_fixtures.dart';
 
 /// Stock list: every product the tenant holds, and the home surface in inventory mode.
@@ -86,6 +87,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   static const IconData _searchIcon = Icons.search_outlined;
   static const IconData _filterIcon = Icons.filter_list_outlined;
   static const IconData _scanIcon = Icons.qr_code_scanner_outlined;
+  static const IconData _activityIcon = Icons.history;
   static const IconData _receiptIcon = Icons.receipt_long_outlined;
   static const IconData _photoIcon = Icons.photo_camera_outlined;
   static const IconData _addIcon = Icons.add_outlined;
@@ -168,6 +170,15 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       title: 'Stok',
       subtitle: widget.isEmpty ? null : 'Mutfak Deposu · ${productFixtures.length} ürün',
       actions: [
+        // The same entry point the assistant shell has (D50). In this mode it is the only
+        // place a full-auto write becomes visible, because there is no transcript.
+        MSButton(
+          onPressed: () => ActivityPanel.show(context),
+          intent: ButtonIntent.ghost,
+          className: 'min-h-11 min-w-11 justify-center',
+          semanticLabel: 'Hareketler',
+          child: const WIcon(_activityIcon),
+        ),
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
