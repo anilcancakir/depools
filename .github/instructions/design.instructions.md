@@ -115,6 +115,8 @@ Each of these is a blocker, and the `component-visual-reviewer` flags every one.
 | Hardcoded pixels (`SizedBox(height: 13)`) | Wind spacing utilities on the 4px scale |
 | A one-off widget when a library component exists | Check `docs/component-registry.md` first |
 | `Icons.*` inline in a component body | Extract as `static const IconData _icon = Icons.x;` |
+| `min-h-11` on an `MSButton` to reach the 44pt target | Use padding (`py-3` on `md`). Measured: min-height grows the box downward without re-centring the label, 4 logical px high. `min-h-11` is still correct on a plain `WDiv`. |
+| A selectable option with no fill when unselected | Give every option a `bg-surface-container-high`; a group where only the selected row has a background reads as one highlight among labels, not a set of choices |
 | Several preview classes in one `.preview.dart` | One preview class per file |
 | CSS-only Wind utilities (`box-shadow`, `filter`, `transform`, `group-*`) | Unsupported in wind; use Flutter animation APIs |
 | Hand-editing `lib/config/wind_theme.g.dart` | `dart run bin/dispatcher.dart design:sync` |
