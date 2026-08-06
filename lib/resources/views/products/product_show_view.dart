@@ -20,6 +20,7 @@ import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
 import 'product_fixtures.dart';
+import 'stock_out_sheet.dart';
 
 /// Product detail: everything known about one product the tenant holds.
 ///
@@ -138,6 +139,9 @@ class ProductShowView extends StatelessWidget {
             MSDropdownMenuItem(label: 'Arşivle', onTap: () {}),
           ],
           child: MSButton(
+            // Null on purpose, and NOT disabled: MSDropdownMenu owns the gesture and
+            // this button is only its trigger's appearance. Passing `disabled: true`
+            // here would grey out a control that works.
             onPressed: null,
             intent: ButtonIntent.ghost,
             className: 'min-h-11 min-w-11 justify-center',
@@ -154,7 +158,7 @@ class ProductShowView extends StatelessWidget {
         _buildLocations(),
         _buildLots(),
         _buildMovements(),
-        _buildPrimaryAction(),
+        _buildPrimaryAction(context),
       ],
     );
   }
@@ -592,14 +596,19 @@ class ProductShowView extends StatelessWidget {
   /// button, but the button recipe's base carries `items-center` and says nothing
   /// about the main axis, so a stretched button otherwise leaves its label against
   /// the left edge.
-  Widget _buildPrimaryAction() {
+  Widget _buildPrimaryAction(BuildContext context) {
     return WDiv(
       className: 'flex flex-row gap-3 pb-2',
       children: [
         WDiv(
           className: 'flex-1',
           child: MSButton(
-            onPressed: () {},
+            // Disabled with nothing on hand. A stock-out sheet that opens on an empty
+            // product has no lot to preselect and nothing to offer, so it would be a
+            // sheet whose only outcome is closing it again.
+            onPressed: _product.amount == 0
+                ? null
+                : () => StockOutSheet.show(context, product: _product),
             fullWidth: true,
             className: 'justify-center gap-2',
             child: const WDiv(

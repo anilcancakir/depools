@@ -189,7 +189,12 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
               child: WText('$matches ürün göster'),
             ),
             MSButton(
-              onPressed: _draft.isEmpty ? null : () => _set(const ProductFilter()),
+              onPressed: () => _set(const ProductFilter()),
+              // `disabled` as well as a null callback. MSButton takes them as separate
+              // inputs and does NOT infer the look from the callback, so a null
+              // onPressed alone blocks the tap while leaving the button looking
+              // actionable, which is worse than either state on its own.
+              disabled: _draft.isEmpty,
               intent: ButtonIntent.ghost,
               fullWidth: true,
               className: 'justify-center',
