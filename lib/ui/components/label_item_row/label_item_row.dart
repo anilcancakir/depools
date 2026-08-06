@@ -1,0 +1,133 @@
+import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/widgets.dart';
+import 'package:magic/magic.dart';
+
+import 'label_item_row.recipe.dart';
+
+/// How the label count for a line is arrived at.
+enum LabelCountMode {
+  /// The user picks it. A lot-tracked product's label identifies the PRODUCT, so any
+  /// number of identical stickers is meaningful.
+  free,
+
+  /// It is the number of selected serials and cannot be edited. A serial-tracked
+  /// product's labels are all different, one per unit.
+  perSerial,
+}
+
+/// **LabelItemRow**
+///
+/// One product in a print batch: what will be printed, how many, and whether it already
+/// was.
+///
+/// **The count means two different things, and the row has to say which.** D45: a
+/// lot-tracked product's label identifies the product, so its quantity is free and three
+/// stickers are three copies of one design. A serial-tracked product's labels are all
+/// different, one per unit, so the quantity is the number of selected serials and editing
+/// it would be editing how many units exist. The stepper is absent on those rows rather
+/// than disabled, because a disabled control invites a fight the user cannot win.
+///
+/// **Printed rows stay.** Criterion 5 requires a partially printed batch to be resumable,
+/// which means the printed lines have to remain visible and countable; a jammed printer at
+/// label 40 of 96 is the case this exists for.
+@immutable
+class LabelItemRow extends StatelessWidget {
+  static const IconData _decrementIcon = Icons.remove;
+  static const IconData _incrementIcon = Icons.add;
+  static const IconData _printedIcon = Icons.check_circle_outline;
+  static const IconData _pendingIcon = Icons.label_outline;
+
+  /// The product name.
+  final String name;
+
+  /// The code that will be printed, or null when one has to be generated first.
+  final String? code;
+
+  /// How many labels this line contributes.
+  final int count;
+
+  /// Where the count comes from.
+  final LabelCountMode mode;
+
+  /// Whether this line has already been printed in this batch.
+  final bool isPrinted;
+
+  /// Called when the count goes down. Null on a [LabelCountMode.perSerial] line.
+  final VoidCallback? onDecrement;
+
+  /// Called when the count goes up. Null on a [LabelCountMode.perSerial] line.
+  final VoidCallback? onIncrement;
+
+  /// Creates a [LabelItemRow].
+  const LabelItemRow({
+    super.key,
+    required this.name,
+    required this.count,
+    this.code,
+    this.mode = LabelCountMode.free,
+    this.isPrinted = false,
+    this.onDecrement,
+    this.onIncrement,
+  });
+
+  /// The already-localised second line: the code, or what will happen instead.
+  ///
+  /// A product with no barcode is never blocked (the doc says so outright); it says a code
+  /// will be generated. That code is Code128 with a tenant prefix rather than a fabricated
+  /// EAN-13, so an internal label can never be mistaken for a manufacturer barcode, and
+  /// naming it here is what makes criterion 6 visible rather than merely true.
+  String get _meta => switch ((code, mode)) {
+    (final String c?, LabelCountMode.perSerial) => '$c · $count seri',
+    (final String c?, _) => c,
+    (null, _) => 'Kod üretilecek',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final slots = labelItemRowRecipe()(variants: {'state': isPrinted ? 'printed' : 'pending'});
+
+    return WDiv(
+      className: slots['root'],
+      children: [
+        // The gutter is reserved on every row whatever the state, so a printed line does
+        // not shift its own name relative to a pending one.
+        WDiv(
+          className: slots['iconBox'],
+          child: WIcon(isPrinted ? _printedIcon : _pendingIcon, className: slots['icon']),
+        ),
+        WDiv(
+          className: slots['body'],
+          children: [
+            WText(name, className: slots['name']),
+            WText(_meta, className: slots['meta']),
+          ],
+        ),
+        // A printed line loses its stepper too. Its labels are on a sheet already, so
+        // changing the count would describe a past event, and the row says as much two
+        // lines down. Absent rather than disabled, the same call the serial row makes.
+        if (mode == LabelCountMode.free && !isPrinted)
+          WDiv(
+            className: slots['stepper'],
+            children: [
+              _step(slots, _decrementIcon, 'Bir azalt', onDecrement),
+              WText('$count', className: slots['count']),
+              _step(slots, _incrementIcon, 'Bir artır', onIncrement),
+            ],
+          )
+        else
+          WText('$count etiket', className: slots['fixedCount']),
+      ],
+    );
+  }
+
+  Widget _step(Map<String, String> slots, IconData icon, String label, VoidCallback? onTap) {
+    return WAnchor(
+      onTap: onTap,
+      semanticLabel: '$name, $label',
+      child: WDiv(
+        className: slots['stepButton'],
+        child: WIcon(icon, className: slots['stepIcon']),
+      ),
+    );
+  }
+}

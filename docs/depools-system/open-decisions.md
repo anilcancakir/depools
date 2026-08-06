@@ -330,6 +330,71 @@ deliberate departure from every other location suggestion in the app. Affinity a
 question; picking one row's winner for the whole batch would be arbitrary dressed as
 intelligence. Receiving location is a habit rather than a per-product fact.
 
+### D42. The label flow is one screen with three sections, not a three-step wizard
+
+`labeling-and-printing.md` describes three steps and names what it is reacting to: "the
+MVP's eight-state modal machine with no back button". Criterion 4 then asked for three steps
+where every step has a back path.
+
+One screen satisfies that in its strongest form rather than its literal one. There is no
+sequential gate, so every decision is reachable at every moment and a back path is not
+something to implement and get wrong. It also puts the sheet preview beside the template
+list, so switching templates shows its effect immediately, which is the comparison the
+screen exists for. Criterion 4 has been reworded to match; the literal three-step count was
+a proxy for "not eight", and the proxy is weaker than the thing it stood for.
+
+Every other capture surface in this app is already shaped this way (draft form, receipt
+review, scan queue), so the wizard would also have been the only one.
+
+### D43. Two previews: one dimensional, one legible, and the empty cells are drawn
+
+The sheet renders at true A4 proportions and one label renders separately at a readable
+size. A single zoomable view has to choose, and at sheet scale 9pt type is about six pixels:
+rendering it is noise, and rendering it larger would let a user approve a name that does not
+actually fit, which is criterion 7 failing in the direction that costs a sheet of labels.
+
+**Empty cells are drawn rather than left blank**, because paper is the consumable and
+picking a template is picking how much to waste. The template list carries pages AND blank
+cells for the same reason: on a 21-label batch, 24-up and 65-up are both "1 sayfa" and one
+of them prints 44 blanks.
+
+Consequence for the implementation: the geometry is Flutter (`AspectRatio` plus `Expanded`
+flexes that are the millimetre figures times ten) and only the paint is Wind, because Core
+Law 3 forbids interpolating a computed value into a className. The preview is exact by
+construction rather than by a scale factor somebody has to keep right.
+
+### D44. Paper and ink are fixed token pairs, identical in both appearances
+
+Every other colour in the app flips with the appearance because every other surface is read
+on a screen. A label preview is a picture of paper, and paper is white at two in the
+morning. So `bg-paper`, `text-ink`, `text-ink-muted`, `bg-ink` and `border-color-ink-subtle`
+hold the same hex on both sides of their `dark:` pair.
+
+They live in `lib/config/depools_paper_tokens.dart`, deliberately NOT in the status
+supplement: `bin/verify-design-contrast.py` parses that file as a status vocabulary and
+checks every solid against `surface-container`. White paper against a light app surface is
+about 1.05:1 and would fail that check for the right reason applied to the wrong question.
+The verifier gained a PAPER section that checks ink against paper instead, and asserts that
+both halves of each pair are identical so the fixed-ness cannot drift unnoticed.
+
+`ink` is true black rather than DESIGN.md's near-black, because that rule exists to stop
+pure black reading as a hole punched in a screen surface, and toner on paper is simply
+black.
+
+### D45. A label count means two different things, and the row says which
+
+A lot-tracked product's label identifies the PRODUCT, so twelve stickers are twelve copies
+of one design and the count is free. A serial-tracked product's labels are all different,
+one per unit, so its count is the number of selected serials; a stepper there would be
+offering to edit how many units exist. A printed line loses its stepper for the same kind of
+reason: its labels are on a sheet already, so changing the count would describe a past
+event.
+
+In both cases the control is ABSENT rather than disabled. That is the same call the stock
+sheets make, and for the same measured reason: a disabled `MSButton` in the primary intent
+looks identical to a live one, so a disabled control invites a fight the user cannot win and
+gives no feedback when they try.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

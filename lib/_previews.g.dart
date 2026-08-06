@@ -9,6 +9,8 @@ import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/foundations.preview.dart';
+import 'preview/label_print_screen.preview.dart';
+import 'preview/label_print_tight_screen.preview.dart';
 import 'preview/location_index_empty_screen.preview.dart';
 import 'preview/location_index_filtered_screen.preview.dart';
 import 'preview/location_index_screen.preview.dart';
@@ -32,6 +34,9 @@ import 'ui/components/draft_field/draft_field.preview.dart';
 import 'ui/components/expiry_badge/expiry_badge.preview.dart';
 import 'ui/components/filter_bar/filter_bar.preview.dart';
 import 'ui/components/filter_chip/filter_chip.preview.dart';
+import 'ui/components/label_card/label_card.preview.dart';
+import 'ui/components/label_item_row/label_item_row.preview.dart';
+import 'ui/components/label_preview/label_preview.preview.dart';
 import 'ui/components/list_footer/list_footer.preview.dart';
 import 'ui/components/location_row/location_row.preview.dart';
 import 'ui/components/location_stock_row/location_stock_row.preview.dart';
@@ -99,6 +104,31 @@ List<PreviewEntry> previewEntries() {
       label: 'Foundations',
       slug: 'foundations',
       builder: (_) => const FoundationsPreview(),
+    ),
+    PreviewEntry(
+      label: 'LabelCard',
+      slug: 'label_card',
+      builder: (_) => const LabelCardPreview(),
+    ),
+    PreviewEntry(
+      label: 'LabelItemRow',
+      slug: 'label_item_row',
+      builder: (_) => const LabelItemRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'LabelPreview',
+      slug: 'label_preview',
+      builder: (_) => const LabelPreviewPreview(),
+    ),
+    PreviewEntry(
+      label: 'LabelPrintScreen',
+      slug: 'label_print_screen',
+      builder: (_) => const LabelPrintScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'LabelPrintTightScreen',
+      slug: 'label_print_tight_screen',
+      builder: (_) => const LabelPrintTightScreenPreview(),
     ),
     PreviewEntry(
       label: 'ListFooter',

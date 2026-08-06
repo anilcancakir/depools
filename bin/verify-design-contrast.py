@@ -78,6 +78,40 @@ PAIRS = [
 ]
 
 STATUS_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_status_tokens.dart'
+PAPER_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_paper_tokens.dart'
+
+# Ink read against paper, never against an app surface. The label preview renders a
+# picture of a printed sheet, so both sides of every `dark:` pair hold the same hex
+# and the only meaningful check is the one a reader performs: ink on white.
+#
+# `ink-subtle` is exempt for the same reason `border` is: it outlines an EMPTY cell so
+# a user can see the page they are about to waste, and it carries no state.
+PAPER_PAIRS = [
+    ('text-ink', 'bg-paper', 4.5, ''),
+    ('text-ink-muted', 'bg-paper', 4.5, ''),
+    ('border-color-ink-subtle', 'bg-paper', 0, 'EXEMPT: empty-cell outline, carries no state'),
+]
+
+
+def parse_paper() -> dict[str, str]:
+    """Read the print-surface supplement, keeping only the light value.
+
+    Both sides of each pair are identical by construction; the parser asserts it
+    rather than trusting it, because a drifted pair would mean a preview that
+    changes with the app theme and stops matching print output.
+    """
+    values: dict[str, str] = {}
+    pattern = re.compile(
+        r"^\s*'([a-z-]+)':\s*'[a-z-]+\[(#[0-9A-Fa-f]{6})\]\s+dark:[a-z-]+\[(#[0-9A-Fa-f]{6})\]'")
+    for line in PAPER_TOKENS.read_text().splitlines():
+        if not (m := pattern.match(line)):
+            continue
+        key, light, dark = m.groups()
+        if light.upper() != dark.upper():
+            raise SystemExit(f'{key}: paper tokens must be identical in both appearances, '
+                             f'got {light} and {dark}')
+        values[key] = light
+    return values
 
 
 def parse_status() -> dict[str, dict[str, tuple[str, str]]]:
@@ -157,6 +191,26 @@ def main() -> int:
             failures.append(f'badge {name} dark {rd:.2f} < 4.5')
         print(f'{name + " badge":<44}{rl:>8.2f}{"   OK" if rl >= 4.5 else "  FAIL":>4}'
               f'{rd:>8.2f}{"   OK" if rd >= 4.5 else "  FAIL":>4}{4.5:>6}')
+
+    paper = parse_paper()
+
+    print()
+    print(f'PAPER: ink read on paper, one fixed value per token (parsed from '
+          f'{PAPER_TOKENS.name})')
+    print('-' * 78)
+    for fg, bg, need, note in PAPER_PAIRS:
+        if fg not in paper or bg not in paper:
+            failures.append(f'missing paper token: {fg} or {bg}')
+            continue
+        ratio = contrast(paper[fg], paper[bg])
+        if need and ratio < need:
+            failures.append(f'{fg}/{bg} {ratio:.2f} < {need}')
+        mark = ' exempt' if not need else ('   OK' if ratio >= need else '  FAIL')
+        label = f'{fg} / {bg}'
+        print(f'{label:<44}{ratio:>8.2f}{mark:>4}{ratio:>8.2f}{mark:>4}'
+              f'{need if need else "-":>6}')
+        if note:
+            print(f'  {note}')
 
     print()
     if failures:

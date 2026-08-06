@@ -576,6 +576,46 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### LabelPreview
+
+- **File**: `lib/ui/components/label_preview/`
+- **Class**: `LabelPreview` (plus the `SheetTemplate` value class)
+- **Token bindings**: `bg-paper`, `bg-ink`, `bg-ink-muted`, `border-color-ink-subtle`, `border-color-border` (the page edge, which IS a UI boundary), `text-fg-muted` (the caption)
+- **What it is**: the printed sheet at true A4 proportions, with filled cells drawn as stylised labels and empty cells outlined.
+- **Anti-patterns**:
+  - Do not express the grid in wind tokens. Core Law 3 forbids interpolating a computed value into a className, so the geometry is `AspectRatio` plus `Expanded` flexes equal to the millimetre figures times ten. Wind paints, Flutter measures.
+  - Do not put a raw `Column` inside a wind `flex flex-col` WDiv. The outer sizes to max and hands infinity to a non-flex child, so every `Expanded` in the inner one asserts `RenderBox was not laid out` with nothing naming the cause. The cell slot is padding only.
+  - Do not typeset the cells. At sheet scale 9pt is six pixels; use `LabelCard` for legible content.
+  - Do not hide empty cells. The waste is the most useful thing the sheet says (D43).
+
+---
+
+### LabelCard
+
+- **File**: `lib/ui/components/label_card/`
+- **Class**: `LabelCard`
+- **Token bindings**: `bg-paper`, `text-ink`, `text-ink-muted`, `bg-ink`, `text-expired` (the overflow line)
+- **What it is**: one label at a legible size: the fields that are enabled, the bars, the code, and the field that will not fit.
+- **Anti-patterns**:
+  - Do not truncate a name that overruns. `labeling-and-printing.md` requires naming the field instead; truncation looks deliberate in a preview and like a defect on 200 printed labels.
+  - Do not theme the card. It is paper (D44); both halves of every pair it uses are the same hex on purpose.
+  - Do not give the bars a wind flex container. They are raw `Expanded` widgets and need a plain Flutter `Row`.
+
+---
+
+### LabelItemRow
+
+- **File**: `lib/ui/components/label_item_row/`
+- **Class**: `LabelItemRow`
+- **Token bindings**: `text-fg` / `text-fg-muted` / `text-fg-disabled`, `bg-surface-container-high` (the stepper buttons), `font-mono` (the code)
+- **What it is**: one product in a print batch, with the count and where the count comes from.
+- **Anti-patterns**:
+  - Do not give a serial-tracked or an already-printed line a stepper. D45: those counts are not the user's to set, and the control is absent rather than disabled because a disabled primary control is visually indistinguishable from a live one here.
+  - Do not use `min-h-11` on the stepper buttons. Padding carries the touch target; min-height grows the box without re-centring the glyph.
+  - Do not drop a printed line from the list. Criterion 5 makes a partial batch resumable, and a range the user cannot see is a range they cannot name.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`

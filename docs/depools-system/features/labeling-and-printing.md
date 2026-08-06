@@ -28,13 +28,47 @@ The label size and page catalog is ported from the MVP's `config/labels.php`, wh
 
 ## Flow
 
-Three steps, not the MVP's eight-state modal machine with no back button.
+Three decisions, not the MVP's eight-state modal machine with no back button.
 
 1. **Choose what to print.** One product, a selection, or everything in a location. Quantity per item.
 2. **Choose the layout.** Label size, sheet template, and what appears on the label (product name, barcode, location, team name).
 3. **Preview and print.** A real preview of the sheet, then the system print dialog or a PDF download.
 
+**They are three sections of one screen, not three steps of a wizard** (D42). The wizard was
+the MVP's failure and "every step has a back path" was the reaction to it; a screen with no
+sequential gate at all satisfies that in its strongest form, because there is no step to be
+stuck on. It also means changing the sheet template re-renders the preview beside it rather
+than requiring two navigations to see the effect, which is the comparison the whole screen
+exists to support.
+
 Defaults are remembered per tenant, so the second print is two taps.
+
+## What the screen shows
+
+**Two previews, because one cannot do both jobs.** The sheet is rendered at true A4
+proportions with every cell drawn, filled or empty. One label is rendered separately at a
+size a person can read. A single zoomable view would have to choose, and at sheet scale 9pt
+type is about six pixels: showing it would be noise, and showing it larger would let a user
+approve a name that does not actually fit.
+
+**Empty cells are drawn, and that is the point of the sheet view** (D43). Paper is the
+consumable, and choosing a template is choosing how much of it to throw away. Each template
+in the list therefore carries both figures: pages, and cells printed blank. Pages alone
+makes 24-up and 65-up look identical on a 21-label batch, when one wastes 3 labels and the
+other wastes 44.
+
+**The sheet is white in dark mode** (D44). It is a picture of paper, and a preview that
+flipped with the app theme would be showing a sheet the printer cannot produce.
+
+**A label count means two different things** (D45). A lot-tracked product's label identifies
+the product, so twelve stickers are twelve copies of one design and the count is free. A
+serial-tracked product's labels are all different, one per unit, so its count is the number
+of selected serials and it has no stepper at all. A printed line loses its stepper too,
+because its labels are already on a sheet.
+
+**A field that does not fit is named, twice.** The label card keeps the name whole and marks
+the casualty, and a callout below states the label's millimetres and the two real ways out.
+Truncation reads as a design choice in a preview and as a defect on a sheet of 200.
 
 ## Barcode generation for items with none
 
@@ -77,7 +111,7 @@ None. Label generation is local computation.
 1. A sheet of 8 labels at 105x70mm prints at correct physical dimensions on a real A4 printer, measured with a ruler.
 2. Generated barcodes scan successfully with our own scanner and with a third-party scanner app.
 3. No server-side Chrome, Node or Browsershot dependency exists anywhere in the label path.
-4. The flow completes in three steps, and every step has a back path.
+4. The flow presents three decisions with no sequential gate: any of them is reachable at any moment, so there is no step to have a back path from. This supersedes the original "three steps, each with a back path" wording; see D42 for why the stronger form is the one to test.
 5. A partially printed batch is resumable.
 6. An internally generated barcode cannot be confused with a manufacturer EAN-13.
 7. Preview matches print output.

@@ -11,6 +11,7 @@ import 'config/logging.dart';
 import 'config/broadcasting.dart';
 import 'config/deeplink.dart';
 import 'config/wind_theme.g.dart';
+import 'config/depools_paper_tokens.dart';
 import 'config/depools_status_tokens.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:magic_devtools/magic_devtools.dart';
@@ -54,13 +55,18 @@ void main() async {
   // (in-stock, expiring, expired, wasted, ai, ...) is merged in on top. It comes
   // second so a status key would win a collision, and there are none today.
   //
+  // The paper aliases are a second supplement and a different KIND of token: each
+  // one holds the same hex on both sides of its `dark:` pair, because they render
+  // a picture of paper rather than a surface the app is read on. A printed sheet
+  // is white in dark mode too. See lib/config/depools_paper_tokens.dart.
+  //
   // fontFamilies binds the two bundled families to Wind's `font-sans` and
   // `font-mono` utilities. `sans` also becomes the Material text theme default,
   // so Inter applies without every widget asking for it; `font-mono` is reached
   // for explicitly on quantities and codes.
   final windTheme = WindThemeData(
     colors: designColors,
-    aliases: {...designAliases, ...depoolsStatusAliases},
+    aliases: {...designAliases, ...depoolsStatusAliases, ...depoolsPaperAliases},
     fontFamilies: const {'sans': 'Inter', 'mono': 'Geist Mono'},
   );
 
