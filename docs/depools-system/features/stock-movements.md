@@ -61,9 +61,11 @@ A bag of nails goes out in whole nails, so a product with no content declaration
 - **Moving stock between locations.** The header action exists and does nothing. It is a paired movement in the ledger (out of one location, into another) and it needs the same lot picker.
 - **Undo.** The ledger is append-only, so an undo is a compensating movement rather than a delete. Whether the sheet offers one immediately after a commit, and for how long, is open.
 - **Bulk entry.** A receipt scan produces many lines at once and cannot go through a sheet per line. That belongs to `receipt-ingestion.md` and it is why these two sheets stay single-product.
-- **Serial-tracked take-out.** The detail screen handles serial tracking (below), but the sheets do not yet: a serial take-out picks a specific unit rather than an amount, so the amount buttons do not apply and the lot picker becomes a serial picker.
+- **Everything behind a dead action.** Eleven controls across the two screens are still `onPressed: () {}`: barcode scan and product-create in the list header, "Elle gir" in the empty state, and "Konum değiştir" and "Etiket bas" in the detail header. Each is a screen that does not exist yet rather than a bug.
 
-## Serial tracking (D28)
+## Serial tracking (D28), shipped
+
+Both sheets handle it. A serial take-out picks a specific unit rather than an amount, so the amount section disappears entirely and the lot picker becomes a unit picker; the suggestion is the soonest-expiring warranty, which is FEFO's intuition on a different date.
 
 A product declares whether its units are fungible or individually identified, and the two are mutually exclusive **by nature rather than by policy**: partial consumption only means something for a quantity. Half a drill does not exist, so a product carrying both a content declaration and serials would describe something impossible. A test asserts a serial-tracked fixture has no lots, no content and no open unit.
 
