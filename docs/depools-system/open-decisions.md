@@ -453,6 +453,53 @@ The phrase "lead time" never reaches the interface. What the user sees is its co
 in the reason line: an item appears on the list early enough that their normal shopping
 rhythm covers it.
 
+### D49. The assistant answers with components, never with prose about state
+
+`ai-assistant.md` calls this the hardest design problem in the product: how assistant mode
+presents the stock overview a transcript cannot give, and getting it wrong is what makes
+chat-first apps fail. Its own diagnosis names two failures, so there are two answers. This
+is the first.
+
+A question about shortages returns the same `ShoppingRow`s the shopping list renders. A
+write returns the same `MovementRow` the product's history will show. An approval renders
+the movement pair it will write. The assistant's sentence is a caption over the component,
+not a description of it, which is also why it gets no chat bubble: two facing bubble columns
+make a work surface read like an instant messenger.
+
+Four things follow, and the last one is why this is worth a decision rather than a style
+note:
+
+- Scrolling back shows state changes, not sentences about them, so there is nothing to
+  reconstruct.
+- Every answer is tappable through to the real screen, which turns criterion 7 from a
+  promise into a link.
+- Prose about numbers is exactly where a model would be doing arithmetic, which D7 forbids.
+- **The assistant cannot disagree with the app it sits in**, because it is rendering the
+  same component from the same source. This codebase has already shipped a list and a
+  detail page contradicting each other about one product; an assistant is the surface where
+  that failure would be most expensive.
+
+### D50. The overview is chrome, and the activity feed is a panel over both shells
+
+The second half of the same problem, plus the open question next to it.
+
+**The overview never enters the transcript.** Three derived figures sit above it: what is
+close to its date, what is running low, what has no target level. Anything inside a
+transcript scrolls away, and a summary that scrolls away is not a summary. The figures are
+counted from the same fixtures every other screen counts, for the reason in D49.
+
+The third figure is the app's own silence made visible: a product with no target level can
+never reach the shopping list however low it gets, so "3 ürün hedefi yok" tells the user why
+they are not being warned. A first pass counted products with no CATEGORY and rendered "0
+ürün", which was true and useless.
+
+**The activity feed is a panel, not a screen and not a sidebar.** It opens from the header
+in both shells. In assistant mode the writes are already in the transcript with undo; in
+inventory mode they are on each product's movement list. The panel is the cross-cutting
+"what happened while I was not looking" view, which full-auto makes necessary. A dedicated
+screen would be a third place the same rows live, and a permanent sidebar would give
+occasional review permanent real estate.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

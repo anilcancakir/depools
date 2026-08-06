@@ -67,6 +67,39 @@ Responses stream. The MVP had none, so a user waited on a blank screen through a
 
 History persists through `laravel/ai`'s `Store`. The MVP hand-rolled this and left an unused `ai_conversation_models` table behind.
 
+## What the transcript is made of
+
+**The assistant answers with components, never with prose about state** (D49). A question
+about shortages returns the same `ShoppingRow`s the shopping list renders. A write returns
+the same `MovementRow` the product's history will show. An approval returns the movement
+PAIR it is about to write, not a sentence describing the intent.
+
+This is the answer to the "cannot reconstruct what they decided" problem below, and it is
+structural rather than cosmetic. Scrolling back through the transcript shows state changes
+rather than sentences about them; every answer is tappable through to the real screen; and
+the assistant cannot disagree with the rest of the app about a number, because it is
+rendering the same component from the same source.
+
+**The overview is chrome, not a message** (D50). Three derived figures sit above the
+transcript and never enter it: what is close to its date, what is running low, and what has
+no target level set. A summary inside a transcript scrolls away, and a summary that scrolls
+away is not one. The third figure is deliberately the app's own silence made visible: a
+product with no target can never reach the shopping list however low it gets.
+
+**The activity feed is a panel over either shell, not a third screen** (D50). In assistant
+mode the writes are already in the transcript with undo; in inventory mode the same entries
+are on each product's movement list. The panel is the cross-cutting view of "what happened
+while I was not looking", which full-auto makes necessary, and it opens from the header in
+both modes so criterion 7 holds without a mode-specific surface.
+
+### A known gap in the shell
+
+This screen wants a pinned overview and a pinned composer with only the transcript
+scrolling. `MSPageScaffold` scrolls all of its children, so today the composer scrolls away
+on a long transcript. The design is recorded here rather than worked around: a chat surface
+whose input you have to scroll to is a defect, and the fix belongs in `magic_starter`, not
+in a local bypass of the scaffold every other screen goes through.
+
 ## Assistant mode versus inventory mode
 
 The assistant is available in both modes. What changes is whether it is the home surface (D12).
@@ -107,5 +140,4 @@ So the assistant never becomes the only way to do anything. Every capability it 
 
 - Turkish quantity and unit parsing accuracy. No benchmark exists for grocery quantity plus unit plus product extraction in Turkish, so this needs a 100 to 200 message evaluation before launch. "Yarım kilo kıyma", "3'lü paket", "sut aldim" without diacritics are the real inputs.
 - Which model for the assistant. It needs the strongest tool-calling available, and cost per turn matters because this is the highest-frequency surface.
-- Whether the activity feed is its own screen or a panel inside both shells. Design decides.
-- How assistant mode presents the stock overview a transcript cannot give. This is the hardest design problem in the product, and getting it wrong is what makes chat-first apps fail.
+- A pinned composer and overview. `MSPageScaffold` cannot express a partially scrolling page, so this needs a change in `magic_starter` before the assistant screen is shippable.

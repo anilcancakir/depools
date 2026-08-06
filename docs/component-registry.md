@@ -631,6 +631,31 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### ChatMessage
+
+- **File**: `lib/ui/components/chat_message/`
+- **Class**: `ChatMessage`
+- **Token bindings**: `bg-primary-container` (the user bubble), `text-fg`
+- **What it is**: one line of the assistant transcript.
+- **Anti-patterns**:
+  - Do not give the assistant a bubble. D49: its text is a caption over the component below it, and two facing bubble columns make a work surface read like an instant messenger.
+  - Do not uncap the user bubble. A sentence spanning a desktop window puts the reply an eye-movement away.
+
+---
+
+### ChoiceChip
+
+- **File**: `lib/ui/components/choice_chip/`
+- **Class**: `ChoiceChip`
+- **Token bindings**: `bg-surface-container-high`, `bg-primary-container` (suggested), `text-fg` / `text-fg-muted`
+- **What it is**: one tap-answer in an assistant's grouped question card.
+- **Anti-patterns**:
+  - Do not use `FilterChip` for this. It bakes `'$label filtresini uygula'` into its own `semanticLabel`, so an assistant chip built from it announces something false to a screen reader.
+  - Do not omit `semanticLabel`. It is required rather than derived, because a chip in an assistant card can mean anything and a generic label makes an accessible control useless.
+  - Do not add a chip that opens another question. `ai-design.md` caps a capture at one grouped card, so every chip has to be a real answer including the skip.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`

@@ -4,6 +4,8 @@
 // Source: *.preview.dart files discovered under the scan dir.
 
 import 'package:magic_devtools/preview.dart';
+import 'preview/assistant_fresh_screen.preview.dart';
+import 'preview/assistant_screen.preview.dart';
 import 'preview/barcode_scan_empty_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
@@ -32,6 +34,8 @@ import 'preview/shopping_list_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
 import 'preview/teams_screen.preview.dart';
 import 'ui/components/callout/callout.preview.dart';
+import 'ui/components/chat_message/chat_message.preview.dart';
+import 'ui/components/choice_chip/choice_chip.preview.dart';
 import 'ui/components/draft_field/draft_field.preview.dart';
 import 'ui/components/expiry_badge/expiry_badge.preview.dart';
 import 'ui/components/filter_bar/filter_bar.preview.dart';
@@ -59,6 +63,16 @@ import 'ui/components/tag/tag.preview.dart';
 List<PreviewEntry> previewEntries() {
   return <PreviewEntry>[
     PreviewEntry(
+      label: 'AssistantFreshScreen',
+      slug: 'assistant_fresh_screen',
+      builder: (_) => const AssistantFreshScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'AssistantScreen',
+      slug: 'assistant_screen',
+      builder: (_) => const AssistantScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'BarcodeScanEmptyScreen',
       slug: 'barcode_scan_empty_screen',
       builder: (_) => const BarcodeScanEmptyScreenPreview(),
@@ -77,6 +91,16 @@ List<PreviewEntry> previewEntries() {
       label: 'Callout',
       slug: 'callout',
       builder: (_) => const CalloutPreview(),
+    ),
+    PreviewEntry(
+      label: 'ChatMessage',
+      slug: 'chat_message',
+      builder: (_) => const ChatMessagePreview(),
+    ),
+    PreviewEntry(
+      label: 'ChoiceChip',
+      slug: 'choice_chip',
+      builder: (_) => const ChoiceChipPreview(),
     ),
     PreviewEntry(
       label: 'DashboardScreen',
