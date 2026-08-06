@@ -47,12 +47,20 @@ The catalog entry for a thing the tenant holds. Holds no quantity.
 | `image_path` | string, nullable | |
 | `base_unit` | string(16) | the unit stock is stored in, e.g. `adet`, `kg`, `lt` |
 | `tracks_expiry` | boolean, default false | when true, capture asks for an expiry date |
-| `default_shelf_life_days` | integer, nullable | used to pre-fill an expiry date suggestion |
+| `default_shelf_life_days` | integer, nullable | used to pre-fill an expiry date suggestion, and to derive the warning window (D24) |
+| `opened_shelf_life_days` | integer, nullable | the after-opening limit (D27). Null means opening is not an event for this product |
+| `content_amount` | decimal(12,3), nullable | what one `base_unit` contains (D25): 1000 for a 1 lt carton, 3 for a pack of three |
+| `content_unit` | string(16), nullable | the content's unit, `ml` / `g` / `poşet`. Null together with `content_amount` |
+| `tracking_mode` | enum `lot`, `serial`, default `lot` | how units are identified (D28). Never asked at creation (D30); flipped from the detail screen |
 | `par_level` | decimal(12,3), nullable | user-set target quantity, used before there is enough history to forecast |
 | `reorder_point` | decimal(12,3), nullable | computed or user-set, see features/forecasting.md |
 | `created_at`, `updated_at`, `deleted_at` | timestamps | soft delete |
 
 Unique: (`team_id`, `sku`) where `sku` is not null.
+
+`content_amount` and `content_unit` are the ONE declaration D25 allows on the product itself, and they are what the partial-quantity display renders ("2 adet + 500 ml"). They do not replace `product_units`: that table holds purchase-side conversions (a `koli` of 12), while these describe what a single base unit is made of. Turkish labelling law states the same pair on the pack, per-unit net content plus pack count, so the fields mirror what the box already carries.
+
+`tracking_mode` is effectively immutable in the `serial` direction: a product with serials cannot go back to lots, because the serials have no fungible quantity to collapse into. Enforced at validation, not by the column.
 
 ### product_units
 
@@ -102,10 +110,39 @@ One row per inbound batch of a product at a location. The unit of expiry.
 | `currency` | string(3), nullable | |
 | `initial_quantity` | decimal(12,3) | in the product's `base_unit` |
 | `remaining_quantity` | decimal(12,3) | materialised from the ledger, never authored directly |
+| `opened_at` | timestamp, nullable | when this lot was opened (D27). Null means sealed |
 | `closed_at` | timestamp, nullable | set when `remaining_quantity` reaches zero |
 | `created_at`, `updated_at` | timestamps | |
 
 Indexed: (`team_id`, `expires_at`) for the expiry list, (`product_id`, `location_id`, `closed_at`) for FEFO selection.
+
+**The binding date is not always `expires_at`.** Once `opened_at` is set, the lot must be used within `products.opened_shelf_life_days` of that moment, which is usually much sooner than the printed date: a carton with a week left on the box has three days left once opened. Every surface that asks "what expires first" resolves the earlier of the two, and FEFO prefers an open lot over a merely-earlier printed date. See D27 and `features/stock-movements.md`.
+
+Opening is recorded as a movement so the ledger stays the only writer of state. It carries `reason = consumption` with a partial `delta` when the user consumed part of a sealed unit, which is what sets `opened_at` in the same transaction; the user never declares "I am opening this" (D30's sibling reasoning, and D13).
+
+### product_serials
+
+One row per physical unit, for a product whose `tracking_mode` is `serial` (D28).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, pk | |
+| `team_id` | uuid, fk teams, indexed | tenancy |
+| `product_id` | uuid, fk products, indexed | |
+| `location_id` | uuid, fk locations, indexed, nullable | null once it has left |
+| `serial` | string(128) | the serial, IMEI or asset tag as printed |
+| `warranty_ends_at` | date, nullable | reuses the expiry machinery: same derived window, same badge, same attention list |
+| `unit_cost` | decimal(12,4), nullable | |
+| `currency` | string(3), nullable | |
+| `acquired_at` | timestamp | |
+| `released_at` | timestamp, nullable | when it left. The row is kept, not deleted |
+| `created_at`, `updated_at` | timestamps | |
+
+Unique: (`team_id`, `product_id`, `serial`).
+
+A serial-tracked product holds no `stock_lots`: quantity is the count of rows with `released_at IS NULL`, so there is nothing to sum and no fraction to express. Half a drill does not exist, which is why the two modes are mutually exclusive by nature rather than by policy.
+
+A movement against a serial-tracked product references the unit through `reference_type`/`reference_id` rather than `stock_lot_id`, and its `delta` is always plus or minus one.
 
 ### stock_movements
 
@@ -228,3 +265,6 @@ Statements that must hold, each of which deserves a test:
 5. A transfer writes exactly two movements with equal and opposite deltas and a shared reference.
 6. No query returns a row whose `team_id` differs from the authenticated team.
 7. `locations.depth` never exceeds 6, and no location is its own ancestor.
+8. A product has `stock_lots` or `product_serials`, never both. `tracking_mode` decides which, and a product with serials never returns to `lot`.
+9. For a serial-tracked product, quantity equals the count of `product_serials` rows with `released_at IS NULL`, and every movement's `delta` is plus or minus one.
+10. A lot with `opened_at` set resolves its binding date as the earlier of `expires_at` and `opened_at + products.opened_shelf_life_days`.

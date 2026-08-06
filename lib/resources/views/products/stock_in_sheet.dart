@@ -110,6 +110,14 @@ class _StockInSheetState extends State<StockInSheet> {
   /// Says "parti" or "ünite" depending on the unit model, because "burada 2 parti var"
   /// on a serial-tracked drill is a word the screen uses nowhere else.
   String _suggestionReason(String locationId) {
+    // The COUNT is the explanation. `location-assignment.md` makes that explicit: the
+    // affinity number is not internal state, it is what the user is shown so the
+    // suggestion is arguable rather than magic.
+    final (String, int)? byCategory = suggestLocationFor(widget.product.categoryId);
+    if (byCategory != null && byCategory.$1 == locationId) {
+      return 'önerilen · buraya ${byCategory.$2} kez konuldu';
+    }
+
     final num here = widget.product.amountAt(locationId);
     if (here == 0) return 'önerilen';
 

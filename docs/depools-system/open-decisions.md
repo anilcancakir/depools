@@ -204,6 +204,40 @@ Infer them: from the name ("1 lt", "3'lü"), from the barcode catalogue, from a 
 
 Consequence: inferred values need a "not confirmed" mark, so a wrong guess is visible and correctable rather than silently load-bearing for a forecast.
 
+### D30. The tracking mode is never asked at creation
+
+Every product starts lot-tracked. "Seri numarası ekle" in the detail screen's overflow flips it to serial tracking the first time the user needs it, behind a confirmation that says it cannot be undone.
+
+Nobody has a good plain-language version of this question. Odoo, Zoho, NetSuite, Katana and inFlow all ask it at creation in warehouse vocabulary (`By Lots` / `By Unique Serial Number`, `Batch Tracking` / `Serial Number Tracking`), and every one except Odoo locks it permanently once stock exists: Katana states outright that you "cannot switch from serial back to batch" and must create a new item, and inFlow calls the choice "permanent for each item upon saving for the first time". The one household-facing tool in that set, Sortly, has no lot or serial concept at all and tells users to hand-type a serial into a custom field.
+
+So there is no wording to copy, and asking it would put a warehouse decision in front of a household user on their first ten products, against the five-minute criterion. Deferring is also the safe direction: lot to serial is the migration that works, and it is the one Odoo documents.
+
+Cost, accepted: a shop selling electronics enters its first products in the wrong mode and converts them one at a time.
+
+### D31. A draft field has three states and no confidence number
+
+Every field on the draft card is loading, empty-because-the-model-was-unsure, or filled. The empty state says so and puts the cursor there; it is never left indistinguishable from an optional field the user chose to skip.
+
+**No numeric confidence, anywhere.** No consumer product surveyed shows one, and the research is against it: well-calibrated confidence helps, miscalibrated confidence produces almost no gain while increasing both over-trust in wrong high-confidence answers and under-trust in correct low-confidence ones (AAAI 2026), and at least one controlled study found confidence categories shifted behaviour without improving accuracy at all. Calibration cannot be guaranteed in production, so the honest signal is a state, not a score.
+
+Apple's own pattern is the same: Visual Look Up shows the affordance or it does not, with no in-between. Dext's "İncelenecek / Hazır" with a tooltip naming what is missing, and Expensify's field-specific failure message, are the precedent for wording the gave-up state.
+
+### D32. A product saves with a name alone
+
+`base_unit` is inferred: from the name ("1 lt" gives `adet` plus a 1000 ml content declaration, "5 kg" gives `kg`), from the category, and failing both it is `adet` and editable. This is D29 applied to the one field the schema will not accept as null.
+
+Inferred values carry a "not confirmed" mark, because a wrongly inferred unit silently changes what every quantity in the ledger means.
+
+Category is NOT required, even though it drives location suggestion through `location_category_affinity`. A mandatory taxonomy picker would be the slowest field on the form and users do not think in taxonomies; an uncategorised product simply gets no location suggestion until it has one.
+
+### D33. Creation is the detail screen in draft state, not a second screen
+
+The detail screen already owns the section structure, the identity card, the barcode list and the shared geometry, and it already has an empty variant. Creating a product lands on it with fields empty and editable; saving does not navigate anywhere, the same card carries on.
+
+Rejected: a separate full page (two copies of the same section structure, and every later change made twice) and a full-height sheet (streaming fields, a photo, a barcode list and a tap-chip group do not fit one, and a phone keyboard halves the remaining height).
+
+Cost: the detail screen carries a draft/saved mode on top of the two tracking modes it already carries. That is three combinations to keep exercised, and D28's record this session says each unexercised combination is where a defect hides.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

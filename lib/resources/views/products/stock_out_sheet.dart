@@ -8,21 +8,31 @@ import 'product_fixtures.dart';
 
 /// Why stock is leaving.
 ///
-/// The list is short and closed on purpose. `data-model.md` makes the reason
-/// load-bearing: forecasting sums consumption and excludes waste, and the waste
-/// metric is a filter on this field. A free-text reason would make both
-/// uncomputable, and a longer list would make the most frequent action slower.
+/// **These names are `data-model.md`'s `stock_movements.reason` values, not the UI's
+/// own vocabulary.** An earlier version invented `consumed` and `wasted`, which would
+/// have needed a translation layer at the API boundary and given two names to one
+/// concept. The schema's list is load-bearing: forecasting sums `consumption` and
+/// excludes `waste`, and the waste metric is a ratio of this field.
+///
+/// The schema has eight values; these are the four a user picks from THIS sheet.
+/// `purchase` comes from stock-in, `transfer_out` from the move flow, `return` from a
+/// supplier flow. Each surface offers only the reasons it can legitimately produce.
 enum StockOutReason {
   /// Used, eaten, fitted, sold. The default, and the only one forecasting counts.
-  consumed,
+  consumption,
 
   /// Spoiled, broken, discarded. Deliberately separate from consumption: a product
   /// thrown away is not demand, and counting it as demand would have the app
   /// recommend buying more of what the user keeps wasting.
-  wasted,
+  waste,
 
-  /// A count correction. Not demand and not waste, just the ledger catching up with
-  /// reality, so it is excluded from both metrics.
+  /// A counted correction after a physical count. The ledger catching up with reality.
+  stockTake,
+
+  /// Fixing a data-entry error. Split from [stockTake] because the schema splits them:
+  /// both are excluded from demand, but one says the shelf was wrong and the other
+  /// says the record was, and only the second suggests the app made entry too easy to
+  /// get wrong.
   correction,
 }
 
@@ -137,7 +147,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
 
   /// The unit in play, for a serial-tracked product. Null in lot mode.
   late SerialFixture? _serial = _soonestWarranty;
-  StockOutReason _reason = StockOutReason.consumed;
+  StockOutReason _reason = StockOutReason.consumption;
 
   /// The chosen amount, preselected rather than left empty.
   ///
@@ -275,8 +285,9 @@ class _StockOutSheetState extends State<StockOutSheet> {
   String _reasonLabel(StockOutReason reason) {
     final bool serial = widget.product.tracking == TrackingMode.serial;
     return switch (reason) {
-      StockOutReason.consumed => serial ? 'Satıldı' : 'Tüketildi',
-      StockOutReason.wasted => 'Zayi',
+      StockOutReason.consumption => serial ? 'Satıldı' : 'Tüketildi',
+      StockOutReason.waste => 'Zayi',
+      StockOutReason.stockTake => 'Sayım',
       StockOutReason.correction => 'Düzeltme',
     };
   }

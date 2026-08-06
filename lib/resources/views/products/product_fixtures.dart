@@ -796,6 +796,43 @@ const List<FilterOption> tagOptions = <FilterOption>[
   FilterOption(id: 'sarf', label: 'sarf'),
 ];
 
+/// The counting table behind automatic location suggestion, per `data-model.md`.
+///
+/// **The signal is (team, CATEGORY, location) -> count, not (product, location).** That
+/// difference is the whole model: a brand new product in a known category gets a
+/// suggestion on its FIRST placement, which is exactly when the suggestion matters and
+/// exactly when a product-level signal has nothing to say.
+///
+/// An earlier version of the stock-in sheet suggested "where this product already is",
+/// which looks equivalent and is not: it returns nothing for a new product and it
+/// cannot answer for a product the user has never placed. It also proposed "Buzdolabı"
+/// for a power drill, because with no lots it fell through to the first option.
+///
+/// Incremented when a placement is accepted, decremented and re-pointed when the user
+/// overrides. The count itself is the explanation shown to the user, which is why
+/// `location-assignment.md` calls it the whole model: there is no training step and the
+/// next suggestion reflects the last correction immediately.
+const Map<String, Map<String, int>> locationCategoryAffinity = <String, Map<String, int>>{
+  'cat-dairy': {'loc-fridge': 9, 'loc-pantry': 1},
+  'cat-grain': {'loc-pantry': 7, 'loc-drawer': 4},
+  'cat-meat': {'loc-freezer': 6},
+  'cat-oil': {'loc-pantry': 5},
+  'cat-electronics': {'loc-shelf': 8},
+  'cat-tools': {'loc-shelf': 11},
+};
+
+/// The location this product's category is usually placed in, and how often.
+///
+/// Returns null when the category has no history, which is a real answer: a first-ever
+/// product in a first-ever category gets no suggestion rather than a fabricated one.
+(String, int)? suggestLocationFor(String? categoryId) {
+  final Map<String, int>? counts = categoryId == null ? null : locationCategoryAffinity[categoryId];
+  if (counts == null || counts.isEmpty) return null;
+
+  final String best = counts.keys.reduce((a, b) => counts[a]! >= counts[b]! ? a : b);
+  return (best, counts[best]!);
+}
+
 /// Resolves a location id to its short label, for a filter chip.
 String? resolveLocationLabel(String id) {
   for (final FilterOption option in locationOptions) {
