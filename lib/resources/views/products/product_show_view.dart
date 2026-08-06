@@ -2,7 +2,13 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageHeader, MSButton, ButtonIntent, ButtonSize;
+    show
+        MSPageHeader,
+        MSButton,
+        ButtonIntent,
+        ButtonSize,
+        MSDropdownMenu,
+        MSDropdownMenuItem;
 
 import '../../../ui/components/expiry_badge/expiry_badge.dart';
 import '../../../ui/components/location_stock_row/location_stock_row.dart';
@@ -42,6 +48,9 @@ class ProductShowView extends StatelessWidget {
   static const IconData _moveIcon = Icons.swap_horiz_outlined;
   static const IconData _labelIcon = Icons.qr_code_2_outlined;
   static const IconData _scanIcon = Icons.barcode_reader;
+  static const IconData _moreIcon = Icons.more_horiz_outlined;
+  static const IconData _outIcon = Icons.remove_outlined;
+  static const IconData _inIcon = Icons.add_outlined;
 
   /// Creates the [ProductShowView].
   const ProductShowView({super.key});
@@ -93,6 +102,19 @@ class ProductShowView extends StatelessWidget {
           className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: 'Etiket bas',
           child: const WIcon(_labelIcon),
+        ),
+        MSDropdownMenu(
+          items: [
+            MSDropdownMenuItem(label: 'Ürünü düzenle', onTap: () {}),
+            MSDropdownMenuItem(label: 'Arşivle', onTap: () {}),
+          ],
+          child: MSButton(
+            onPressed: null,
+            intent: ButtonIntent.ghost,
+            className: 'min-h-11 min-w-11 justify-center',
+            semanticLabel: 'Diğer işlemler',
+            child: const WIcon(_moreIcon),
+          ),
         ),
       ],
     );
@@ -372,25 +394,51 @@ class ProductShowView extends StatelessWidget {
     );
   }
 
-  /// One primary action, full width, on its own row.
+  /// Two actions of equal weight, because stock out and stock in are equally
+  /// frequent and neither is secondary to the other.
   ///
-  /// Recording a movement is what a user opens this screen to do most often, so it
-  /// is the only filled button on the page. It gets its own row because a phone
-  /// cannot fit three buttons side by side, and the earlier attempt at that left the
-  /// label hanging off the left edge of a stretched button instead of centred.
+  /// A single "Hareket ekle" button was the earlier shape, and it was wrong: taking
+  /// one carton of milk out is something a cafe does several times a day, and hiding
+  /// the direction behind a shared button charged an extra tap to the most frequent
+  /// action on the screen. These two read as a matched pair, the way a plus and a
+  /// minus do, rather than as two primaries competing for attention.
+  ///
+  /// Editing and archiving are rare, so they live in the header's overflow instead of
+  /// taking width here.
+  ///
+  /// `justify-center` is load-bearing on both: `fullWidth` and `flex-1` stretch the
+  /// button, but the button recipe's base carries `items-center` and says nothing
+  /// about the main axis, so a stretched button otherwise leaves its label against
+  /// the left edge.
   Widget _buildPrimaryAction() {
     return WDiv(
-      className: 'pb-2',
-      child: MSButton(
-        onPressed: () {},
-        fullWidth: true,
-        // `fullWidth` stretches the button with SizedBox(width: infinity), but the
-        // button recipe's base carries `items-center` and no `justify-center`, so a
-        // stretched button leaves its label at the main-axis start. Without this the
-        // text sits against the left edge of a full-width bar.
-        className: 'justify-center',
-        child: const WText('Hareket ekle'),
-      ),
+      className: 'flex flex-row gap-3 pb-2',
+      children: [
+        WDiv(
+          className: 'flex-1',
+          child: MSButton(
+            onPressed: () {},
+            fullWidth: true,
+            className: 'justify-center gap-2',
+            child: const WDiv(
+              className: 'flex flex-row items-center gap-2',
+              children: [WIcon(_outIcon, className: 'size-4'), WText('Stok çıkar')],
+            ),
+          ),
+        ),
+        WDiv(
+          className: 'flex-1',
+          child: MSButton(
+            onPressed: () {},
+            fullWidth: true,
+            className: 'justify-center gap-2',
+            child: const WDiv(
+              className: 'flex flex-row items-center gap-2',
+              children: [WIcon(_inIcon, className: 'size-4'), WText('Stok ekle')],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
