@@ -39,7 +39,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'bottom_menu',
       builder: (_) => const BottomMenuPreview(),
     ),
-    PreviewEntry(label: 'Callout', slug: 'callout', builder: (_) => const CalloutPreview()),
+    PreviewEntry(
+      label: 'Callout',
+      slug: 'callout',
+      builder: (_) => const CalloutPreview(),
+    ),
     PreviewEntry(
       label: 'DashboardScreen',
       slug: 'dashboard_screen',
@@ -50,7 +54,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'expiry_badge',
       builder: (_) => const ExpiryBadgePreview(),
     ),
-    PreviewEntry(label: 'FilterBar', slug: 'filter_bar', builder: (_) => const FilterBarPreview()),
+    PreviewEntry(
+      label: 'FilterBar',
+      slug: 'filter_bar',
+      builder: (_) => const FilterBarPreview(),
+    ),
     PreviewEntry(
       label: 'FilterChip',
       slug: 'filter_chip',
@@ -71,7 +79,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'login_screen',
       builder: (_) => const LoginScreenPreview(),
     ),
-    PreviewEntry(label: 'LotRow', slug: 'lot_row', builder: (_) => const LotRowPreview()),
+    PreviewEntry(
+      label: 'LotRow',
+      slug: 'lot_row',
+      builder: (_) => const LotRowPreview(),
+    ),
     PreviewEntry(
       label: 'MovementRow',
       slug: 'movement_row',
@@ -107,7 +119,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'profile_screen',
       builder: (_) => const ProfileScreenPreview(),
     ),
-    PreviewEntry(label: 'Quantity', slug: 'quantity', builder: (_) => const QuantityPreview()),
+    PreviewEntry(
+      label: 'Quantity',
+      slug: 'quantity',
+      builder: (_) => const QuantityPreview(),
+    ),
     PreviewEntry(
       label: 'RegisterScreen',
       slug: 'register_screen',
@@ -133,13 +149,21 @@ List<PreviewEntry> previewEntries() {
       slug: 'sidebar_menu',
       builder: (_) => const SidebarMenuPreview(),
     ),
-    PreviewEntry(label: 'StatCard', slug: 'stat_card', builder: (_) => const StatCardPreview()),
+    PreviewEntry(
+      label: 'StatCard',
+      slug: 'stat_card',
+      builder: (_) => const StatCardPreview(),
+    ),
     PreviewEntry(
       label: 'StockBadge',
       slug: 'stock_badge',
       builder: (_) => const StockBadgePreview(),
     ),
-    PreviewEntry(label: 'Tag', slug: 'tag', builder: (_) => const TagPreview()),
+    PreviewEntry(
+      label: 'Tag',
+      slug: 'tag',
+      builder: (_) => const TagPreview(),
+    ),
     PreviewEntry(
       label: 'TeamsScreen',
       slug: 'teams_screen',
@@ -147,3 +171,4 @@ List<PreviewEntry> previewEntries() {
     ),
   ];
 }
+

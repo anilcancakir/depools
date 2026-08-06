@@ -24,6 +24,15 @@ class LotRowPreview extends StatelessWidget {
             WText('Pınar Süt Tam Yağlı 1 lt', className: 'text-base font-semibold text-fg'),
             WText('Buzdolabı · 3 parti', className: 'text-xs text-fg-muted'),
             LotRow(
+              remainingAmount: 0.5,
+              remaining: '500',
+              unit: 'ml',
+              isOpen: true,
+              expiryLabel: '2 gün',
+              daysUntilExpiry: 2,
+              openedLabel: '5 Ağu açıldı · kutuda 12 Ağu yazıyor',
+            ),
+            LotRow(
               remainingAmount: 1,
               remaining: '1',
               unit: 'adet',

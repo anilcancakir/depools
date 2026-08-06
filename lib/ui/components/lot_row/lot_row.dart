@@ -14,6 +14,17 @@ import 'lot_row.recipe.dart';
 /// A depleted lot is faded, not removed. It is the evidence behind the consumption
 /// history, and dropping it would make the ledger look like it lost entries.
 ///
+/// ### The open lot
+///
+/// [isOpen] marks the one lot that has been started. It gets an AÇIK tag and, per
+/// D27, its own date: an opened carton with a week left on the box has three days
+/// left in practice, so showing the printed date here would be the screen telling
+/// the user the opposite of the truth.
+///
+/// This is why the lot list, not the total, is where partial consumption is legible.
+/// The row above says "2 adet + 500 ml"; this list says which 500 ml, opened when,
+/// and by which date it has to go.
+///
 /// ### Example
 ///
 /// ```dart
@@ -47,6 +58,15 @@ class LotRow extends StatelessWidget {
   /// The supplier's batch code, when one is known.
   final String? lotCode;
 
+  /// Whether this lot has been opened and is on its after-opening clock.
+  final bool isOpen;
+
+  /// The already-formatted opening line, for example `'5 Ağu açıldı'`.
+  ///
+  /// Replaces [receivedLabel] when set, rather than joining it. Once something is
+  /// open, when it arrived stops being the useful fact.
+  final String? openedLabel;
+
   /// Whether this lot has reached zero.
   ///
   /// Derived by the caller from the ledger rather than from [remainingAmount],
@@ -65,6 +85,8 @@ class LotRow extends StatelessWidget {
     this.receivedLabel,
     this.lotCode,
     this.isDepleted = false,
+    this.isOpen = false,
+    this.openedLabel,
   });
 
   @override
@@ -80,11 +102,18 @@ class LotRow extends StatelessWidget {
             WDiv(
               className: slots['meta'],
               children: [
+                if (isOpen) WText('Açık', className: slots['openTag']),
                 ?ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry),
                 if (lotCode != null) WText(lotCode!, className: slots['code']),
               ],
             ),
-            if (receivedLabel != null) WText(receivedLabel!, className: slots['received']),
+            // The opening date wins over the arrival date. Both would be two muted
+            // lines saying almost the same thing, and only one of them bounds when
+            // this has to be used.
+            if (isOpen && openedLabel != null)
+              WText(openedLabel!, className: slots['received'])
+            else if (receivedLabel != null)
+              WText(receivedLabel!, className: slots['received']),
           ],
         ),
         Quantity(amount: isDepleted ? 0 : remainingAmount, formatted: remaining, unit: unit),

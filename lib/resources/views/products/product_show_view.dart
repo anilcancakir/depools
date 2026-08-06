@@ -280,14 +280,28 @@ class ProductShowView extends StatelessWidget {
           className: 'flex flex-col gap-1',
           children: [
             WText('Toplam stok', className: 'text-xs text-fg-muted'),
-            const Quantity(amount: 5, formatted: '5', unit: 'adet', size: QuantitySize.lg),
+            // The same figure the list row shows for this product, in the same
+            // format. It said "5 adet" here while the list said "2 adet + 500 ml",
+            // which is the drift this screen is meant to resolve rather than add to:
+            // the detail screen is where a user comes to check a number they doubt.
+            const Quantity(
+              amount: 2.5,
+              formatted: '2',
+              unit: 'adet',
+              remainderFormatted: '500',
+              remainderUnit: 'ml',
+              size: QuantitySize.lg,
+            ),
           ],
         ),
         WDiv(
           className: 'flex flex-col items-end gap-1',
           children: [
             WText('En yakın tarih', className: 'text-xs text-fg-muted'),
-            const ExpiryBadge(label: 'Süresi geçti', daysUntilExpiry: -1),
+            // The open unit's clock, which is sooner than any printed date here. A
+            // headline showing the printed date while an opened carton expires in two
+            // days would be the screen contradicting its own lot list.
+            const ExpiryBadge(label: 'Açık · 2 gün', daysUntilExpiry: 2),
           ],
         ),
       ],
@@ -337,7 +351,7 @@ class ProductShowView extends StatelessWidget {
       className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
       children: [
         WDiv(
-          child: StatCard(label: 'Hedef seviye', value: '6 adet', delta: 'sen belirledin'),
+          child: StatCard(label: 'Hedef seviye', value: '4 adet', delta: 'sen belirledin'),
         ),
         WDiv(
           child: StatCard(
@@ -381,21 +395,28 @@ class ProductShowView extends StatelessWidget {
       children: [
         LocationStockRow(
           path: 'Mutfak › Buzdolabı',
-          amount: 3,
-          quantity: '3',
+          amount: 1.5,
+          quantity: '1',
           unit: 'adet',
-          lotsLabel: '3 parti',
-          expiryLabel: 'Süresi geçti',
-          daysUntilExpiry: -1,
+          remainderFormatted: '500',
+          remainderUnit: 'ml',
+          lotsLabel: '2 parti',
+          expiryLabel: 'Açık · 2 gün',
+          // Two days, not -1. The label was updated when the milk stopped being
+          // expired and the day count was not, so this badge rendered in the solid
+          // expired tone while the same fact in the lot list below rendered soft. The
+          // severity split is the one thing ExpiryBadge cannot be allowed to get
+          // wrong: solid means act today, soft means plan.
+          daysUntilExpiry: 2,
         ),
         LocationStockRow(
           path: 'Kiler › Raf 2',
-          amount: 2,
-          quantity: '2',
+          amount: 1,
+          quantity: '1',
           unit: 'adet',
           lotsLabel: '1 parti',
-          expiryLabel: '9 gün',
-          daysUntilExpiry: 9,
+          expiryLabel: '12 gün',
+          daysUntilExpiry: 12,
         ),
       ],
     );
@@ -423,33 +444,49 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
+    // The lots have to SUM to the headline, and they did not: the list showed
+    // "2 adet + 500 ml" while these added up to 4.5 and included an expired carton
+    // the list knew nothing about. Hand-written fixtures across two screens is how
+    // that happens, and the structural fix is one source for both. Until then these
+    // numbers are checked by hand and the arithmetic is written down:
+    //
+    //   0.5 (open) + 1 + 1 = 2.5 adet, matching the headline and the two locations
+    //   (fridge 1.5 = the open one plus a sealed, pantry 1).
+    //
+    // The depleted lot is excluded from that sum on purpose. It is at zero and stays
+    // visible as the evidence behind the consumption history.
     return const SectionCard(
       label: 'Partiler',
       count: '4 parti',
       children: [
+        // The open lot leads, and it is the reason this list exists rather than just
+        // a total. The row above reads "2 adet + 500 ml"; this says WHICH 500 ml,
+        // opened when, and that it now has two days rather than the week its printed
+        // date still shows. That gap is the whole of D27.
         LotRow(
-          remainingAmount: 1,
-          remaining: '1',
-          unit: 'adet',
-          expiryLabel: 'Süresi geçti',
-          daysUntilExpiry: -1,
-          receivedLabel: '28 Tem alındı',
+          remainingAmount: 0.5,
+          remaining: '500',
+          unit: 'ml',
+          isOpen: true,
+          expiryLabel: '2 gün',
+          daysUntilExpiry: 2,
+          openedLabel: '5 Ağu açıldı · kutuda 12 Ağu yazıyor',
         ),
         LotRow(
           remainingAmount: 1,
           remaining: '1',
           unit: 'adet',
-          expiryLabel: '2 gün',
-          daysUntilExpiry: 2,
+          expiryLabel: '6 gün',
+          daysUntilExpiry: 6,
           receivedLabel: '3 Ağu alındı',
           lotCode: 'L2408-33',
         ),
         LotRow(
-          remainingAmount: 2,
-          remaining: '2',
+          remainingAmount: 1,
+          remaining: '1',
           unit: 'adet',
-          expiryLabel: '9 gün',
-          daysUntilExpiry: 9,
+          expiryLabel: '12 gün',
+          daysUntilExpiry: 12,
           receivedLabel: '5 Ağu alındı',
         ),
         LotRow(

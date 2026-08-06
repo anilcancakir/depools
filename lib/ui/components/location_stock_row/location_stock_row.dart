@@ -41,6 +41,16 @@ class LocationStockRow extends StatelessWidget {
   /// The product's base unit.
   final String? unit;
 
+  /// An already-formatted remainder for an open unit at this location.
+  ///
+  /// Without it the locations under-report: a fridge holding one sealed carton and
+  /// one open half-litre showed "1 adet" while the headline said "2 adet + 500 ml",
+  /// so the two locations summed to less than the total they are a breakdown of.
+  final String? remainderFormatted;
+
+  /// The remainder's unit.
+  final String? remainderUnit;
+
   /// An already-formatted lot count, for example `'2 parti'`.
   final String? lotsLabel;
 
@@ -57,6 +67,8 @@ class LocationStockRow extends StatelessWidget {
     required this.amount,
     required this.quantity,
     this.unit,
+    this.remainderFormatted,
+    this.remainderUnit,
     this.lotsLabel,
     this.expiryLabel,
     this.daysUntilExpiry,
@@ -85,7 +97,13 @@ class LocationStockRow extends StatelessWidget {
         WDiv(
           className: slots['trailing'],
           children: [
-            Quantity(amount: amount, formatted: quantity, unit: unit),
+            Quantity(
+              amount: amount,
+              formatted: quantity,
+              unit: unit,
+              remainderFormatted: remainderFormatted,
+              remainderUnit: remainderUnit,
+            ),
             ?ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry),
           ],
         ),
