@@ -431,7 +431,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
                 [if (lot.isOpen) 'Açık', ?lot.expiryLabel].join(' · '),
                 className: 'text-sm text-fg truncate',
               ),
-              if (suggested) WText('önerilen · en yakın tarih', className: 'text-xs text-expiring'),
+              if (suggested) WText('önerilen · en yakın tarih', className: 'text-xs text-ai'),
             ],
           ),
           Quantity(amount: lot.remaining, formatted: lot.formatted, unit: lot.unit),
@@ -473,8 +473,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
             className: 'flex flex-col gap-0.5 flex-1 min-w-0',
             children: [
               WText(unit.serial, className: 'font-mono text-sm text-fg truncate'),
-              if (suggested)
-                WText('önerilen · garantisi en yakın', className: 'text-xs text-expiring'),
+              if (suggested) WText('önerilen · garantisi en yakın', className: 'text-xs text-ai'),
             ],
           ),
           if (unit.warrantyLabel != null)

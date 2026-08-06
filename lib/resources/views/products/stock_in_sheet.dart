@@ -296,7 +296,7 @@ class _StockInSheetState extends State<StockInSheet> {
         states: selected ? const {'selected'} : const {},
         children: [
           WText(option.fullPath, className: 'text-sm text-fg truncate'),
-          if (suggested) WText(_suggestionReason(option.id), className: 'text-xs text-expiring'),
+          if (suggested) WText(_suggestionReason(option.id), className: 'text-xs text-ai'),
         ],
       ),
     );

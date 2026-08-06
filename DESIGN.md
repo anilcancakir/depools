@@ -243,6 +243,8 @@ Four candidate pairings were rendered side by side at the real type scale, and a
 - A warm grey ramp. This palette is deliberately cool and blue-cast; mixing in a stone or zinc grey makes it read as a different product.
 - Purple or violet gradients on AI surfaces.
 - Raw hex inside a component. Semantic tokens only, enforced by `.design-token-allowlist` and `bin/design-tokens`.
+- **`text-accent`. It does not exist.** `accent` is declared here but `design:sync` emits only `bg-accent`, so `text-accent` drops silently and the text renders at full foreground brightness, which looks like a value rather than a hint. For tinted text use a status family: `text-ai` (teal) for anything the app inferred or suggested, `text-expiring` / `text-low-stock` for the states they name. `bin/design-tokens` cannot catch this, because a dropped alias is not a raw hex.
+- Borrowing a status family for something it does not name. An inference hint in `text-expiring` reads as a date warning; suggestions belong to `text-ai`, which is what DESIGN.md defines that family for.
 
 ## Verifying a change
 
