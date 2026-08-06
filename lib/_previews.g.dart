@@ -8,6 +8,8 @@ import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/foundations.preview.dart';
 import 'preview/login_screen.preview.dart';
+import 'preview/product_index_empty_screen.preview.dart';
+import 'preview/product_index_screen.preview.dart';
 import 'preview/product_show_empty_screen.preview.dart';
 import 'preview/product_show_screen.preview.dart';
 import 'preview/profile_screen.preview.dart';
@@ -20,6 +22,7 @@ import 'ui/components/expiry_badge/expiry_badge.preview.dart';
 import 'ui/components/location_stock_row/location_stock_row.preview.dart';
 import 'ui/components/lot_row/lot_row.preview.dart';
 import 'ui/components/movement_row/movement_row.preview.dart';
+import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/stat_card/stat_card.preview.dart';
@@ -71,6 +74,21 @@ List<PreviewEntry> previewEntries() {
       label: 'MovementRow',
       slug: 'movement_row',
       builder: (_) => const MovementRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductIndexEmptyScreen',
+      slug: 'product_index_empty_screen',
+      builder: (_) => const ProductIndexEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductIndexScreen',
+      slug: 'product_index_screen',
+      builder: (_) => const ProductIndexScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductRow',
+      slug: 'product_row',
+      builder: (_) => const ProductRowPreview(),
     ),
     PreviewEntry(
       label: 'ProductShowEmptyScreen',
