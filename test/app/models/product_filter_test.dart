@@ -289,6 +289,43 @@ void main() {
     });
   });
 
+  group('serial tracking', () {
+    ProductListItem drill() => productFixtures.firstWhere((p) => p.tracking == TrackingMode.serial);
+
+    test('a serial location reports a whole count, not a lot sum', () {
+      // The regression this exists for: summing lots unconditionally reported "0 konum"
+      // beside two drills on a shelf, because a serial-tracked product has no lots.
+      expect(drill().liveSerials.length, 2);
+      expect(drill().amountAt('loc-shelf'), 2);
+      expect(drill().amountAt('loc-fridge'), 0);
+    });
+
+    test('a unit that has left is excluded from the count but kept', () {
+      expect(drill().serials.length, 3);
+      expect(drill().serials.any((u) => u.isGone), isTrue);
+    });
+
+    test('the declared amount matches the live unit count', () {
+      expect(drill().amount, drill().liveSerials.length);
+    });
+
+    test('a serial-tracked product declares no lots and no content', () {
+      // The two models are mutually exclusive by nature, not by policy: partial
+      // consumption (D26) has no meaning for a specific object. Half a drill does not
+      // exist, so a fixture carrying both would describe something impossible.
+      expect(drill().lots, isEmpty);
+      expect(drill().contentAmount, isNull);
+      expect(drill().hasOpenUnit, isFalse);
+    });
+
+    test('a warranty inside its window puts the product in the attention list', () {
+      // Warranty reuses the expiry machinery on purpose, so this needs no separate
+      // predicate. A shop that misses a warranty expiry eats the repair.
+      expect(drill().needsAttention, isTrue);
+      expect(drill().isExpiringSoon, isTrue);
+    });
+  });
+
   group('partial quantities', () {
     ProductListItem itemNamed(String name) =>
         productFixtures.firstWhere((i) => i.name.startsWith(name));

@@ -17,6 +17,7 @@ import '../../../ui/components/lot_row/lot_row.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/section_card/section_card.dart';
+import '../../../ui/components/serial_row/serial_row.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
 import 'product_fixtures.dart';
@@ -93,11 +94,21 @@ class ProductShowView extends StatelessWidget {
   /// a waste figure. Anything derived from the ledger has to go to zero together.
   final bool isNew;
 
+  /// Which fixture to render. Defaults to the lot-tracked milk.
+  final TrackingMode mode;
+
   /// Creates the [ProductShowView].
-  const ProductShowView({super.key}) : isNew = false;
+  const ProductShowView({super.key}) : isNew = false, mode = TrackingMode.lot;
 
   /// Creates the view for a product that has no stock or history yet.
-  const ProductShowView.newProduct({super.key}) : isNew = true;
+  const ProductShowView.newProduct({super.key}) : isNew = true, mode = TrackingMode.lot;
+
+  /// Creates the view for a serial-tracked product (D28).
+  ///
+  /// A separate entry point rather than a parameter on the default one, because the
+  /// serial case has to be REVIEWABLE. Half this design only exists on this path, and
+  /// a variant reachable only by editing a fixture is a variant nobody looks at.
+  const ProductShowView.serialTracked({super.key}) : isNew = false, mode = TrackingMode.serial;
 
   /// The product this screen renders, read from the SAME fixture the list uses.
   ///
@@ -106,7 +117,7 @@ class ProductShowView extends StatelessWidget {
   /// and lots summing to 4.5 while holding an expired carton the list did not have. A
   /// user opens the detail screen to check a number they doubt, so it is the last
   /// place that can afford its own opinion.
-  ProductListItem get _product => productFixtures.first;
+  ProductListItem get _product => productFixtures.firstWhere((p) => p.tracking == mode);
 
   @override
   Widget build(BuildContext context) {
@@ -188,22 +199,24 @@ class ProductShowView extends StatelessWidget {
               children: [
                 WDiv(
                   className: 'flex flex-row wrap items-center gap-1',
-                  children: const [
-                    Tag(label: 'Süt ürünleri', intent: TagIntent.primary, size: TagSize.sm),
-                    Tag(label: 'kahvaltı', size: TagSize.sm),
-                    Tag(label: 'soğuk zincir', size: TagSize.sm),
+                  children: [
+                    if (_product.categoryLabel != null)
+                      Tag(
+                        label: _product.categoryLabel!,
+                        intent: TagIntent.primary,
+                        size: TagSize.sm,
+                      ),
+                    for (final String tag in _product.tags) Tag(label: tag, size: TagSize.sm),
                   ],
                 ),
-                WText(
-                  'Tam yağlı, pastörize inek sütü. 1 litre karton ambalaj, '
-                  'açıldıktan sonra buzdolabında 3 gün içinde tüketilmeli.',
-                  className: 'text-sm text-fg-muted',
-                ),
+                if (_product.description != null)
+                  WText(_product.description!, className: 'text-sm text-fg-muted'),
                 // The tenant's own identifier, mono because it is a code the user
                 // compares character by character against a shelf label or an order.
                 // It sits here rather than in the page subtitle: the subtitle is the
                 // brand, and an earlier pass lost the SKU entirely by merging them.
-                WText('SKU · SUT-PNR-1L', className: 'font-mono text-xs text-fg-muted'),
+                if (_product.sku != null)
+                  WText('SKU · ${_product.sku}', className: 'font-mono text-xs text-fg-muted'),
               ],
             ),
           ],
@@ -237,10 +250,9 @@ class ProductShowView extends StatelessWidget {
   Widget _buildBarcodes() {
     return SectionCard(
       label: 'Barkodlar',
-      count: '2 kod',
+      count: '${_product.barcodes.length} kod',
       children: [
-        _buildBarcodeRow('8690123456789', 'EAN-13 · üretici'),
-        _buildBarcodeRow('DP-0042', 'Code128 · bizim bastığımız'),
+        for (final (String code, String meta) in _product.barcodes) _buildBarcodeRow(code, meta),
       ],
     );
   }
@@ -420,8 +432,13 @@ class ProductShowView extends StatelessWidget {
   }
 
   /// The locations holding live stock, in the order the location list declares them.
+  ///
+  /// Goes through [ProductListItem.amountAt] rather than counting lots directly, so it
+  /// works for both unit models. Counting lots left the serial-tracked screen showing
+  /// "0 konum" beside two drills sitting on a shelf, which is the second time a
+  /// lot-shaped assumption has quietly broken the other mode.
   List<String> get _locationIds =>
-      locationOptions.map((o) => o.id).where((id) => _product.lotsAt(id).isNotEmpty).toList();
+      locationOptions.map((o) => o.id).where((id) => _product.amountAt(id) > 0).toList();
 
   /// One location's row, with its figures taken from the lots it holds.
   ///
@@ -429,6 +446,8 @@ class ProductShowView extends StatelessWidget {
   /// does, and its badge reports the EARLIEST binding date among its own lots, which
   /// is how the fridge ends up flagged and the pantry does not.
   Widget _locationRow(String locationId) {
+    if (_product.tracking == TrackingMode.serial) return _serialLocationRow(locationId);
+
     final List<LotFixture> lots = _product.lotsAt(locationId);
     final LotFixture? open = lots.where((l) => l.isOpen).firstOrNull;
     final num whole = lots.where((l) => !l.isOpen).fold<num>(0, (a, l) => a + l.remaining);
@@ -472,6 +491,13 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
+    // Serial-tracked products get a different section entirely, not a variant of this
+    // one. The subject changes: a lot row's subject is a quantity that can be partly
+    // consumed, a serial row's is a specific object that is either here or not. Trying
+    // to express both in one row means a column that is sometimes "500 ml" and
+    // sometimes an IMEI.
+    if (_product.tracking == TrackingMode.serial) return _buildSerials();
+
     // Rendered from the product's own lots, so the count, the sum and the dates
     // cannot disagree with the list row or with each other. A test asserts the live
     // lots add up to `amount`, which is what the hand-written version could not do.
@@ -491,6 +517,60 @@ class ProductShowView extends StatelessWidget {
             receivedLabel: lot.receivedLabel,
             lotCode: lot.lotCode,
             isDepleted: lot.isDepleted,
+          ),
+      ],
+    );
+  }
+
+  /// A location's row for a serial-tracked product.
+  ///
+  /// A whole count and no remainder, because there is no fraction to express. The date
+  /// is the soonest WARRANTY among the units here, which is what makes a shelf worth
+  /// looking at: a shop that misses a warranty expiry eats the repair.
+  Widget _serialLocationRow(String locationId) {
+    final List<SerialFixture> units = _product.serialsAt(locationId);
+
+    final SerialFixture soonest = units.reduce(
+      (a, b) => (a.warrantyDaysRemaining ?? 9999) <= (b.warrantyDaysRemaining ?? 9999) ? a : b,
+    );
+
+    return LocationStockRow(
+      path: resolveLocationPath(locationId) ?? locationId,
+      amount: units.length,
+      quantity: '${units.length}',
+      unit: _product.unit,
+      lotsLabel: '${units.length} seri',
+      expiryLabel: soonest.warrantyLabel,
+      daysUntilExpiry: soonest.warrantyDaysRemaining,
+    );
+  }
+
+  /// The individually identified units, for a serial-tracked product.
+  ///
+  /// Collapsible, unlike the lot list. A shop holding forty identical drills has forty
+  /// rows here and reads them only when hunting one specific unit, whereas a lot list
+  /// is short by nature and is what the user came for. It still starts open, because a
+  /// section a new user never sees might as well not exist.
+  ///
+  /// Units that have left stay in the list, faded. They are the evidence behind the
+  /// history, and a shop asked "did we ever have this serial" needs the answer to be
+  /// yes rather than silence.
+  Widget _buildSerials() {
+    final int live = _product.liveSerials.length;
+
+    return SectionCard(
+      label: 'Seri numaraları',
+      count: '$live adet',
+      collapsible: true,
+      children: [
+        for (final SerialFixture unit in _product.serials)
+          SerialRow(
+            serial: unit.serial,
+            warrantyLabel: unit.warrantyLabel,
+            warrantyDaysRemaining: unit.warrantyDaysRemaining,
+            receivedLabel: unit.receivedLabel,
+            isGone: unit.isGone,
+            onTap: () {},
           ),
       ],
     );

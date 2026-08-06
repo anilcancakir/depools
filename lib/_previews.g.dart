@@ -12,6 +12,7 @@ import 'preview/product_index_empty_screen.preview.dart';
 import 'preview/product_index_screen.preview.dart';
 import 'preview/product_show_empty_screen.preview.dart';
 import 'preview/product_show_screen.preview.dart';
+import 'preview/product_show_serial_screen.preview.dart';
 import 'preview/profile_screen.preview.dart';
 import 'preview/register_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
@@ -28,6 +29,7 @@ import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
+import 'ui/components/serial_row/serial_row.preview.dart';
 import 'ui/components/stat_card/stat_card.preview.dart';
 import 'ui/components/stock_badge/stock_badge.preview.dart';
 import 'ui/components/tag/tag.preview.dart';
@@ -103,6 +105,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const ProductShowScreenPreview(),
     ),
     PreviewEntry(
+      label: 'ProductShowSerialScreen',
+      slug: 'product_show_serial_screen',
+      builder: (_) => const ProductShowSerialScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'ProfileScreen',
       slug: 'profile_screen',
       builder: (_) => const ProfileScreenPreview(),
@@ -123,6 +130,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'section_header',
       builder: (_) => const SectionHeaderPreview(),
     ),
+    PreviewEntry(label: 'SerialRow', slug: 'serial_row', builder: (_) => const SerialRowPreview()),
     PreviewEntry(
       label: 'SettingsScreen',
       slug: 'settings_screen',

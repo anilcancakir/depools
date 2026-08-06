@@ -3,6 +3,64 @@ import 'package:flutter/foundation.dart';
 import '../../../app/models/product_filter.dart';
 import 'product_filter_sheet.dart';
 
+/// How a product's units are identified.
+///
+/// D28 ships both in v1, chosen per product. They are mutually exclusive by nature
+/// rather than by policy: a lot is a quantity of interchangeable things, a serial is
+/// one specific thing, and the partial-consumption model (D26) only makes sense for
+/// the first. Half a drill does not exist.
+enum TrackingMode {
+  /// Fungible units. Quantities add up, lots carry expiry, halves are possible.
+  lot,
+
+  /// Individually identified units. One row per physical item with its own serial and
+  /// its own warranty, quantities are whole counts, no partial consumption.
+  serial,
+}
+
+/// One individually identified unit: a serial number and what is known about it.
+///
+/// The serial-tracking counterpart to [LotFixture]. The differences are the point:
+/// there is no remaining amount because a unit is present or it is not, and the date
+/// that matters is a warranty end rather than an expiry.
+///
+/// **The warranty reuses the expiry machinery deliberately.** Same derived warning
+/// window, same badge, same place in the attention list. A warranty running out and a
+/// carton going off are the same shape of problem (a date that makes something worth
+/// less once it passes), and giving them two mechanisms would mean two things to keep
+/// in sync for no gain.
+@immutable
+class SerialFixture {
+  /// The serial, IMEI or asset tag. Rendered in mono, because it gets read aloud and
+  /// typed back in.
+  final String serial;
+
+  /// Days until the warranty ends. Negative means it already has, null means none.
+  final int? warrantyDaysRemaining;
+
+  /// The already-formatted warranty label for a badge.
+  final String? warrantyLabel;
+
+  /// The already-formatted acquisition line.
+  final String? receivedLabel;
+
+  /// Which location holds this unit.
+  final String locationId;
+
+  /// Whether this unit has left. Kept for the history, excluded from counts.
+  final bool isGone;
+
+  /// Creates a [SerialFixture].
+  const SerialFixture({
+    required this.serial,
+    required this.locationId,
+    this.warrantyDaysRemaining,
+    this.warrantyLabel,
+    this.receivedLabel,
+    this.isGone = false,
+  });
+}
+
 /// One lot of a product: a batch with its own date and its own remaining amount.
 ///
 /// The lots are the SOURCE for a product's totals, not a second opinion about them.
@@ -167,6 +225,32 @@ class ProductListItem {
   /// The already-formatted expiry label for the row.
   final String? expiryLabel;
 
+  /// The product's own description, as printed on the pack or written by the user.
+  final String? description;
+
+  /// The tenant's SKU.
+  final String? sku;
+
+  /// The category's already-localised label, for the identity card's tag.
+  final String? categoryLabel;
+
+  /// The barcodes on this product, as (code, meta) pairs.
+  ///
+  /// Held here rather than on the screen because a second product proved the point:
+  /// the detail screen showed a carton of milk's EAN-13 on a power drill, which is the
+  /// same class of defect as the totals drifting and has the same fix.
+  final List<(String, String)> barcodes;
+
+  /// How this product's units are identified.
+  ///
+  /// Drives which section the detail screen shows and whether partial amounts are
+  /// offered at all. Defaults to [TrackingMode.lot], because that is what most stock
+  /// is and because a serial-tracked product has to opt in by declaring serials.
+  final TrackingMode tracking;
+
+  /// The individually identified units, when [tracking] is [TrackingMode.serial].
+  final List<SerialFixture> serials;
+
   /// The lots behind this product's stock, when the fixture declares them.
   ///
   /// When non-empty these are authoritative: [amount], [openRemainder] and
@@ -196,7 +280,20 @@ class ProductListItem {
     this.openRemainder,
     this.openDaysRemaining,
     this.lots = const [],
+    this.tracking = TrackingMode.lot,
+    this.serials = const [],
+    this.description,
+    this.sku,
+    this.categoryLabel,
+    this.barcodes = const [],
   });
+
+  /// The units still on hand.
+  List<SerialFixture> get liveSerials => serials.where((u) => !u.isGone).toList();
+
+  /// The units at one location.
+  List<SerialFixture> serialsAt(String locationId) =>
+      serials.where((u) => u.locationId == locationId && !u.isGone).toList();
 
   /// The lots that still hold something, earliest binding date first.
   ///
@@ -208,8 +305,18 @@ class ProductListItem {
   List<LotFixture> lotsAt(String locationId) =>
       lots.where((l) => l.locationId == locationId && !l.isDepleted).toList();
 
-  /// Stock at one location, in base units, derived from its lots.
-  num amountAt(String locationId) => lotsAt(locationId).fold<num>(0, (sum, l) => sum + l.remaining);
+  /// Stock at one location, derived from whichever unit model this product uses.
+  ///
+  /// A serial-tracked location holds a whole COUNT, which is the difference that
+  /// matters: there is no fraction to sum because a unit is present or it is not.
+  ///
+  /// Summing lots unconditionally left the serial-tracked screen reporting "0 konum"
+  /// beside two drills sitting on a shelf. That is the second time a lot-shaped
+  /// assumption has quietly broken the other mode, which is the standing cost of D28
+  /// and the reason both paths need a fixture and a preview.
+  num amountAt(String locationId) => tracking == TrackingMode.serial
+      ? serialsAt(locationId).length
+      : lotsAt(locationId).fold<num>(0, (sum, l) => sum + l.remaining);
 
   /// Whether one unit is open and partly used.
   bool get hasOpenUnit => openRemainder != null && openRemainder! > 0;
@@ -421,6 +528,12 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
     locationSummary: 'Buzdolabı, Kiler',
     categoryId: 'cat-dairy',
     tags: {'kahvaltı', 'soğuk zincir'},
+    categoryLabel: 'Süt ürünleri',
+    description:
+        'Tam yağlı, pastörize inek sütü. 1 litre karton ambalaj, açıldıktan sonra '
+        'buzdolabında 3 gün içinde tüketilmeli.',
+    sku: 'SUT-PNR-1L',
+    barcodes: [('8690123456789', 'EAN-13 · üretici'), ('DP-0042', 'Code128 · bizim bastığımız')],
     amount: 2.5,
     formatted: '2',
     unit: 'adet',
@@ -590,6 +703,57 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
     formatted: '3',
     unit: 'adet',
     parLevel: 10,
+  ),
+  // The serial-tracked case (D28). Two drills on hand, each its own object with its
+  // own warranty, and one sold. No expiry, no content, no partial anything: the whole
+  // reason this mode exists is that "1.5 drills" is not a state the world has.
+  //
+  // One warranty is inside its warning window, which is what puts this product in the
+  // attention list. A shop that misses a warranty expiry eats the repair.
+  ProductListItem(
+    name: 'Makita Matkap DHP484',
+    brand: 'Makita',
+    locationIds: {'loc-shelf'},
+    locationSummary: 'Depo › Raf A',
+    categoryId: 'cat-tools',
+    categoryLabel: 'El aleti',
+    description:
+        '18V akülü darbeli matkap, 2 aküyle. Garanti süresi 2 yıl ve her ünite kendi '
+        'seri numarasıyla takip ediliyor.',
+    sku: 'MK-DHP484',
+    barcodes: [('088381872690', 'EAN-13 · üretici')],
+    amount: 2,
+    formatted: '2',
+    unit: 'adet',
+    parLevel: 2,
+    daysUntilExpiry: 2,
+    expiryLabel: 'Garanti · 2 gün',
+    shelfLifeDays: 730,
+    tracking: TrackingMode.serial,
+    serials: [
+      SerialFixture(
+        serial: 'MK-DHP484-002391',
+        locationId: 'loc-shelf',
+        warrantyDaysRemaining: 2,
+        warrantyLabel: 'Garanti · 2 gün',
+        receivedLabel: '12 Şub alındı · Tekno A.Ş.',
+      ),
+      SerialFixture(
+        serial: 'MK-DHP484-002392',
+        locationId: 'loc-shelf',
+        warrantyDaysRemaining: 190,
+        warrantyLabel: '190 gün',
+        receivedLabel: '12 Şub alındı · Tekno A.Ş.',
+      ),
+      SerialFixture(
+        serial: 'MK-DHP484-001044',
+        locationId: 'loc-shelf',
+        warrantyDaysRemaining: -80,
+        warrantyLabel: 'Garanti bitti',
+        receivedLabel: 'satıldı · 8 Tem',
+        isGone: true,
+      ),
+    ],
   ),
   // No expiry, at zero.
   ProductListItem(

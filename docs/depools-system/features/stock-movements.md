@@ -61,4 +61,25 @@ A bag of nails goes out in whole nails, so a product with no content declaration
 - **Moving stock between locations.** The header action exists and does nothing. It is a paired movement in the ledger (out of one location, into another) and it needs the same lot picker.
 - **Undo.** The ledger is append-only, so an undo is a compensating movement rather than a delete. Whether the sheet offers one immediately after a commit, and for how long, is open.
 - **Bulk entry.** A receipt scan produces many lines at once and cannot go through a sheet per line. That belongs to `receipt-ingestion.md` and it is why these two sheets stay single-product.
-- **Serial-tracked products.** D28 puts them in v1. A serial take-out picks a specific unit rather than an amount, so the amount buttons do not apply and the lot picker becomes a serial picker.
+- **Serial-tracked take-out.** The detail screen handles serial tracking (below), but the sheets do not yet: a serial take-out picks a specific unit rather than an amount, so the amount buttons do not apply and the lot picker becomes a serial picker.
+
+## Serial tracking (D28)
+
+A product declares whether its units are fungible or individually identified, and the two are mutually exclusive **by nature rather than by policy**: partial consumption only means something for a quantity. Half a drill does not exist, so a product carrying both a content declaration and serials would describe something impossible. A test asserts a serial-tracked fixture has no lots, no content and no open unit.
+
+What changes on the detail screen:
+
+| Lot-tracked | Serial-tracked |
+|---|---|
+| "Partiler", with a quantity per row | "Seri numaraları", with a serial per row and no quantity |
+| Row date is an expiry | Row date is a warranty end |
+| Location holds a possibly-fractional amount | Location holds a whole count |
+| Section is not collapsible | Section IS collapsible |
+
+The section collapses because forty identical drills are forty rows a user reads only when hunting one specific unit, whereas a lot list is short by nature and is what the user came for.
+
+**The warranty reuses the expiry machinery.** Same derived warning window, same badge, same place in the attention list. A warranty running out and a carton going off are the same shape of problem, a date after which the thing is worth less, and two mechanisms would be two things to keep in sync for no gain. A shop that misses a warranty expiry eats the repair.
+
+**Units that have left stay in the list, faded**, like a depleted lot. A shop asked "did we ever have this serial" needs the answer to be yes rather than silence.
+
+**The standing cost of shipping both models is real and already showing.** Twice now a lot-shaped assumption has quietly broken the serial path: once summing lots for a location total (which reported "0 konum" beside two drills on a shelf) and once hardcoding the identity card (which put a carton of milk's description and EAN-13 on a power drill). Both were invisible until a serial-tracked fixture and its own catalog preview existed. **Every screen that branches on tracking mode needs a fixture and a preview for both paths**, or the second path is the one nobody looks at.
