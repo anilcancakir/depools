@@ -2,13 +2,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show
-        MSCard,
-        CardVariant,
-        MSTypography,
-        TypographyVariant,
-        MSUpgradeNudge,
-        UpgradePrompt;
+    show MSCard, CardVariant, MSTypography, TypographyVariant, MSUpgradeNudge, UpgradePrompt;
 
 /// Dashboard view: the default landing page after successful authentication.
 ///
@@ -63,22 +57,12 @@ class DashboardView extends StatelessWidget {
               flex items-center justify-center
               bg-primary
             ''',
-            child: const WIcon(
-              _iconHero,
-              className: 'text-4xl text-on-primary',
-            ),
+            child: const WIcon(_iconHero, className: 'text-4xl text-on-primary'),
           ),
           const WSpacer(className: 'h-6'),
-          MSTypography(
-            appName,
-            variant: TypographyVariant.h2,
-            className: 'text-center',
-          ),
+          MSTypography(appName, variant: TypographyVariant.h2, className: 'text-center'),
           const WSpacer(className: 'h-2'),
-          const MSTypography(
-            'Built with Magic Starter',
-            variant: TypographyVariant.caption,
-          ),
+          const MSTypography('Built with Magic Starter', variant: TypographyVariant.caption),
 
           const WSpacer(className: 'h-8'),
 
@@ -95,15 +79,13 @@ class DashboardView extends StatelessWidget {
               _buildLinkCard(
                 icon: _iconGitHub,
                 title: 'GitHub',
-                description:
-                    'Star the repo, report issues, or contribute code.',
+                description: 'Star the repo, report issues, or contribute code.',
                 url: 'https://github.com/fluttersdk/magic',
               ),
               _buildLinkCard(
                 icon: _iconCli,
                 title: 'CLI Commands',
-                description:
-                    'Run `magic --help` to see all available commands.',
+                description: 'Run `magic --help` to see all available commands.',
                 url: 'https://magic.fluttersdk.com/cli',
               ),
             ],
@@ -140,10 +122,7 @@ class DashboardView extends StatelessWidget {
               const WText('by', className: 'text-xs text-fg-muted'),
               WAnchor(
                 onTap: () => Launch.url('https://anilcancakir.com'),
-                child: const WText(
-                  'Anılcan Çakır',
-                  className: 'text-xs font-medium text-fg',
-                ),
+                child: const WText('Anılcan Çakır', className: 'text-xs font-medium text-fg'),
               ),
             ],
           ),
@@ -183,10 +162,7 @@ class DashboardView extends StatelessWidget {
             child: WDiv(
               className: 'flex flex-row items-center gap-1',
               children: [
-                const WText(
-                  'Learn more',
-                  className: 'text-sm font-medium text-fg',
-                ),
+                const WText('Learn more', className: 'text-sm font-medium text-fg'),
                 const WIcon(_iconArrow, className: 'text-sm text-fg'),
               ],
             ),

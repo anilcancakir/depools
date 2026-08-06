@@ -15,10 +15,7 @@ const WindRecipe tagRecipe = WindRecipe(
       'warning': 'bg-warning text-on-primary',
       'danger': 'bg-destructive-container text-fg',
     },
-    'size': {
-      'sm': 'px-2 py-0.5 text-xs',
-      'md': 'px-2.5 py-1 text-sm',
-    },
+    'size': {'sm': 'px-2 py-0.5 text-xs', 'md': 'px-2.5 py-1 text-sm'},
   },
   defaultVariants: {'intent': 'neutral', 'size': 'sm'},
 );

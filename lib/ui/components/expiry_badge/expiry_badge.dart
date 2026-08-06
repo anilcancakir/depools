@@ -134,10 +134,7 @@ class ExpiryBadge extends StatelessWidget {
     }
 
     return WDiv(
-      className: expiryBadgeRecipe()(
-        variants: {'urgency': urgency.name},
-        className: className,
-      ),
+      className: expiryBadgeRecipe()(variants: {'urgency': urgency.name}, className: className),
       children: [
         WIcon(_icon, className: expiryBadgeIconRecipe()()),
         WText(label),

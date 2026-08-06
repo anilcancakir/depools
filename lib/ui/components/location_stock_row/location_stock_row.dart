@@ -70,9 +70,7 @@ class LocationStockRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final slots = locationStockRowRecipe()(
-      variants: {'state': holdsNone ? 'empty' : 'stocked'},
-    );
+    final slots = locationStockRowRecipe()(variants: {'state': holdsNone ? 'empty' : 'stocked'});
 
     return WDiv(
       className: slots['root'],

@@ -64,8 +64,7 @@ class LotRowPreview extends StatelessWidget {
           children: [
             WText('Ayçiçek Yağı 5 lt', className: 'text-base font-semibold text-fg'),
             WText('Tarihsiz bir parti hiç rozet göstermez', className: 'text-xs text-fg-muted'),
-            LotRow(remainingAmount: 2,
-              remaining: '2', unit: 'adet', receivedLabel: '1 Ağu alındı'),
+            LotRow(remainingAmount: 2, remaining: '2', unit: 'adet', receivedLabel: '1 Ağu alındı'),
           ],
         ),
       ],

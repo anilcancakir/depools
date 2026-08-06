@@ -106,9 +106,7 @@ class Quantity extends StatelessWidget {
         if (unit != null)
           WText(
             unit!,
-            className: quantityUnitRecipe()(
-              variants: {'size': size.name, 'tone': toneKey},
-            ),
+            className: quantityUnitRecipe()(variants: {'size': size.name, 'tone': toneKey}),
           ),
       ],
     );

@@ -17,10 +17,7 @@ class ProductShowEmptyScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ScreenPreviewScaffold(
-      state: PreviewState.success,
-      builder: _build,
-    );
+    return const ScreenPreviewScaffold(state: PreviewState.success, builder: _build);
   }
 
   static Widget _build(BuildContext context) => const ProductShowView.newProduct();

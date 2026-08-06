@@ -1,6 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:magic_starter/magic_starter.dart'
-    show MagicStarterProfileSettingsView;
+import 'package:magic_starter/magic_starter.dart' show MagicStarterProfileSettingsView;
 
 import 'preview_mock_harness.dart';
 import 'screen_preview_scaffold.dart';
@@ -13,12 +12,8 @@ class ProfileScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ScreenPreviewScaffold(
-      state: PreviewState.success,
-      builder: _build,
-    );
+    return const ScreenPreviewScaffold(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) =>
-      const MagicStarterProfileSettingsView();
+  static Widget _build(BuildContext context) => const MagicStarterProfileSettingsView();
 }

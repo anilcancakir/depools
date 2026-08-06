@@ -21,6 +21,13 @@ import 'section_header.recipe.dart';
 /// Passing a bare [WText] here produces a control that looks like a link and does
 /// nothing, which is worse than no action at all.
 ///
+/// **[indicator] is the slot for something that is NOT tappable**: a chevron
+/// showing whether a collapsible section is open, a spinner, a count badge. It
+/// exists so that case stops being smuggled through [action], where a
+/// non-interactive widget reads as a dead control. An indicator only makes sense
+/// when an ancestor already makes the whole row the tap target, which is what
+/// [SectionCard] does when it is collapsible.
+///
 /// ### Example
 ///
 /// ```dart
@@ -41,13 +48,13 @@ class SectionHeader extends StatelessWidget {
   /// An optional trailing control. Must be tappable and carry its own hit target.
   final Widget? action;
 
+  /// An optional non-interactive trailing indicator, rendered after [action].
+  ///
+  /// Only meaningful when an ancestor makes the whole header tappable.
+  final Widget? indicator;
+
   /// Creates a [SectionHeader].
-  const SectionHeader({
-    super.key,
-    required this.label,
-    this.count,
-    this.action,
-  });
+  const SectionHeader({super.key, required this.label, this.count, this.action, this.indicator});
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +70,8 @@ class SectionHeader extends StatelessWidget {
             if (count != null) WText(count!, className: slots['count']),
           ],
         ),
-        ?action,
+        if (action != null || indicator != null)
+          WDiv(className: slots['trailing'], children: [?action, ?indicator]),
       ],
     );
   }

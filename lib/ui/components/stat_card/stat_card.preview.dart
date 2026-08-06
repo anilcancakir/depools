@@ -13,11 +13,7 @@ class StatCardPreview extends StatelessWidget {
     return WDiv(
       className: 'flex flex-row flex-wrap gap-4 p-6',
       children: const [
-        StatCard(
-          label: 'Active users',
-          value: '1,284',
-          delta: '+12% this week',
-        ),
+        StatCard(label: 'Active users', value: '1,284', delta: '+12% this week'),
         StatCard(label: 'Revenue', value: '\$8,420', delta: '+3.1%'),
         StatCard(label: 'Sessions', value: '42.1k'),
       ],

@@ -43,24 +43,9 @@ final class PreviewSampleData {
 
   /// A representative set of teams the sample user belongs to.
   static List<Map<String, dynamic>> get teams => <Map<String, dynamic>>[
-    <String, dynamic>{
-      'id': 10,
-      'name': 'Engineering',
-      'personal_team': false,
-      'role': 'owner',
-    },
-    <String, dynamic>{
-      'id': 11,
-      'name': 'Design',
-      'personal_team': false,
-      'role': 'admin',
-    },
-    <String, dynamic>{
-      'id': 12,
-      'name': 'Personal',
-      'personal_team': true,
-      'role': 'owner',
-    },
+    <String, dynamic>{'id': 10, 'name': 'Engineering', 'personal_team': false, 'role': 'owner'},
+    <String, dynamic>{'id': 11, 'name': 'Design', 'personal_team': false, 'role': 'admin'},
+    <String, dynamic>{'id': 12, 'name': 'Personal', 'personal_team': true, 'role': 'owner'},
   ];
 
   /// A representative notifications page.
@@ -154,10 +139,7 @@ final class PreviewMockNetworkDriver implements NetworkDriver {
     if (url.contains('teams')) return PreviewSampleData.teams;
     if (url.contains('notifications')) return PreviewSampleData.notifications;
     if (url.contains('login') || url.contains('register')) {
-      return <String, dynamic>{
-        'token': 'preview-token',
-        'user': PreviewSampleData.user,
-      };
+      return <String, dynamic>{'token': 'preview-token', 'user': PreviewSampleData.user};
     }
     return PreviewSampleData.user;
   }
@@ -170,11 +152,8 @@ final class PreviewMockNetworkDriver implements NetworkDriver {
       _respond('DELETE', url);
 
   @override
-  Future<MagicResponse> destroy(
-    String resource,
-    String id, {
-    Map<String, String>? headers,
-  }) => _respond('DESTROY', '$resource/$id');
+  Future<MagicResponse> destroy(String resource, String id, {Map<String, String>? headers}) =>
+      _respond('DESTROY', '$resource/$id');
 
   @override
   Future<MagicResponse> get(
@@ -191,25 +170,16 @@ final class PreviewMockNetworkDriver implements NetworkDriver {
   }) => _respond('INDEX', resource);
 
   @override
-  Future<MagicResponse> post(
-    String url, {
-    dynamic data,
-    Map<String, String>? headers,
-  }) => _respond('POST', url, data: data);
+  Future<MagicResponse> post(String url, {dynamic data, Map<String, String>? headers}) =>
+      _respond('POST', url, data: data);
 
   @override
-  Future<MagicResponse> put(
-    String url, {
-    dynamic data,
-    Map<String, String>? headers,
-  }) => _respond('PUT', url, data: data);
+  Future<MagicResponse> put(String url, {dynamic data, Map<String, String>? headers}) =>
+      _respond('PUT', url, data: data);
 
   @override
-  Future<MagicResponse> show(
-    String resource,
-    String id, {
-    Map<String, String>? headers,
-  }) => _respond('SHOW', '$resource/$id');
+  Future<MagicResponse> show(String resource, String id, {Map<String, String>? headers}) =>
+      _respond('SHOW', '$resource/$id');
 
   @override
   Future<MagicResponse> store(
@@ -271,9 +241,7 @@ final class PreviewMockHarness {
     //    secure storage is unavailable on the preview platform).
     if (_installed != state) {
       _installed = state;
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => unawaited(_seedAuth()),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_seedAuth()));
     }
 
     return driver;

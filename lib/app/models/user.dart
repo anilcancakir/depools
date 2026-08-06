@@ -35,8 +35,7 @@ import 'team.dart';
 /// final user = User.current;
 /// Log.debug(user.name);
 /// ```
-class User extends Model
-    with HasTimestamps, InteractsWithPersistence, Authenticatable {
+class User extends Model with HasTimestamps, InteractsWithPersistence, Authenticatable {
   /// The table associated with the model.
   @override
   String get table => 'users';
@@ -53,13 +52,7 @@ class User extends Model
 
   /// The attributes that are mass assignable.
   @override
-  List<String> get fillable => [
-    'name',
-    'email',
-    'phone',
-    'timezone',
-    'language',
-  ];
+  List<String> get fillable => ['name', 'email', 'phone', 'timezone', 'language'];
 
   /// The attributes that should be cast.
   @override
@@ -108,15 +101,13 @@ class User extends Model
 
   /// The user's current team.
   Team? get currentTeam {
-    final Map<String, dynamic>? data =
-        getAttribute('current_team') as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = getAttribute('current_team') as Map<String, dynamic>?;
     return data != null ? Team.fromMap(data) : null;
   }
 
   /// All teams the user belongs to.
   List<Team> get allTeams {
-    final List<dynamic> data =
-        getAttribute('all_teams') as List<dynamic>? ?? [];
+    final List<dynamic> data = getAttribute('all_teams') as List<dynamic>? ?? [];
     return data.map((t) => Team.fromMap(t as Map<String, dynamic>)).toList();
   }
 
@@ -131,16 +122,14 @@ class User extends Model
   /// ```dart
   /// final user = await User.find('abc123');
   /// ```
-  static Future<User?> find(dynamic id) =>
-      InteractsWithPersistence.findById<User>(id, User.new);
+  static Future<User?> find(dynamic id) => InteractsWithPersistence.findById<User>(id, User.new);
 
   /// Get all users.
   ///
   /// ```dart
   /// final users = await User.all();
   /// ```
-  static Future<List<User>> all() =>
-      InteractsWithPersistence.allModels<User>(User.new);
+  static Future<List<User>> all() => InteractsWithPersistence.allModels<User>(User.new);
 
   /// Get the currently authenticated user.
   ///

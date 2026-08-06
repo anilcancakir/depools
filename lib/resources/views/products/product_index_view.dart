@@ -2,10 +2,10 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageHeader, MSButton, ButtonIntent, ButtonSize, MSEmptyState;
+    show MSPageScaffold, MSButton, ButtonIntent, ButtonSize, MSEmptyState;
 
 import '../../../ui/components/product_row/product_row.dart';
-import '../../../ui/components/section_header/section_header.dart';
+import '../../../ui/components/section_card/section_card.dart';
 
 /// Stock list: every product the tenant holds, and the home surface in inventory mode.
 ///
@@ -54,22 +54,7 @@ class ProductIndexView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return WDiv(
-      className: 'w-full h-full overflow-y-auto bg-surface',
-      scrollPrimary: true,
-      child: WDiv(
-        className: 'flex flex-col gap-4 p-4 md:px-5',
-        children: [
-          _buildHeader(),
-          if (!isEmpty) _buildSearch(),
-          if (isEmpty) _buildEmpty() else ..._buildList(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return MSPageHeader(
+    return MSPageScaffold(
       title: 'Stok',
       subtitle: isEmpty ? null : 'Mutfak Deposu · 42 ürün',
       actions: [
@@ -87,6 +72,7 @@ class ProductIndexView extends StatelessWidget {
           child: const WIcon(_addIcon),
         ),
       ],
+      children: [if (!isEmpty) _buildSearch(), if (isEmpty) _buildEmpty() else ..._buildList()],
     );
   }
 
@@ -222,10 +208,15 @@ class ProductIndexView extends StatelessWidget {
   /// three surfaces for the same reason.
   List<Widget> _buildList() {
     return [
-      WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+      SectionCard(
+        label: 'Dikkat gerekiyor',
+        count: '3 ürün',
+        // The only collapsible section on the screen. A cafe owner opens this screen
+        // daily for exactly this list, so it starts open; once it is dealt with, the
+        // whole block folds away instead of pushing the catalogue down the page. The
+        // count stays visible closed, which is what keeps "3 ürün" actionable.
+        collapsible: true,
         children: [
-          const SectionHeader(label: 'Dikkat gerekiyor', count: '3 ürün'),
           ProductRow(
             name: 'Pınar Süt Tam Yağlı 1 lt',
             meta: 'Pınar · Buzdolabı, Kiler',
@@ -256,26 +247,23 @@ class ProductIndexView extends StatelessWidget {
           ),
         ],
       ),
-      WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
-        children: [
-          SectionHeader(
-            label: 'Tüm ürünler',
-            count: '42 ürün',
-            action: MSButton(
-              onPressed: () {},
-              intent: ButtonIntent.ghost,
-              size: ButtonSize.sm,
-              className: 'min-h-11 axis-min',
-              child: const WDiv(
-                className: 'flex flex-row items-center gap-0.5 axis-min',
-                children: [
-                  WText('Tümü'),
-                  WIcon(Icons.chevron_right_outlined, className: 'size-4'),
-                ],
-              ),
-            ),
+      SectionCard(
+        label: 'Tüm ürünler',
+        count: '42 ürün',
+        action: MSButton(
+          onPressed: () {},
+          intent: ButtonIntent.ghost,
+          size: ButtonSize.sm,
+          className: 'min-h-11 axis-min',
+          child: const WDiv(
+            className: 'flex flex-row items-center gap-0.5 axis-min',
+            children: [
+              WText('Tümü'),
+              WIcon(Icons.chevron_right_outlined, className: 'size-4'),
+            ],
           ),
+        ),
+        children: [
           ProductRow(
             name: 'Ayçiçek Yağı 5 lt',
             meta: 'Yudum · Kiler › Raf 2',

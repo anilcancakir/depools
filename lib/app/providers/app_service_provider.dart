@@ -37,11 +37,23 @@ class AppServiceProvider extends ServiceProvider {
       },
       locales: {'en': 'English'},
       currentTeam: () => User.current.currentTeam?.toMagicStarterTeam(),
-      allTeams: () =>
-          User.current.allTeams.map((t) => t.toMagicStarterTeam()).toList(),
-      onSwitch: (teamId) =>
-          MagicStarterTeamController.instance.switchTeam(teamId),
+      allTeams: () => User.current.allTeams.map((t) => t.toMagicStarterTeam()).toList(),
+      onSwitch: (teamId) => MagicStarterTeamController.instance.switchTeam(teamId),
     );
+
+    // Magic Starter: one page geometry for every page, ours and the starter's.
+    //
+    // Set here rather than per page because MSPageContainer reads exactly one
+    // value: a page that carries its own cap disagrees with its neighbours inside
+    // the same shell, which is the drift MSPageScaffold's docblock describes.
+    //
+    // The values follow DESIGN.md's Layout section: `p-4` (16px) edge margins on
+    // mobile widening to 20px, and `max-w-6xl` (1152px) as the content cap. The cap
+    // matters because web is the review surface here, not a scaled phone: without
+    // one, a product row stretched a full desktop window puts the quantity column
+    // an eye-movement away from the name it belongs to. 6xl keeps a long list
+    // scannable while still showing more rows than a phone.
+    MagicStarter.manager.pageContainerClassName = 'max-w-6xl px-4 md:px-5 pt-6 pb-16';
 
     // Magic Starter: Navigation items for sidebar and mobile bottom bar.
     MagicStarter.useNavigation(

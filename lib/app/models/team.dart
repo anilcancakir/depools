@@ -68,8 +68,7 @@ class Team extends Model with HasTimestamps, InteractsWithPersistence {
   String? get profilePhotoUrl => getAttribute('profile_photo_url') as String?;
 
   /// Set the URL of the team's profile photo.
-  set profilePhotoUrl(String? value) =>
-      setAttribute('profile_photo_url', value);
+  set profilePhotoUrl(String? value) => setAttribute('profile_photo_url', value);
 
   /// Check if this is a personal team (automatically created for the owner).
   bool get isPersonalTeam => getAttribute('personal_team') == true;
@@ -109,16 +108,14 @@ class Team extends Model with HasTimestamps, InteractsWithPersistence {
   /// ```dart
   /// final team = await Team.find('abc123');
   /// ```
-  static Future<Team?> find(dynamic id) =>
-      InteractsWithPersistence.findById<Team>(id, Team.new);
+  static Future<Team?> find(dynamic id) => InteractsWithPersistence.findById<Team>(id, Team.new);
 
   /// Get all teams.
   ///
   /// ```dart
   /// final teams = await Team.all();
   /// ```
-  static Future<List<Team>> all() =>
-      InteractsWithPersistence.allModels<Team>(Team.new);
+  static Future<List<Team>> all() => InteractsWithPersistence.allModels<Team>(Team.new);
 
   // ---------------------------------------------------------------------------
   // Factory Methods

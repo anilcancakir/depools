@@ -12,10 +12,7 @@ Map<String, dynamic> get networkConfig => {
       'api': {
         'base_url': env('API_URL', 'http://localhost:8000/api/v1'),
         'timeout': 10000,
-        'headers': {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        'headers': {'Accept': 'application/json', 'Content-Type': 'application/json'},
       },
     },
   },

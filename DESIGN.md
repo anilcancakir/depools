@@ -228,6 +228,8 @@ Four candidate pairings were rendered side by side at the real type scale, and a
 
 - Minimum 44x44 hit target on everything interactive. Pad invisibly rather than shrink a control.
 - Screen-edge margins: `p-4` (16px) on mobile, `md:px-5` (20px) at wider widths. Not one margin everywhere.
+- Content width caps at `max-w-6xl` (1152px), centred. Set once as `MagicStarter.manager.pageContainerClassName` in `AppServiceProvider.boot`, never per page. Web is the review surface, so the cap is generous rather than a reading column, but it is a cap: an uncapped product row on a desktop window puts the quantity an eye-movement away from the name it belongs to.
+- Every page goes through `MSPageScaffold`. It owns the surface fill, the scroll, the shared geometry and the header, so a page never hand-rolls its own chrome. A page that does drifts from its neighbours in width and header offset inside the same shell.
 - Reflow vertically at narrow widths. Never truncate to fit.
 - Mobile is the capture surface, web is the review surface. Design each for its job rather than making one a scaled copy of the other.
 

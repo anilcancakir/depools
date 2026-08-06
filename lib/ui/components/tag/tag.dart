@@ -64,9 +64,7 @@ class Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return WDiv(
-      className: tagRecipe(
-        variants: {'intent': intent.name, 'size': size.name},
-      ),
+      className: tagRecipe(variants: {'intent': intent.name, 'size': size.name}),
       child: WText(label),
     );
   }

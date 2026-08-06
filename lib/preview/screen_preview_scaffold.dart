@@ -127,11 +127,7 @@ class _ScreenPreviewScaffoldState extends State<ScreenPreviewScaffold> {
   /// Wraps [child] in the authenticated app shell (`layout.app`) under a
   /// [MediaQuery] whose width is overridden to [width], pinning the shell's
   /// responsive sidebar-vs-bottom-nav decision for this preview.
-  Widget _withShell(
-    BuildContext context, {
-    required double width,
-    required Widget child,
-  }) {
+  Widget _withShell(BuildContext context, {required double width, required Widget child}) {
     final MediaQueryData base = MediaQuery.of(context);
     return MediaQuery(
       data: base.copyWith(size: Size(width, _shellHeight)),

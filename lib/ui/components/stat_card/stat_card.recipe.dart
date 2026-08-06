@@ -8,8 +8,7 @@ String statCardRootClassName() =>
     'bg-surface-container px-5 py-4';
 
 /// Label: small, muted, uppercase.
-String statCardLabelClassName() =>
-    'text-xs font-medium uppercase tracking-wide text-fg-muted';
+String statCardLabelClassName() => 'text-xs font-medium uppercase tracking-wide text-fg-muted';
 
 /// Value: the large headline figure.
 String statCardValueClassName() => 'text-2xl font-semibold text-fg';

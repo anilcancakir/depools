@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show
-        MSPageHeader,
+        MSPageScaffold,
         MSButton,
         ButtonIntent,
         ButtonSize,
@@ -16,7 +16,7 @@ import '../../../ui/components/location_stock_row/location_stock_row.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
-import '../../../ui/components/section_header/section_header.dart';
+import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
 
@@ -98,37 +98,14 @@ class ProductShowView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return WDiv(
-      className: 'w-full h-full overflow-y-auto bg-surface',
-      scrollPrimary: true,
-      child: WDiv(
-        className: 'flex flex-col gap-5 p-4 md:px-5',
-        children: [
-          _buildHeader(),
-          _buildIdentity(),
-          _buildBarcodes(),
-          _buildStockSummary(),
-          _buildForecast(),
-          _buildLocations(),
-          _buildLots(),
-          _buildMovements(),
-          _buildPrimaryAction(),
-        ],
-      ),
-    );
-  }
-
-  /// The page title, with the two secondary actions as icon buttons.
-  ///
-  /// "Taşı" and "Etiket" live here rather than beside the primary button at the
-  /// bottom. Three buttons in one row does not fit a phone, and it left the screen
-  /// with no clear primary. As icons in the header they stay reachable without
-  /// competing, and each carries a `semanticLabel` because an icon-only control is
-  /// nameless to a screen reader otherwise.
-  Widget _buildHeader() {
-    return MSPageHeader(
+    return MSPageScaffold(
       title: 'Pınar Süt Tam Yağlı 1 lt',
       subtitle: 'Pınar',
+      // "Taşı" and "Etiket" live in the header rather than beside the primary button
+      // at the bottom. Three buttons in one row does not fit a phone, and it left the
+      // screen with no clear primary. As icons in the header they stay reachable
+      // without competing, and each carries a `semanticLabel` because an icon-only
+      // control is nameless to a screen reader otherwise.
       actions: [
         MSButton(
           onPressed: () {},
@@ -158,6 +135,16 @@ class ProductShowView extends StatelessWidget {
             child: const WIcon(_moreIcon),
           ),
         ),
+      ],
+      children: [
+        _buildIdentity(),
+        _buildBarcodes(),
+        _buildStockSummary(),
+        _buildForecast(),
+        _buildLocations(),
+        _buildLots(),
+        _buildMovements(),
+        _buildPrimaryAction(),
       ],
     );
   }
@@ -233,10 +220,10 @@ class ProductShowView extends StatelessWidget {
   /// already in the header. Adding an action to each card for symmetry would be
   /// noise competing with the two that mean something.
   Widget _buildBarcodes() {
-    return WDiv(
-      className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+    return SectionCard(
+      label: 'Barkodlar',
+      count: '2 kod',
       children: [
-        const SectionHeader(label: 'Barkodlar', count: '2 kod'),
         _buildBarcodeRow('8690123456789', 'EAN-13 · üretici'),
         _buildBarcodeRow('DP-0042', 'Code128 · bizim bastığımız'),
       ],
@@ -368,10 +355,9 @@ class ProductShowView extends StatelessWidget {
 
   Widget _buildLocations() {
     if (isNew) {
-      return WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+      return SectionCard(
+        label: 'Konumlar',
         children: [
-          const SectionHeader(label: 'Konumlar'),
           WDiv(
             // Full width so MSEmptyState's own `items-center` has something to centre
             // in; see the note in ProductIndexView for why a `justify-center` row is
@@ -389,10 +375,10 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
-    return const WDiv(
-      className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+    return const SectionCard(
+      label: 'Konumlar',
+      count: '2 konum',
       children: [
-        SectionHeader(label: 'Konumlar', count: '2 konum'),
         LocationStockRow(
           path: 'Mutfak › Buzdolabı',
           amount: 3,
@@ -417,10 +403,9 @@ class ProductShowView extends StatelessWidget {
 
   Widget _buildLots() {
     if (isNew) {
-      return WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+      return SectionCard(
+        label: 'Partiler',
         children: [
-          const SectionHeader(label: 'Partiler'),
           WDiv(
             // Full width so MSEmptyState's own `items-center` has something to centre
             // in; see the note in ProductIndexView for why a `justify-center` row is
@@ -438,10 +423,10 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
-    return const WDiv(
-      className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+    return const SectionCard(
+      label: 'Partiler',
+      count: '4 parti',
       children: [
-        SectionHeader(label: 'Partiler', count: '4 parti'),
         LotRow(
           remainingAmount: 1,
           remaining: '1',
@@ -482,10 +467,9 @@ class ProductShowView extends StatelessWidget {
 
   Widget _buildMovements() {
     if (isNew) {
-      return WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+      return SectionCard(
+        label: 'Hareketler',
         children: [
-          const SectionHeader(label: 'Hareketler'),
           WDiv(
             // Full width so MSEmptyState's own `items-center` has something to centre
             // in; see the note in ProductIndexView for why a `justify-center` row is
@@ -503,31 +487,33 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
-    return WDiv(
-      className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
-      children: [
-        SectionHeader(
-          label: 'Hareketler',
-          count: '9 kayıt',
-          action: MSButton(
-            onPressed: () {},
-            intent: ButtonIntent.ghost,
-            size: ButtonSize.sm,
-            // `axis-min`, not `justify-center`. MSButton's inner row is a Flutter Row,
-            // which defaults to MainAxisSize.max, so a button handed free space fills
-            // it: this one grew to half the card width and read as a filled panel
-            // rather than a link. `justify-center` only centres the content inside
-            // that stretched box; `axis-min` is what stops the stretching.
-            className: 'min-h-11 axis-min',
-            child: const WDiv(
-              className: 'flex flex-row items-center gap-0.5 axis-min',
-              children: [
-                WText('Tümü'),
-                WIcon(_chevronIcon, className: 'size-4'),
-              ],
-            ),
-          ),
+    return SectionCard(
+      label: 'Hareketler',
+      count: '9 kayıt',
+      // Collapsible, unlike the sections above it. This is the audit trail: a user
+      // reads it when a number looks wrong, not on every visit, and it is the one
+      // section that keeps growing. It still starts open, because a section a new
+      // user never sees might as well not exist.
+      collapsible: true,
+      action: MSButton(
+        onPressed: () {},
+        intent: ButtonIntent.ghost,
+        size: ButtonSize.sm,
+        // `axis-min`, not `justify-center`. MSButton's inner row is a Flutter Row,
+        // which defaults to MainAxisSize.max, so a button handed free space fills
+        // it: this one grew to half the card width and read as a filled panel
+        // rather than a link. `justify-center` only centres the content inside
+        // that stretched box; `axis-min` is what stops the stretching.
+        className: 'min-h-11 axis-min',
+        child: const WDiv(
+          className: 'flex flex-row items-center gap-0.5 axis-min',
+          children: [
+            WText('Tümü'),
+            WIcon(_chevronIcon, className: 'size-4'),
+          ],
         ),
+      ),
+      children: [
         const MovementRow(
           reason: 'Satın alındı',
           deltaAmount: 2,

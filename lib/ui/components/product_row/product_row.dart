@@ -76,9 +76,7 @@ class ProductRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final slots = productRowRecipe()(
-      variants: {'state': amount == 0 ? 'depleted' : 'stocked'},
-    );
+    final slots = productRowRecipe()(variants: {'state': amount == 0 ? 'depleted' : 'stocked'});
 
     return WAnchor(
       onTap: onTap,

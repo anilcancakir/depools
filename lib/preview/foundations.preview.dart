@@ -1,7 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart'
-    show MSTypography, TypographyVariant;
+import 'package:magic_starter/magic_starter.dart' show MSTypography, TypographyVariant;
 
 /// Foundations preview: the design-token vocabulary the whole system is built
 /// on, rendered as live swatches so the catalog shows colors and type next to
@@ -76,9 +75,7 @@ class FoundationsPreview extends StatelessWidget {
           WDiv(
             className: 'flex flex-col gap-1 w-36',
             children: [
-              WDiv(
-                className: '$token h-16 rounded-lg border border-color-border',
-              ),
+              WDiv(className: '$token h-16 rounded-lg border border-color-border'),
               WText(name, className: 'text-fg-muted text-xs'),
             ],
           ),

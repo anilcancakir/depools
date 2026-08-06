@@ -39,9 +39,7 @@ WindRecipe expiryBadgeRecipe() {
         'neutral': 'text-fg-muted',
       },
     },
-    defaultVariants: {
-      'urgency': 'neutral',
-    },
+    defaultVariants: {'urgency': 'neutral'},
   );
 }
 

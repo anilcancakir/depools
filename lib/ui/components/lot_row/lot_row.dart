@@ -87,11 +87,7 @@ class LotRow extends StatelessWidget {
             if (receivedLabel != null) WText(receivedLabel!, className: slots['received']),
           ],
         ),
-        Quantity(
-          amount: isDepleted ? 0 : remainingAmount,
-          formatted: remaining,
-          unit: unit,
-        ),
+        Quantity(amount: isDepleted ? 0 : remainingAmount, formatted: remaining, unit: unit),
       ],
     );
   }

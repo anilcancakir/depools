@@ -24,6 +24,7 @@ import 'ui/components/lot_row/lot_row.preview.dart';
 import 'ui/components/movement_row/movement_row.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
+import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/stat_card/stat_card.preview.dart';
 import 'ui/components/tag/tag.preview.dart';
@@ -114,6 +115,11 @@ List<PreviewEntry> previewEntries() {
       label: 'RegisterScreen',
       slug: 'register_screen',
       builder: (_) => const RegisterScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'SectionCard',
+      slug: 'section_card',
+      builder: (_) => const SectionCardPreview(),
     ),
     PreviewEntry(
       label: 'SectionHeader',

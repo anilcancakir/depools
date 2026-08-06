@@ -27,12 +27,7 @@ class StatCard extends StatelessWidget {
   final String? delta;
 
   /// Creates a [StatCard].
-  const StatCard({
-    super.key,
-    required this.label,
-    required this.value,
-    this.delta,
-  });
+  const StatCard({super.key, required this.label, required this.value, this.delta});
 
   @override
   Widget build(BuildContext context) {

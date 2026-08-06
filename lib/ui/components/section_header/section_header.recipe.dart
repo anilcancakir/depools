@@ -16,6 +16,10 @@ import 'package:magic/magic.dart';
 /// element, and the count is a continuation of the label ("Hareketler, 9 kayıt")
 /// while the action is a separate affordance. Right side is reserved for something
 /// tappable.
+///
+/// The `trailing` slot holds the two right-hand slots side by side, so a section
+/// that carries both an action and a state indicator keeps them on one baseline
+/// instead of letting the indicator push the action off the row.
 WindSlotRecipe sectionHeaderRecipe() {
   return const WindSlotRecipe(
     slots: {
@@ -23,6 +27,7 @@ WindSlotRecipe sectionHeaderRecipe() {
       'leading': 'flex flex-row items-baseline gap-2 flex-1 min-w-0',
       'label': 'text-xs font-medium uppercase tracking-wide text-fg-muted',
       'count': 'text-xs font-medium text-fg-disabled truncate',
+      'trailing': 'flex flex-row items-center gap-1 axis-min',
     },
     variants: {},
   );
