@@ -51,6 +51,13 @@ class ProductListItem {
   /// Days until the earliest lot expiry. Null when nothing tracks expiry.
   final int? daysUntilExpiry;
 
+  /// The product's shelf life in days, from `products.default_shelf_life_days`.
+  ///
+  /// Drives [expiryThresholdDays]. Null means unknown, which falls back to the
+  /// neutral default rather than to no warning: a product with an expiry date and no
+  /// declared shelf life still has to be able to warn.
+  final int? shelfLifeDays;
+
   /// The already-formatted expiry label for the row.
   final String? expiryLabel;
 
@@ -68,7 +75,32 @@ class ProductListItem {
     this.parLevel,
     this.daysUntilExpiry,
     this.expiryLabel,
+    this.shelfLifeDays,
   });
+
+  /// The neutral window used when a product declares no shelf life.
+  static const int fallbackThresholdDays = 7;
+
+  /// The longest warning window, in days.
+  ///
+  /// Without a ceiling the proportion runs away on long-life goods: a tin with a two
+  /// year shelf life would start warning 146 days out, which is noise rather than
+  /// signal. Two months is the point where a tin becomes worth acting on.
+  static const int maxThresholdDays = 60;
+
+  /// How many days before expiry this product starts needing attention.
+  ///
+  /// **Derived per product rather than fixed**, which is the decision recorded in
+  /// `open-decisions.md`. One global number cannot be right for both milk and flour:
+  /// seven days always warns about a five-day carton and never warns about a tin.
+  ///
+  /// The window is the last fifth of the shelf life, floored at one day and capped
+  /// at [maxThresholdDays]. Milk (5 days) warns 1 day out; a tin (730 days) warns 60
+  /// days out. Those two ends are what the proportion was chosen to satisfy.
+  int get expiryThresholdDays {
+    final int life = shelfLifeDays ?? fallbackThresholdDays * 5;
+    return (life * 0.2).round().clamp(1, maxThresholdDays);
+  }
 
   /// The meta line under the name: brand and where it is.
   String? get meta {
@@ -76,12 +108,38 @@ class ProductListItem {
     return parts.isEmpty ? null : parts.join(' · ');
   }
 
-  /// Whether this product needs attention: expired, expiring, or out of stock.
+  /// Whether this product needs attention.
   ///
-  /// This is the "Dikkat gerekiyor" test, and it is the same three conditions the
-  /// three built-in saved filters cover. Keeping it here rather than in the view
-  /// means the section and the filters cannot drift apart.
-  bool get needsAttention => amount == 0 || (daysUntilExpiry != null && daysUntilExpiry! <= 2);
+  /// Four conditions, and the order of that list is the point: **out of stock and
+  /// below par come first, because they are the only ones a product without an expiry
+  /// date can trigger.** An earlier version tested expiry and zero stock only, which
+  /// meant a workshop tracking spare parts or a shop tracking chargers got an empty
+  /// attention section no matter how low it ran. This is not a food app; expiry is one
+  /// signal among several rather than the organising one.
+  ///
+  /// It is deliberately the same predicate the built-in saved filters use, so the
+  /// section and the chips cannot disagree. They did once: the section hardcoded two
+  /// days while the filter used seven, so a product could pass "Yakında bitecek" and
+  /// be missing from the section that exists to surface exactly that.
+  bool get needsAttention => amount == 0 || isBelowPar || isExpired || isExpiringSoon;
+
+  /// Whether stock has fallen to or below the user's own target level.
+  ///
+  /// Requires a target the user actually set. Without the null guard, every product
+  /// holding a small amount would report as running low, and "below par" has to mean
+  /// something someone chose.
+  bool get isBelowPar => parLevel != null && amount > 0 && amount <= parLevel!;
+
+  /// Whether the earliest lot is already past its date.
+  bool get isExpired => daysUntilExpiry != null && daysUntilExpiry! < 0;
+
+  /// Whether the earliest lot falls inside this product's own warning window.
+  ///
+  /// Already expired is NOT expiring soon. They are different situations and the user
+  /// picks one of them; folding them together would make "Yakında bitecek" include
+  /// things that went off last month.
+  bool get isExpiringSoon =>
+      daysUntilExpiry != null && daysUntilExpiry! >= 0 && daysUntilExpiry! <= expiryThresholdDays;
 
   /// Whether this product satisfies [filter].
   ///
@@ -114,7 +172,7 @@ class ProductListItem {
       case StockStateFilter.outOfStock:
         if (amount != 0) return false;
       case StockStateFilter.belowPar:
-        if (parLevel == null || amount == 0 || amount > parLevel!) return false;
+        if (!isBelowPar) return false;
       case StockStateFilter.inStock:
         if (amount == 0) return false;
     }
@@ -123,16 +181,9 @@ class ProductListItem {
       case ExpiryFilter.any:
         break;
       case ExpiryFilter.expired:
-        if (daysUntilExpiry == null || daysUntilExpiry! >= 0) return false;
+        if (!isExpired) return false;
       case ExpiryFilter.expiringSoon:
-        // Already expired is not "expiring soon". They are different situations and
-        // the user picked one of them: folding expired items into the horizon would
-        // make "7 gün içinde bitecek" include things that went off last month.
-        if (daysUntilExpiry == null ||
-            daysUntilExpiry! < 0 ||
-            daysUntilExpiry! > filter.expiringWithinDays) {
-          return false;
-        }
+        if (!isExpiringSoon) return false;
     }
 
     return true;
@@ -143,8 +194,15 @@ class ProductListItem {
 ///
 /// Chosen so every filter axis has at least one product that passes and one that
 /// fails it, which is what makes the filter testable by hand in the catalog: an
-/// expired item, one expiring inside a week, one out of stock, one below its target,
-/// and several plain ones across two categories and four locations.
+/// expired item, one inside its own warning window, one out of stock, one below its
+/// target, and several plain ones across several categories and four locations.
+///
+/// **Two of them deliberately track no expiry at all.** This is not a food app, and a
+/// fixture set that was entirely perishable let a real defect through: the attention
+/// section tested expiry and zero stock only, so a tenant tracking spare parts or
+/// chargers saw an empty section however low they ran. A cable below its target level
+/// and a tool at zero are what keep that honest, and they are also what the screen
+/// looks like for a workshop rather than a kitchen.
 const List<ProductListItem> productFixtures = <ProductListItem>[
   ProductListItem(
     name: 'Pınar Süt Tam Yağlı 1 lt',
@@ -159,6 +217,9 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
     parLevel: 6,
     daysUntilExpiry: -1,
     expiryLabel: 'Süresi geçti',
+    // 5 days of shelf life, so the warning window derives to 1 day. Seven days would
+    // mean this carton is in the attention list from the moment it is bought.
+    shelfLifeDays: 5,
   ),
   ProductListItem(
     name: 'Bulgur',
@@ -173,6 +234,7 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
     parLevel: 2,
     daysUntilExpiry: 2,
     expiryLabel: '2 gün',
+    shelfLifeDays: 365,
   ),
   ProductListItem(
     name: 'Kıyma',
@@ -207,6 +269,9 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
     unit: 'adet',
     daysUntilExpiry: 9,
     expiryLabel: '9 gün',
+    // 21 days of shelf life gives a 4 day window, so 9 days out this is NOT yet in
+    // the attention list. The same 9 days on the milk above would be.
+    shelfLifeDays: 21,
   ),
   ProductListItem(
     name: 'Un',
@@ -220,6 +285,32 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
     unit: 'kg',
     parLevel: 5,
   ),
+  // No expiry, below its target. This is the row a workshop or a shop opens the
+  // screen for, and it has to reach the attention section on stock level alone.
+  ProductListItem(
+    name: 'USB-C Kablo 2 m',
+    brand: 'Anker',
+    locationIds: {'loc-shelf'},
+    locationSummary: 'Depo › Raf A',
+    categoryId: 'cat-electronics',
+    tags: {'sarf'},
+    amount: 3,
+    formatted: '3',
+    unit: 'adet',
+    parLevel: 10,
+  ),
+  // No expiry, at zero.
+  ProductListItem(
+    name: 'Tornavida Seti PH2',
+    brand: 'Ceta Form',
+    locationIds: {'loc-shelf'},
+    locationSummary: 'Depo › Raf A',
+    categoryId: 'cat-tools',
+    amount: 0,
+    formatted: '0',
+    unit: 'adet',
+    parLevel: 2,
+  ),
 ];
 
 /// The location options the filter sheet offers, ordered as the tree reads.
@@ -228,6 +319,7 @@ const List<FilterOption> locationOptions = <FilterOption>[
   FilterOption(id: 'loc-freezer', label: 'Derin dondurucu'),
   FilterOption(id: 'loc-pantry', label: 'Kiler'),
   FilterOption(id: 'loc-drawer', label: 'Kiler › Çekmece 2'),
+  FilterOption(id: 'loc-shelf', label: 'Depo › Raf A'),
 ];
 
 /// The category options the filter sheet offers.
@@ -236,6 +328,8 @@ const List<FilterOption> categoryOptions = <FilterOption>[
   FilterOption(id: 'cat-grain', label: 'Bakliyat ve tahıl'),
   FilterOption(id: 'cat-meat', label: 'Et'),
   FilterOption(id: 'cat-oil', label: 'Yağ'),
+  FilterOption(id: 'cat-electronics', label: 'Elektronik'),
+  FilterOption(id: 'cat-tools', label: 'El aleti'),
 ];
 
 /// The tag options the filter sheet offers. A tag is its own id.
@@ -243,6 +337,7 @@ const List<FilterOption> tagOptions = <FilterOption>[
   FilterOption(id: 'kahvaltı', label: 'kahvaltı'),
   FilterOption(id: 'soğuk zincir', label: 'soğuk zincir'),
   FilterOption(id: 'bakliyat', label: 'bakliyat'),
+  FilterOption(id: 'sarf', label: 'sarf'),
 ];
 
 /// Resolves a location id to its label, for a filter chip.

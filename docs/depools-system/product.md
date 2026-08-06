@@ -60,7 +60,9 @@ So the app ships both surfaces and lets the user pick which one is the front doo
 
 This is a user preference, changeable at any time, not an onboarding fork that locks them in. Both modes read and write the same data through the same rules. Neither mode is a degraded version of the other.
 
-Platform split follows naturally: mobile is where capture happens (camera, scanner, voice), web is where review happens (bulk edit, reports, label sheets, billing).
+There is no platform split. iOS, Android and web are one Flutter app with one feature set: everything a user can do on a phone they can do in a browser, and the design is the same in both. Capture (camera, scanner, voice) and review (bulk edit, reports, label sheets, billing) are all present everywhere, laid out for the WIDTH they are given rather than for the platform they run on.
+
+What differs is only what the hardware makes convenient. A phone in a shop is where a receipt photo usually gets taken because the camera is in your hand; a wide window is where a bulk edit usually happens because the rows fit. Neither is enforced, and neither screen is missing on the other platform.
 
 ## What the product does not do
 

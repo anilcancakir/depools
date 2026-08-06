@@ -114,7 +114,9 @@ Write tools in v2 use `preview=true` by default plus an idempotency key on apply
 
 ### D17. Three platforms, one Flutter app, mobile first
 
-iOS, Android and web. No macOS, Windows or Linux. Mobile is the capture surface, web is the review surface. Design-concept driven on `magic` plus `wind`, with `DESIGN.md`, `design:sync` and a token allowlist, following the `uptizm` pattern.
+iOS, Android and web. No macOS, Windows or Linux. **One source, one feature set, one design on all three**: no platform-only screens, no feature hidden by platform, and layout that branches on width (`md:`, `lg:`) rather than on platform (`ios:`, `web:`). Design-concept driven on `magic` plus `wind`, with `DESIGN.md`, `design:sync` and a token allowlist, following the `uptizm` pattern.
+
+Corrected 2026-08-06: an earlier version of this decision assigned roles per platform ("mobile captures, web reviews"). That was wrong and it was starting to leak into the code as a justification for layout choices. Where hardware differs the app uses what the platform offers (camera versus file picker) and the feature itself never moves.
 
 None of the MVP's UI survives: it was landscape-locked with a fixed 320px sidebar, a desktop table abstraction and an eight-step modal wizard.
 

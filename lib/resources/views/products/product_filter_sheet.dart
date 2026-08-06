@@ -131,12 +131,13 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
             onChanged: (index) => _set(_draft.copyWith(stockState: _stockStates[index])),
           ),
         ),
+        // "Son kullanma" carries no day count, because the window is derived per
+        // product from its shelf life: milk warns a day out, a tin two months out.
+        // A segment saying "7 gün" would be a promise the filter no longer makes.
         _group(
           'Son kullanma',
           MSSegmentedControl<ExpiryFilter>(
-            options: _expiries
-                .map((e) => ProductFilter.expirySegmentLabel(e, _draft.expiringWithinDays))
-                .toList(),
+            options: _expiries.map(ProductFilter.expirySegmentLabel).toList(),
             selectedIndex: _expiries.indexOf(_draft.expiry),
             onChanged: (index) => _set(_draft.copyWith(expiry: _expiries[index])),
           ),

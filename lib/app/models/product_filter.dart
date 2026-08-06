@@ -17,9 +17,12 @@ enum StockStateFilter {
 
 /// The expiry axis.
 ///
-/// Deliberately a small closed set rather than a free date range. "Bitmek üzere"
-/// is the question a user actually has, and `expiringSoon` carries the horizon in
-/// [ProductFilter.expiringWithinDays] so the same option covers 3 days and 30.
+/// Deliberately a small closed set rather than a free date range. "Bitmek üzere" is
+/// the question a user actually has.
+///
+/// **`expiringSoon` carries no number.** The window is derived per product from its
+/// shelf life, so the filter cannot name one: seven days always warns about milk and
+/// never warns about a tin. See `ProductListItem.expiryThresholdDays`.
 enum ExpiryFilter {
   /// No expiry constraint.
   any,
@@ -27,7 +30,7 @@ enum ExpiryFilter {
   /// Earliest lot expiry is in the past.
   expired,
 
-  /// Earliest lot expiry falls within the horizon.
+  /// Earliest lot expiry is inside the product's own warning window.
   expiringSoon,
 }
 
@@ -84,9 +87,6 @@ class ProductFilter {
   /// The expiry constraint.
   final ExpiryFilter expiry;
 
-  /// The horizon for [ExpiryFilter.expiringSoon], in days.
-  final int expiringWithinDays;
-
   /// Creates a [ProductFilter].
   const ProductFilter({
     this.query = '',
@@ -96,14 +96,9 @@ class ProductFilter {
     this.brands = const {},
     this.stockState = StockStateFilter.any,
     this.expiry = ExpiryFilter.any,
-    this.expiringWithinDays = 7,
   });
 
   /// Whether nothing is narrowing the list.
-  ///
-  /// [expiringWithinDays] is not consulted: it is the horizon for an expiry
-  /// constraint, not a constraint itself, so a filter carrying only a changed
-  /// horizon is still empty.
   bool get isEmpty =>
       query.isEmpty &&
       locationIds.isEmpty &&
@@ -156,7 +151,7 @@ class ProductFilter {
     if (expiry != ExpiryFilter.any) {
       out.add(
         FilterCriterion(
-          label: expiryLabel(expiry, expiringWithinDays),
+          label: expiryLabel(expiry),
           remainder: copyWith(expiry: ExpiryFilter.any),
         ),
       );
@@ -202,22 +197,22 @@ class ProductFilter {
 
   /// The already-localised label for an expiry constraint, as a removable chip.
   ///
-  /// Says the whole thing, because a chip has to stand alone: read out of context
-  /// in a row of criteria, "7 gün" could be an age, a horizon or a quantity.
-  static String expiryLabel(ExpiryFilter expiry, int withinDays) => switch (expiry) {
+  /// Says the whole thing, because a chip has to stand alone: read out of context in
+  /// a row of criteria, "Yakında" could be almost anything.
+  static String expiryLabel(ExpiryFilter expiry) => switch (expiry) {
     ExpiryFilter.any => 'Tümü',
     ExpiryFilter.expired => 'Süresi geçti',
-    ExpiryFilter.expiringSoon => '$withinDays gün içinde bitecek',
+    ExpiryFilter.expiringSoon => 'Yakında bitecek',
   };
 
   /// The same constraint, shortened for a segmented control.
   ///
   /// The group label ("Son kullanma") already supplies what the chip has to spell
   /// out, so the segment can drop the verb and fit three options on a phone.
-  static String expirySegmentLabel(ExpiryFilter expiry, int withinDays) => switch (expiry) {
+  static String expirySegmentLabel(ExpiryFilter expiry) => switch (expiry) {
     ExpiryFilter.any => 'Tümü',
     ExpiryFilter.expired => 'Geçti',
-    ExpiryFilter.expiringSoon => '$withinDays gün',
+    ExpiryFilter.expiringSoon => 'Yakında',
   };
 
   /// Returns a copy with the given fields replaced.
@@ -229,7 +224,6 @@ class ProductFilter {
     Set<String>? brands,
     StockStateFilter? stockState,
     ExpiryFilter? expiry,
-    int? expiringWithinDays,
   }) {
     return ProductFilter(
       query: query ?? this.query,
@@ -239,7 +233,6 @@ class ProductFilter {
       brands: brands ?? this.brands,
       stockState: stockState ?? this.stockState,
       expiry: expiry ?? this.expiry,
-      expiringWithinDays: expiringWithinDays ?? this.expiringWithinDays,
     );
   }
 
@@ -256,7 +249,6 @@ class ProductFilter {
       if (brands.isNotEmpty) 'brands': brands.toList(),
       if (stockState != StockStateFilter.any) 'stock_state': stockState.name,
       if (expiry != ExpiryFilter.any) 'expiry': expiry.name,
-      if (expiry == ExpiryFilter.expiringSoon) 'expiring_within_days': expiringWithinDays,
     };
   }
 
@@ -285,11 +277,6 @@ class ProductFilter {
         (e) => e.name == map['expiry'],
         orElse: () => ExpiryFilter.any,
       ),
-      expiringWithinDays: switch (map['expiring_within_days']) {
-        final int days => days,
-        final String days => int.tryParse(days) ?? 7,
-        _ => 7,
-      },
     );
   }
 
@@ -302,8 +289,7 @@ class ProductFilter {
         setEquals(other.tags, tags) &&
         setEquals(other.brands, brands) &&
         other.stockState == stockState &&
-        other.expiry == expiry &&
-        other.expiringWithinDays == expiringWithinDays;
+        other.expiry == expiry;
   }
 
   @override
@@ -315,7 +301,6 @@ class ProductFilter {
     Object.hashAllUnordered(brands),
     stockState,
     expiry,
-    expiringWithinDays,
   );
 }
 

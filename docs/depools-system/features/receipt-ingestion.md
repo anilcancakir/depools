@@ -33,7 +33,7 @@ The clean path. The user forwards an invoice email to their unique inbound addre
 
 ## Path B: photograph
 
-1. The user photographs the receipt. Mobile is the primary surface.
+1. The user supplies the receipt image: the camera on a phone, the camera or a file picker in a browser. Same screen, same parse, same review on all three platforms; only the input control differs, because that is a hardware difference and not a feature difference.
 2. The image is downscaled and stored, and a `receipts` row is created immediately so the work is never lost.
 3. Extraction produces line items with per-line confidence, through `ReceiptExtractionGateway`.
 4. Each line's abbreviated name is normalised and resolved (this is the hard part, see below).

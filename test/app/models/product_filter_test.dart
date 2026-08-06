@@ -13,10 +13,8 @@ void main() {
       expect(const ProductFilter().isEmpty, isTrue);
     });
 
-    test('a changed expiry horizon alone is still empty', () {
-      // The horizon is the parameter of a constraint, not a constraint. If this
-      // regressed, the bar would show an "applied" row with no criteria in it.
-      expect(const ProductFilter(expiringWithinDays: 30).isEmpty, isTrue);
+    test('the expiry axis alone makes it active', () {
+      expect(const ProductFilter(expiry: ExpiryFilter.expiringSoon).isActive, isTrue);
     });
 
     test('any single axis makes it active', () {
@@ -64,10 +62,7 @@ void main() {
         tags: {'kahvaltı'},
       );
 
-      expect(
-        filter.criteria().map((c) => c.label),
-        ['"süt"', 'Az kalan', 'kahvaltı'],
-      );
+      expect(filter.criteria().map((c) => c.label), ['"süt"', 'Az kalan', 'kahvaltı']);
     });
   });
 
@@ -81,7 +76,6 @@ void main() {
         brands: {'Pınar'},
         stockState: StockStateFilter.belowPar,
         expiry: ExpiryFilter.expiringSoon,
-        expiringWithinDays: 14,
       );
 
       expect(ProductFilter.fromMap(filter.toMap()), filter);
@@ -119,10 +113,7 @@ void main() {
 
     test('a product in any selected location matches', () {
       // Pınar Süt is in two locations. Selecting either one has to find it.
-      expect(
-        itemNamed('Pınar').matches(const ProductFilter(locationIds: {'loc-pantry'})),
-        isTrue,
-      );
+      expect(itemNamed('Pınar').matches(const ProductFilter(locationIds: {'loc-pantry'})), isTrue);
       expect(
         itemNamed('Pınar').matches(const ProductFilter(locationIds: {'loc-freezer'})),
         isFalse,
@@ -155,30 +146,48 @@ void main() {
     test('an expired product is not "expiring soon"', () {
       // Pınar Süt went off yesterday. Folding it into the horizon would make
       // "7 gün içinde bitecek" include things that expired last month.
-      expect(
-        itemNamed('Pınar').matches(const ProductFilter(expiry: ExpiryFilter.expired)),
-        isTrue,
-      );
+      expect(itemNamed('Pınar').matches(const ProductFilter(expiry: ExpiryFilter.expired)), isTrue);
       expect(
         itemNamed('Pınar').matches(const ProductFilter(expiry: ExpiryFilter.expiringSoon)),
         isFalse,
       );
     });
 
-    test('the horizon is respected on both sides', () {
-      // Yoğurt has 9 days left: inside 14, outside 7.
-      expect(
-        itemNamed('Yoğurt').matches(
-          const ProductFilter(expiry: ExpiryFilter.expiringSoon, expiringWithinDays: 14),
-        ),
-        isTrue,
+    test('the window is derived from each product\'s own shelf life', () {
+      // This is the whole reason the fixed horizon went away. Yoğurt has 9 days left
+      // on a 21 day shelf life, so its window is 4 days and 9 days out is NOT a
+      // warning. The same 9 days on a 5 day carton of milk would be, several times
+      // over. One global number cannot express both.
+      const soon = ProductFilter(expiry: ExpiryFilter.expiringSoon);
+
+      expect(itemNamed('Yoğurt').expiryThresholdDays, 4);
+      expect(itemNamed('Yoğurt').matches(soon), isFalse);
+
+      expect(itemNamed('Pınar').expiryThresholdDays, 1);
+      expect(itemNamed('Bulgur').expiryThresholdDays, 60); // 365 days, hits the cap
+      expect(itemNamed('Bulgur').matches(soon), isTrue); // 2 days left, well inside
+    });
+
+    test('the window is floored at a day and capped at two months', () {
+      // A one-day-shelf-life item must still get a window, and a ten year item must
+      // not start warning three years out.
+      const fresh = ProductListItem(
+        name: 'Taze',
+        amount: 1,
+        formatted: '1',
+        unit: 'adet',
+        shelfLifeDays: 1,
       );
-      expect(
-        itemNamed('Yoğurt').matches(
-          const ProductFilter(expiry: ExpiryFilter.expiringSoon, expiringWithinDays: 7),
-        ),
-        isFalse,
+      const forever = ProductListItem(
+        name: 'Konserve',
+        amount: 1,
+        formatted: '1',
+        unit: 'adet',
+        shelfLifeDays: 3650,
       );
+
+      expect(fresh.expiryThresholdDays, 1);
+      expect(forever.expiryThresholdDays, ProductListItem.maxThresholdDays);
     });
 
     test('a product that tracks no expiry never matches an expiry constraint', () {

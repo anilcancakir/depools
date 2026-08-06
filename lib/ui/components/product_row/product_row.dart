@@ -4,6 +4,7 @@ import 'package:magic/magic.dart';
 
 import '../expiry_badge/expiry_badge.dart';
 import '../quantity/quantity.dart';
+import '../stock_badge/stock_badge.dart';
 import 'product_row.recipe.dart';
 
 /// **ProductRow**
@@ -58,6 +59,13 @@ class ProductRow extends StatelessWidget {
   /// Days until that earliest expiry.
   final int? daysUntilExpiry;
 
+  /// The user-set target level, used to decide whether to show a low-stock badge.
+  ///
+  /// Without this the row cannot say WHY a product with stock on hand needs
+  /// attention. "3 adet" is not low on its own; it is low against a target of ten,
+  /// and a warning that does not name its own cause gets ignored or distrusted.
+  final num? parLevel;
+
   /// Called when the row is tapped, which opens the product.
   final VoidCallback? onTap;
 
@@ -71,6 +79,7 @@ class ProductRow extends StatelessWidget {
     this.unit,
     this.expiryLabel,
     this.daysUntilExpiry,
+    this.parLevel,
     this.onTap,
   });
 
@@ -98,11 +107,30 @@ class ProductRow extends StatelessWidget {
             className: slots['trailing'],
             children: [
               Quantity(amount: amount, formatted: formatted, unit: unit),
-              ?ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry),
+              // ONE badge, the most urgent. A product can be both expired and below
+              // par, and rendering both stacked them into a three-line row: the
+              // attention list lost its uniform rhythm and the date, which is the
+              // signal with a deadline, stopped leading. Whichever is worse is what
+              // the user acts on first, and acting on it changes the other anyway
+              // (throwing out the expired carton makes the shortfall bigger).
+              //
+              // The full picture belongs on the detail screen, which has the room to
+              // show the target level and every lot date at once.
+              ?_buildBadge(),
             ],
           ),
         ],
       ),
     );
+  }
+
+  /// The single most urgent status, or null when nothing needs saying.
+  ///
+  /// Order: expired, then expiring, then below par. Expiry outranks stock level
+  /// because it has a deadline that no amount of reordering fixes.
+  Widget? _buildBadge() {
+    final Widget? expiry = ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry);
+    if (expiry != null) return expiry;
+    return StockBadge.maybe(amount: amount, parLevel: parLevel);
   }
 }

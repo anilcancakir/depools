@@ -29,6 +29,7 @@ import 'ui/components/quantity/quantity.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/stat_card/stat_card.preview.dart';
+import 'ui/components/stock_badge/stock_badge.preview.dart';
 import 'ui/components/tag/tag.preview.dart';
 
 List<PreviewEntry> previewEntries() {
@@ -133,6 +134,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const SidebarMenuPreview(),
     ),
     PreviewEntry(label: 'StatCard', slug: 'stat_card', builder: (_) => const StatCardPreview()),
+    PreviewEntry(
+      label: 'StockBadge',
+      slug: 'stock_badge',
+      builder: (_) => const StockBadgePreview(),
+    ),
     PreviewEntry(label: 'Tag', slug: 'tag', builder: (_) => const TagPreview()),
     PreviewEntry(
       label: 'TeamsScreen',

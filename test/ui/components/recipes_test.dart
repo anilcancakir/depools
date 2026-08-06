@@ -13,10 +13,7 @@ void main() {
       expect(cls, contains('bg-surface-container-high')); // neutral intent
       expect(cls, contains('px-2 py-0.5 text-xs')); // size sm
       // Emission order: base before variants.
-      expect(
-        cls.indexOf('rounded-full'),
-        lessThan(cls.indexOf('bg-surface-container-high')),
-      );
+      expect(cls.indexOf('rounded-full'), lessThan(cls.indexOf('bg-surface-container-high')));
     });
 
     test('danger + md swaps the intent and size tokens', () {
@@ -33,28 +30,16 @@ void main() {
     });
 
     test('caller className appends last', () {
-      final cls = tagRecipe(
-        variants: {'intent': 'primary', 'size': 'sm'},
-        className: 'ml-2',
-      );
+      final cls = tagRecipe(variants: {'intent': 'primary', 'size': 'sm'}, className: 'ml-2');
       expect(cls, endsWith('ml-2'));
     });
   });
 
   group('calloutRecipe', () {
     test('each intent selects its own container tone', () {
-      expect(
-        calloutRecipe(variants: {'intent': 'neutral'}),
-        contains('bg-surface-container-high'),
-      );
-      expect(
-        calloutRecipe(variants: {'intent': 'info'}),
-        contains('bg-primary-container'),
-      );
-      expect(
-        calloutRecipe(variants: {'intent': 'danger'}),
-        contains('bg-destructive-container'),
-      );
+      expect(calloutRecipe(variants: {'intent': 'neutral'}), contains('bg-surface-container-high'));
+      expect(calloutRecipe(variants: {'intent': 'info'}), contains('bg-primary-container'));
+      expect(calloutRecipe(variants: {'intent': 'danger'}), contains('bg-destructive-container'));
     });
 
     test('base layout tokens are always present', () {

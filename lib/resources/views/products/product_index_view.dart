@@ -400,6 +400,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       unit: item.unit,
       expiryLabel: item.expiryLabel,
       daysUntilExpiry: item.daysUntilExpiry,
+      parLevel: item.parLevel,
       onTap: () {},
     );
   }
