@@ -27,6 +27,10 @@ WindSlotRecipe receiptLineRowRecipe() {
       'body': 'flex flex-col gap-0.5 flex-1 min-w-0',
       'name': 'text-sm font-semibold text-fg truncate',
       'extracted': 'font-mono text-xs text-fg-muted truncate',
+      // An unresolved line leads with the extracted string, so it takes the name's
+      // weight while keeping mono: it is still machine text being compared character by
+      // character, and it is still the only thing the user has to go on.
+      'unresolvedName': 'font-mono text-sm font-semibold text-fg truncate',
       'prompt': 'text-sm font-medium text-ai',
       'meta': 'text-xs text-fg-muted truncate',
       'trailing': 'flex flex-col items-end gap-0.5 axis-min',

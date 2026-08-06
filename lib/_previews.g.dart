@@ -16,6 +16,7 @@ import 'preview/product_show_empty_screen.preview.dart';
 import 'preview/product_show_screen.preview.dart';
 import 'preview/product_show_serial_screen.preview.dart';
 import 'preview/profile_screen.preview.dart';
+import 'preview/receipt_review_screen.preview.dart';
 import 'preview/register_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
@@ -138,6 +139,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ReceiptLineRow',
       slug: 'receipt_line_row',
       builder: (_) => const ReceiptLineRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'ReceiptReviewScreen',
+      slug: 'receipt_review_screen',
+      builder: (_) => const ReceiptReviewScreenPreview(),
     ),
     PreviewEntry(
       label: 'RegisterScreen',

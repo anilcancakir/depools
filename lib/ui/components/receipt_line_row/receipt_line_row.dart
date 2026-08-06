@@ -151,12 +151,24 @@ class ReceiptLineRow extends StatelessWidget {
           WDiv(
             className: slots['body'],
             children: [
-              if (resolution == LineResolution.unresolved)
-                WText('Eşleştirilemedi', className: slots['prompt'])
-              else
+              // **The hierarchy inverts for an unresolved line, and it has to.** A first
+              // pass made "Eşleştirilemedi" the primary text, which stacked four
+              // identical headlines down the card: the row's most prominent line carried
+              // no information and the only thing distinguishing the four sat beneath it
+              // in muted mono.
+              //
+              // For an unresolved line the extracted string IS the content, because it is
+              // all that is known, so it leads. The state moves underneath. For a
+              // resolved line the product name leads and the extracted string is the
+              // evidence, which is the other way round for the same reason.
+              if (resolution == LineResolution.unresolved) ...[
+                WText(extracted, className: slots['unresolvedName']),
+                WText('Eşleştirilemedi', className: slots['prompt']),
+              ] else ...[
                 WText(productName ?? extracted, className: slots['name']),
-              // The paper's own words, always. This is what the user checks against.
-              WText(extracted, className: slots['extracted']),
+                // The paper's own words, always. This is what the user checks against.
+                WText(extracted, className: slots['extracted']),
+              ],
               if (_meta != null) WText(_meta!, className: slots['meta']),
             ],
           ),
