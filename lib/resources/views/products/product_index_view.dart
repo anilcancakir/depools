@@ -4,8 +4,12 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSPageScaffold, MSButton, ButtonIntent, ButtonSize, MSEmptyState;
 
+import '../../../app/models/product_filter.dart';
+import '../../../ui/components/filter_bar/filter_bar.dart';
 import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
+import 'product_filter_sheet.dart';
+import 'product_fixtures.dart';
 
 /// Stock list: every product the tenant holds, and the home surface in inventory mode.
 ///
@@ -16,10 +20,9 @@ import '../../../ui/components/section_card/section_card.dart';
 /// much control they give.
 ///
 /// **It is deliberately built almost entirely from what the product detail screen
-/// already needed.** `SectionHeader`, `Quantity` and `ExpiryBadge` come across
+/// already needed.** `SectionCard`, `Quantity` and `ExpiryBadge` come across
 /// unchanged, and only `ProductRow` is new, which is the argument for having designed
-/// the detail screen first: its primitives paid for this one. The reverse order would
-/// have meant designing the lot and location rows twice.
+/// the detail screen first: its primitives paid for this one.
 ///
 /// **The action-placement rule gains a distinction here, and both screens are better
 /// for it.** `ProductShowView` puts its frequent mutations in a footer, and this screen
@@ -32,17 +35,22 @@ import '../../../ui/components/section_card/section_card.dart';
 /// are viewing.** Card headers still navigate only, and search and filter sit at the
 /// top because they change what you look at rather than the data.
 ///
-/// Rendered from fixtures. Wiring it to a `ProductController` with `fetchList` is the
-/// next step; the fixtures stay as the preview's data source afterwards.
-@immutable
-class ProductIndexView extends StatelessWidget {
-  static const IconData _searchIcon = Icons.search_outlined;
-  static const IconData _filterIcon = Icons.filter_list_outlined;
-  static const IconData _scanIcon = Icons.qr_code_scanner_outlined;
-  static const IconData _receiptIcon = Icons.receipt_long_outlined;
-  static const IconData _photoIcon = Icons.photo_camera_outlined;
-  static const IconData _addIcon = Icons.add_outlined;
-
+/// ### Filtering
+///
+/// Three surfaces with one job each, designed in
+/// `docs/depools-system/features/filtering-and-saved-views.md`: the search field for
+/// free text, [FilterBar] for saved filters and for showing what is in force, and
+/// [ProductFilterSheet] for the full axis set.
+///
+/// **The applied filter is always visible while it applies.** That is not polish. The
+/// documented reason mobile filtering fails is not the axis count, it is a shortened
+/// list with no indication of why: the user concludes the product is not there and
+/// leaves. Any review of this screen checks that first.
+///
+/// Rendered from [productFixtures] rather than a controller, but filtered for real
+/// against them, so the sheet's count and the list cannot disagree. Wiring a
+/// `ProductController` replaces where the rows come from and nothing else.
+class ProductIndexView extends StatefulWidget {
   /// Whether the tenant has no products at all yet.
   final bool isEmpty;
 
@@ -53,10 +61,94 @@ class ProductIndexView extends StatelessWidget {
   const ProductIndexView.empty({super.key}) : isEmpty = true;
 
   @override
+  State<ProductIndexView> createState() => _ProductIndexViewState();
+}
+
+class _ProductIndexViewState extends State<ProductIndexView> {
+  static const IconData _searchIcon = Icons.search_outlined;
+  static const IconData _filterIcon = Icons.filter_list_outlined;
+  static const IconData _scanIcon = Icons.qr_code_scanner_outlined;
+  static const IconData _receiptIcon = Icons.receipt_long_outlined;
+  static const IconData _photoIcon = Icons.photo_camera_outlined;
+  static const IconData _addIcon = Icons.add_outlined;
+  static const IconData _chevronIcon = Icons.chevron_right_outlined;
+
+  ProductFilter _filter = const ProductFilter();
+
+  /// Filters saved by the user, on top of the built-ins.
+  ///
+  /// Local for now: the persistence question ("per user or per team") is recorded as
+  /// open in the feature doc, and guessing it here would bake the guess into a
+  /// migration.
+  final List<SavedProductFilter> _userSaved = <SavedProductFilter>[];
+
+  List<SavedProductFilter> get _saved => <SavedProductFilter>[
+    ...SavedProductFilter.builtIns,
+    ..._userSaved,
+  ];
+
+  List<ProductListItem> get _visible =>
+      productFixtures.where((item) => item.matches(_filter)).toList();
+
+  int _countMatches(ProductFilter draft) =>
+      productFixtures.where((item) => item.matches(draft)).length;
+
+  Future<void> _openSheet() async {
+    final ProductFilter? applied = await ProductFilterSheet.show(
+      context,
+      initial: _filter,
+      countMatches: _countMatches,
+      locations: locationOptions,
+      categories: categoryOptions,
+      tags: tagOptions,
+    );
+
+    // Null means dismissed, which is not the same as an empty filter. Coalescing the
+    // two would silently clear a filter every time the user swiped the sheet away.
+    if (applied == null || !mounted) return;
+    setState(() => _filter = applied);
+  }
+
+  void _save() {
+    setState(() {
+      _userSaved.add(
+        SavedProductFilter(
+          // Name and id from the criteria for now. Prompting for a name is the right
+          // interaction and it needs a text-input dialog; leaving the placeholder
+          // obviously provisional beats shipping a silent "Filtre 1".
+          id: 'local:${_userSaved.length + 1}',
+          name: _filterSummary(_filter),
+          filter: _filter,
+        ),
+      );
+    });
+  }
+
+  /// A short name for a saved filter, built from its own criteria.
+  ///
+  /// Names the first two criteria and counts the rest. A single-criterion summary
+  /// was the first attempt and produced "Stok yok +1" sitting next to the built-in
+  /// "Stok yok", which the user cannot tell apart in a row of capsules. Two
+  /// criteria is enough to make it self-describing without outgrowing a chip.
+  String _filterSummary(ProductFilter filter) {
+    final List<FilterCriterion> parts = filter.criteria(
+      resolveLocation: resolveLocationLabel,
+      resolveCategory: resolveCategoryLabel,
+    );
+    if (parts.isEmpty) return 'Filtre';
+
+    final String named = parts.take(2).map((c) => c.label).join(' · ');
+    final int rest = parts.length - 2;
+    return rest > 0 ? '$named +$rest' : named;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final List<ProductListItem> visible = _visible;
+
     return MSPageScaffold(
       title: 'Stok',
-      subtitle: isEmpty ? null : 'Mutfak Deposu · 42 ürün',
+      subtitle: widget.isEmpty ? null : 'Mutfak Deposu · ${productFixtures.length} ürün',
       actions: [
         MSButton(
           onPressed: () {},
@@ -72,7 +164,25 @@ class ProductIndexView extends StatelessWidget {
           child: const WIcon(_addIcon),
         ),
       ],
-      children: [if (!isEmpty) _buildSearch(), if (isEmpty) _buildEmpty() else ..._buildList()],
+      children: [
+        if (!widget.isEmpty) ...[
+          _buildSearch(),
+          FilterBar(
+            filter: _filter,
+            saved: _saved,
+            resolveLocation: resolveLocationLabel,
+            resolveCategory: resolveCategoryLabel,
+            onChanged: (next) => setState(() => _filter = next),
+            onSave: _save,
+          ),
+        ],
+        if (widget.isEmpty)
+          _buildEmpty()
+        else if (visible.isEmpty)
+          _buildNoMatches()
+        else
+          ..._buildList(visible),
+      ],
     );
   }
 
@@ -80,6 +190,8 @@ class ProductIndexView extends StatelessWidget {
   ///
   /// Both are navigation rather than mutation, which is why they sit here at the top
   /// instead of in a card header: they change what you are looking at, not the data.
+  /// HIG puts an inline search field directly above the content it searches when the
+  /// search is scoped to that content rather than global, which is this case.
   Widget _buildSearch() {
     return WDiv(
       className: 'flex flex-row items-center gap-2',
@@ -95,8 +207,8 @@ class ProductIndexView extends StatelessWidget {
           ],
         ),
         MSButton(
-          onPressed: () {},
-          intent: ButtonIntent.secondary,
+          onPressed: _openSheet,
+          intent: _filter.isActive ? ButtonIntent.primary : ButtonIntent.secondary,
           className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: 'Filtrele',
           child: const WIcon(_filterIcon),
@@ -110,8 +222,7 @@ class ProductIndexView extends StatelessWidget {
   /// Ordered by speed rather than by control: a receipt photo enters many products at
   /// once, a barcode enters one with its details filled, a photo enters one that has
   /// no barcode, and typing is last because it is the slowest even though it is the
-  /// most obvious. `.claude/rules/design.md` requires the call to action; the ordering
-  /// is what makes it useful rather than decorative.
+  /// most obvious.
   Widget _buildEmpty() {
     return WDiv(
       // MSEmptyState centres its own children, but its root Column has no width of its
@@ -200,98 +311,96 @@ class ProductIndexView extends StatelessWidget {
     );
   }
 
-  /// The list, grouped so the thing that needs attention comes first.
+  /// A filter that matched nothing, which is a different state from an empty catalogue.
   ///
-  /// Expiring items lead, because that is the one section a cafe opens this screen for
-  /// daily and it needs no forecast to be correct, only a date comparison. Everything
-  /// else follows alphabetically. `forecasting.md` puts "expiring soon" first among the
-  /// three surfaces for the same reason.
-  List<Widget> _buildList() {
-    return [
-      SectionCard(
-        label: 'Dikkat gerekiyor',
-        count: '3 ürün',
-        // The only collapsible section on the screen. A cafe owner opens this screen
-        // daily for exactly this list, so it starts open; once it is dealt with, the
-        // whole block folds away instead of pushing the catalogue down the page. The
-        // count stays visible closed, which is what keeps "3 ürün" actionable.
-        collapsible: true,
-        children: [
-          ProductRow(
-            name: 'Pınar Süt Tam Yağlı 1 lt',
-            meta: 'Pınar · Buzdolabı, Kiler',
-            amount: 5,
-            formatted: '5',
-            unit: 'adet',
-            expiryLabel: 'Süresi geçti',
-            daysUntilExpiry: -1,
-            onTap: () {},
-          ),
-          ProductRow(
-            name: 'Bulgur',
-            meta: 'Duru · Çekmece 2',
-            amount: 0.8,
-            formatted: '0,80',
-            unit: 'kg',
-            expiryLabel: '2 gün',
-            daysUntilExpiry: 2,
-            onTap: () {},
-          ),
-          ProductRow(
-            name: 'Kıyma',
-            meta: 'Dana · Derin dondurucu',
-            amount: 0,
-            formatted: '0',
-            unit: 'kg',
-            onTap: () {},
-          ),
-        ],
-      ),
-      SectionCard(
-        label: 'Tüm ürünler',
-        count: '42 ürün',
-        action: MSButton(
-          onPressed: () {},
-          intent: ButtonIntent.ghost,
-          size: ButtonSize.sm,
-          className: 'min-h-11 axis-min',
-          child: const WDiv(
-            className: 'flex flex-row items-center gap-0.5 axis-min',
-            children: [
-              WText('Tümü'),
-              WIcon(Icons.chevron_right_outlined, className: 'size-4'),
-            ],
+  /// The distinction is the whole point: "Henüz ürün yok" tells a user to start
+  /// capturing, and showing it to someone whose 42 products are merely filtered out
+  /// would be a lie about their own data. So this one names the filter as the cause
+  /// and offers the way back.
+  Widget _buildNoMatches() {
+    return WDiv(
+      className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
+      children: [
+        WDiv(
+          className: 'w-full',
+          child: MSEmptyState(
+            icon: _filterIcon,
+            title: 'Bu filtreye uyan ürün yok',
+            description:
+                '${productFixtures.length} ürünün var, bu filtre hiçbirini geçirmiyor. '
+                'Bir koşulu kaldır ya da filtreyi temizle.',
           ),
         ),
-        children: [
-          ProductRow(
-            name: 'Ayçiçek Yağı 5 lt',
-            meta: 'Yudum · Kiler › Raf 2',
-            amount: 2,
-            formatted: '2',
-            unit: 'adet',
-            onTap: () {},
+        MSButton(
+          onPressed: () => setState(() => _filter = const ProductFilter()),
+          fullWidth: true,
+          className: 'justify-center',
+          child: const WText('Filtreyi temizle'),
+        ),
+      ],
+    );
+  }
+
+  /// The list, grouped so the thing that needs attention comes first.
+  ///
+  /// Expiring and out-of-stock items lead, because that is the one section a cafe
+  /// opens this screen for daily and it needs no forecast to be correct, only a date
+  /// comparison. The grouping is derived from [ProductListItem.needsAttention], the
+  /// same test the three built-in saved filters cover, so the section and the chips
+  /// cannot drift apart.
+  ///
+  /// **Both sections respect the filter.** An attention section that ignored it would
+  /// keep showing an expired product after the user filtered to one location, which
+  /// is exactly the "why is this still here" confusion the visible-filter rule exists
+  /// to prevent.
+  List<Widget> _buildList(List<ProductListItem> visible) {
+    final List<ProductListItem> attention = visible.where((i) => i.needsAttention).toList();
+    final List<ProductListItem> rest = visible.where((i) => !i.needsAttention).toList();
+
+    return <Widget>[
+      if (attention.isNotEmpty)
+        SectionCard(
+          label: 'Dikkat gerekiyor',
+          count: '${attention.length} ürün',
+          // The only collapsible section on the screen. A cafe owner opens this screen
+          // daily for exactly this list, so it starts open; once it is dealt with, the
+          // whole block folds away instead of pushing the catalogue down the page. The
+          // count stays visible closed, which is what keeps "3 ürün" actionable.
+          collapsible: true,
+          children: [for (final ProductListItem item in attention) _row(item)],
+        ),
+      if (rest.isNotEmpty)
+        SectionCard(
+          label: 'Tüm ürünler',
+          count: '${rest.length} ürün',
+          action: MSButton(
+            onPressed: () {},
+            intent: ButtonIntent.ghost,
+            size: ButtonSize.sm,
+            className: 'min-h-11 axis-min',
+            child: const WDiv(
+              className: 'flex flex-row items-center gap-0.5 axis-min',
+              children: [
+                WText('Tümü'),
+                WIcon(_chevronIcon, className: 'size-4'),
+              ],
+            ),
           ),
-          ProductRow(
-            name: 'Yoğurt 2 kg',
-            meta: 'Sütaş · Buzdolabı',
-            amount: 1,
-            formatted: '1',
-            unit: 'adet',
-            expiryLabel: '9 gün',
-            daysUntilExpiry: 9,
-            onTap: () {},
-          ),
-          ProductRow(
-            name: 'Un',
-            meta: 'Söke · Kiler › Raf 1',
-            amount: 12.5,
-            formatted: '12,50',
-            unit: 'kg',
-            onTap: () {},
-          ),
-        ],
-      ),
+          children: [for (final ProductListItem item in rest) _row(item)],
+        ),
     ];
+  }
+
+  Widget _row(ProductListItem item) {
+    return ProductRow(
+      name: item.name,
+      meta: item.meta,
+      amount: item.amount,
+      formatted: item.formatted,
+      unit: item.unit,
+      expiryLabel: item.expiryLabel,
+      daysUntilExpiry: item.daysUntilExpiry,
+      onTap: () {},
+    );
   }
 }

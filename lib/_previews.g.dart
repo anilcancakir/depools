@@ -19,6 +19,8 @@ import 'preview/sidebar_menu.preview.dart';
 import 'preview/teams_screen.preview.dart';
 import 'ui/components/callout/callout.preview.dart';
 import 'ui/components/expiry_badge/expiry_badge.preview.dart';
+import 'ui/components/filter_bar/filter_bar.preview.dart';
+import 'ui/components/filter_chip/filter_chip.preview.dart';
 import 'ui/components/location_stock_row/location_stock_row.preview.dart';
 import 'ui/components/lot_row/lot_row.preview.dart';
 import 'ui/components/movement_row/movement_row.preview.dart';
@@ -36,11 +38,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'bottom_menu',
       builder: (_) => const BottomMenuPreview(),
     ),
-    PreviewEntry(
-      label: 'Callout',
-      slug: 'callout',
-      builder: (_) => const CalloutPreview(),
-    ),
+    PreviewEntry(label: 'Callout', slug: 'callout', builder: (_) => const CalloutPreview()),
     PreviewEntry(
       label: 'DashboardScreen',
       slug: 'dashboard_screen',
@@ -50,6 +48,12 @@ List<PreviewEntry> previewEntries() {
       label: 'ExpiryBadge',
       slug: 'expiry_badge',
       builder: (_) => const ExpiryBadgePreview(),
+    ),
+    PreviewEntry(label: 'FilterBar', slug: 'filter_bar', builder: (_) => const FilterBarPreview()),
+    PreviewEntry(
+      label: 'FilterChip',
+      slug: 'filter_chip',
+      builder: (_) => const FilterChipPreview(),
     ),
     PreviewEntry(
       label: 'Foundations',
@@ -66,11 +70,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'login_screen',
       builder: (_) => const LoginScreenPreview(),
     ),
-    PreviewEntry(
-      label: 'LotRow',
-      slug: 'lot_row',
-      builder: (_) => const LotRowPreview(),
-    ),
+    PreviewEntry(label: 'LotRow', slug: 'lot_row', builder: (_) => const LotRowPreview()),
     PreviewEntry(
       label: 'MovementRow',
       slug: 'movement_row',
@@ -106,11 +106,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'profile_screen',
       builder: (_) => const ProfileScreenPreview(),
     ),
-    PreviewEntry(
-      label: 'Quantity',
-      slug: 'quantity',
-      builder: (_) => const QuantityPreview(),
-    ),
+    PreviewEntry(label: 'Quantity', slug: 'quantity', builder: (_) => const QuantityPreview()),
     PreviewEntry(
       label: 'RegisterScreen',
       slug: 'register_screen',
@@ -136,16 +132,8 @@ List<PreviewEntry> previewEntries() {
       slug: 'sidebar_menu',
       builder: (_) => const SidebarMenuPreview(),
     ),
-    PreviewEntry(
-      label: 'StatCard',
-      slug: 'stat_card',
-      builder: (_) => const StatCardPreview(),
-    ),
-    PreviewEntry(
-      label: 'Tag',
-      slug: 'tag',
-      builder: (_) => const TagPreview(),
-    ),
+    PreviewEntry(label: 'StatCard', slug: 'stat_card', builder: (_) => const StatCardPreview()),
+    PreviewEntry(label: 'Tag', slug: 'tag', builder: (_) => const TagPreview()),
     PreviewEntry(
       label: 'TeamsScreen',
       slug: 'teams_screen',
@@ -153,4 +141,3 @@ List<PreviewEntry> previewEntries() {
     ),
   ];
 }
-

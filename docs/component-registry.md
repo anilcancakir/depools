@@ -495,6 +495,45 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### SectionCard
+
+- **File**: `lib/ui/components/section_card/`
+- **Class**: `SectionCard`
+- **Token bindings**: `bg-surface-container text-fg-muted`
+- **What it is**: one titled group of rows on a screen: the card surface, its `SectionHeader`, and the rows. Replaced eight hand-written copies of the same card className across the two product screens.
+- **Anti-patterns**:
+  - Do not hand-roll `flex flex-col gap-1 p-4 rounded-lg bg-surface-container` around a `SectionHeader`. That is this component.
+  - Do not set `collapsible: true` on the section the user came for. Collapsing costs a tap; it earns its place on an occasional or unbounded section (the attention list, a movement ledger), not on the main content.
+  - Do not pass a count of null on a collapsible section. Closed, the count is the only thing telling the user the section is not empty.
+
+---
+
+### FilterChip
+
+- **File**: `lib/ui/components/filter_chip/`
+- **Class**: `FilterChip`
+- **Token bindings**: `bg-surface-container-high` (idle), `bg-primary-container border-color-border` (applied), `text-fg text-fg-muted`
+- **What it is**: one capsule in a filter row. Idle is an offer (a saved filter you could apply); applied is a statement (a criterion narrowing the list now).
+- **Anti-patterns**:
+  - Do not make the two states look similar. That they are distinguishable at a glance is the whole component; a user who cannot tell reads a filtered list as an empty catalogue.
+  - Do not use it as a static tag. That is `Tag`. This one is always tappable and always changes the query.
+  - Do not import Material's `FilterChip`. Import `package:flutter/widgets.dart` only, per the material-import rule.
+
+---
+
+### FilterBar
+
+- **File**: `lib/ui/components/filter_bar/`
+- **Class**: `FilterBar`
+- **Token bindings**: inherits from `FilterChip`; `text-fg-muted` on its text actions.
+- **What it is**: the chip row under a list's search field. Two exclusive modes: saved filters when nothing is applied, the active criteria when something is.
+- **Anti-patterns**:
+  - Do not show both modes at once. Mixing saved filters with active criteria under one treatment is the taxonomy failure documented in `docs/depools-system/features/filtering-and-saved-views.md`.
+  - Do not hide it while a filter is applied. An invisible active filter is the documented reason mobile filtering fails.
+  - Do not offer "Kaydet" for a filter that already matches a saved one; that is how a short saved list becomes an untrustworthy long one.
+
+---
+
 ## Anti-patterns (global)
 
 | Anti-pattern | Category | Fix |
