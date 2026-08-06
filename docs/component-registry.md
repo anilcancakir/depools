@@ -576,6 +576,20 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### ListFooter
+
+- **File**: `lib/ui/components/list_footer/`
+- **Class**: `ListFooter`
+- **Token bindings**: `text-fg-muted`, `text-fg`, `MSSkeleton`
+- **What it is**: the bottom of a cursor-paginated list, in one of three states: a page in flight, the end, or a failed page.
+- **Anti-patterns**:
+  - Do not let the three states look alike. A list that silently stops is indistinguishable from one that finished, and a failed page showing nothing looks like the end of the data.
+  - Do not use a spinner. Skeleton rows as many as the page size, so the incoming rows' space is reserved and the list does not jump.
+  - Do not omit the total in the end state. It is the unique-SKU count the plan meters on, so it is the one number worth having there.
+  - Do not render it on a list that cannot page. A footer that never fires trains the user to ignore the bottom of the list; state the total instead.
+
+---
+
 ## Anti-patterns (global)
 
 | Anti-pattern | Category | Fix |

@@ -256,6 +256,31 @@ The count is the subtree's, not the node's own. "Mutfak, 5 ürün" means everyth
 
 **Depth is expressed by indent, and the gutter is reserved on every row.** Rendering the icon conditionally inverted the tree: a root with an icon had its name pushed 32px right by the glyph and gap while its child got 12px of indent, so children appeared to the LEFT of their parents. Indent is `pl-3` per level, which keeps the schema's deepest row inside 60px on a phone.
 
+### D36. Lists are cursor-paginated with infinite scroll; the URL carries the query, not the cursor
+
+Both list screens rendered every row with no paging at all, which works on a fixture set and not on a tenant with a thousand SKUs.
+
+**Cursor, not offset.** In an inventory app stock changes while the user scrolls, so an offset page skips or repeats rows the moment anything above the window moves. A cursor on the sort key is stable under insertion, which is the property that matters here more than the readability of `?page=3`.
+
+**The URL carries the search and the filters; it does not carry the cursor.** A filtered list is worth addressing and sharing, a scroll position is not, so a reload lands at the top of the same filtered list. That is also what a user expects from a link someone sent them.
+
+**The footer has three states and they must not look alike**: a page in flight, the end of the list, and a failed page. A list that silently stops paying out is indistinguishable from one that finished, and a failed page showing nothing looks like the end of the data. Same class of failure as an invisible active filter: the screen is short and does not say why.
+
+Two details worth keeping:
+
+- **Skeleton rows, not a spinner**, and as many as the page size. The rows are the shape of what is coming, so the space is reserved and the list does not jump when the page lands.
+- **The end state states the total.** It is the one number worth having at the bottom of a stock list, because it is also the unique-SKU count the plan meters on (D4), so a user glancing at it learns something they would otherwise go hunting for.
+
+### D37. The location tree gets search and a three-way scope, and a filtered tree shows paths
+
+Search plus `Tümü / Stok var / Boş`, in the same layout the stock list already uses. Two list screens that search differently is a cost paid on every visit, and a tree does not need a different affordance to be searched.
+
+Three positions rather than a filter sheet, because a location tree has one axis worth filtering: whether a place currently holds anything. A tenant hunting an empty shelf to put something on, and one auditing what is where, are the two real cases.
+
+**A filtered tree loses its ancestors, so indent stops meaning anything and each match falls back to its full path.** A row inset two levels under nothing reads as broken. This is the one place D35's own-name rule gives way, and it gives way for D35's own reason: the path appears exactly when the tree is not on screen to supply it.
+
+**Every node carries an icon, children included.** A tree where only roots have a glyph makes children read as text under a heading rather than as places, and `locations.icon_id` exists on every row. Making the icon required rather than optional also removed the conditional-glyph bug that had inverted the indent, which is the stronger fix: delete the state instead of padding around it.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

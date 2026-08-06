@@ -4,6 +4,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSPageScaffold, MSButton, ButtonIntent, MSSegmentedControl, MSEmptyState;
 
+import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/location_row/location_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 
@@ -22,6 +23,23 @@ enum PlacementAutomation {
   fullAuto,
 }
 
+/// Which locations the list is narrowed to.
+///
+/// Three positions rather than a full filter sheet, because a location tree has one axis
+/// worth filtering: whether a place currently holds anything. A tenant hunting an empty
+/// shelf to put something on, and one auditing what is where, are the two real cases.
+enum LocationScope {
+  /// Everything, including empty places.
+  all,
+
+  /// Only places currently holding stock.
+  stocked,
+
+  /// Only empty places, which is what a user looks for when deciding where to put
+  /// something new.
+  empty,
+}
+
 /// One node in the fixture tree.
 @immutable
 class LocationNode {
@@ -37,8 +55,16 @@ class LocationNode {
   /// The already-formatted contents line.
   final String summary;
 
-  /// An optional leading icon, for a root.
-  final IconData? icon;
+  /// The full ancestor path, used when the tree is filtered and the indent loses meaning.
+  final String path;
+
+  /// The location's icon, from `locations.icon_id`.
+  ///
+  /// **Every node has one, children included.** A tree where only roots carry a glyph
+  /// makes the children look like text under a heading rather than like places, and the
+  /// schema gives every location an `icon_id` precisely because a shelf is as much a place
+  /// as a room is.
+  final IconData icon;
 
   /// Creates a [LocationNode].
   const LocationNode({
@@ -46,7 +72,8 @@ class LocationNode {
     required this.depth,
     required this.productCount,
     required this.summary,
-    this.icon,
+    required this.icon,
+    required this.path,
   });
 }
 
@@ -73,6 +100,10 @@ class LocationNode {
 class LocationIndexView extends StatelessWidget {
   static const IconData _addIcon = Icons.add_outlined;
   static const IconData _emptyIcon = Icons.location_on_outlined;
+  static const IconData _searchIcon = Icons.search_outlined;
+  static const IconData _noMatchIcon = Icons.search_off_outlined;
+
+  static const List<LocationScope> _scopes = LocationScope.values;
 
   static const List<PlacementAutomation> _dial = PlacementAutomation.values;
 
@@ -82,13 +113,32 @@ class LocationIndexView extends StatelessWidget {
   /// Where the dial currently sits.
   final PlacementAutomation automation;
 
+  /// Which locations are shown.
+  final LocationScope scope;
+
   /// Creates the [LocationIndexView].
-  const LocationIndexView({super.key}) : isEmpty = false, automation = PlacementAutomation.semiAuto;
+  const LocationIndexView({super.key})
+    : isEmpty = false,
+      automation = PlacementAutomation.semiAuto,
+      scope = LocationScope.all;
 
   /// Creates the view for a tenant with no locations yet.
   const LocationIndexView.empty({super.key})
     : isEmpty = true,
-      automation = PlacementAutomation.semiAuto;
+      automation = PlacementAutomation.semiAuto,
+      scope = LocationScope.all;
+
+  /// Creates the view narrowed to empty places, which is its own reviewable state.
+  ///
+  /// **A filtered tree loses its ancestors, and that is the case worth seeing.** Filtering
+  /// to empty shelves hides the rooms they sit in, so a row indented two levels under
+  /// nothing reads as broken. The filtered view shows each match with its PATH instead of
+  /// its indent, which is the one place `LocationRow`'s own-name rule has to give way:
+  /// with no tree on screen, the path is the only context left.
+  const LocationIndexView.filtered({super.key})
+    : isEmpty = false,
+      automation = PlacementAutomation.semiAuto,
+      scope = LocationScope.empty;
 
   /// The tree, flattened in reading order with its depths.
   ///
@@ -98,33 +148,102 @@ class LocationIndexView extends StatelessWidget {
   static const List<LocationNode> _tree = <LocationNode>[
     LocationNode(
       name: 'Mutfak',
+      path: 'Mutfak',
       depth: 0,
       productCount: 5,
       summary: '5 ürün · 2 alt konum',
       icon: Icons.kitchen_outlined,
     ),
-    LocationNode(name: 'Buzdolabı', depth: 1, productCount: 3, summary: '3 ürün'),
-    LocationNode(name: 'Derin dondurucu', depth: 1, productCount: 1, summary: '1 ürün'),
+    LocationNode(
+      name: 'Buzdolabı',
+      path: 'Mutfak › Buzdolabı',
+      depth: 1,
+      productCount: 3,
+      summary: '3 ürün',
+      icon: Icons.kitchen_outlined,
+    ),
+    LocationNode(
+      name: 'Derin dondurucu',
+      path: 'Mutfak › Derin dondurucu',
+      depth: 1,
+      productCount: 1,
+      summary: '1 ürün',
+      icon: Icons.ac_unit_outlined,
+    ),
     LocationNode(
       name: 'Kiler',
+      path: 'Kiler',
       depth: 0,
       productCount: 4,
       summary: '4 ürün · 3 alt konum',
       icon: Icons.shelves,
     ),
-    LocationNode(name: 'Raf 1', depth: 1, productCount: 1, summary: '1 ürün'),
-    LocationNode(name: 'Raf 2', depth: 1, productCount: 2, summary: '2 ürün'),
-    LocationNode(name: 'Çekmece 2', depth: 1, productCount: 1, summary: '1 ürün'),
+    LocationNode(
+      name: 'Raf 1',
+      path: 'Kiler › Raf 1',
+      depth: 1,
+      productCount: 1,
+      summary: '1 ürün',
+      icon: Icons.shelves,
+    ),
+    LocationNode(
+      name: 'Raf 2',
+      path: 'Kiler › Raf 2',
+      depth: 1,
+      productCount: 2,
+      summary: '2 ürün',
+      icon: Icons.shelves,
+    ),
+    LocationNode(
+      name: 'Çekmece 2',
+      path: 'Kiler › Çekmece 2',
+      depth: 1,
+      productCount: 1,
+      summary: '1 ürün',
+      icon: Icons.inbox_outlined,
+    ),
     LocationNode(
       name: 'Depo',
+      path: 'Depo',
       depth: 0,
       productCount: 2,
       summary: '2 ürün · 1 alt konum',
       icon: Icons.warehouse_outlined,
     ),
-    LocationNode(name: 'Raf A', depth: 1, productCount: 2, summary: '2 ürün'),
-    LocationNode(name: 'Raf B', depth: 1, productCount: 0, summary: 'Boş'),
+    LocationNode(
+      name: 'Raf A',
+      path: 'Depo › Raf A',
+      depth: 1,
+      productCount: 2,
+      summary: '2 ürün',
+      icon: Icons.shelves,
+    ),
+    LocationNode(
+      name: 'Raf B',
+      path: 'Depo › Raf B',
+      depth: 1,
+      productCount: 0,
+      summary: 'Boş',
+      icon: Icons.shelves,
+    ),
   ];
+
+  /// The already-localised label for a scope.
+  static String _scopeLabel(LocationScope value) => switch (value) {
+    LocationScope.all => 'Tümü',
+    LocationScope.stocked => 'Stok var',
+    LocationScope.empty => 'Boş',
+  };
+
+  /// The nodes the current scope admits.
+  List<LocationNode> get _visible => switch (scope) {
+    LocationScope.all => _tree,
+    LocationScope.stocked => _tree.where((n) => n.productCount > 0).toList(),
+    LocationScope.empty => _tree.where((n) => n.productCount == 0).toList(),
+  };
+
+  /// Whether the tree is being shown whole, which decides indent versus path.
+  bool get _isWholeTree => scope == LocationScope.all;
 
   /// The already-localised label for a dial position.
   static String _dialLabel(PlacementAutomation value) => switch (value) {
@@ -162,26 +281,92 @@ class LocationIndexView extends StatelessWidget {
         ),
       ],
       children: [
-        if (isEmpty) _buildEmpty() else ...[_buildTree(), _buildAutomation()],
+        if (isEmpty)
+          _buildEmpty()
+        else ...[
+          _buildSearch(),
+          if (_visible.isEmpty) _buildNoMatch() else _buildTree(),
+          _buildAutomation(),
+        ],
       ],
     );
   }
 
-  /// The tree itself, in reading order.
-  Widget _buildTree() {
-    return SectionCard(
-      label: 'Yerleşim',
-      count: '${_tree.length} konum',
+  /// Search and scope, in the shape the stock list already established.
+  ///
+  /// Deliberately the same layout as the product list: a full-width field with the scope
+  /// beneath it. Two list screens in one app that search differently is a cost paid on
+  /// every visit, and the tree does not need a different affordance to be searched.
+  ///
+  /// **Search and scope belong in the URL; the scroll cursor does not.** A filtered list is
+  /// worth addressing and sharing, a scroll position is not, so a reload returns to the top
+  /// of the same filtered list.
+  Widget _buildSearch() {
+    return WDiv(
+      className: 'flex flex-col gap-2',
       children: [
-        for (final LocationNode node in _tree)
+        WDiv(
+          className: '''
+            flex flex-row items-center gap-2 w-full
+            bg-surface-container-high rounded-md px-3 min-h-11
+          ''',
+          children: [
+            const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+            WText('Ara: konum adı', className: 'text-sm text-fg-muted truncate'),
+          ],
+        ),
+        MSSegmentedControl<LocationScope>(
+          options: _scopes.map(_scopeLabel).toList(),
+          selectedIndex: _scopes.indexOf(scope),
+          onChanged: (_) {},
+        ),
+      ],
+    );
+  }
+
+  /// A scope that admits nothing, which is not the same as having no locations.
+  Widget _buildNoMatch() {
+    return WDiv(
+      className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
+      children: [
+        WDiv(
+          className: 'w-full',
+          child: MSEmptyState(
+            icon: _noMatchIcon,
+            title: 'Bu filtreye uyan konum yok',
+            description:
+                '${_tree.length} konumun hepsi stok tutuyor. '
+                'Boş bir yer için önce konum eklenir.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The tree itself, in reading order, or the matches with their paths when filtered.
+  Widget _buildTree() {
+    final List<LocationNode> nodes = _visible;
+
+    return SectionCard(
+      label: _isWholeTree ? 'Yerleşim' : 'Eşleşen konumlar',
+      count: '${nodes.length} konum',
+      children: [
+        for (final LocationNode node in nodes)
           LocationRow(
-            name: node.name,
-            depth: node.depth,
+            // A filtered list has no ancestors on screen, so the row falls back to its
+            // path. Keeping the indent there would leave a row inset two levels under
+            // nothing.
+            name: _isWholeTree ? node.name : node.path,
+            depth: _isWholeTree ? node.depth : 0,
             productCount: node.productCount,
             itemSummary: node.summary,
             icon: node.icon,
             onTap: () {},
           ),
+        // Ten locations do not need paging, and pretending otherwise would be a footer
+        // that never fires. It states the total instead, which is the number worth having
+        // at the bottom of a list.
+        ListFooter(state: ListFooterState.end, totalLabel: '${nodes.length} konumun hepsi'),
       ],
     );
   }

@@ -36,8 +36,10 @@ class LocationRow extends StatelessWidget {
   /// The already-formatted contents line, for example `'3 ürün · 2 parti'`.
   final String? itemSummary;
 
-  /// An optional leading icon, from the location's own icon choice.
-  final IconData? icon;
+  /// The location's icon. Required, because every node in the tree has one: a tree where
+  /// only roots carry a glyph makes children read as text under a heading rather than as
+  /// places, and `locations.icon_id` exists for every row.
+  final IconData icon;
 
   /// Called when the row is tapped, which opens the location.
   final VoidCallback? onTap;
@@ -48,8 +50,8 @@ class LocationRow extends StatelessWidget {
     required this.name,
     required this.depth,
     required this.productCount,
+    required this.icon,
     this.itemSummary,
-    this.icon,
     this.onTap,
   });
 
@@ -66,21 +68,12 @@ class LocationRow extends StatelessWidget {
         // 44pt floor on the label instead of on the thing the user aims at.
         className: '${slots['root']} ${_indentFor(depth)}',
         children: [
-          // **The icon gutter is always reserved, even when there is no icon.** Rendering
-          // it conditionally inverted the tree: a root with an icon had its name pushed
-          // 32px right by the glyph and gap, while its depth-1 child got only 12px of
-          // indent, so the child appeared to the LEFT of its parent and the nesting read
-          // backwards.
-          //
-          // Second time this exact mistake in one session, after fixing it in
-          // ReceiptLineRow. The rule was written for "some states have an icon" and this
-          // is "some rows have an icon", so it did not obviously apply. It does: any
-          // conditional leading glyph shifts the text beside it, and text that shifts
-          // per-row destroys whatever alignment the layout was carrying.
-          WDiv(
-            className: 'size-5 shrink-0 flex items-center justify-center',
-            child: icon == null ? null : WIcon(icon!, className: slots['icon']),
-          ),
+          // The icon is REQUIRED rather than reserved-when-absent, which is the stronger
+          // version of the same fix. A conditional leading glyph shifted the text beside
+          // it, so a root with an icon pushed its name 32px right while its child got 12px
+          // of indent and children appeared to the LEFT of their parents. Making it
+          // required removes the state that caused it instead of padding around it.
+          WIcon(icon, className: slots['icon']),
           WDiv(
             className: slots['body'],
             children: [

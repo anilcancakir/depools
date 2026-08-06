@@ -8,11 +8,13 @@ import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/foundations.preview.dart';
 import 'preview/location_index_empty_screen.preview.dart';
+import 'preview/location_index_filtered_screen.preview.dart';
 import 'preview/location_index_screen.preview.dart';
 import 'preview/login_screen.preview.dart';
 import 'preview/product_draft_screen.preview.dart';
 import 'preview/product_draft_settled_screen.preview.dart';
 import 'preview/product_index_empty_screen.preview.dart';
+import 'preview/product_index_loading_more_screen.preview.dart';
 import 'preview/product_index_screen.preview.dart';
 import 'preview/product_show_empty_screen.preview.dart';
 import 'preview/product_show_screen.preview.dart';
@@ -28,6 +30,7 @@ import 'ui/components/draft_field/draft_field.preview.dart';
 import 'ui/components/expiry_badge/expiry_badge.preview.dart';
 import 'ui/components/filter_bar/filter_bar.preview.dart';
 import 'ui/components/filter_chip/filter_chip.preview.dart';
+import 'ui/components/list_footer/list_footer.preview.dart';
 import 'ui/components/location_row/location_row.preview.dart';
 import 'ui/components/location_stock_row/location_stock_row.preview.dart';
 import 'ui/components/lot_row/lot_row.preview.dart';
@@ -77,9 +80,19 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const FoundationsPreview(),
     ),
     PreviewEntry(
+      label: 'ListFooter',
+      slug: 'list_footer',
+      builder: (_) => const ListFooterPreview(),
+    ),
+    PreviewEntry(
       label: 'LocationIndexEmptyScreen',
       slug: 'location_index_empty_screen',
       builder: (_) => const LocationIndexEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'LocationIndexFilteredScreen',
+      slug: 'location_index_filtered_screen',
+      builder: (_) => const LocationIndexFilteredScreenPreview(),
     ),
     PreviewEntry(
       label: 'LocationIndexScreen',
@@ -121,6 +134,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ProductIndexEmptyScreen',
       slug: 'product_index_empty_screen',
       builder: (_) => const ProductIndexEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductIndexLoadingMoreScreen',
+      slug: 'product_index_loading_more_screen',
+      builder: (_) => const ProductIndexLoadingMoreScreenPreview(),
     ),
     PreviewEntry(
       label: 'ProductIndexScreen',

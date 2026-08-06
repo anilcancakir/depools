@@ -6,6 +6,7 @@ import 'package:magic_starter/magic_starter.dart'
 
 import '../../../app/models/product_filter.dart';
 import '../../../ui/components/filter_bar/filter_bar.dart';
+import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'product_filter_sheet.dart';
@@ -54,11 +55,28 @@ class ProductIndexView extends StatefulWidget {
   /// Whether the tenant has no products at all yet.
   final bool isEmpty;
 
+  /// Whether a further page is in flight.
+  ///
+  /// **The list is cursor-paginated, not offset.** In an inventory app stock changes while
+  /// the user scrolls, and an offset page skips or repeats rows the moment anything above
+  /// the window moves. A cursor on the sort key is stable under insertion.
+  ///
+  /// The search and the filter go in the URL; the cursor does not. A filtered list is worth
+  /// addressing and sharing, a scroll position is not, so a reload lands at the top of the
+  /// same filtered list.
+  final bool isLoadingMore;
+
   /// Creates the [ProductIndexView].
-  const ProductIndexView({super.key}) : isEmpty = false;
+  const ProductIndexView({super.key}) : isEmpty = false, isLoadingMore = false;
 
   /// Creates the view for a tenant with no products yet.
-  const ProductIndexView.empty({super.key}) : isEmpty = true;
+  const ProductIndexView.empty({super.key}) : isEmpty = true, isLoadingMore = false;
+
+  /// Creates the view with a page in flight, which is its own reviewable state.
+  ///
+  /// A paginated list spends real time here on a slow connection, and a footer that looks
+  /// like the end of the data is how a user stops scrolling with rows left unseen.
+  const ProductIndexView.loadingMore({super.key}) : isEmpty = false, isLoadingMore = true;
 
   @override
   State<ProductIndexView> createState() => _ProductIndexViewState();
@@ -386,7 +404,16 @@ class _ProductIndexViewState extends State<ProductIndexView> {
               ],
             ),
           ),
-          children: [for (final ProductListItem item in rest) _row(item)],
+          children: [
+            for (final ProductListItem item in rest) _row(item),
+            // The footer states the total rather than pretending to page eight fixtures.
+            // The total is also the SKU count the plan meters on, so it is the one number
+            // worth having at the bottom of this particular list.
+            ListFooter(
+              state: widget.isLoadingMore ? ListFooterState.loadingMore : ListFooterState.end,
+              totalLabel: '${productFixtures.length} ürünün hepsi',
+            ),
+          ],
         ),
     ];
   }
