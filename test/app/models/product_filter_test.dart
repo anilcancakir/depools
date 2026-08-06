@@ -127,7 +127,7 @@ void main() {
 
       expect(itemNamed('Ayçiçek').parLevel, isNull);
       expect(itemNamed('Ayçiçek').matches(belowPar), isFalse);
-      expect(itemNamed('Pınar').matches(belowPar), isTrue); // 5 of a target of 6
+      expect(itemNamed('Pınar').matches(belowPar), isTrue); // 2.5 of a target of 4
     });
 
     test('out of stock is not below par', () {
@@ -144,11 +144,11 @@ void main() {
     });
 
     test('an expired product is not "expiring soon"', () {
-      // Pınar Süt went off yesterday. Folding it into the horizon would make
-      // "7 gün içinde bitecek" include things that expired last month.
-      expect(itemNamed('Pınar').matches(const ProductFilter(expiry: ExpiryFilter.expired)), isTrue);
+      // Kaşar went off yesterday. Folding it into the window would make "Yakında
+      // bitecek" include things that expired last month.
+      expect(itemNamed('Kaşar').matches(const ProductFilter(expiry: ExpiryFilter.expired)), isTrue);
       expect(
-        itemNamed('Pınar').matches(const ProductFilter(expiry: ExpiryFilter.expiringSoon)),
+        itemNamed('Kaşar').matches(const ProductFilter(expiry: ExpiryFilter.expiringSoon)),
         isFalse,
       );
     });
@@ -241,6 +241,84 @@ void main() {
 
       expect(fresh.matches(expired.filter), isFalse);
       expect(productFixtures.any((i) => i.matches(expired.filter)), isTrue);
+    });
+  });
+
+  group('partial quantities', () {
+    ProductListItem itemNamed(String name) =>
+        productFixtures.firstWhere((i) => i.name.startsWith(name));
+
+    test('whole units lead and the open remainder follows', () {
+      // Two sealed cartons plus one open with half a litre: "2 adet + 500 ml".
+      final milk = itemNamed('Pınar');
+
+      expect(milk.wholeCount, 2);
+      expect(milk.primaryFigure, ('2', 'adet'));
+      expect(milk.remainderFigure, ('500', 'ml'));
+      expect(milk.openNote, isNull); // "+ 500 ml" already says something is open
+    });
+
+    test('when nothing is whole the remainder becomes the primary figure', () {
+      // "2 poşet", never "0 paket + 2 poşet". The zero is noise, and worse, Quantity
+      // would mute the row as depleted while the user still has something to cook.
+      final vanilla = itemNamed('Vanilya');
+
+      expect(vanilla.wholeCount, 0);
+      expect(vanilla.primaryFigure, ('2', 'poşet'));
+      expect(vanilla.remainderFigure, isNull);
+      expect(vanilla.openNote, '1 paket açık');
+    });
+
+    test('a product with nothing open renders no remainder at all', () {
+      final flour = itemNamed('Un');
+
+      expect(flour.hasOpenUnit, isFalse);
+      expect(flour.primaryFigure, ('12,50', 'kg'));
+      expect(flour.remainderFigure, isNull);
+      expect(flour.openNote, isNull);
+    });
+
+    test('an open perishable unit is always in the attention list', () {
+      // Two days left on a three-day after-opening clock. The proportional window
+      // derived from the PRINTED five-day shelf life is one day, so the proportion
+      // alone would keep this silent until its last morning. Being open is the
+      // signal, not the arithmetic.
+      final milk = itemNamed('Pınar');
+
+      expect(milk.expiryThresholdDays, 1);
+      expect(milk.isExpiringSoon, isFalse); // the proportion says no
+      expect(milk.isOpenAndPerishable, isTrue);
+      expect(milk.needsAttention, isTrue); // and it is listed anyway
+    });
+
+    test('an open unit with no after-opening limit is not an event', () {
+      // Opening a bag of flour is not news, and it must not park a row in the
+      // attention list forever.
+      const flour = ProductListItem(
+        name: 'Açılmış un',
+        amount: 4.5,
+        formatted: '4',
+        unit: 'kg',
+        contentAmount: 1000,
+        contentUnit: 'g',
+        openRemainder: 500,
+      );
+
+      expect(flour.hasOpenUnit, isTrue);
+      expect(flour.isOpenAndPerishable, isFalse);
+      expect(flour.needsAttention, isFalse);
+    });
+
+    test('an open unit still counts as stock on hand', () {
+      // 0.67 of a pack is not zero. If this regressed, the vanilla would land in
+      // "Stok yok" and the user would be told to buy something they have.
+      final vanilla = itemNamed('Vanilya');
+
+      expect(vanilla.amount, greaterThan(0));
+      expect(
+        vanilla.matches(const ProductFilter(stockState: StockStateFilter.outOfStock)),
+        isFalse,
+      );
     });
   });
 }

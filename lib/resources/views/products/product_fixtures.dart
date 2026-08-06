@@ -34,21 +34,63 @@ class ProductListItem {
   /// Tags.
   final Set<String> tags;
 
-  /// Total on hand across every location.
+  /// Total on hand across every location, in base units.
+  ///
+  /// Fractional when something is open: two whole cartons plus a half-used one is
+  /// 2.5. This is the number every threshold compares against; it is never what the
+  /// screen prints, because "2,5 adet" is not how anyone describes their fridge.
   final num amount;
 
-  /// The already-formatted total for the active locale.
+  /// The already-formatted count of WHOLE base units, for the active locale.
   final String formatted;
 
-  /// Base unit.
+  /// Base unit: the unit stock is held in, for example `adet`, `kg`, `paket`.
   final String unit;
+
+  /// What one base unit contains, and in which unit.
+  ///
+  /// One declaration covers both shapes D25 allows: a 1 lt carton is
+  /// `contentAmount: 1000, contentUnit: 'ml'`, and a pack of three sachets is
+  /// `contentAmount: 3, contentUnit: 'poşet'`. Turkish labelling law states the same
+  /// pair (per-pack net content plus total pack count), so the fields are the ones
+  /// the box itself already carries.
+  ///
+  /// Null means the product is not divisible, or its content is simply unknown. Both
+  /// collapse to the same behaviour: no partial tracking, no remainder to render.
+  final num? contentAmount;
+
+  /// The content unit. Null together with [contentAmount].
+  final String? contentUnit;
+
+  /// How much is left in the one open unit, in content units.
+  ///
+  /// Null when nothing is open. Exactly one unit can be open at a time here, which
+  /// is a simplification worth naming: a cafe with three opened cartons is real, and
+  /// the ledger will hold one opened lot each. The list row only has room for one
+  /// figure, so it shows the earliest-expiring open unit and the detail screen shows
+  /// them all.
+  final num? openRemainder;
+
+  /// Days until the OPEN unit must be used, which is not the printed date.
+  ///
+  /// An opened carton with ten days left on the box spoils in three (D27). Null when
+  /// nothing is open or the product declares no after-opening limit.
+  final int? openDaysRemaining;
 
   /// The user-set target level, used for the below-par test. Null means unset, and
   /// an unset target can never be "below par": that state has to mean something the
   /// user chose, or every product with a little stock would report as running low.
   final num? parLevel;
 
-  /// Days until the earliest lot expiry. Null when nothing tracks expiry.
+  /// Days until the date that actually matters, whichever comes first.
+  ///
+  /// For a sealed product that is the earliest lot's printed date. Once something is
+  /// opened it is the OPEN unit's after-opening limit, which is usually much sooner:
+  /// a carton with a week left on the box has three days left once opened (D27).
+  ///
+  /// The row needs one number because it shows one badge. The detail screen has the
+  /// room to show both, and it should, because "opened yesterday" and "printed date
+  /// next Tuesday" are two different facts about the same carton.
   final int? daysUntilExpiry;
 
   /// The product's shelf life in days, from `products.default_shelf_life_days`.
@@ -76,7 +118,65 @@ class ProductListItem {
     this.daysUntilExpiry,
     this.expiryLabel,
     this.shelfLifeDays,
+    this.contentAmount,
+    this.contentUnit,
+    this.openRemainder,
+    this.openDaysRemaining,
   });
+
+  /// Whether one unit is open and partly used.
+  bool get hasOpenUnit => openRemainder != null && openRemainder! > 0;
+
+  /// The count of whole, unopened base units.
+  ///
+  /// Derived by taking the floor of the total, so it cannot disagree with [amount].
+  /// Holding it as its own field would let a rounding change put "2 adet + 500 ml"
+  /// next to a total of 2.4.
+  num get wholeCount => amount.floor();
+
+  /// The figure the row prints first, and its unit.
+  ///
+  /// **When nothing is whole, the open remainder becomes the primary figure.** A pack
+  /// with two sachets left reads "2 poşet", not "0 paket + 2 poşet": the zero is
+  /// noise, and worse, `Quantity` would mute the whole row as depleted when the user
+  /// still has something to cook with.
+  ///
+  /// This is the decision `Quantity` deliberately does not make, because it needs the
+  /// content declaration and the locale's pluralisation.
+  (String, String?) get primaryFigure {
+    if (wholeCount == 0 && hasOpenUnit) {
+      return (_format(openRemainder!), contentUnit);
+    }
+    return (formatted, unit);
+  }
+
+  /// The trailing `+ N unit` part, or null when there is nothing to add.
+  ///
+  /// Null when nothing is open, and null when the remainder is already the primary
+  /// figure, which is what keeps the two from being printed twice.
+  (String, String?)? get remainderFigure {
+    if (!hasOpenUnit || wholeCount == 0) return null;
+    return (_format(openRemainder!), contentUnit);
+  }
+
+  /// The already-localised note explaining an open unit, for the row's meta line.
+  ///
+  /// Only worth saying when the remainder is the primary figure. "2 adet + 500 ml"
+  /// already tells the reader something is open; "2 poşet" does not, and without the
+  /// note the user cannot tell two loose sachets from two sealed packs.
+  String? get openNote {
+    if (!hasOpenUnit || wholeCount > 0) return null;
+    return '1 $unit açık';
+  }
+
+  /// Turkish decimal formatting for a content figure.
+  ///
+  /// Whole values lose the decimals: "500 ml", not "500,00 ml". A remainder is read
+  /// at a glance and the trailing zeros are noise at that size.
+  static String _format(num value) {
+    if (value == value.roundToDouble()) return value.round().toString();
+    return value.toStringAsFixed(2).replaceAll('.', ',');
+  }
 
   /// The neutral window used when a product declares no shelf life.
   static const int fallbackThresholdDays = 7;
@@ -121,7 +221,24 @@ class ProductListItem {
   /// section and the chips cannot disagree. They did once: the section hardcoded two
   /// days while the filter used seven, so a product could pass "Yakında bitecek" and
   /// be missing from the section that exists to surface exactly that.
-  bool get needsAttention => amount == 0 || isBelowPar || isExpired || isExpiringSoon;
+  bool get needsAttention =>
+      amount == 0 || isOpenAndPerishable || isBelowPar || isExpired || isExpiringSoon;
+
+  /// Whether an open unit is on its after-opening clock.
+  ///
+  /// **An open unit with a declared after-opening limit is ALWAYS in the attention
+  /// list, for as long as it is open.** Not on a proportion of anything: the
+  /// proportional window that works for a printed date breaks down here, because 20%
+  /// of a three-day after-opening life is under a day, so an opened carton with two
+  /// days left would stay silent until its last morning.
+  ///
+  /// It is also the right answer on its own terms. An opened container is the single
+  /// item most likely to be wasted, and telling the user about it is the promise the
+  /// product is built on.
+  ///
+  /// Gated on the limit being declared, so an opened bag of flour does not sit in the
+  /// attention list forever. Opening something shelf-stable is not an event.
+  bool get isOpenAndPerishable => hasOpenUnit && openDaysRemaining != null;
 
   /// Whether stock has fallen to or below the user's own target level.
   ///
@@ -204,22 +321,66 @@ class ProductListItem {
 /// and a tool at zero are what keep that honest, and they are also what the screen
 /// looks like for a workshop rather than a kitchen.
 const List<ProductListItem> productFixtures = <ProductListItem>[
+  // The partial-consumption case, and the reason D26 and D27 exist. Two sealed
+  // cartons plus one opened with half a litre left: the total is 2.5 base units, the
+  // row prints "2 adet + 500 ml", and the badge reports the OPENED unit's three-day
+  // limit rather than the printed date, which still has a week to run.
   ProductListItem(
     name: 'Pınar Süt Tam Yağlı 1 lt',
     brand: 'Pınar',
+    // Sealed cartons in the pantry, the open one in the fridge. A product genuinely
+    // split across locations is what keeps the location filter honest.
     locationIds: {'loc-fridge', 'loc-pantry'},
     locationSummary: 'Buzdolabı, Kiler',
     categoryId: 'cat-dairy',
     tags: {'kahvaltı', 'soğuk zincir'},
-    amount: 5,
-    formatted: '5',
+    amount: 2.5,
+    formatted: '2',
     unit: 'adet',
-    parLevel: 6,
+    contentAmount: 1000,
+    contentUnit: 'ml',
+    openRemainder: 500,
+    openDaysRemaining: 2,
+    expiryLabel: 'Açık · 2 gün',
+    daysUntilExpiry: 2,
+    parLevel: 4,
+    shelfLifeDays: 5,
+  ),
+  // The pack case from Turkish labelling law: one pack declares three sachets. Two
+  // sachets are left out of an opened pack, so nothing is whole and the remainder
+  // becomes the primary figure: "2 poşet", with "1 paket açık" underneath. Printing
+  // "0,67 paket" would be arithmetically true and useless.
+  ProductListItem(
+    name: 'Vanilya Tozu 3\'lü',
+    brand: 'Dr. Oetker',
+    locationIds: {'loc-pantry'},
+    locationSummary: 'Kiler › Raf 1',
+    categoryId: 'cat-grain',
+    amount: 0.67,
+    formatted: '0',
+    unit: 'paket',
+    contentAmount: 3,
+    contentUnit: 'poşet',
+    openRemainder: 2,
+    parLevel: 2,
+  ),
+  // Expired, and deliberately still here: the attention list has to hold a product
+  // that is past its date as well as one that is merely open.
+  ProductListItem(
+    name: 'Kaşar Peyniri 500 g',
+    brand: 'Pınar',
+    locationIds: {'loc-fridge'},
+    locationSummary: 'Buzdolabı',
+    categoryId: 'cat-dairy',
+    tags: {'kahvaltı'},
+    amount: 1,
+    formatted: '1',
+    unit: 'adet',
+    contentAmount: 500,
+    contentUnit: 'g',
     daysUntilExpiry: -1,
     expiryLabel: 'Süresi geçti',
-    // 5 days of shelf life, so the warning window derives to 1 day. Seven days would
-    // mean this carton is in the attention list from the moment it is bought.
-    shelfLifeDays: 5,
+    shelfLifeDays: 30,
   ),
   ProductListItem(
     name: 'Bulgur',

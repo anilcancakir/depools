@@ -392,12 +392,20 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   }
 
   Widget _row(ProductListItem item) {
+    final (String primary, String? primaryUnit) = item.primaryFigure;
+    final (String, String?)? remainder = item.remainderFigure;
+
     return ProductRow(
       name: item.name,
-      meta: item.meta,
+      // The open note joins the meta line rather than taking a line of its own: at
+      // "2 poşet" the reader needs to know one pack is open, and a third line per row
+      // would cost more vertical space than the fact is worth.
+      meta: [?item.meta, ?item.openNote].join(' · '),
       amount: item.amount,
-      formatted: item.formatted,
-      unit: item.unit,
+      formatted: primary,
+      unit: primaryUnit,
+      remainderFormatted: remainder?.$1,
+      remainderUnit: remainder?.$2,
       expiryLabel: item.expiryLabel,
       daysUntilExpiry: item.daysUntilExpiry,
       parLevel: item.parLevel,

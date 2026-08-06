@@ -53,6 +53,12 @@ class ProductRow extends StatelessWidget {
   /// The product's base unit.
   final String? unit;
 
+  /// An already-formatted remainder for an open unit, rendered after a `+`.
+  final String? remainderFormatted;
+
+  /// The remainder's unit.
+  final String? remainderUnit;
+
   /// The already-formatted earliest expiry across every lot.
   final String? expiryLabel;
 
@@ -77,6 +83,8 @@ class ProductRow extends StatelessWidget {
     required this.formatted,
     this.meta,
     this.unit,
+    this.remainderFormatted,
+    this.remainderUnit,
     this.expiryLabel,
     this.daysUntilExpiry,
     this.parLevel,
@@ -106,7 +114,13 @@ class ProductRow extends StatelessWidget {
           WDiv(
             className: slots['trailing'],
             children: [
-              Quantity(amount: amount, formatted: formatted, unit: unit),
+              Quantity(
+                amount: amount,
+                formatted: formatted,
+                unit: unit,
+                remainderFormatted: remainderFormatted,
+                remainderUnit: remainderUnit,
+              ),
               // ONE badge, the most urgent. A product can be both expired and below
               // par, and rendering both stacked them into a three-line row: the
               // attention list lost its uniform rhythm and the date, which is the

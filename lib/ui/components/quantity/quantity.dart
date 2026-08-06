@@ -47,10 +47,24 @@ enum QuantityTone {
 /// A zero is muted, never hidden. "0 kg" is real information in an inventory, and
 /// dropping it would make an out-of-stock item look like a missing one.
 ///
+/// ### The open remainder
+///
+/// [remainderFormatted] renders a second figure after a `+`, for the case where some
+/// units are whole and one is open: "2 adet + 500 ml". Per D26 a partial quantity is
+/// never one decimal, because "2,5 adet" and especially "0,67 paket" correspond to
+/// nothing a user can see in the cupboard.
+///
+/// **Which figure is primary is the caller's decision, not this widget's.** When
+/// nothing is whole, the caller passes the open remainder AS [formatted] and leaves
+/// the remainder null, so a pack with two sachets left reads "2 poşet" rather than
+/// "0 paket + 2 poşet". That choice needs the product's content declaration and the
+/// locale's pluralisation, both of which already live with the caller.
+///
 /// ### Example
 ///
 /// ```dart
 /// Quantity(amount: 1240, formatted: '1.240,00', unit: 'kg', size: QuantitySize.lg)
+/// Quantity(amount: 2.5, formatted: '2', unit: 'adet', remainderFormatted: '500', remainderUnit: 'ml')
 /// ```
 @immutable
 class Quantity extends StatelessWidget {
@@ -62,6 +76,15 @@ class Quantity extends StatelessWidget {
 
   /// The unit label, for example `'kg'` or `'adet'`.
   final String? unit;
+
+  /// An already-formatted second figure for the open unit's remainder.
+  ///
+  /// Rendered after a `+`. Null when nothing is open, or when the remainder is
+  /// itself the primary figure (see the class docs).
+  final String? remainderFormatted;
+
+  /// The remainder's unit, the product's content unit rather than its base unit.
+  final String? remainderUnit;
 
   /// The size step.
   final QuantitySize size;
@@ -78,6 +101,8 @@ class Quantity extends StatelessWidget {
     required this.amount,
     required this.formatted,
     this.unit,
+    this.remainderFormatted,
+    this.remainderUnit,
     this.size = QuantitySize.md,
     this.tone = QuantityTone.neutral,
     this.className,
@@ -95,6 +120,7 @@ class Quantity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final toneKey = _toneKey;
+    final unitClassName = quantityUnitRecipe()(variants: {'size': size.name, 'tone': toneKey});
 
     return WDiv(
       className: quantityRecipe()(
@@ -103,11 +129,15 @@ class Quantity extends StatelessWidget {
       ),
       children: [
         WText(formatted),
-        if (unit != null)
-          WText(
-            unit!,
-            className: quantityUnitRecipe()(variants: {'size': size.name, 'tone': toneKey}),
-          ),
+        if (unit != null) WText(unit!, className: unitClassName),
+        // The `+` takes the unit's muted tone rather than the value's. It is a
+        // separator, not a figure, and at the value's weight it competed with both
+        // numbers it sits between.
+        if (remainderFormatted != null) ...[
+          WText('+', className: unitClassName),
+          WText(remainderFormatted!),
+          if (remainderUnit != null) WText(remainderUnit!, className: unitClassName),
+        ],
       ],
     );
   }
