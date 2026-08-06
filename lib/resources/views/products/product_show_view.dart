@@ -8,7 +8,8 @@ import 'package:magic_starter/magic_starter.dart'
         ButtonIntent,
         ButtonSize,
         MSDropdownMenu,
-        MSDropdownMenuItem;
+        MSDropdownMenuItem,
+        MSEmptyState;
 
 import '../../../ui/components/expiry_badge/expiry_badge.dart';
 import '../../../ui/components/location_stock_row/location_stock_row.dart';
@@ -71,9 +72,29 @@ class ProductShowView extends StatelessWidget {
   static const IconData _outIcon = Icons.remove_outlined;
   static const IconData _inIcon = Icons.add_outlined;
   static const IconData _chevronIcon = Icons.chevron_right_outlined;
+  static const IconData _emptyLotsIcon = Icons.inventory_2_outlined;
+  static const IconData _emptyMovementsIcon = Icons.history_outlined;
+
+  /// Whether this product has no stock and no history yet.
+  ///
+  /// A product exists before any stock does: it is created by a scan, a receipt line
+  /// or by hand, and the first movement can come minutes or days later. So the empty
+  /// shape is a normal state, not an error, and it is the first thing a new user sees
+  /// after adding their first product. `.claude/rules/design.md` requires a designed
+  /// empty state with a call to action rather than a bare card.
+  ///
+  /// It has to reach EVERY number on the screen, not only the collection cards. A
+  /// first pass made the lot, location and movement lists empty and left the total at
+  /// "5 adet" with an expired badge and "9 hareket" beside it, so the screen
+  /// contradicted itself: a product with no movements cannot have stock, an expiry or
+  /// a waste figure. Anything derived from the ledger has to go to zero together.
+  final bool isNew;
 
   /// Creates the [ProductShowView].
-  const ProductShowView({super.key});
+  const ProductShowView({super.key}) : isNew = false;
+
+  /// Creates the view for a product that has no stock or history yet.
+  const ProductShowView.newProduct({super.key}) : isNew = true;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +197,11 @@ class ProductShowView extends StatelessWidget {
                   'açıldıktan sonra buzdolabında 3 gün içinde tüketilmeli.',
                   className: 'text-sm text-fg-muted',
                 ),
+                // The tenant's own identifier, mono because it is a code the user
+                // compares character by character against a shelf label or an order.
+                // It sits here rather than in the page subtitle: the subtitle is the
+                // brand, and an earlier pass lost the SKU entirely by merging them.
+                WText('SKU · SUT-PNR-1L', className: 'font-mono text-xs text-fg-muted'),
               ],
             ),
           ],
@@ -247,6 +273,16 @@ class ProductShowView extends StatelessWidget {
   /// situation from five all fresh, and making them look identical at the top of the
   /// screen would bury it.
   Widget _buildStockSummary() {
+    if (isNew) {
+      return WDiv(
+        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+        children: [
+          WText('Toplam stok', className: 'text-xs text-fg-muted'),
+          const Quantity(amount: 0, formatted: '0', unit: 'adet', size: QuantitySize.lg),
+        ],
+      );
+    }
+
     return WDiv(
       className: '''
         flex flex-row items-end justify-between gap-3
@@ -277,20 +313,53 @@ class ProductShowView extends StatelessWidget {
   /// so the screen shows the user's own target level and says plainly that the
   /// history is not there yet. Showing a confident number from nine points is how a
   /// prediction feature loses its credibility on the first wrong guess.
+  ///
+  /// **Waste is a count, not the percentage `forecasting.md` names.** The percentage
+  /// is the right long-run metric, but one waste event out of three outflows is 33%
+  /// and means nothing, and quoting it would break the same honesty rule that keeps
+  /// the forecast card empty. A count is a fact rather than an estimate. The card
+  /// switches to a percentage once there is enough outflow to divide by.
+  ///
+  /// Days of cover is deliberately absent. `forecasting.md` says to show it "where it
+  /// is known", and it is not known here: it needs a consumption rate, which is the
+  /// very thing the middle card says it does not have yet. A third card reading
+  /// "Henüz yok" would be noise agreeing with the second one.
   Widget _buildForecast() {
+    if (isNew) {
+      return const WDiv(
+        className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
+        children: [
+          WDiv(child: StatCard(label: 'Hedef seviye', value: 'Belirlenmedi', delta: 'sen belirle')),
+          WDiv(
+            child: StatCard(
+              label: 'Tüketim tahmini',
+              value: 'Henüz yok',
+              delta: '0 hareket, 10 gerekiyor',
+            ),
+          ),
+          WDiv(child: StatCard(label: 'Zayi', value: '0', delta: 'son 30 günde')),
+        ],
+      );
+    }
+
     return const WDiv(
-      className: 'flex flex-row gap-3',
+      className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
       children: [
         WDiv(
-          className: 'flex-1',
           child: StatCard(label: 'Hedef seviye', value: '6 adet', delta: 'sen belirledin'),
         ),
         WDiv(
-          className: 'flex-1',
           child: StatCard(
             label: 'Tüketim tahmini',
             value: 'Henüz yok',
             delta: '9 hareket, 10 gerekiyor',
+          ),
+        ),
+        WDiv(
+          child: StatCard(
+            label: 'Zayi',
+            value: '1 adet',
+            delta: 'son 30 günde',
           ),
         ),
       ],
@@ -298,6 +367,21 @@ class ProductShowView extends StatelessWidget {
   }
 
   Widget _buildLocations() {
+    if (isNew) {
+      return WDiv(
+        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+        children: [
+          const SectionHeader(label: 'Konumlar'),
+          MSEmptyState(
+            icon: _moveIcon,
+            title: 'Henüz bir konumda değil',
+            description: 'Stok eklediğinde hangi konuma koyduğunu sorar, '
+                'sonrasında kendisi önerir.',
+          ),
+        ],
+      );
+    }
+
     return const WDiv(
       className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
       children: [
@@ -325,6 +409,21 @@ class ProductShowView extends StatelessWidget {
   }
 
   Widget _buildLots() {
+    if (isNew) {
+      return WDiv(
+        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+        children: [
+          const SectionHeader(label: 'Partiler'),
+          MSEmptyState(
+            icon: _emptyLotsIcon,
+            title: 'Parti yok',
+            description: 'Her stok girişi bir parti açar. Son kullanma tarihi girersen '
+                'önce bitmesi gerekeni buradan takip edersin.',
+          ),
+        ],
+      );
+    }
+
     return const WDiv(
       className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
       children: [
@@ -368,6 +467,21 @@ class ProductShowView extends StatelessWidget {
   }
 
   Widget _buildMovements() {
+    if (isNew) {
+      return WDiv(
+        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+        children: [
+          const SectionHeader(label: 'Hareketler'),
+          MSEmptyState(
+            icon: _emptyMovementsIcon,
+            title: 'Hiç hareket yok',
+            description: 'Aşağıdaki iki butonla ilk girişini ya da çıkışını kaydet. '
+                'Tüketim tahmini için birikmesi gereken geçmiş buradan başlar.',
+          ),
+        ],
+      );
+    }
+
     return WDiv(
       className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
       children: [
