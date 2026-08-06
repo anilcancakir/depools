@@ -128,18 +128,26 @@ class ProductIndexView extends StatelessWidget {
   /// is what makes it useful rather than decorative.
   Widget _buildEmpty() {
     return WDiv(
-      // `items-stretch` is load-bearing. MSEmptyState's root already carries
-      // `items-center text-center`, but Wind's flex-col defaults its cross axis to
-      // start, so without this the block sized to its content and sat against the
-      // left edge of the card while looking internally centred. The buttons below
-      // were never affected because `fullWidth` wraps them in a full-width box.
-      className: 'flex flex-col items-stretch gap-3 p-4 rounded-lg bg-surface-container',
+      // MSEmptyState centres its own children, but its root Column has no width of its
+      // own and its description carries `max-w-xs`, so it measures ~368px and sits at
+      // the card's left edge. Giving it the card's full width is what centres it: its
+      // `items-center` then has something to centre in, and the description shrinks
+      // under the tighter constraint instead of overflowing. Centring the ~368px block
+      // with a `justify-center` row looked identical at desktop width and overflowed by
+      // 54px once the card was phone-sized, because a Row lays a non-flex child out
+      // unbounded. `items-stretch` on this column was the first attempt and did not
+      // reach through to the child at all.
+      className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
       children: [
-        MSEmptyState(
-          icon: _receiptIcon,
-          title: 'Henüz ürün yok',
-          description: 'En hızlısı fiş fotoğrafı: bir alışverişin tamamı tek karede girer. '
-              'Barkod tararsan ürün bilgileri kendiliğinden dolar.',
+        WDiv(
+          className: 'w-full',
+          child: MSEmptyState(
+            icon: _receiptIcon,
+            title: 'Henüz ürün yok',
+            description:
+                'En hızlısı fiş fotoğrafı: bir alışverişin tamamı tek karede girer. '
+                'Barkod tararsan ürün bilgileri kendiliğinden dolar.',
+          ),
         ),
         WDiv(
           className: 'flex flex-col gap-2',
@@ -150,7 +158,10 @@ class ProductIndexView extends StatelessWidget {
               className: 'justify-center gap-2',
               child: const WDiv(
                 className: 'flex flex-row items-center gap-2',
-                children: [WIcon(_receiptIcon, className: 'size-4'), WText('Fiş fotoğrafı çek')],
+                children: [
+                  WIcon(_receiptIcon, className: 'size-4'),
+                  WText('Fiş fotoğrafı çek'),
+                ],
               ),
             ),
             WDiv(
@@ -165,7 +176,10 @@ class ProductIndexView extends StatelessWidget {
                     className: 'justify-center gap-2',
                     child: const WDiv(
                       className: 'flex flex-row items-center gap-2',
-                      children: [WIcon(_scanIcon, className: 'size-4'), WText('Barkod tara')],
+                      children: [
+                        WIcon(_scanIcon, className: 'size-4'),
+                        WText('Barkod tara'),
+                      ],
                     ),
                   ),
                 ),
@@ -178,7 +192,10 @@ class ProductIndexView extends StatelessWidget {
                     className: 'justify-center gap-2',
                     child: const WDiv(
                       className: 'flex flex-row items-center gap-2',
-                      children: [WIcon(_photoIcon, className: 'size-4'), WText('Fotoğraftan')],
+                      children: [
+                        WIcon(_photoIcon, className: 'size-4'),
+                        WText('Fotoğraftan'),
+                      ],
                     ),
                   ),
                 ),
@@ -252,7 +269,10 @@ class ProductIndexView extends StatelessWidget {
               className: 'min-h-11 axis-min',
               child: const WDiv(
                 className: 'flex flex-row items-center gap-0.5 axis-min',
-                children: [WText('Tümü'), WIcon(Icons.chevron_right_outlined, className: 'size-4')],
+                children: [
+                  WText('Tümü'),
+                  WIcon(Icons.chevron_right_outlined, className: 'size-4'),
+                ],
               ),
             ),
           ),

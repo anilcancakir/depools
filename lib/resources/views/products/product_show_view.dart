@@ -329,7 +329,9 @@ class ProductShowView extends StatelessWidget {
       return const WDiv(
         className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
         children: [
-          WDiv(child: StatCard(label: 'Hedef seviye', value: 'Belirlenmedi', delta: 'sen belirle')),
+          WDiv(
+            child: StatCard(label: 'Hedef seviye', value: 'Belirlenmedi', delta: 'sen belirle'),
+          ),
           WDiv(
             child: StatCard(
               label: 'Tüketim tahmini',
@@ -337,7 +339,9 @@ class ProductShowView extends StatelessWidget {
               delta: '0 hareket, 10 gerekiyor',
             ),
           ),
-          WDiv(child: StatCard(label: 'Zayi', value: '0', delta: 'son 30 günde')),
+          WDiv(
+            child: StatCard(label: 'Zayi', value: '0', delta: 'son 30 günde'),
+          ),
         ],
       );
     }
@@ -356,11 +360,7 @@ class ProductShowView extends StatelessWidget {
           ),
         ),
         WDiv(
-          child: StatCard(
-            label: 'Zayi',
-            value: '1 adet',
-            delta: 'son 30 günde',
-          ),
+          child: StatCard(label: 'Zayi', value: '1 adet', delta: 'son 30 günde'),
         ),
       ],
     );
@@ -369,16 +369,21 @@ class ProductShowView extends StatelessWidget {
   Widget _buildLocations() {
     if (isNew) {
       return WDiv(
-        // items-stretch so MSEmptyState's own items-center has a width to centre in;
-        // Wind's flex-col cross axis defaults to start.
-        className: 'flex flex-col items-stretch gap-1 p-4 rounded-lg bg-surface-container',
+        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
         children: [
           const SectionHeader(label: 'Konumlar'),
-          MSEmptyState(
-            icon: _moveIcon,
-            title: 'Henüz bir konumda değil',
-            description: 'Stok eklediğinde hangi konuma koyduğunu sorar, '
-                'sonrasında kendisi önerir.',
+          WDiv(
+            // Full width so MSEmptyState's own `items-center` has something to centre
+            // in; see the note in ProductIndexView for why a `justify-center` row is
+            // the wrong tool here.
+            className: 'w-full',
+            child: MSEmptyState(
+              icon: _moveIcon,
+              title: 'Henüz bir konumda değil',
+              description:
+                  'Stok eklediğinde hangi konuma koyduğunu sorar, '
+                  'sonrasında kendisi önerir.',
+            ),
           ),
         ],
       );
@@ -413,16 +418,21 @@ class ProductShowView extends StatelessWidget {
   Widget _buildLots() {
     if (isNew) {
       return WDiv(
-        // items-stretch so MSEmptyState's own items-center has a width to centre in;
-        // Wind's flex-col cross axis defaults to start.
-        className: 'flex flex-col items-stretch gap-1 p-4 rounded-lg bg-surface-container',
+        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
         children: [
           const SectionHeader(label: 'Partiler'),
-          MSEmptyState(
-            icon: _emptyLotsIcon,
-            title: 'Parti yok',
-            description: 'Her stok girişi bir parti açar. Son kullanma tarihi girersen '
-                'önce bitmesi gerekeni buradan takip edersin.',
+          WDiv(
+            // Full width so MSEmptyState's own `items-center` has something to centre
+            // in; see the note in ProductIndexView for why a `justify-center` row is
+            // the wrong tool here.
+            className: 'w-full',
+            child: MSEmptyState(
+              icon: _emptyLotsIcon,
+              title: 'Parti yok',
+              description:
+                  'Her stok girişi bir parti açar. Son kullanma tarihi girersen '
+                  'önce bitmesi gerekeni buradan takip edersin.',
+            ),
           ),
         ],
       );
@@ -473,16 +483,21 @@ class ProductShowView extends StatelessWidget {
   Widget _buildMovements() {
     if (isNew) {
       return WDiv(
-        // items-stretch so MSEmptyState's own items-center has a width to centre in;
-        // Wind's flex-col cross axis defaults to start.
-        className: 'flex flex-col items-stretch gap-1 p-4 rounded-lg bg-surface-container',
+        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
         children: [
           const SectionHeader(label: 'Hareketler'),
-          MSEmptyState(
-            icon: _emptyMovementsIcon,
-            title: 'Hiç hareket yok',
-            description: 'Aşağıdaki iki butonla ilk girişini ya da çıkışını kaydet. '
-                'Tüketim tahmini için birikmesi gereken geçmiş buradan başlar.',
+          WDiv(
+            // Full width so MSEmptyState's own `items-center` has something to centre
+            // in; see the note in ProductIndexView for why a `justify-center` row is
+            // the wrong tool here.
+            className: 'w-full',
+            child: MSEmptyState(
+              icon: _emptyMovementsIcon,
+              title: 'Hiç hareket yok',
+              description:
+                  'Aşağıdaki iki butonla ilk girişini ya da çıkışını kaydet. '
+                  'Tüketim tahmini için birikmesi gereken geçmiş buradan başlar.',
+            ),
           ),
         ],
       );
@@ -506,7 +521,10 @@ class ProductShowView extends StatelessWidget {
             className: 'min-h-11 axis-min',
             child: const WDiv(
               className: 'flex flex-row items-center gap-0.5 axis-min',
-              children: [WText('Tümü'), WIcon(_chevronIcon, className: 'size-4')],
+              children: [
+                WText('Tümü'),
+                WIcon(_chevronIcon, className: 'size-4'),
+              ],
             ),
           ),
         ),
@@ -574,7 +592,10 @@ class ProductShowView extends StatelessWidget {
             className: 'justify-center gap-2',
             child: const WDiv(
               className: 'flex flex-row items-center gap-2',
-              children: [WIcon(_outIcon, className: 'size-4'), WText('Stok çıkar')],
+              children: [
+                WIcon(_outIcon, className: 'size-4'),
+                WText('Stok çıkar'),
+              ],
             ),
           ),
         ),
@@ -586,7 +607,10 @@ class ProductShowView extends StatelessWidget {
             className: 'justify-center gap-2',
             child: const WDiv(
               className: 'flex flex-row items-center gap-2',
-              children: [WIcon(_inIcon, className: 'size-4'), WText('Stok ekle')],
+              children: [
+                WIcon(_inIcon, className: 'size-4'),
+                WText('Stok ekle'),
+              ],
             ),
           ),
         ),
