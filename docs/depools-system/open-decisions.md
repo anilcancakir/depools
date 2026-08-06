@@ -12,9 +12,13 @@ Small retail, workshops, cafes, small e-commerce. Households use the same produc
 
 Why: household AI inventory is crowded and price-capped (Kept ships photo capture, AI chat and recall alerts at 19.99 USD/year), business entry pricing is 10 to 25 times higher, and the MVP's own feature set was already business-shaped.
 
-### D2. The wedge is perishables plus simplicity
+### D2. Perishables are the go-to-market wedge, NOT the product's scope
 
-Verified against Sortly's own pricing-page feature matrix: no expiry tracking, no lot tracking, and its "Date-based Alerts" are maintenance schedules. Kept holds no quantities. The gap is real.
+Verified against Sortly's own pricing-page feature matrix: no expiry tracking, no lot tracking, and its "Date-based Alerts" are maintenance schedules. Kept holds no quantities. The gap is real, and it is what makes the first message land.
+
+**Corrected 2026-08-06.** An earlier reading of this decision let the product itself become food-shaped, and it showed in code: the attention section tested expiry and zero stock only, so a workshop tracking spare parts or a shop tracking chargers saw an empty attention list however low they ran. Expiry is **one signal among several**, not the organising one.
+
+The product serves any sector that holds stock: electronics, spare parts, consumables, tools, materials. A product with no expiry date is a normal product, not a degraded one, and every screen has to be reviewed against at least one of them. The wedge is how we get attention; it is not what the system knows how to hold.
 
 ### D3. Append-only movement ledger, derived balance, lot-level expiry
 
@@ -141,6 +145,64 @@ Published Turkish word error rates span roughly 3 to 18 percent depending on ven
 ### D21. Identity costs zero code
 
 `magic_starter` and `magic-starter-laravel` already ship login, registration, social login, password reset, 2FA with recovery codes, guest auth, phone OTP, device sessions, teams, invitations with token accept, member roles, profile, profile photos, notifications, email verification and timezones. Every hand-rolled equivalent in the MVP is discarded.
+
+### D22. Saved filters are team-wide
+
+`saved_filters(team_id, created_by)`. A cafe's "Yarın bitecekler" is useful to every shift, and the tenant boundary is already the team, so a per-user scope would mean each new employee starts from nothing and never sees the filter the owner built. Per-user privacy and a share toggle are what Linear and Jira need because their saved lists grow long enough to curate; a household or a small shop will have a handful.
+
+Consequence: no "share" concept in the UI at all, which is the point. Revisit only if a tenant outgrows one scrollable chip row.
+
+### D23. One column on every width, capped at `max-w-6xl`
+
+No master-detail pane and no desktop table. Phone and desktop run the same widget tree, so there is one layout to maintain and one place a regression can hide. The cap earns its place on measurement rather than on a platform role: an uncapped product row across a full desktop window puts the quantity an eye-movement from the name.
+
+Rejected: a two-column master-detail at `lg` (the Mail/Notes shape). It is the better desktop workflow for reviewing stock item by item, and the cost is that the detail screen stops being a page and becomes a pane, which changes routing while deep links still have to work, and every view then needs testing in two modes. Worth revisiting when the app has enough screens that the navigation cost is felt.
+
+### D24. The expiry warning window is derived per product, not fixed
+
+The window is the last fifth of the product's shelf life, floored at one day and capped at sixty. Milk (5 days) warns one day out; a tin (2 years) warns sixty days out. One global number cannot be right for both: seven days always warns about the carton and never warns about the tin.
+
+The cap is load-bearing. A raw 20% of a two-year life is 146 days, which is noise rather than signal, and sixty days is where a tin becomes worth acting on.
+
+Consequence: the filter carries no day count, because the window belongs to the product. "Yakında bitecek" is the chip label; "7 gün içinde" would be a promise the filter cannot keep. A product with an expiry date and no declared shelf life falls back to a 35-day life, giving the neutral 7-day window.
+
+### D25. Two unit levels: a base unit plus one declared pack ratio
+
+`products.base_unit` plus a content declaration (1 adet = 1000 ml; 1 paket = 3 adet). Stock is stored in ONE unit and converted on read or write, never as parallel per-unit columns.
+
+Verified against every system that does this for a living: Odoo (one reference unit per category, `relative_factor` ratios, `_compute_quantity` converting at the boundary), SAP (everything converted to the base unit automatically, `MARM` per-material factors), NetSuite (one Base unit, with separate Stock/Purchase/**Consumption** units all converting to it), and xtraCHEF's Purchase Unit → Pack → Inventory Unit triple, which is the closest small-business precedent to "1 pack = 3 sachets" and is a single ratio rather than a tree.
+
+**Two levels, not GS1's three or four.** GS1's each/inner-pack/case/pallet hierarchy is real and recursive, but it exists to give every physical repackaging boundary its own scannable, orderable identity across a distribution chain. That is an identification problem, not a quantity-conversion problem, and no general-purpose ERP copies it into its quantity model. Add a third level only if wholesale or multi-location ordering becomes real, and then as another flat named unit.
+
+Turkish law already supplies the vocabulary for the pack case. Türk Gıda Kodeksi Etiketleme Yönetmeliği (RG 26.01.2017/29960 mükerrer), Ek-6: *"Bir hazır ambalaj birimi, aynı üründen aynı miktarda içeren iki veya daha fazla bağımsız hazır ambalaj biriminden oluşuyorsa, net miktar her bir ambalajın içerdiği net miktar ve ambalajların toplam sayısı verilerek belirtilir."* Per-pack net content plus total pack count is exactly the two fields this decision stores.
+
+Two failure modes to avoid, both observed in the field: SAP's base unit cannot be changed once postings exist, and changing a conversion factor afterwards silently re-derives historical quantities with the new factor. So the base unit is immutable after the first movement, and a ratio change creates a new unit rather than editing the old one.
+
+### D26. A partial quantity is shown as a count plus the open remainder, never as one decimal
+
+"2 adet + 500 ml", not "2,5 adet". "2 poşet" with "(1 paket açık)", not "0,67 paket". The lot list gives the open item its own row with its own date.
+
+Odoo's own answer is a per-unit Rounding Precision of 1.0 for anything that cannot be split, and its documented failure is that the precision setting is shared across all units, so users report seeing "2,345 chairs". Apicbase goes the other way and shows the fraction (2.5 packages of 500 g) because its package unit is mass-backed. This decision takes Apicbase's honesty about the remainder and drops the arithmetic nobody can picture: a number like "2,33 adet vanilya" corresponds to nothing a user can see in the cupboard.
+
+### D27. "Opened" is a first-class lot state with its own expiry
+
+`product_lots` gains `opened_at` and a shelf-life-after-opening in days; an opened lot carries its own derived date and reaches the attention list on that date rather than the printed one. Opening is recorded as a movement reason, so the ledger stays append-only and the derived balance stays correct.
+
+An opened 1 L carton with 500 ml left is not half a litre of unopened milk: it spoils on a different schedule, and the product's whole waste-prevention claim breaks exactly there. Ten days on the printed date reads as "no problem" while the real limit is three.
+
+This is a deliberate departure, not a copied pattern. Food safety already treats it as a distinct object: EFSA formally defines "secondary shelf-life" as the after-opening limit with its own decision tree, HACCP labelling practice requires the opening date on the label, and the Turkish labelling regulation requires an after-opening consumption limit to be declared where necessary. But no shipped inventory or ERP product models it: storq.io's lot statuses are Available/Quarantined/Expired/Consumed with no Opened, and Apicbase and WISK track partial containers as a fractional quantity on the same record with no shortened date. The concept appears in food-label printers and in patent literature, not in an inventory ledger. So there is nothing to copy and we are building it.
+
+### D28. Lot tracking and serial tracking both ship in v1, chosen per product
+
+A product declares whether its units are fungible (lot tracking: a batch with one expiry, quantities add up) or individually identified (serial tracking: one row per physical unit, its own serial or IMEI, its own warranty end date). Electronics, tools and appliances need the second and cannot be expressed by the first.
+
+The cost was stated before the decision and accepted: the core model carries two shapes, so every screen, every filter and every movement record has to handle both, and v1 scope grows visibly. The alternative considered was warranty dates only, reusing the expiry machinery, with serials deferred to v2.
+
+### D29. Never ask for unit, pack content or shelf life at capture time
+
+Infer them: from the name ("1 lt", "3'lü"), from the barcode catalogue, from a category default. Ask later, and only where the answer changes what the app does. This is D13 applied to the unit model, and it is what protects the first success criterion (ten products into stock in under five minutes without reading anything).
+
+Consequence: inferred values need a "not confirmed" mark, so a wrong guess is visible and correctable rather than silently load-bearing for a forecast.
 
 ## Open
 

@@ -14,7 +14,7 @@ The axes are not a free choice. `ai-design.md` already fixed them, because `sear
 | tag | multi-select | product tags |
 | brand | multi-select | `products.brand`, distinct values |
 | stock state | one of: all, out of stock, below par, in stock | derived from the ledger against `par_level` |
-| expiry | one of: any, expired, expiring within N days | earliest lot expiry, `tracks_expiry` products only |
+| expiry | one of: any, expired, expiring soon | earliest lot expiry; the "soon" window is derived per product, see D24 |
 
 Selecting a parent location includes everything under it. "Kiler" has to mean Kiler and its shelves, because a user who put a product on "Kiler › Raf 2" thinks of it as being in the pantry.
 
@@ -50,7 +50,7 @@ Source: [HIG, Search fields](https://developer.apple.com/design/human-interface-
 | Chip | Criteria |
 |---|---|
 | Süresi geçenler | expiry = expired |
-| Yakında bitecek | expiry = within 7 days |
+| Yakında bitecek | expiry = inside the product's own window |
 | Stok yok | stock state = out of stock |
 
 These overlap the "Dikkat gerekiyor" section on purpose. The section is the always-visible summary of the same three conditions; the chip is the drill-in that shows only that one, unmixed and complete rather than truncated. Removing either would be worse: the section is what a user who never taps a filter still sees, and the chip is what they reach for when the section is not enough.
@@ -61,7 +61,13 @@ Filtering on mobile is measurably worse than on desktop: reported usage sits aro
 
 That is why mode 2 of the chip row is not decoration. **The active criteria are always on screen while they are in force.** Every screenshot review of this screen should check that first: if a filter is applied and the row does not say so, the screen is broken regardless of how it looks.
 
+## Settled since
+
+**Saved filters are team-wide** (D22): `saved_filters(team_id, created_by)`, no share toggle and no per-user scope. A cafe's "Yarın bitecekler" is useful to every shift, and a per-user scope would mean each new employee starts from nothing.
+
+**"Yakında bitecek" carries no day count** (D24). The window is the last fifth of the product's shelf life, so the chip cannot name a number without making a promise the filter does not keep.
+
 ## Open
 
-- **Whether saved filters sync per user or per team.** A cafe's "Yarın bitecekler" is useful to every member; a household member's private list is not obviously so. Leaning per-team with a creator recorded, since the tenant boundary is already the team, but this is not settled.
 - **Filter on the assistant's side.** The assistant can already express these as tool arguments. Whether a chat answer offers "bunu filtre olarak kaydet" is a v2 question, listed in `iterations.md`.
+- **Whether the axes need a tracking-mode filter.** D28 puts lot-tracked and serial-tracked products in one catalogue. A user hunting a specific IMEI searches rather than filters, so this is probably not an axis, but it is unverified against a real serial-tracking workflow.
