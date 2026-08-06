@@ -238,6 +238,24 @@ Rejected: a separate full page (two copies of the same section structure, and ev
 
 Cost: the detail screen carries a draft/saved mode on top of the two tracking modes it already carries. That is three combinations to keep exercised, and D28's record this session says each unexercised combination is where a defect hides.
 
+### D34. The location tree gets its own screen, and the placement dial lives on it
+
+Nothing in the app showed the hierarchy until now, even though every screen assumed it: the product detail lists stock per location, the filter offers locations as chips, the stock-in sheet suggests one. All of them presented a flat set of paths, so the structure the schema maintains (`parent_location_id`, a materialised `path`, depth capped at 6) existed nowhere a user could see or edit.
+
+`location-assignment.md`'s automation dial belongs on that screen rather than in settings. What it automates is exactly what the screen is about, and the dial is meaningless before the user has a tree for it to choose from.
+
+**The dial states what each position does, not just its name.** "Otomatik" alone does not tell a user that a placement will happen without being asked, which is the part they would want before choosing it. And because full-auto is gated on a measured reversion rate rather than a predicted confidence, the screen says the setting can drop back on its own: the dial is a request, not a guarantee.
+
+The empty state is a **blocker, not decoration**. A tenant with no locations cannot receive stock anywhere, so it is the first screen of every account and it offers two ways out: add one, or start from a template.
+
+### D35. A location row shows its own name; the count includes descendants
+
+In the tree, a row shows only its own name, because the ancestors are literally on screen above it. Repeating "Mutfak › Buzdolabı" inside a hierarchy is the redundancy that makes a hierarchy unreadable. `LocationStockRow` on the product screen does the opposite for the opposite reason: there the tree is absent, so the path is the only context.
+
+The count is the subtree's, not the node's own. "Mutfak, 5 ürün" means everything in the kitchen, which is what a user reading it means; a parent showing only what sits loose in the room would report 0 for a kitchen full of food.
+
+**Depth is expressed by indent, and the gutter is reserved on every row.** Rendering the icon conditionally inverted the tree: a root with an icon had its name pushed 32px right by the glyph and gap while its child got 12px of indent, so children appeared to the LEFT of their parents. Indent is `pl-3` per level, which keeps the schema's deepest row inside 60px on a phone.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

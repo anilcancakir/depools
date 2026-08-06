@@ -562,6 +562,20 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### LocationRow
+
+- **File**: `lib/ui/components/location_row/`
+- **Class**: `LocationRow`
+- **Token bindings**: `text-fg` (name), `text-fg-muted` (empty name, meta, icon)
+- **What it is**: one node in the location tree: own name, subtree product count, depth by indent.
+- **Anti-patterns**:
+  - Do not show the full path here. The ancestors are on screen above; `LocationStockRow` is the one that shows a path, because there the tree is absent.
+  - Do not render the icon conditionally. The gutter is reserved on every row, or a parent's icon pushes its name further right than its child's indent and the tree reads inverted.
+  - Do not interpolate the indent class (`pl-${depth * 3}`). Wind caches on the literal string and an unknown value drops silently; the depths are a switch over literal tokens, capped at the schema's 6.
+  - Do not hide an empty location. It is still a valid destination for a stock-in; it recedes to `text-fg-muted` instead.
+
+---
+
 ## Anti-patterns (global)
 
 | Anti-pattern | Category | Fix |

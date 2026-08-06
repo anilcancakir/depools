@@ -40,6 +40,14 @@ This is the same shape as affinity-based warehouse slotting and as Bayesian spam
 
 The shared category taxonomy (see `barcode-and-catalog.md`) is what makes step 1 possible across tenants at cold start. Without a shared vocabulary, a brand new tenant has no signal at all.
 
+## Where the dial lives, and what the tree looks like
+
+The dial is on the **Konumlar** screen, not in settings (D34): it automates exactly what that screen is about, and it is meaningless before a tenant has a tree for it to choose from. Each position states what it does rather than relying on its label, and the screen says out loud that full-auto can drop back on its own, because the demotion below is measured rather than predicted.
+
+The tree itself renders one row per node: its own name (never the full path, since the ancestors are above it), the subtree's product count, and depth by indent with the icon gutter reserved on every row. Detail in D35 and `docs/component-registry.md`.
+
+The empty state is a blocker rather than decoration. No locations means stock has nowhere to go, so it is the first screen of every account and it offers "Konum ekle" or a starter template.
+
 ## The automation dial
 
 A user-set preference, per D10, changeable at any time and per action type.
