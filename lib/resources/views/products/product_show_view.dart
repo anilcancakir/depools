@@ -39,6 +39,26 @@ import '../../../ui/components/tag/index.dart';
 /// 4. **What is about to go bad.** Lots, earliest first.
 /// 5. **What happened.** The ledger.
 ///
+/// **Where an action goes, and why it is a rule rather than a case-by-case call.**
+/// An earlier version had no rule and it showed: adding a barcode sat in a card
+/// header while adding stock sat in a page footer, even though both add to a
+/// collection. Nothing explained the difference, so the next screen would have
+/// invented its own placement.
+///
+/// - **A card header's right side is for NAVIGATION only.** "Tümü" belongs there
+///   because it takes you elsewhere, and it carries a chevron so it reads that way.
+///   Nothing that changes data goes in a card header.
+/// - **The page footer is for the FREQUENT mutations.** Stock out and stock in, done
+///   many times a day, sized as real buttons.
+/// - **The header overflow is for the RARE mutations.** Adding a barcode, editing,
+///   archiving. Reachable, not competing.
+///
+/// A consequence worth noting: most cards end up with no action at all, and that is
+/// correct. "Partiler" does not need one because a lot is created by the stock-in
+/// button, and "Konumlar" does not because moving stock is in the header. Giving
+/// every card a button for symmetry would leave the two that mean something
+/// indistinguishable from the ones that do not.
+///
 /// Currently rendered from the fixtures below rather than a controller. Wiring it to
 /// a `ProductController` is the next step; the fixtures stay afterwards as the
 /// preview's data source so the catalog keeps working without a backend.
@@ -47,10 +67,10 @@ class ProductShowView extends StatelessWidget {
   static const IconData _imagePlaceholderIcon = Icons.photo_outlined;
   static const IconData _moveIcon = Icons.swap_horiz_outlined;
   static const IconData _labelIcon = Icons.qr_code_2_outlined;
-  static const IconData _scanIcon = Icons.barcode_reader;
   static const IconData _moreIcon = Icons.more_horiz_outlined;
   static const IconData _outIcon = Icons.remove_outlined;
   static const IconData _inIcon = Icons.add_outlined;
+  static const IconData _chevronIcon = Icons.chevron_right_outlined;
 
   /// Creates the [ProductShowView].
   const ProductShowView({super.key});
@@ -105,6 +125,7 @@ class ProductShowView extends StatelessWidget {
         ),
         MSDropdownMenu(
           items: [
+            MSDropdownMenuItem(label: 'Barkod ekle', onTap: () {}),
             MSDropdownMenuItem(label: 'Ürünü düzenle', onTap: () {}),
             MSDropdownMenuItem(label: 'Arşivle', onTap: () {}),
           ],
@@ -172,22 +193,24 @@ class ProductShowView extends StatelessWidget {
   ///
   /// Mono because a barcode is a string of digits a user reads character by
   /// character when comparing it against a physical label.
+  ///
+  /// The action is "Ekle", not a scan icon. An earlier version put a scan control
+  /// here, which was wrong on two counts: the glyph rendered badly, and more
+  /// importantly scanning makes no sense on a screen you reached by already
+  /// identifying the product. Scanning belongs to the list and capture flows. What
+  /// you actually do from here is link another code to this product, for an item
+  /// that shipped without one or carries a second manufacturer code.
+  ///
+  /// Not every card gets an action. A card earns one only when there is something
+  /// you would genuinely start from it: "Partiler" does not, because a lot is created
+  /// by the stock-in button below, and "Konumlar" does not, because moving stock is
+  /// already in the header. Adding an action to each card for symmetry would be
+  /// noise competing with the two that mean something.
   Widget _buildBarcodes() {
     return WDiv(
       className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
       children: [
-        SectionHeader(
-          label: 'Barkodlar',
-          count: '2 kod',
-          action: MSButton(
-            onPressed: () {},
-            intent: ButtonIntent.ghost,
-            size: ButtonSize.sm,
-            className: 'min-h-11 min-w-11 justify-center',
-            semanticLabel: 'Barkod tara',
-            child: const WIcon(_scanIcon),
-          ),
-        ),
+        const SectionHeader(label: 'Barkodlar', count: '2 kod'),
         _buildBarcodeRow('8690123456789', 'EAN-13 · üretici'),
         _buildBarcodeRow('DP-0042', 'Code128 · bizim bastığımız'),
       ],
@@ -355,7 +378,11 @@ class ProductShowView extends StatelessWidget {
             onPressed: () {},
             intent: ButtonIntent.ghost,
             size: ButtonSize.sm,
-            child: const WText('Tümü'),
+            className: 'min-h-11 justify-center',
+            child: const WDiv(
+              className: 'flex flex-row items-center gap-0.5',
+              children: [WText('Tümü'), WIcon(_chevronIcon, className: 'size-4')],
+            ),
           ),
         ),
         const MovementRow(
