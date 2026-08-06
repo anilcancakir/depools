@@ -49,13 +49,9 @@ class DraftFieldPreview extends StatelessWidget {
             DraftField(
               label: 'Açıklama',
               state: DraftFieldState.unsure,
-              prompt: 'fotoğraftan okunamadı',
+              prompt: 'Fotoğraftan okunamadı',
             ),
-            DraftField(
-              label: 'Barkod',
-              state: DraftFieldState.unsure,
-              prompt: 'taramak için dokun',
-            ),
+            DraftField(label: 'Barkod', state: DraftFieldState.unsure, prompt: 'Barkod okutulmadı'),
           ],
         ),
       ],

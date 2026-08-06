@@ -30,6 +30,7 @@ import 'ui/components/lot_row/lot_row.preview.dart';
 import 'ui/components/movement_row/movement_row.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
+import 'ui/components/receipt_line_row/receipt_line_row.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/serial_row/serial_row.preview.dart';
@@ -133,6 +134,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const ProfileScreenPreview(),
     ),
     PreviewEntry(label: 'Quantity', slug: 'quantity', builder: (_) => const QuantityPreview()),
+    PreviewEntry(
+      label: 'ReceiptLineRow',
+      slug: 'receipt_line_row',
+      builder: (_) => const ReceiptLineRowPreview(),
+    ),
     PreviewEntry(
       label: 'RegisterScreen',
       slug: 'register_screen',

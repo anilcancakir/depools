@@ -358,7 +358,7 @@ class ProductShowView extends StatelessWidget {
         className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
         children: [
           WDiv(
-            child: StatCard(label: 'Hedef seviye', value: 'Belirlenmedi', delta: 'sen belirle'),
+            child: StatCard(label: 'Hedef seviye', value: 'Belirlenmedi', delta: 'Belirlenmedi'),
           ),
           WDiv(
             child: StatCard(
@@ -381,7 +381,7 @@ class ProductShowView extends StatelessWidget {
           child: StatCard(
             label: 'Hedef seviye',
             value: '${_product.parLevel} ${_product.unit}',
-            delta: 'sen belirledin',
+            delta: 'Elle belirlendi',
           ),
         ),
         const WDiv(
@@ -411,9 +411,7 @@ class ProductShowView extends StatelessWidget {
             child: MSEmptyState(
               icon: _moveIcon,
               title: 'Henüz bir konumda değil',
-              description:
-                  'Stok eklediğinde hangi konuma koyduğunu sorar, '
-                  'sonrasında kendisi önerir.',
+              description: 'Stok girişinde konum sorulur, sonraki girişlerde otomatik önerilir.',
             ),
           ),
         ],
@@ -483,8 +481,8 @@ class ProductShowView extends StatelessWidget {
               icon: _emptyLotsIcon,
               title: 'Parti yok',
               description:
-                  'Her stok girişi bir parti açar. Son kullanma tarihi girersen '
-                  'önce bitmesi gerekeni buradan takip edersin.',
+                  'Her stok girişi bir parti açar. Son kullanma tarihi girildiğinde '
+                  'önce tükenmesi gereken parti buradan izlenir.',
             ),
           ),
         ],
@@ -590,8 +588,8 @@ class ProductShowView extends StatelessWidget {
               icon: _emptyMovementsIcon,
               title: 'Hiç hareket yok',
               description:
-                  'Aşağıdaki iki butonla ilk girişini ya da çıkışını kaydet. '
-                  'Tüketim tahmini için birikmesi gereken geçmiş buradan başlar.',
+                  'İlk giriş ya da çıkış aşağıdaki iki butonla kaydedilir. '
+                  'Tüketim tahmini için gereken geçmiş buradan başlar.',
             ),
           ),
         ],

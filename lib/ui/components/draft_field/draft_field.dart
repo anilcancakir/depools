@@ -135,7 +135,7 @@ class DraftField extends StatelessWidget {
           DraftFieldState.filled => WText(value!, className: slots['chipValue']),
         },
         if (_state == DraftFieldState.filled && unconfirmed)
-          WText('tahmin', className: slots['chipMarker']),
+          WText('otomatik', className: slots['chipMarker']),
       ],
     );
   }
@@ -156,7 +156,7 @@ class DraftField extends StatelessWidget {
             className: 'flex flex-row items-center gap-1.5',
             children: [
               WIcon(_unsureIcon, className: 'size-3.5 text-ai'),
-              WText(prompt ?? 'modelden gelmedi, sen yaz', className: slots['prompt']),
+              WText(prompt ?? 'Belirlenemedi', className: slots['prompt']),
             ],
           ),
           DraftFieldState.filled => WDiv(
@@ -166,7 +166,7 @@ class DraftField extends StatelessWidget {
               // The marker says the value is provisional, not that it is wrong.
               // "tahmin" rather than a warning glyph: the app guessed, it worked, and
               // the user can leave it alone or fix it.
-              if (unconfirmed) WText('tahmin', className: slots['marker']),
+              if (unconfirmed) WText('otomatik', className: slots['marker']),
             ],
           ),
         },

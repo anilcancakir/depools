@@ -242,8 +242,8 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             icon: _receiptIcon,
             title: 'Henüz ürün yok',
             description:
-                'En hızlısı fiş fotoğrafı: bir alışverişin tamamı tek karede girer. '
-                'Barkod tararsan ürün bilgileri kendiliğinden dolar.',
+                'Bir fiş fotoğrafı alışverişin tamamını tek karede kaydeder. '
+                'Barkod okutulduğunda ürün bilgileri otomatik dolar.',
           ),
         ),
         WDiv(

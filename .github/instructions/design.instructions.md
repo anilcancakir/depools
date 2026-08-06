@@ -105,6 +105,23 @@ import 'package:flutter/material.dart' show Icons;  // only if icons are needed
 
 Never `import 'package:flutter/material.dart'` without `show`. Build exclusively on Wind W-widgets inside component bodies.
 
+## Turkish UI copy
+
+The app's copy drifted conversational and Anılcan called it: "Bu ne? dokunup eşleştir" for a line that could not be resolved, "modelden gelmedi, sen yaz" for an empty field, "kendi kodun, istersen yaz" for an optional one. Each reads like a person talking over your shoulder rather than a product telling you where things stand.
+
+Three rules, and they are enough:
+
+**Buttons are imperative.** `Kaydet`, `Çıkar`, `Ekle`, `Vazgeç`, `Filtreyi temizle`. This is the one place a command belongs, because the user is about to issue one.
+
+**States are nominal.** `Eşleştirilemedi`, not "Bu ne? dokunup eşleştir". `Belirlenemedi`, not "modelden gelmedi, sen yaz". `İsteğe bağlı`, not "kendi kodun, istersen yaz". `Takip edilmiyor`, `Atlandı`, `Yeni ürün`, `Kalan: 2 adet`. A state describes the world; it does not ask for anything.
+
+**Never the familiar singular.** No `sen yaz`, `istersen`, `tararsan`, `dokun`, `belirle`. Where an instruction is genuinely unavoidable, use the formal plural (`kaldırın`, `temizleyin`, `dokunun`) and keep it in a description or a semantic label, never in a field's own value.
+
+Two consequences worth stating:
+
+- **Do not tell the user to tap.** The row is tappable; saying `dokunup eşleştir` explains a touchscreen. Affordance carries the action, the label carries the state. `semanticLabel` is the exception, because a screen reader has no affordance to feel.
+- **`otomatik`, not `tahmin`.** An inferred value was derived from the name, the barcode or the category. "Guess" understates the mechanism and invites less trust than it deserves.
+
 ## Anti-Patterns
 
 Each of these is a blocker, and the `component-visual-reviewer` flags every one.
@@ -116,6 +133,7 @@ Each of these is a blocker, and the `component-visual-reviewer` flags every one.
 | A one-off widget when a library component exists | Check `docs/component-registry.md` first |
 | `Icons.*` inline in a component body | Extract as `static const IconData _icon = Icons.x;` |
 | `min-h-11` on an `MSButton` to reach the 44pt target | Use padding (`py-3` on `md`). Measured: min-height grows the box downward without re-centring the label, 4 logical px high. `min-h-11` is still correct on a plain `WDiv`. |
+| A row where some states have a leading icon and others have none | Reserve the glyph column for every state and carry the hierarchy in TONE. Icons are visually heavy, so settled states go `text-fg-disabled` and the one needing attention takes `text-ai`. A half-empty column reads as unfinished, not as deliberate. |
 | A selectable option with no fill when unselected | Give every option a `bg-surface-container-high`; a group where only the selected row has a background reads as one highlight among labels, not a set of choices |
 | Several preview classes in one `.preview.dart` | One preview class per file |
 | CSS-only Wind utilities (`box-shadow`, `filter`, `transform`, `group-*`) | Unsupported in wind; use Flutter animation APIs |

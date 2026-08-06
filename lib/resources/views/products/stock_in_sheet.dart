@@ -119,7 +119,7 @@ class _StockInSheetState extends State<StockInSheet> {
     }
 
     final num here = widget.product.amountAt(locationId);
-    if (here == 0) return 'önerilen';
+    if (here == 0) return 'Önerilen';
 
     final String noun = widget.product.tracking == TrackingMode.serial ? 'ünite' : 'parti';
     return 'önerilen · burada ${here.floor()} $noun var';
@@ -194,8 +194,8 @@ class _StockInSheetState extends State<StockInSheet> {
     final int whole = total.floor();
     final num remainder = ((total - whole) * content).round();
 
-    if (remainder == 0) return 'Sonra: $whole ${widget.product.unit}';
-    return 'Sonra: $whole ${widget.product.unit} + $remainder ${widget.product.contentUnit}';
+    if (remainder == 0) return 'Kalan: $whole ${widget.product.unit}';
+    return 'Kalan: $whole ${widget.product.unit} + $remainder ${widget.product.contentUnit}';
   }
 
   @override

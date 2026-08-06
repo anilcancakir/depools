@@ -133,7 +133,7 @@ class ProductDraftView extends StatelessWidget {
           label: 'Açıklama',
           value: isEnriching ? null : _source.description,
           state: isEnriching ? DraftFieldState.loading : null,
-          prompt: 'fotoğraftan okunamadı',
+          prompt: 'Fotoğraftan okunamadı',
           onTap: () {},
         ),
         // SKU stays empty after enrichment settles, on purpose. It is the tenant's own
@@ -142,7 +142,7 @@ class ProductDraftView extends StatelessWidget {
         DraftField(
           label: 'SKU',
           state: DraftFieldState.unsure,
-          prompt: 'kendi kodun, istersen yaz',
+          prompt: 'İsteğe bağlı',
           onTap: () {},
         ),
       ],
@@ -172,7 +172,7 @@ class ProductDraftView extends StatelessWidget {
               : '${_source.contentAmount!.round()} ${_source.contentUnit}',
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
-          prompt: 'ambalajda yazmıyorsa boş bırak',
+          prompt: 'İsteğe bağlı',
           onTap: () {},
         ),
         DraftField(
@@ -180,7 +180,7 @@ class ProductDraftView extends StatelessWidget {
           value: _source.shelfLifeDays == null ? null : '${_source.shelfLifeDays} gün',
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
-          prompt: 'son kullanma takip edilmeyecek',
+          prompt: 'Takip edilmiyor',
           onTap: () {},
         ),
       ],

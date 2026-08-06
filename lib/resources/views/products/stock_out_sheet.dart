@@ -255,24 +255,24 @@ class _StockOutSheetState extends State<StockOutSheet> {
   String get _resultLabel {
     if (_isSerial) {
       final int left = widget.product.liveSerials.length - (_serial == null ? 0 : 1);
-      return left == 0 ? 'Sonra: stok kalmayacak' : 'Sonra: $left ${widget.product.unit}';
+      return left == 0 ? 'Kalan: stok yok' : 'Kalan: $left ${widget.product.unit}';
     }
 
     final _AmountOption? option = _amount;
-    if (option == null) return 'Çıkarılacak bir şey yok';
+    if (option == null) return 'Çıkarılacak stok yok';
 
     final num content = widget.product.contentAmount ?? 1;
     final num inBase = option.unit == widget.product.unit ? option.amount : option.amount / content;
     final num left = (widget.product.amount - inBase).clamp(0, double.infinity);
 
-    if (left == 0) return 'Sonra: stok kalmayacak';
+    if (left == 0) return 'Kalan: stok yok';
 
     final int whole = left.floor();
     final num remainder = ((left - whole) * content).round();
 
-    if (remainder == 0) return 'Sonra: $whole ${widget.product.unit}';
-    if (whole == 0) return 'Sonra: $remainder ${widget.product.contentUnit}';
-    return 'Sonra: $whole ${widget.product.unit} + $remainder ${widget.product.contentUnit}';
+    if (remainder == 0) return 'Kalan: $whole ${widget.product.unit}';
+    if (whole == 0) return 'Kalan: $remainder ${widget.product.contentUnit}';
+    return 'Kalan: $whole ${widget.product.unit} + $remainder ${widget.product.contentUnit}';
   }
 
   /// The already-localised label for a reason, which varies by tracking mode.
@@ -431,7 +431,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
                 [if (lot.isOpen) 'Açık', ?lot.expiryLabel].join(' · '),
                 className: 'text-sm text-fg truncate',
               ),
-              if (suggested) WText('önerilen · en yakın tarih', className: 'text-xs text-ai'),
+              if (suggested) WText('Önerilen · en yakın tarih', className: 'text-xs text-ai'),
             ],
           ),
           Quantity(amount: lot.remaining, formatted: lot.formatted, unit: lot.unit),
@@ -473,7 +473,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
             className: 'flex flex-col gap-0.5 flex-1 min-w-0',
             children: [
               WText(unit.serial, className: 'font-mono text-sm text-fg truncate'),
-              if (suggested) WText('önerilen · garantisi en yakın', className: 'text-xs text-ai'),
+              if (suggested) WText('Önerilen · garantisi en yakın', className: 'text-xs text-ai'),
             ],
           ),
           if (unit.warrantyLabel != null)
@@ -498,7 +498,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
           // Naming the side effect on the button is the point. Opening a carton
           // shortens its expiry from the printed date to a few days, and a user who
           // discovers that afterwards has been told the opposite of the truth.
-          if (option.opensLot) WText('kartonu açar', className: 'text-xs opacity-70'),
+          if (option.opensLot) WText('Ambalaj açılır', className: 'text-xs opacity-70'),
         ],
       ),
     );

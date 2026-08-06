@@ -548,6 +548,20 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### ReceiptLineRow
+
+- **File**: `lib/ui/components/receipt_line_row/`
+- **Class**: `ReceiptLineRow`
+- **Token bindings**: `text-fg` / `text-fg-muted` / `text-fg-disabled`, `text-ai` (needs attention), `font-mono` (the extracted string)
+- **What it is**: one line off a receipt, in one of `receipt_lines`' four resolution states. The extracted string is always shown, in mono, because resolution is a guess about a truncated abbreviation and the paper is the only thing the user can check against.
+- **Anti-patterns**:
+  - Do not hide the extracted text once a line resolves. "PNR SUT 1LT" is what makes the review checkable.
+  - Do not omit the glyph for settled states. Every state gets one and the hierarchy lives in the tone; a half-empty icon column reads as unfinished.
+  - Do not make `matched` and `created` look different in weight. Both are settled and the user does not care which; the difference belongs in the meta line.
+  - Do not demand a tap per line. `receipt-ingestion.md`'s criterion is a 15-25 line receipt accepted with edits to fewer than 3 lines, so the default is accepted and only exceptions ask.
+
+---
+
 ## Anti-patterns (global)
 
 | Anti-pattern | Category | Fix |
