@@ -21,10 +21,16 @@ import '../../../ui/components/section_header/section_header.dart';
 /// the detail screen first: its primitives paid for this one. The reverse order would
 /// have meant designing the lot and location rows twice.
 ///
-/// The action-placement rule from `ProductShowView` holds here too: the card header's
-/// right side navigates ("Tümü"), the footer carries the frequent mutation (add a
-/// product), and rare ones live in the header overflow. Sorting and filtering are
-/// navigation rather than mutation, so they belong beside the search field.
+/// **The action-placement rule gains a distinction here, and both screens are better
+/// for it.** `ProductShowView` puts its frequent mutations in a footer, and this screen
+/// first copied that with an "Ürün ekle" button at the bottom. Wrong: on a LIST,
+/// creating a new item is the canonical header action, the way iOS puts a plus in the
+/// nav bar. The footer is for acting on the thing you are already looking at, which is
+/// what stock in and out are on a detail screen.
+///
+/// So: **header plus creates a new item in this collection, footer acts on the item you
+/// are viewing.** Card headers still navigate only, and search and filter sit at the
+/// top because they change what you look at rather than the data.
 ///
 /// Rendered from fixtures. Wiring it to a `ProductController` with `fetchList` is the
 /// next step; the fixtures stay as the preview's data source afterwards.
@@ -74,6 +80,12 @@ class ProductIndexView extends StatelessWidget {
           semanticLabel: 'Barkod tara',
           child: const WIcon(_scanIcon),
         ),
+        MSButton(
+          onPressed: () {},
+          className: 'min-h-11 min-w-11 justify-center',
+          semanticLabel: 'Ürün ekle',
+          child: const WIcon(_addIcon),
+        ),
       ],
     );
   }
@@ -116,7 +128,12 @@ class ProductIndexView extends StatelessWidget {
   /// is what makes it useful rather than decorative.
   Widget _buildEmpty() {
     return WDiv(
-      className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
+      // `items-stretch` is load-bearing. MSEmptyState's root already carries
+      // `items-center text-center`, but Wind's flex-col defaults its cross axis to
+      // start, so without this the block sized to its content and sat against the
+      // left edge of the card while looking internally centred. The buttons below
+      // were never affected because `fullWidth` wraps them in a full-width box.
+      className: 'flex flex-col items-stretch gap-3 p-4 rounded-lg bg-surface-container',
       children: [
         MSEmptyState(
           icon: _receiptIcon,
@@ -266,18 +283,6 @@ class ProductIndexView extends StatelessWidget {
             onTap: () {},
           ),
         ],
-      ),
-      WDiv(
-        className: 'pb-2',
-        child: MSButton(
-          onPressed: () {},
-          fullWidth: true,
-          className: 'justify-center gap-2',
-          child: const WDiv(
-            className: 'flex flex-row items-center gap-2',
-            children: [WIcon(_addIcon, className: 'size-4'), WText('Ürün ekle')],
-          ),
-        ),
       ),
     ];
   }

@@ -369,7 +369,9 @@ class ProductShowView extends StatelessWidget {
   Widget _buildLocations() {
     if (isNew) {
       return WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+        // items-stretch so MSEmptyState's own items-center has a width to centre in;
+        // Wind's flex-col cross axis defaults to start.
+        className: 'flex flex-col items-stretch gap-1 p-4 rounded-lg bg-surface-container',
         children: [
           const SectionHeader(label: 'Konumlar'),
           MSEmptyState(
@@ -411,7 +413,9 @@ class ProductShowView extends StatelessWidget {
   Widget _buildLots() {
     if (isNew) {
       return WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+        // items-stretch so MSEmptyState's own items-center has a width to centre in;
+        // Wind's flex-col cross axis defaults to start.
+        className: 'flex flex-col items-stretch gap-1 p-4 rounded-lg bg-surface-container',
         children: [
           const SectionHeader(label: 'Partiler'),
           MSEmptyState(
@@ -469,7 +473,9 @@ class ProductShowView extends StatelessWidget {
   Widget _buildMovements() {
     if (isNew) {
       return WDiv(
-        className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+        // items-stretch so MSEmptyState's own items-center has a width to centre in;
+        // Wind's flex-col cross axis defaults to start.
+        className: 'flex flex-col items-stretch gap-1 p-4 rounded-lg bg-surface-container',
         children: [
           const SectionHeader(label: 'Hareketler'),
           MSEmptyState(
