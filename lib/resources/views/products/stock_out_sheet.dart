@@ -76,12 +76,19 @@ class StockOutSheet extends StatefulWidget {
 }
 
 /// What the sheet returns: enough to write one movement row.
+///
+/// Either a lot and an amount, or a single serial. Never both, because the two unit
+/// models are exclusive per product (D28) and a draft that could carry both would
+/// invite a caller to guess which one it meant.
 @immutable
 class StockOutDraft {
-  /// Which lot the stock came out of.
-  final LotFixture lot;
+  /// Which lot the stock came out of, for a lot-tracked product.
+  final LotFixture? lot;
 
-  /// How much, in the unit the user chose.
+  /// Which specific unit left, for a serial-tracked product.
+  final SerialFixture? serial;
+
+  /// How much, in the unit the user chose. Always 1 for a serial.
   final num amount;
 
   /// The unit the user entered, base or content.
@@ -95,12 +102,13 @@ class StockOutDraft {
 
   /// Creates a [StockOutDraft].
   const StockOutDraft({
-    required this.lot,
     required this.amount,
     required this.unit,
     required this.reason,
+    this.lot,
+    this.serial,
     this.opensLot = false,
-  });
+  }) : assert((lot == null) != (serial == null), 'StockOutDraft: exactly one of lot or serial.');
 }
 
 /// One offered amount, and what taking it means.
@@ -124,7 +132,11 @@ class _AmountOption {
 class _StockOutSheetState extends State<StockOutSheet> {
   static const List<StockOutReason> _reasons = StockOutReason.values;
 
-  late LotFixture _lot = _fefoLot;
+  /// The lot in play, for a lot-tracked product. Null in serial mode.
+  late LotFixture? _lot = _fefoLot;
+
+  /// The unit in play, for a serial-tracked product. Null in lot mode.
+  late SerialFixture? _serial = _soonestWarranty;
   StockOutReason _reason = StockOutReason.consumed;
 
   /// The chosen amount, preselected rather than left empty.
@@ -141,14 +153,39 @@ class _StockOutSheetState extends State<StockOutSheet> {
   /// depending on it.
   late _AmountOption? _amount = _options.firstOrNull;
 
+  /// Whether this product is tracked unit by unit.
+  bool get _isSerial => widget.product.tracking == TrackingMode.serial;
+
   /// The lot FEFO would take from: the open one, else the earliest expiring.
-  LotFixture get _fefoLot {
+  ///
+  /// Null for a serial-tracked product, which has no lots. An earlier version reduced
+  /// the empty list and threw `Bad state: No element` the moment anyone tapped "Stok
+  /// çıkar" on a serial product. That is the THIRD lot-shaped assumption D28 has
+  /// broken, and this one I shipped.
+  LotFixture? get _fefoLot {
     final List<LotFixture> live = widget.product.liveLots;
+    if (live.isEmpty) return null;
+
     final LotFixture? open = live.where((l) => l.isOpen).firstOrNull;
     if (open != null) return open;
 
     return live.reduce(
       (a, b) => (a.daysUntilExpiry ?? 9999) <= (b.daysUntilExpiry ?? 9999) ? a : b,
+    );
+  }
+
+  /// The unit to offer first: the one whose warranty runs down soonest.
+  ///
+  /// The same intuition as FEFO, for the same reason. A unit loses value as its
+  /// warranty burns, so a shop is better off moving that one first. It is a suggestion
+  /// rather than a rule, since a serial is a specific object and the user may be
+  /// holding a different one.
+  SerialFixture? get _soonestWarranty {
+    final List<SerialFixture> live = widget.product.liveSerials;
+    if (live.isEmpty) return null;
+
+    return live.reduce(
+      (a, b) => (a.warrantyDaysRemaining ?? 9999) <= (b.warrantyDaysRemaining ?? 9999) ? a : b,
     );
   }
 
@@ -161,14 +198,18 @@ class _StockOutSheetState extends State<StockOutSheet> {
   /// Nothing is offered when the product declares no content, because there is no
   /// smaller unit to express: a bag of nails goes out in whole nails.
   List<_AmountOption> get _options {
+    // A serial-tracked take is one specific object, so there is no amount to choose.
+    // Offering "1 adet" as a button would be a control with one option.
+    if (_isSerial || _lot == null) return const <_AmountOption>[];
+
     final num? content = widget.product.contentAmount;
     final String? contentUnit = widget.product.contentUnit;
     final String base = widget.product.unit;
 
-    if (_lot.isOpen) {
+    if (_lot!.isOpen) {
       // The open lot's remainder is already expressed in the content unit, so its
       // formatted figure is the amount.
-      final num remaining = _lot.remaining * (content ?? 1);
+      final num remaining = _lot!.remaining * (content ?? 1);
       return <_AmountOption>[
         if (remaining > 1)
           _AmountOption(
@@ -186,7 +227,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
     }
 
     return <_AmountOption>[
-      _AmountOption(amount: 1, unit: base, label: '1 $base', emptiesLot: _lot.remaining == 1),
+      _AmountOption(amount: 1, unit: base, label: '1 $base', emptiesLot: _lot!.remaining == 1),
       if (content != null && contentUnit != null)
         _AmountOption(
           amount: content / 2,
@@ -197,8 +238,16 @@ class _StockOutSheetState extends State<StockOutSheet> {
     ];
   }
 
+  /// Whether there is a complete answer to commit.
+  bool get _canCommit => _isSerial ? _serial != null : _amount != null;
+
   /// What the product will hold after this take, as a sentence the user can check.
   String get _resultLabel {
+    if (_isSerial) {
+      final int left = widget.product.liveSerials.length - (_serial == null ? 0 : 1);
+      return left == 0 ? 'Sonra: stok kalmayacak' : 'Sonra: $left ${widget.product.unit}';
+    }
+
     final _AmountOption? option = _amount;
     if (option == null) return 'Çıkarılacak bir şey yok';
 
@@ -216,12 +265,21 @@ class _StockOutSheetState extends State<StockOutSheet> {
     return 'Sonra: $whole ${widget.product.unit} + $remainder ${widget.product.contentUnit}';
   }
 
-  /// The already-localised label for a reason.
-  static String _reasonLabel(StockOutReason reason) => switch (reason) {
-    StockOutReason.consumed => 'Tüketildi',
-    StockOutReason.wasted => 'Zayi',
-    StockOutReason.correction => 'Düzeltme',
-  };
+  /// The already-localised label for a reason, which varies by tracking mode.
+  ///
+  /// **The enum does not vary, only the wording.** `consumed` means "left as demand"
+  /// either way, and forecasting depends on that staying one value. But "Tüketildi" on
+  /// a power drill is wrong in Turkish and in English, and a shop reading it would
+  /// reasonably pick "Düzeltme" instead, which would corrupt the very metric the
+  /// distinction exists to protect.
+  String _reasonLabel(StockOutReason reason) {
+    final bool serial = widget.product.tracking == TrackingMode.serial;
+    return switch (reason) {
+      StockOutReason.consumed => serial ? 'Satıldı' : 'Tüketildi',
+      StockOutReason.wasted => 'Zayi',
+      StockOutReason.correction => 'Düzeltme',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -243,22 +301,36 @@ class _StockOutSheetState extends State<StockOutSheet> {
           ),
         ),
 
-        if (widget.product.liveLots.length > 1)
+        if (_isSerial)
           _group(
-            'Hangi parti',
+            'Hangi ünite',
             WDiv(
               className: 'flex flex-col gap-1',
-              children: [for (final LotFixture lot in widget.product.liveLots) _lotOption(lot)],
+              children: [
+                for (final SerialFixture unit in widget.product.liveSerials) _serialOption(unit),
+              ],
+            ),
+          )
+        else ...[
+          if (widget.product.liveLots.length > 1)
+            _group(
+              'Hangi parti',
+              WDiv(
+                className: 'flex flex-col gap-1',
+                children: [for (final LotFixture lot in widget.product.liveLots) _lotOption(lot)],
+              ),
+            ),
+
+          // No amount section in serial mode. A unit is whole, so a control with one
+          // option would be a question with one answer.
+          _group(
+            'Ne kadar',
+            WDiv(
+              className: 'flex flex-row wrap gap-2',
+              children: [for (final _AmountOption option in options) _amountButton(option)],
             ),
           ),
-
-        _group(
-          'Ne kadar',
-          WDiv(
-            className: 'flex flex-row wrap gap-2',
-            children: [for (final _AmountOption option in options) _amountButton(option)],
-          ),
-        ),
+        ],
 
         WDiv(
           className: 'flex flex-col gap-2 pt-2',
@@ -268,21 +340,28 @@ class _StockOutSheetState extends State<StockOutSheet> {
             // and with the amount preselected this line is always populated.
             WText(_resultLabel, className: 'text-sm text-fg-muted'),
             MSButton(
-              onPressed: _amount == null
-                  ? null
-                  : () => Navigator.of(context).pop(
-                      StockOutDraft(
-                        lot: _lot,
-                        amount: _amount!.amount,
-                        unit: _amount!.unit,
-                        reason: _reason,
-                        opensLot: _amount!.opensLot,
-                      ),
-                    ),
+              onPressed: _canCommit
+                  ? () => Navigator.of(context).pop(
+                      _isSerial
+                          ? StockOutDraft(
+                              serial: _serial,
+                              amount: 1,
+                              unit: widget.product.unit,
+                              reason: _reason,
+                            )
+                          : StockOutDraft(
+                              lot: _lot,
+                              amount: _amount!.amount,
+                              unit: _amount!.unit,
+                              reason: _reason,
+                              opensLot: _amount!.opensLot,
+                            ),
+                    )
+                  : null,
               // MSButton takes `disabled` separately and does not infer it from a
               // null callback, so passing only the null left this looking like a
               // live primary button while nothing was selected.
-              disabled: _amount == null,
+              disabled: !_canCommit,
               fullWidth: true,
               className: 'justify-center',
               child: const WText('Çıkar'),
@@ -335,6 +414,40 @@ class _StockOutSheetState extends State<StockOutSheet> {
             ],
           ),
           Quantity(amount: lot.remaining, formatted: lot.formatted, unit: lot.unit),
+        ],
+      ),
+    );
+  }
+
+  /// One selectable unit, for a serial-tracked product.
+  ///
+  /// The serial leads in mono, because that is the unit's identity and the thing the
+  /// user is matching against the object in their hand. The warranty follows, since it
+  /// is what makes one unit a better one to move than another.
+  Widget _serialOption(SerialFixture unit) {
+    final bool selected = unit == _serial;
+    final bool suggested = unit == _soonestWarranty;
+
+    return WAnchor(
+      onTap: () => setState(() => _serial = unit),
+      semanticLabel: '${unit.serial} ünitesini seç',
+      child: WDiv(
+        className: '''
+          flex flex-row items-center gap-3 px-3 min-h-11 rounded-md
+          selected:bg-primary-container selected:border selected:border-color-border
+        ''',
+        states: selected ? const {'selected'} : const {},
+        children: [
+          WDiv(
+            className: 'flex flex-col gap-0.5 flex-1 min-w-0',
+            children: [
+              WText(unit.serial, className: 'font-mono text-sm text-fg truncate'),
+              if (suggested)
+                WText('önerilen · garantisi en yakın', className: 'text-xs text-expiring'),
+            ],
+          ),
+          if (unit.warrantyLabel != null)
+            WText(unit.warrantyLabel!, className: 'text-xs text-fg-muted'),
         ],
       ),
     );
