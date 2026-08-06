@@ -5,6 +5,15 @@ import 'package:magic_starter/magic_starter.dart' show MSSkeleton, SkeletonShape
 
 import 'draft_field.recipe.dart';
 
+/// How a draft field is laid out.
+enum DraftFieldLayout {
+  /// A labelled line inside a card. The default.
+  row,
+
+  /// An inline capsule, for D13's grouped tap-chips.
+  chip,
+}
+
 /// What is known about one field on a draft product card.
 enum DraftFieldState {
   /// The enrichment call is still running. A skeleton stands in.
@@ -66,6 +75,9 @@ class DraftField extends StatelessWidget {
   /// The prompt shown in the unsure state. Defaults to a generic invitation.
   final String? prompt;
 
+  /// Which layout to render.
+  final DraftFieldLayout layout;
+
   /// Called when the field is tapped to edit it.
   final VoidCallback? onTap;
 
@@ -77,6 +89,7 @@ class DraftField extends StatelessWidget {
     this.state,
     this.unconfirmed = false,
     this.prompt,
+    this.layout = DraftFieldLayout.row,
     this.onTap,
   });
 
@@ -97,36 +110,67 @@ class DraftField extends StatelessWidget {
         DraftFieldState.unsure => '$label boş, doldurmak için dokun',
         DraftFieldState.filled => '$label: $value${unconfirmed ? ', doğrulanmadı' : ''}',
       },
-      child: WDiv(
-        className: slots['root'],
-        children: [
-          WText(label, className: slots['label']),
-          switch (_state) {
-            DraftFieldState.loading => const MSSkeleton(
-              shape: SkeletonShape.text,
-              width: 140,
-              height: 16,
-            ),
-            DraftFieldState.unsure => WDiv(
-              className: 'flex flex-row items-center gap-1.5',
-              children: [
-                WIcon(_unsureIcon, className: 'size-3.5 text-ai'),
-                WText(prompt ?? 'modelden gelmedi, sen yaz', className: slots['prompt']),
-              ],
-            ),
-            DraftFieldState.filled => WDiv(
-              className: 'flex flex-row items-baseline gap-2',
-              children: [
-                WText(value!, className: slots['value']),
-                // The marker says the value is provisional, not that it is wrong.
-                // "tahmin" rather than a warning glyph: the app guessed, it worked, and
-                // the user can leave it alone or fix it.
-                if (unconfirmed) WText('tahmin', className: slots['marker']),
-              ],
-            ),
-          },
-        ],
-      ),
+      child: layout == DraftFieldLayout.chip ? _buildChip(slots) : _buildRow(slots),
+    );
+  }
+
+  /// The capsule layout: value alone when there is one, the label when there is not.
+  Widget _buildChip(Map<String, String> slots) {
+    return WDiv(
+      className: slots['chipRoot'],
+      children: [
+        switch (_state) {
+          DraftFieldState.loading => const MSSkeleton(
+            shape: SkeletonShape.text,
+            width: 56,
+            height: 14,
+          ),
+          DraftFieldState.unsure => WDiv(
+            className: 'flex flex-row items-center gap-1.5 axis-min',
+            children: [
+              WIcon(_unsureIcon, className: 'size-3.5 text-ai'),
+              WText(prompt ?? '$label seç', className: slots['chipPrompt']),
+            ],
+          ),
+          DraftFieldState.filled => WText(value!, className: slots['chipValue']),
+        },
+        if (_state == DraftFieldState.filled && unconfirmed)
+          WText('tahmin', className: slots['chipMarker']),
+      ],
+    );
+  }
+
+  /// The labelled-line layout.
+  Widget _buildRow(Map<String, String> slots) {
+    return WDiv(
+      className: slots['root'],
+      children: [
+        WText(label, className: slots['label']),
+        switch (_state) {
+          DraftFieldState.loading => const MSSkeleton(
+            shape: SkeletonShape.text,
+            width: 140,
+            height: 16,
+          ),
+          DraftFieldState.unsure => WDiv(
+            className: 'flex flex-row items-center gap-1.5',
+            children: [
+              WIcon(_unsureIcon, className: 'size-3.5 text-ai'),
+              WText(prompt ?? 'modelden gelmedi, sen yaz', className: slots['prompt']),
+            ],
+          ),
+          DraftFieldState.filled => WDiv(
+            className: 'flex flex-row items-baseline gap-2',
+            children: [
+              WText(value!, className: slots['value']),
+              // The marker says the value is provisional, not that it is wrong.
+              // "tahmin" rather than a warning glyph: the app guessed, it worked, and
+              // the user can leave it alone or fix it.
+              if (unconfirmed) WText('tahmin', className: slots['marker']),
+            ],
+          ),
+        },
+      ],
     );
   }
 }

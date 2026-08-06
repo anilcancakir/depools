@@ -25,14 +25,40 @@ import 'package:magic/magic.dart';
 /// filled AND provisional at the same time. D32 requires it: a wrongly inferred unit
 /// silently changes what every quantity in the ledger means, so the inference has to
 /// stay visibly an inference until someone accepts it.
+/// **Two layouts, one state machine.** The `row` layout is a labelled line in a card;
+/// the `chip` layout is an inline capsule for D13's grouped tap-chips, which is how
+/// location, date and quantity are collected after a draft is created ("never as
+/// sequential questions"). Keeping them as one component rather than two is deliberate:
+/// two components with the same three states is exactly the drift that put a value and
+/// a total out of step twice already in this codebase.
+///
+/// The chip carries no label when it has a value, because "1 adet" and "Buzdolabı" say
+/// what they are. It falls back to the label only in the unsure state, where "Konum" is
+/// the only thing that can be said.
 WindSlotRecipe draftFieldRecipe() {
   return const WindSlotRecipe(
     slots: {
       'root': 'flex flex-col gap-1 py-2',
       'label': 'text-xs font-medium uppercase tracking-wide text-fg-muted',
-      'value': 'text-sm text-fg',
+      // `flex-auto`, not `flex-1`, and the difference is visible. The value sits in a
+      // row so the `tahmin` marker can stand beside it, and an unbounded text inside a
+      // nested flex overflows rather than wrapping: a product description ran 227px off
+      // the right edge. But `flex-1` maps to a TIGHT fit, which made the value claim the
+      // whole row and shoved the marker to the far edge, so "adet" and "tahmin" sat a
+      // card apart. `flex-auto` is the loose fit: take what you need, wrap when
+      // squeezed, and let the marker stay adjacent.
+      'value': 'text-sm text-fg flex-auto min-w-0',
       'prompt': 'text-sm text-ai',
       'marker': 'text-xs text-fg-muted',
+      // The chip mirrors FilterChip's geometry (capsule, px-3, py-2.5, axis-min) so the
+      // two read as the same family of control. Padding rather than `min-h-11`, per the
+      // measured finding that min-height grows a box downward without re-centring.
+      'chipRoot':
+          'flex flex-row items-center gap-1.5 px-3 py-2.5 rounded-full axis-min '
+          'bg-surface-container-high',
+      'chipValue': 'text-sm font-medium text-fg',
+      'chipPrompt': 'text-sm font-medium text-ai',
+      'chipMarker': 'text-xs text-fg-muted',
     },
   );
 }

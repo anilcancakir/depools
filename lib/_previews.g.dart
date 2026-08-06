@@ -8,6 +8,8 @@ import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/foundations.preview.dart';
 import 'preview/login_screen.preview.dart';
+import 'preview/product_draft_screen.preview.dart';
+import 'preview/product_draft_settled_screen.preview.dart';
 import 'preview/product_index_empty_screen.preview.dart';
 import 'preview/product_index_screen.preview.dart';
 import 'preview/product_show_empty_screen.preview.dart';
@@ -42,11 +44,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'bottom_menu',
       builder: (_) => const BottomMenuPreview(),
     ),
-    PreviewEntry(
-      label: 'Callout',
-      slug: 'callout',
-      builder: (_) => const CalloutPreview(),
-    ),
+    PreviewEntry(label: 'Callout', slug: 'callout', builder: (_) => const CalloutPreview()),
     PreviewEntry(
       label: 'DashboardScreen',
       slug: 'dashboard_screen',
@@ -62,11 +60,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'expiry_badge',
       builder: (_) => const ExpiryBadgePreview(),
     ),
-    PreviewEntry(
-      label: 'FilterBar',
-      slug: 'filter_bar',
-      builder: (_) => const FilterBarPreview(),
-    ),
+    PreviewEntry(label: 'FilterBar', slug: 'filter_bar', builder: (_) => const FilterBarPreview()),
     PreviewEntry(
       label: 'FilterChip',
       slug: 'filter_chip',
@@ -87,15 +81,21 @@ List<PreviewEntry> previewEntries() {
       slug: 'login_screen',
       builder: (_) => const LoginScreenPreview(),
     ),
-    PreviewEntry(
-      label: 'LotRow',
-      slug: 'lot_row',
-      builder: (_) => const LotRowPreview(),
-    ),
+    PreviewEntry(label: 'LotRow', slug: 'lot_row', builder: (_) => const LotRowPreview()),
     PreviewEntry(
       label: 'MovementRow',
       slug: 'movement_row',
       builder: (_) => const MovementRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductDraftScreen',
+      slug: 'product_draft_screen',
+      builder: (_) => const ProductDraftScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductDraftSettledScreen',
+      slug: 'product_draft_settled_screen',
+      builder: (_) => const ProductDraftSettledScreenPreview(),
     ),
     PreviewEntry(
       label: 'ProductIndexEmptyScreen',
@@ -132,11 +132,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'profile_screen',
       builder: (_) => const ProfileScreenPreview(),
     ),
-    PreviewEntry(
-      label: 'Quantity',
-      slug: 'quantity',
-      builder: (_) => const QuantityPreview(),
-    ),
+    PreviewEntry(label: 'Quantity', slug: 'quantity', builder: (_) => const QuantityPreview()),
     PreviewEntry(
       label: 'RegisterScreen',
       slug: 'register_screen',
@@ -152,11 +148,7 @@ List<PreviewEntry> previewEntries() {
       slug: 'section_header',
       builder: (_) => const SectionHeaderPreview(),
     ),
-    PreviewEntry(
-      label: 'SerialRow',
-      slug: 'serial_row',
-      builder: (_) => const SerialRowPreview(),
-    ),
+    PreviewEntry(label: 'SerialRow', slug: 'serial_row', builder: (_) => const SerialRowPreview()),
     PreviewEntry(
       label: 'SettingsScreen',
       slug: 'settings_screen',
@@ -167,21 +159,13 @@ List<PreviewEntry> previewEntries() {
       slug: 'sidebar_menu',
       builder: (_) => const SidebarMenuPreview(),
     ),
-    PreviewEntry(
-      label: 'StatCard',
-      slug: 'stat_card',
-      builder: (_) => const StatCardPreview(),
-    ),
+    PreviewEntry(label: 'StatCard', slug: 'stat_card', builder: (_) => const StatCardPreview()),
     PreviewEntry(
       label: 'StockBadge',
       slug: 'stock_badge',
       builder: (_) => const StockBadgePreview(),
     ),
-    PreviewEntry(
-      label: 'Tag',
-      slug: 'tag',
-      builder: (_) => const TagPreview(),
-    ),
+    PreviewEntry(label: 'Tag', slug: 'tag', builder: (_) => const TagPreview()),
     PreviewEntry(
       label: 'TeamsScreen',
       slug: 'teams_screen',
@@ -189,4 +173,3 @@ List<PreviewEntry> previewEntries() {
     ),
   ];
 }
-

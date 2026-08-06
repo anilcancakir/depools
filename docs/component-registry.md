@@ -534,6 +534,20 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### DraftField
+
+- **File**: `lib/ui/components/draft_field/`
+- **Class**: `DraftField`
+- **Token bindings**: `text-fg-muted` (label), `text-fg` (value), `text-ai` (prompt), `MSSkeleton` (loading)
+- **What it is**: one field on a product being created, in one of three states: loading, empty because the model could not tell, or filled. Two layouts (`row`, `chip`) share one state machine, because two components with the same three states is how they drift apart.
+- **Anti-patterns**:
+  - Do not render an unsure field as a plain empty field. The whole point is that "the model gave up" is distinguishable from "optional and skipped"; DESIGN.md's rule is that uncertainty is null, which means empty fields WILL exist.
+  - Do not add a confidence number. D31: no consumer product surveyed shows one, and miscalibrated confidence measurably increases trust in wrong answers.
+  - Do not use `text-accent` for the prompt. It does not exist, drops silently, and renders at full foreground brightness. Use `text-ai`.
+  - Do not give the value `flex-1`. That is a tight fit and shoves the `tahmin` marker to the far edge; `flex-auto min-w-0` lets it wrap and keeps the marker adjacent.
+
+---
+
 ## Anti-patterns (global)
 
 | Anti-pattern | Category | Fix |
