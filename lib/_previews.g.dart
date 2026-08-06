@@ -4,6 +4,8 @@
 // Source: *.preview.dart files discovered under the scan dir.
 
 import 'package:magic_devtools/preview.dart';
+import 'preview/barcode_scan_empty_screen.preview.dart';
+import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/foundations.preview.dart';
@@ -38,6 +40,7 @@ import 'ui/components/movement_row/movement_row.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
 import 'ui/components/receipt_line_row/receipt_line_row.preview.dart';
+import 'ui/components/scan_row/scan_row.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/serial_row/serial_row.preview.dart';
@@ -48,11 +51,25 @@ import 'ui/components/tag/tag.preview.dart';
 List<PreviewEntry> previewEntries() {
   return <PreviewEntry>[
     PreviewEntry(
+      label: 'BarcodeScanEmptyScreen',
+      slug: 'barcode_scan_empty_screen',
+      builder: (_) => const BarcodeScanEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'BarcodeScanScreen',
+      slug: 'barcode_scan_screen',
+      builder: (_) => const BarcodeScanScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'BottomMenu',
       slug: 'bottom_menu',
       builder: (_) => const BottomMenuPreview(),
     ),
-    PreviewEntry(label: 'Callout', slug: 'callout', builder: (_) => const CalloutPreview()),
+    PreviewEntry(
+      label: 'Callout',
+      slug: 'callout',
+      builder: (_) => const CalloutPreview(),
+    ),
     PreviewEntry(
       label: 'DashboardScreen',
       slug: 'dashboard_screen',
@@ -68,7 +85,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'expiry_badge',
       builder: (_) => const ExpiryBadgePreview(),
     ),
-    PreviewEntry(label: 'FilterBar', slug: 'filter_bar', builder: (_) => const FilterBarPreview()),
+    PreviewEntry(
+      label: 'FilterBar',
+      slug: 'filter_bar',
+      builder: (_) => const FilterBarPreview(),
+    ),
     PreviewEntry(
       label: 'FilterChip',
       slug: 'filter_chip',
@@ -114,7 +135,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'login_screen',
       builder: (_) => const LoginScreenPreview(),
     ),
-    PreviewEntry(label: 'LotRow', slug: 'lot_row', builder: (_) => const LotRowPreview()),
+    PreviewEntry(
+      label: 'LotRow',
+      slug: 'lot_row',
+      builder: (_) => const LotRowPreview(),
+    ),
     PreviewEntry(
       label: 'MovementRow',
       slug: 'movement_row',
@@ -170,7 +195,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'profile_screen',
       builder: (_) => const ProfileScreenPreview(),
     ),
-    PreviewEntry(label: 'Quantity', slug: 'quantity', builder: (_) => const QuantityPreview()),
+    PreviewEntry(
+      label: 'Quantity',
+      slug: 'quantity',
+      builder: (_) => const QuantityPreview(),
+    ),
     PreviewEntry(
       label: 'ReceiptLineRow',
       slug: 'receipt_line_row',
@@ -187,6 +216,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const RegisterScreenPreview(),
     ),
     PreviewEntry(
+      label: 'ScanRow',
+      slug: 'scan_row',
+      builder: (_) => const ScanRowPreview(),
+    ),
+    PreviewEntry(
       label: 'SectionCard',
       slug: 'section_card',
       builder: (_) => const SectionCardPreview(),
@@ -196,7 +230,11 @@ List<PreviewEntry> previewEntries() {
       slug: 'section_header',
       builder: (_) => const SectionHeaderPreview(),
     ),
-    PreviewEntry(label: 'SerialRow', slug: 'serial_row', builder: (_) => const SerialRowPreview()),
+    PreviewEntry(
+      label: 'SerialRow',
+      slug: 'serial_row',
+      builder: (_) => const SerialRowPreview(),
+    ),
     PreviewEntry(
       label: 'SettingsScreen',
       slug: 'settings_screen',
@@ -207,13 +245,21 @@ List<PreviewEntry> previewEntries() {
       slug: 'sidebar_menu',
       builder: (_) => const SidebarMenuPreview(),
     ),
-    PreviewEntry(label: 'StatCard', slug: 'stat_card', builder: (_) => const StatCardPreview()),
+    PreviewEntry(
+      label: 'StatCard',
+      slug: 'stat_card',
+      builder: (_) => const StatCardPreview(),
+    ),
     PreviewEntry(
       label: 'StockBadge',
       slug: 'stock_badge',
       builder: (_) => const StockBadgePreview(),
     ),
-    PreviewEntry(label: 'Tag', slug: 'tag', builder: (_) => const TagPreview()),
+    PreviewEntry(
+      label: 'Tag',
+      slug: 'tag',
+      builder: (_) => const TagPreview(),
+    ),
     PreviewEntry(
       label: 'TeamsScreen',
       slug: 'teams_screen',
@@ -221,3 +267,4 @@ List<PreviewEntry> previewEntries() {
     ),
   ];
 }
+

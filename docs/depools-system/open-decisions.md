@@ -289,6 +289,47 @@ The transfer sheet commits a single `StockMoveDraft` that becomes the movement p
 
 **The destination suggestion falls through affinity by design.** Category affinity usually names where the stock already sits, which is the one invalid destination, so skipping to the next option is the normal path rather than an edge case. This is the first place the affinity model's best answer is routinely wrong for structural reasons, and it is worth remembering when the real model replaces the fixture.
 
+### D39. Provenance is printed only when the answer is not the tenant's own inventory
+
+`barcode-and-catalog.md` asked how to show provenance "without cluttering the UI ... should
+not have to read a source label on every row", and the answer is that silence means
+authoritative. A hit in the tenant's own products carries no source label; a catalog hit,
+an unverified hit and the user's own replayed manual entry each carry one word.
+
+Same logic as `DraftField`'s unconfirmed mark: the annotation belongs where trust is lower,
+not everywhere. A label on every row costs a reading pass per row and communicates nothing
+on the rows that need it least, which is the definition of clutter.
+
+Five named sources rather than a confidence percentage, for the reason D31 already settled:
+a number invites arithmetic the user cannot act on, while a named source says exactly how
+far to trust the row. Criterion 7 (a scraped row is presented as unverified) is satisfied by
+the `unverified` source carrying `Doğrulanmadı`.
+
+### D40. A repeat scan increments its row, and the queue is ordered by last scan
+
+Six identical yoghurts are one row reading six, not six rows. The consequence is not
+optional and is the actual decision here: the queue must be ordered by LAST SCAN rather
+than by first-seen, because otherwise the sixth scan increments a row that has already
+scrolled off and a scan that worked produces no visible feedback.
+
+This is deliberately the opposite of the receipt review screen, which groups unresolved
+lines first. The paper is static there and triage is the task; here the camera is live and
+feedback beats triage. Unmatched rows stay in place and a count above the commit button
+carries them instead.
+
+### D41. The scan batch has one destination, and it is the last receiving location
+
+Receiving and putting away are two events. Everything in a batch lands where it was
+received, and splitting it across shelves is the transfer flow (D38), not a per-row picker
+at the bench. Asking for a destination per row would ask the user to decide, with a box in
+their hands, something they only know once standing at the shelf.
+
+The default is the last location used for receiving, **not category affinity**, which is a
+deliberate departure from every other location suggestion in the app. Affinity answers
+"where does this CATEGORY go", and a batch of milk and screwdrivers cannot ask that
+question; picking one row's winner for the whole batch would be arbitrary dressed as
+intelligence. Receiving location is a habit rather than a per-product fact.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

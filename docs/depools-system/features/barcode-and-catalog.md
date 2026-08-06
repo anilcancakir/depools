@@ -64,6 +64,41 @@ This exists because location suggestion needs a category vocabulary shared acros
 
 Tenants may still create their own categories. Those carry a `team_id` and do not participate in cross-tenant signal.
 
+## The scan surface
+
+**The camera never closes, so the result cannot be a screen.** Criterion 3 asks for twenty
+items resolved without closing the camera between them, and that single line disqualifies
+the obvious design: a modal per scan. Unpacking a delivery means scanning with both hands
+busy, and a dialog dismissed twenty times is a dialog nobody reads.
+
+So a scan lands in a QUEUE beside a live viewfinder, and confirmation happens once for the
+whole batch. Each row shows the barcode (always, in mono, because resolution is a claim
+about a machine reading and the label in the user's hand is the only check), what it
+resolved to, how many times it was scanned, and provenance when there is any doubt.
+
+**A repeat scan increments its row rather than appending one.** Six identical yoghurts are
+one row reading six, not six rows and six commits. This has a consequence that is not
+optional: the queue is ordered by LAST SCAN, most recent first. Ordered by first-seen, the
+sixth scan would increment a row that had already scrolled away and the user would get no
+feedback for a scan that worked.
+
+The unmatched rows are therefore not floated to the top, which is the opposite of what the
+receipt review screen does. The two screens differ for a reason: the paper is static and
+triage is the task there, while here the camera is live and feedback beats triage. A count
+above the commit button is what keeps the unmatched ones from disappearing upward.
+
+**One destination for the batch.** A mixed delivery does go to different shelves, so this
+looks like an oversimplification and is not: receiving and putting away are two events.
+Everything lands where it was received; moving it onward is the transfer flow (D38). The
+default is the last location used for receiving, NOT category affinity, because affinity
+answers "where does this category go" and a batch of milk and screwdrivers cannot ask it.
+
+**Both input paths exist everywhere; width decides which leads.** At phone width the
+viewfinder leads, because the phone is the scanner and it is already pointed at a label. At
+desktop width the digit field leads, because a desktop barcode reader is an HID keyboard
+that types digits and a laptop webcam points at the operator's face. Same widgets, one
+order token.
+
 ## Error and empty states
 
 - **Total miss.** Offer photo recognition, then manual entry. Never a dead end. The MVP surfaced an exhausted quota here as a 403 with the message "your team has no limit for scanning barcodes" and no way forward.
@@ -93,4 +128,3 @@ Tenants may still create their own categories. Those carry a `team_id` and do no
 
 - Which paid lookup provider, and whether more than one is needed for Turkish coverage. Go-UPC was used in the MVP; EAN-Search is the alternative. Turkish coverage for both is unmeasured.
 - Whether the community catalog needs moderation before a contribution becomes visible to other tenants, or whether confidence scoring plus a report path is enough.
-- How to present provenance without cluttering the UI. A user should be able to tell an authoritative match from a guess, but should not have to read a source label on every row.

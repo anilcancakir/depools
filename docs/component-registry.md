@@ -562,6 +562,20 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### ScanRow
+
+- **File**: `lib/ui/components/scan_row/`
+- **Class**: `ScanRow`
+- **Token bindings**: `text-fg` / `text-fg-muted` / `text-fg-disabled`, `text-ai` (needs attention), `font-mono` (the barcode)
+- **What it is**: one barcode in a continuous scan batch, in one of `ScanSource`'s five provenance states. The barcode is always shown, in mono, because resolution is a claim about a machine reading and the label in the user's hand is the only check.
+- **Anti-patterns**:
+  - Do not fold this into `ReceiptLineRow`. It carries PROVENANCE (which stage of the cascade answered), not `receipt_lines.resolution_state`, and a union enum would corrupt the one thing that component is careful about. Two callers is also one short of extracting a shared base.
+  - Do not print a source label on every row. D39: silence means the tenant's own inventory, and the annotation goes where trust is lower.
+  - Do not show a confidence percentage. D31 again: a named source says how far to trust the row, a number invites arithmetic nobody can act on.
+  - Do not let the trailing count and the on-hand figure both render bare. They are two numbers in the same unit on one row; the on-hand one is labelled (`Mevcut: 2 adet`) so it cannot be read as the scan count.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`
