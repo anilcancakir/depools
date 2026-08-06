@@ -56,9 +56,19 @@ A bag of nails goes out in whole nails, so a product with no content declaration
 
 **Adding stock is never disabled**, unlike taking it out. Any level is valid, including from zero: that is how a depleted product comes back.
 
-## What is not designed yet
+## Moving between locations
 
-- **Moving stock between locations.** The header action exists and does nothing. It is a paired movement in the ledger (out of one location, into another) and it needs the same lot picker.
+**One user action, two ledger rows.** `data-model.md` invariant 5: a transfer writes exactly two movements with equal and opposite deltas and a shared reference, `transfer_out` and `transfer_in`. The sheet commits a single draft rather than two entries, so the pair cannot drift: an outbound without its inbound is stock that vanished.
+
+**Both endpoints are constrained, and that is the whole difficulty.** The source can only be a location that HOLDS some of this product; the destination can only be a location that is not the source. Offering every location on both sides would let a user construct a move of nothing from nowhere and surface the error at commit rather than at the tap. The destination list is therefore derived after the source is chosen, and changing the source re-derives it.
+
+**The destination suggestion cannot just be the affinity winner.** Category affinity usually points at where the stock already is, which is exactly the one place it cannot go, so falling through to the next option is the normal case rather than a fallback. When affinity does name a valid destination it shows its count, like everywhere else.
+
+**An open unit can be moved and carries its clock with it.** Moving the opened carton from the fridge to the shop floor is a real thing, and the after-opening limit does not reset because the carton did not become sealed again.
+
+Everything is preselected on open, so the button is honestly live rather than looking live and refusing. That matters more here than elsewhere: `MSButton`'s `disabled` produces no visible change in the primary intent (measured), so a sheet that opens incomplete shows a button that lies.
+
+## What is not designed yet
 - **Undo.** The ledger is append-only, so an undo is a compensating movement rather than a delete. Whether the sheet offers one immediately after a commit, and for how long, is open.
 - **Bulk entry.** A receipt scan produces many lines at once and cannot go through a sheet per line. That belongs to `receipt-ingestion.md` and it is why these two sheets stay single-product.
 - **Everything behind a dead action.** Eleven controls across the two screens are still `onPressed: () {}`: barcode scan and product-create in the list header, "Elle gir" in the empty state, and "Konum değiştir" and "Etiket bas" in the detail header. Each is a screen that does not exist yet rather than a bug.

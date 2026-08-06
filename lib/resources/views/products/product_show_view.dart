@@ -22,6 +22,7 @@ import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
 import 'product_fixtures.dart';
 import 'stock_in_sheet.dart';
+import 'stock_move_sheet.dart';
 import 'stock_out_sheet.dart';
 
 /// Product detail: everything known about one product the tenant holds.
@@ -131,7 +132,12 @@ class ProductShowView extends StatelessWidget {
       // control is nameless to a screen reader otherwise.
       actions: [
         MSButton(
-          onPressed: () {},
+          // Disabled with nothing on hand: a move needs a source that holds something, and
+          // the sheet's own source list would be empty.
+          onPressed: _product.amount == 0
+              ? null
+              : () => StockMoveSheet.show(context, product: _product),
+          disabled: _product.amount == 0,
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: 'Konum değiştir',

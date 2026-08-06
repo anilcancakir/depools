@@ -281,6 +281,14 @@ Three positions rather than a filter sheet, because a location tree has one axis
 
 **Every node carries an icon, children included.** A tree where only roots have a glyph makes children read as text under a heading rather than as places, and `locations.icon_id` exists on every row. Making the icon required rather than optional also removed the conditional-glyph bug that had inverted the indent, which is the stronger fix: delete the state instead of padding around it.
 
+### D38. A move is one draft, and both of its endpoints are constrained at the tap
+
+The transfer sheet commits a single `StockMoveDraft` that becomes the movement pair, rather than two independent entries. Invariant 5 requires equal and opposite deltas with a shared reference, and the surest way to keep them equal is to never let a caller author them separately.
+
+**The source list holds only locations with stock; the destination list excludes the source.** A picker offering everything on both sides lets a user build a move of nothing from nowhere, and the error then arrives at commit instead of at the tap. The destination list derives from the chosen source and re-derives when it changes, which also clears the amount, because the amounts a source can offer depend on what it holds.
+
+**The destination suggestion falls through affinity by design.** Category affinity usually names where the stock already sits, which is the one invalid destination, so skipping to the next option is the normal path rather than an edge case. This is the first place the affinity model's best answer is routinely wrong for structural reasons, and it is worth remembering when the real model replaces the fixture.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe
