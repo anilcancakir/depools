@@ -20,6 +20,7 @@ import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
 import 'product_fixtures.dart';
+import 'stock_in_sheet.dart';
 import 'stock_out_sheet.dart';
 
 /// Product detail: everything known about one product the tenant holds.
@@ -623,7 +624,9 @@ class ProductShowView extends StatelessWidget {
         WDiv(
           className: 'flex-1',
           child: MSButton(
-            onPressed: () {},
+            // Never disabled, unlike its neighbour. Adding stock is valid at any
+            // level, including from zero: that is how a depleted product comes back.
+            onPressed: () => StockInSheet.show(context, product: _product),
             fullWidth: true,
             className: 'justify-center gap-2',
             child: const WDiv(

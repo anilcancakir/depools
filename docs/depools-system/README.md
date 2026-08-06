@@ -27,6 +27,8 @@ These are at **summary depth on purpose**. Design mockups come next, and the int
 | Feature | |
 |---|---|
 | [inventory-core.md](features/inventory-core.md) | Products, locations, lots, the movement ledger |
+| [stock-movements.md](features/stock-movements.md) | Taking stock out and putting it in: the two most frequent actions |
+| [filtering-and-saved-views.md](features/filtering-and-saved-views.md) | The stock list's filter axes, saved filters, and the visibility rule |
 | [receipt-ingestion.md](features/receipt-ingestion.md) | Receipt photo and e-Fatura XML to stock |
 | [barcode-and-catalog.md](features/barcode-and-catalog.md) | Scanning, the resolution cascade, the community catalog |
 | [ai-enrichment.md](features/ai-enrichment.md) | Photo, name or barcode to a product card |
