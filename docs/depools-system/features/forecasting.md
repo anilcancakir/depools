@@ -52,12 +52,36 @@ Three surfaces, in order of how often they are useful:
 **3. Shopping list.** Generated from the two above, plus manual additions. Every line carries the reason it is there:
 
 ```
-🥛 Süt              2 adet    2 gün içinde bitiyor
-🌾 Un               1 çuval   hedef seviyenin altında
-🧴 Deterjan         1 adet    sen ekledin
+Kıyma                  1 kg      Stok bitti
+Pınar Süt 1 lt         2 adet    2 günlük kaldı
+Yoğurt 2 kg            1 adet    Açılmış kap · 3 gün ömür
+Bulgur                 2 kg      Yaklaşık bir hafta · geçmiş az
+Tornavida Seti PH2     2 adet    Hedefin altında · 0 / 2 adet
+Bulaşık deterjanı      1 adet    Elle eklendi
 ```
 
 The reason column is not decoration. It is what makes a suggestion checkable, and a checkable suggestion is one the user can trust.
+
+**The precision of the sentence is the uncertainty display** (D46). This is the answer to the
+open question below about expressing a probabilistic forecast to a non-technical user, and
+it needs no new visual vocabulary: a line makes only the claim its tier supports. Ten or
+more movements earns a number (`2 günlük kaldı`), two to nine earns a bucket and never a
+number at any precision (`Yaklaşık bir hafta`), zero or one earns a bare ratio with no time
+in it (`Hedefin altında · 0 / 2 adet`). A bucket cannot be misread as a measurement, and the
+failure direction is safe.
+
+Zero on hand says `Stok bitti` rather than a days-of-cover figure, because there is no cover
+to state.
+
+**How much to buy** is the target minus what is on hand, rounded up to a whole base unit.
+Rounding up is the safe direction: you cannot buy a third of a packet, and for a weight unit
+the error lands on "enough" rather than on "short again next week".
+
+**Ticking a line is not a stock movement** (D47). It means the item is in the trolley. Stock
+arrives when the receipt is scanned or a stock-in is recorded, so ticked lines sink into
+their own group and the action beneath them is the receipt. A tick that wrote a movement
+would give every user phantom inventory for everything they picked up and put back, and
+would double-count as soon as the receipt landed.
 
 ## Waste is a first-class output
 
@@ -96,5 +120,4 @@ Phrasing a shopping list into natural language through the assistant consumes a 
 
 - The exact threshold for switching from par level to SBA. Ten is a reasoned starting point, not a sourced constant; no citable minimum exists. Instrument it and tune.
 - Whether weekly seasonality is worth detecting for cafes, which have real day-of-week patterns. Probably v2, and only with a season's worth of data.
-- Lead time. A reorder point needs one, and we do not know the supplier lead time. Options: ask the user once per product, infer it from the gap between a shopping-list appearance and the next purchase movement, or default to a global value. Design should decide.
-- How to express uncertainty visually. No good precedent was found for showing a probabilistic inventory forecast to a non-technical user, so this needs design invention rather than a copied pattern.
+- Whether the list should be ordered by aisle rather than by urgency once it runs past twenty lines. Urgency ordering is what makes the reason column legible and is the right default at eight lines; a supermarket floor plan wins at forty, and we have no data on real list lengths yet.

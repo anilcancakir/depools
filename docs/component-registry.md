@@ -616,6 +616,21 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### ShoppingRow
+
+- **File**: `lib/ui/components/shopping_row/`
+- **Class**: `ShoppingRow`
+- **Token bindings**: `text-fg` / `text-fg-muted` / `text-fg-disabled`, `text-expiring` and `text-low-stock` (the two reasons with a deadline), `bg-primary` / `text-on-primary` (the tick), `border-color-border` (the empty box)
+- **What it is**: one shopping-list line: tick, name, quantity, and why it is there.
+- **Anti-patterns**:
+  - Do not render a number for a reason that has no forecast behind it. D46: the tier decides the SHAPE of the claim, and a bucket must never become "about 6.5 days".
+  - Do not draw a tick inside an unchecked box. The gutter is already reserved by the box itself, so the glyph is free to be conditional; a greyed tick in every empty box makes the list look half-walked, which is the one thing the column exists to answer.
+  - Do not replace a ticked line's reason with its state. The section header says where the item is; the reason is what the user checks the quantity against at the shelf.
+  - Do not tone every reason. Only the two with a deadline take a status colour, or the list has no priority in it.
+  - Do not treat a tick as stock (D47). It means the trolley; the receipt is what writes movements.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`

@@ -27,6 +27,8 @@ import 'preview/profile_screen.preview.dart';
 import 'preview/receipt_review_screen.preview.dart';
 import 'preview/register_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
+import 'preview/shopping_list_empty_screen.preview.dart';
+import 'preview/shopping_list_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
 import 'preview/teams_screen.preview.dart';
 import 'ui/components/callout/callout.preview.dart';
@@ -49,6 +51,7 @@ import 'ui/components/scan_row/scan_row.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/serial_row/serial_row.preview.dart';
+import 'ui/components/shopping_row/shopping_row.preview.dart';
 import 'ui/components/stat_card/stat_card.preview.dart';
 import 'ui/components/stock_badge/stock_badge.preview.dart';
 import 'ui/components/tag/tag.preview.dart';
@@ -269,6 +272,21 @@ List<PreviewEntry> previewEntries() {
       label: 'SettingsScreen',
       slug: 'settings_screen',
       builder: (_) => const SettingsScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShoppingListEmptyScreen',
+      slug: 'shopping_list_empty_screen',
+      builder: (_) => const ShoppingListEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShoppingListScreen',
+      slug: 'shopping_list_screen',
+      builder: (_) => const ShoppingListScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShoppingRow',
+      slug: 'shopping_row',
+      builder: (_) => const ShoppingRowPreview(),
     ),
     PreviewEntry(
       label: 'SidebarMenu',

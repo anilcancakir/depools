@@ -395,6 +395,64 @@ sheets make, and for the same measured reason: a disabled `MSButton` in the prim
 looks identical to a live one, so a disabled control invites a fight the user cannot win and
 gives no feedback when they try.
 
+### D46. The precision of the sentence is the uncertainty display
+
+`forecasting.md` left this open, noting that no good precedent was found for showing a
+probabilistic inventory forecast to a non-technical user. The answer is to let the LANGUAGE
+degrade with the data rather than invent a visual vocabulary for doubt. A line makes only
+the claim its tier supports:
+
+| History | What the line says | Shape |
+|---|---|---|
+| 10+ movements | `2 günlük kaldı` | a number |
+| 2 to 9 | `Yaklaşık bir hafta · geçmiş az` | a bucket, never a number |
+| 0 to 1 | `Hedefin altında · 0 / 2 adet` | a ratio, no time claim at all |
+
+Nothing new has to be learned, a bucket cannot be misread as a measurement, and it fails in
+the safe direction. It is what weather forecasts do for the same reason: "rain this
+afternoon" when the model cannot say three o'clock.
+
+Rejected: a confidence percentage (D31 already settled that a number invites arithmetic
+nobody can act on), and error bars (they read as noise to someone who does not read charts).
+
+Corollary that cost a fix here: zero on hand says `Stok bitti`, not a days-of-cover figure.
+An earlier fixture said "1 günlük kaldı" for a product whose own amount was 0, because the
+quantity was derived from the product and the sentence beside it was hand-written. Derive
+both or neither.
+
+### D47. Ticking a shopping line is not a stock movement
+
+A tick means the item is in the trolley. Stock arrives when the receipt is scanned or a
+stock-in is recorded, and nowhere else.
+
+The alternative gives every user phantom inventory for everything they picked up and put
+back, and double-counts as soon as the receipt lands. It also breaks the ledger's own
+story: a movement's `source` records the surface that created it, and "the user ticked a box
+in a shop" is not evidence that anything arrived.
+
+Design consequences: ticked lines sink into their own group rather than vanishing, so the
+remaining list shortens while a mis-tick stays findable; the group keeps each line's reason
+rather than replacing it with "in the trolley", because the reason is what the user checks
+the quantity against while holding the thing; and the receipt action appears only once
+something is ticked, since that is when it means anything.
+
+### D48. The lead time we need is the user's restock rhythm, and it is never asked
+
+`forecasting.md` left this open with three options: ask per product, infer it, or use a
+global default. Asking is disqualified on its face. "What is the supplier lead time for
+milk?" is the kind of question that ends a household user's relationship with a product, and
+`product.md` is explicit that our user does not understand reorder points and should not
+have to.
+
+Infer it, and infer the right thing: for a household or a cafe the delay that matters is not
+a supplier's, it is **how often this tenant restocks**, which is directly observable as the
+interval between purchase movements. A global default covers a tenant with no purchase
+history yet, and the inferred value replaces it as soon as there is one.
+
+The phrase "lead time" never reaches the interface. What the user sees is its consequence,
+in the reason line: an item appears on the list early enough that their normal shopping
+rhythm covers it.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe
