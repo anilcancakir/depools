@@ -91,22 +91,45 @@ class _StockInSheetState extends State<StockInSheet> {
   /// (`location-assignment.md` puts co-location affinity above name semantics), so
   /// the UI is being designed against the right shape of answer.
   String get _suggestedLocationId {
+    // Goes through `amountAt`, which is mode-aware. Counting lots suggested
+    // "Buzdolabı" for a power drill whose two units sit on a warehouse shelf, because
+    // a serial-tracked product has no lots and the fallback took the first option. The
+    // fourth lot-shaped assumption D28 has broken.
     final List<String> ids = locationOptions
         .map((o) => o.id)
-        .where((id) => widget.product.lotsAt(id).isNotEmpty)
+        .where((id) => widget.product.amountAt(id) > 0)
         .toList();
 
     if (ids.isEmpty) return locationOptions.first.id;
 
-    return ids.reduce(
-      (a, b) => widget.product.lotsAt(a).length >= widget.product.lotsAt(b).length ? a : b,
-    );
+    return ids.reduce((a, b) => widget.product.amountAt(a) >= widget.product.amountAt(b) ? a : b);
   }
 
   /// Why that location was suggested, in the user's words.
+  ///
+  /// Says "parti" or "ünite" depending on the unit model, because "burada 2 parti var"
+  /// on a serial-tracked drill is a word the screen uses nowhere else.
   String _suggestionReason(String locationId) {
-    final int lots = widget.product.lotsAt(locationId).length;
-    return lots == 0 ? 'önerilen' : 'önerilen · burada $lots parti var';
+    final num here = widget.product.amountAt(locationId);
+    if (here == 0) return 'önerilen';
+
+    final String noun = widget.product.tracking == TrackingMode.serial ? 'ünite' : 'parti';
+    return 'önerilen · burada ${here.floor()} $noun var';
+  }
+
+  /// The locations to offer, suggestion first.
+  ///
+  /// Blind `take(3)` hid the drill's own shelf, which is fifth in the list, so the one
+  /// place its stock actually lives was not offered at all. The suggestion always
+  /// appears, and the rest fill the remaining slots.
+  List<FilterOption> get _offeredLocations {
+    final FilterOption suggested = locationOptions.firstWhere((o) => o.id == _suggestedLocationId);
+    final List<FilterOption> rest = locationOptions
+        .where((o) => o.id != suggested.id)
+        .take(2)
+        .toList();
+
+    return <FilterOption>[suggested, ...rest];
   }
 
   /// The expiry the shelf life implies, and the sentence explaining it.
@@ -118,7 +141,8 @@ class _StockInSheetState extends State<StockInSheet> {
     final int? life = widget.product.shelfLifeDays;
     if (life == null) return null;
 
-    final DateTime date = DateTime.now().add(Duration(days: life));
+    final DateTime now = DateTime.now();
+    final DateTime date = now.add(Duration(days: life));
     const List<String> months = [
       'Oca',
       'Şub',
@@ -134,8 +158,26 @@ class _StockInSheetState extends State<StockInSheet> {
       'Ara',
     ];
 
-    return ('${date.day} ${months[date.month - 1]}', 'raf ömründen ($life gün)');
+    // The YEAR appears whenever it is not this one. A two-year warranty rendered
+    // "5 Ağu" and read as this week, which is the opposite of what it meant. Omitting
+    // it inside the current year keeps the common perishable case short.
+    final String day = '${date.day} ${months[date.month - 1]}';
+    final String label = date.year == now.year ? day : '$day ${date.year}';
+
+    return (label, '$_dateBasis ($life gün)');
   }
+
+  /// What the date on this product means, which is not the same for both unit models.
+  ///
+  /// A carton has a printed expiry; a drill has a warranty end. Labelling both "Son
+  /// kullanma" put a food word on a power tool, which is the D2 framing mistake in
+  /// miniature: expiry is one kind of date this app holds, not the only kind.
+  String get _dateGroupLabel =>
+      widget.product.tracking == TrackingMode.serial ? 'Garanti bitişi' : 'Son kullanma';
+
+  /// Where the suggested date came from, phrased for what it is.
+  String get _dateBasis =>
+      widget.product.tracking == TrackingMode.serial ? 'garanti süresinden' : 'raf ömründen';
 
   /// What the product will hold after this arrival.
   String get _resultLabel {
@@ -164,7 +206,7 @@ class _StockInSheetState extends State<StockInSheet> {
                 MSButton(
                   onPressed: () => setState(() => _amount = value),
                   intent: _amount == value ? ButtonIntent.primary : ButtonIntent.secondary,
-                  className: 'min-h-11 axis-min',
+                  className: 'py-3 axis-min',
                   child: WText(label),
                 ),
             ],
@@ -176,21 +218,21 @@ class _StockInSheetState extends State<StockInSheet> {
           WDiv(
             className: 'flex flex-col gap-1',
             children: [
-              for (final FilterOption option in locationOptions.take(3)) _locationOption(option),
+              for (final FilterOption option in _offeredLocations) _locationOption(option),
             ],
           ),
         ),
 
         if (expiry != null)
           _group(
-            'Son kullanma',
+            _dateGroupLabel,
             WDiv(
               className: 'flex flex-row items-center gap-2',
               children: [
                 MSButton(
                   onPressed: () {},
                   intent: ButtonIntent.secondary,
-                  className: 'min-h-11 axis-min',
+                  className: 'py-3 axis-min',
                   child: WText(expiry.$1),
                 ),
                 // The basis, not just the value. An inferred date that does not admit
@@ -236,8 +278,11 @@ class _StockInSheetState extends State<StockInSheet> {
       onTap: () => setState(() => _locationId = option.id),
       semanticLabel: '${option.fullPath} konumunu seç',
       child: WDiv(
+        // See the note in StockOutSheet: every option gets a fill so the group reads
+        // as choices, and padding rather than min-height so the content stays centred.
         className: '''
-          flex flex-col gap-0.5 px-3 py-2 min-h-11 rounded-md
+          flex flex-col gap-0.5 px-3 py-2.5 rounded-md
+          bg-surface-container-high
           selected:bg-primary-container selected:border selected:border-color-border
         ''',
         states: selected ? const {'selected'} : const {},

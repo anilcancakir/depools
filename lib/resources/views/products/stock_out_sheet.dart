@@ -397,8 +397,18 @@ class _StockOutSheetState extends State<StockOutSheet> {
       }),
       semanticLabel: '${lot.expiryLabel ?? ''} partisini seç',
       child: WDiv(
+        // Every option carries a fill, not only the selected one. With bare text on
+        // the unselected rows the group read as one highlighted item among labels
+        // rather than as a set of choices, so the user could not tell what was
+        // pickable. `bg-surface-container-high` is the same tone the search field uses
+        // for "this is an input", which is the right family of signal.
+        //
+        // Padding rather than `min-h-11` for the 44pt floor: min-height grows the box
+        // downward WITHOUT re-centering its content, measured at 8.5px off centre on a
+        // 2x screenshot, while padding grows symmetrically and stays centred.
         className: '''
-          flex flex-row items-center gap-3 px-3 min-h-11 rounded-md
+          flex flex-row items-center gap-3 px-3 py-2.5 rounded-md
+          bg-surface-container-high
           selected:bg-primary-container selected:border selected:border-color-border
         ''',
         states: selected ? const {'selected'} : const {},
@@ -432,8 +442,18 @@ class _StockOutSheetState extends State<StockOutSheet> {
       onTap: () => setState(() => _serial = unit),
       semanticLabel: '${unit.serial} ünitesini seç',
       child: WDiv(
+        // Every option carries a fill, not only the selected one. With bare text on
+        // the unselected rows the group read as one highlighted item among labels
+        // rather than as a set of choices, so the user could not tell what was
+        // pickable. `bg-surface-container-high` is the same tone the search field uses
+        // for "this is an input", which is the right family of signal.
+        //
+        // Padding rather than `min-h-11` for the 44pt floor: min-height grows the box
+        // downward WITHOUT re-centering its content, measured at 8.5px off centre on a
+        // 2x screenshot, while padding grows symmetrically and stays centred.
         className: '''
-          flex flex-row items-center gap-3 px-3 min-h-11 rounded-md
+          flex flex-row items-center gap-3 px-3 py-2.5 rounded-md
+          bg-surface-container-high
           selected:bg-primary-container selected:border selected:border-color-border
         ''',
         states: selected ? const {'selected'} : const {},
@@ -460,7 +480,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
     return MSButton(
       onPressed: () => setState(() => _amount = option),
       intent: selected ? ButtonIntent.primary : ButtonIntent.secondary,
-      className: 'min-h-11 axis-min',
+      className: 'py-3 axis-min',
       child: WDiv(
         className: 'flex flex-col items-start gap-0 axis-min',
         children: [
