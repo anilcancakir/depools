@@ -112,3 +112,35 @@ A claim needs the artifact behind it: the `bin/check` summary, the screenshot pa
 the snapshot or the response body. "Should work" and "green locally" are not
 evidence, and neither is a passing test that could not have failed. Screenshots and
 snapshots go under `.ac/evidence/`.
+
+## Seeing a whole screen, not just its first viewport
+
+`dusk:screenshot` captures the viewport. A product screen is taller than that, so a
+plain screenshot shows the top and hides everything you actually changed. Resize the
+viewport tall instead of trying to scroll:
+
+```sh
+./bin/fsa start --device=chrome --cdp-port=9333
+./bin/fsa dusk:resize --width=1500 --height=3400
+./bin/fsa dusk:screenshot -o /tmp/screen.jpg
+```
+
+Three flags carry the whole thing, and each fails quietly when missing:
+
+- **`--cdp-port` on `start` is mandatory for resizing.** `dusk:resize` drives Chrome
+  DevTools Protocol; without the port it reports "CDP not enabled" while
+  `dusk:screenshot` still succeeds, so you get a viewport-sized image and no obvious
+  error. If the port is taken, pick another: `lsof -ti:9222 | xargs kill -9` clears a
+  stale one.
+- **`dusk:scroll` needs `--ref`**, the snapshot ref of the scrollable from a prior
+  `dusk:snap`, and its magnitude is `--pixels`, not `--amount`. Given only
+  `--direction` it prints help and moves nothing, which reads like a no-op.
+- **Do not narrow the viewport to test mobile through `/preview`.** The catalog keeps
+  its sidebar at every width, so at 430px the content column collapses to roughly
+  130px and shows a RenderFlex overflow belonging to the catalog rather than to the
+  screen. For a real phone-width check, navigate to the route directly.
+
+This is not optional polish. A single session of skipping it shipped a self-hiding
+badge that left a phantom flex gap, a full-width button whose label sat against the
+left edge, a navigation link stretched to half a card, and an empty state still
+reading "5 adet" and "9 hareket". `flutter analyze` was clean through all four.
