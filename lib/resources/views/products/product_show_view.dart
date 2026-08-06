@@ -19,6 +19,7 @@ import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
+import 'product_fixtures.dart';
 
 /// Product detail: everything known about one product the tenant holds.
 ///
@@ -96,11 +97,20 @@ class ProductShowView extends StatelessWidget {
   /// Creates the view for a product that has no stock or history yet.
   const ProductShowView.newProduct({super.key}) : isNew = true;
 
+  /// The product this screen renders, read from the SAME fixture the list uses.
+  ///
+  /// Not a second set of literals. This screen hand-wrote its own numbers and drifted
+  /// from the list three ways in one sitting: total 5 against 2.5, target 6 against 4,
+  /// and lots summing to 4.5 while holding an expired carton the list did not have. A
+  /// user opens the detail screen to check a number they doubt, so it is the last
+  /// place that can afford its own opinion.
+  ProductListItem get _product => productFixtures.first;
+
   @override
   Widget build(BuildContext context) {
     return MSPageScaffold(
-      title: 'Pınar Süt Tam Yağlı 1 lt',
-      subtitle: 'Pınar',
+      title: _product.name,
+      subtitle: _product.brand,
       // "Taşı" and "Etiket" live in the header rather than beside the primary button
       // at the bottom. Three buttons in one row does not fit a phone, and it left the
       // screen with no clear primary. As icons in the header they stay reachable
@@ -280,16 +290,13 @@ class ProductShowView extends StatelessWidget {
           className: 'flex flex-col gap-1',
           children: [
             WText('Toplam stok', className: 'text-xs text-fg-muted'),
-            // The same figure the list row shows for this product, in the same
-            // format. It said "5 adet" here while the list said "2 adet + 500 ml",
-            // which is the drift this screen is meant to resolve rather than add to:
-            // the detail screen is where a user comes to check a number they doubt.
-            const Quantity(
-              amount: 2.5,
-              formatted: '2',
-              unit: 'adet',
-              remainderFormatted: '500',
-              remainderUnit: 'ml',
+            // Derived, so it cannot disagree with the list row for this product.
+            Quantity(
+              amount: _product.amount,
+              formatted: _product.primaryFigure.$1,
+              unit: _product.primaryFigure.$2,
+              remainderFormatted: _product.remainderFigure?.$1,
+              remainderUnit: _product.remainderFigure?.$2,
               size: QuantitySize.lg,
             ),
           ],
@@ -301,7 +308,10 @@ class ProductShowView extends StatelessWidget {
             // The open unit's clock, which is sooner than any printed date here. A
             // headline showing the printed date while an opened carton expires in two
             // days would be the screen contradicting its own lot list.
-            const ExpiryBadge(label: 'Açık · 2 gün', daysUntilExpiry: 2),
+            ?ExpiryBadge.maybe(
+              label: _product.expiryLabel,
+              daysUntilExpiry: _product.daysUntilExpiry,
+            ),
           ],
         ),
       ],
@@ -347,20 +357,24 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
-    return const WDiv(
+    return WDiv(
       className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
       children: [
         WDiv(
-          child: StatCard(label: 'Hedef seviye', value: '4 adet', delta: 'sen belirledin'),
+          child: StatCard(
+            label: 'Hedef seviye',
+            value: '${_product.parLevel} ${_product.unit}',
+            delta: 'sen belirledin',
+          ),
         ),
-        WDiv(
+        const WDiv(
           child: StatCard(
             label: 'Tüketim tahmini',
             value: 'Henüz yok',
             delta: '9 hareket, 10 gerekiyor',
           ),
         ),
-        WDiv(
+        const WDiv(
           child: StatCard(label: 'Zayi', value: '1 adet', delta: 'son 30 günde'),
         ),
       ],
@@ -389,36 +403,45 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
-    return const SectionCard(
+    // Derived from the same lots, so the location split necessarily sums to the
+    // headline. It did not before: the fridge showed "1 adet" while holding a sealed
+    // carton and an open half-litre, so the breakdown came to less than the total it
+    // breaks down.
+    return SectionCard(
       label: 'Konumlar',
-      count: '2 konum',
-      children: [
-        LocationStockRow(
-          path: 'Mutfak › Buzdolabı',
-          amount: 1.5,
-          quantity: '1',
-          unit: 'adet',
-          remainderFormatted: '500',
-          remainderUnit: 'ml',
-          lotsLabel: '2 parti',
-          expiryLabel: 'Açık · 2 gün',
-          // Two days, not -1. The label was updated when the milk stopped being
-          // expired and the day count was not, so this badge rendered in the solid
-          // expired tone while the same fact in the lot list below rendered soft. The
-          // severity split is the one thing ExpiryBadge cannot be allowed to get
-          // wrong: solid means act today, soft means plan.
-          daysUntilExpiry: 2,
-        ),
-        LocationStockRow(
-          path: 'Kiler › Raf 2',
-          amount: 1,
-          quantity: '1',
-          unit: 'adet',
-          lotsLabel: '1 parti',
-          expiryLabel: '12 gün',
-          daysUntilExpiry: 12,
-        ),
-      ],
+      count: '${_locationIds.length} konum',
+      children: [for (final String locationId in _locationIds) _locationRow(locationId)],
+    );
+  }
+
+  /// The locations holding live stock, in the order the location list declares them.
+  List<String> get _locationIds =>
+      locationOptions.map((o) => o.id).where((id) => _product.lotsAt(id).isNotEmpty).toList();
+
+  /// One location's row, with its figures taken from the lots it holds.
+  ///
+  /// The row reports the open remainder separately for the same reason the headline
+  /// does, and its badge reports the EARLIEST binding date among its own lots, which
+  /// is how the fridge ends up flagged and the pantry does not.
+  Widget _locationRow(String locationId) {
+    final List<LotFixture> lots = _product.lotsAt(locationId);
+    final LotFixture? open = lots.where((l) => l.isOpen).firstOrNull;
+    final num whole = lots.where((l) => !l.isOpen).fold<num>(0, (a, l) => a + l.remaining);
+
+    final LotFixture soonest = lots.reduce(
+      (a, b) => (a.daysUntilExpiry ?? 9999) <= (b.daysUntilExpiry ?? 9999) ? a : b,
+    );
+
+    return LocationStockRow(
+      path: resolveLocationPath(locationId) ?? locationId,
+      amount: _product.amountAt(locationId),
+      quantity: whole == whole.roundToDouble() ? whole.round().toString() : whole.toString(),
+      unit: _product.unit,
+      remainderFormatted: open?.formatted,
+      remainderUnit: open?.unit,
+      lotsLabel: '${lots.length} parti',
+      expiryLabel: soonest.isOpen ? 'Açık · ${soonest.expiryLabel}' : soonest.expiryLabel,
+      daysUntilExpiry: soonest.daysUntilExpiry,
     );
   }
 
@@ -444,60 +467,26 @@ class ProductShowView extends StatelessWidget {
       );
     }
 
-    // The lots have to SUM to the headline, and they did not: the list showed
-    // "2 adet + 500 ml" while these added up to 4.5 and included an expired carton
-    // the list knew nothing about. Hand-written fixtures across two screens is how
-    // that happens, and the structural fix is one source for both. Until then these
-    // numbers are checked by hand and the arithmetic is written down:
-    //
-    //   0.5 (open) + 1 + 1 = 2.5 adet, matching the headline and the two locations
-    //   (fridge 1.5 = the open one plus a sealed, pantry 1).
-    //
-    // The depleted lot is excluded from that sum on purpose. It is at zero and stays
-    // visible as the evidence behind the consumption history.
-    return const SectionCard(
+    // Rendered from the product's own lots, so the count, the sum and the dates
+    // cannot disagree with the list row or with each other. A test asserts the live
+    // lots add up to `amount`, which is what the hand-written version could not do.
+    return SectionCard(
       label: 'Partiler',
-      count: '4 parti',
+      count: '${_product.lots.length} parti',
       children: [
-        // The open lot leads, and it is the reason this list exists rather than just
-        // a total. The row above reads "2 adet + 500 ml"; this says WHICH 500 ml,
-        // opened when, and that it now has two days rather than the week its printed
-        // date still shows. That gap is the whole of D27.
-        LotRow(
-          remainingAmount: 0.5,
-          remaining: '500',
-          unit: 'ml',
-          isOpen: true,
-          expiryLabel: '2 gün',
-          daysUntilExpiry: 2,
-          openedLabel: '5 Ağu açıldı · kutuda 12 Ağu yazıyor',
-        ),
-        LotRow(
-          remainingAmount: 1,
-          remaining: '1',
-          unit: 'adet',
-          expiryLabel: '6 gün',
-          daysUntilExpiry: 6,
-          receivedLabel: '3 Ağu alındı',
-          lotCode: 'L2408-33',
-        ),
-        LotRow(
-          remainingAmount: 1,
-          remaining: '1',
-          unit: 'adet',
-          expiryLabel: '12 gün',
-          daysUntilExpiry: 12,
-          receivedLabel: '5 Ağu alındı',
-        ),
-        LotRow(
-          remainingAmount: 0,
-          remaining: '0',
-          unit: 'adet',
-          expiryLabel: '12 Tem',
-          daysUntilExpiry: -24,
-          receivedLabel: '8 Tem alındı',
-          isDepleted: true,
-        ),
+        for (final LotFixture lot in _product.lots)
+          LotRow(
+            remainingAmount: lot.remaining,
+            remaining: lot.formatted,
+            unit: lot.unit,
+            isOpen: lot.isOpen,
+            expiryLabel: lot.expiryLabel,
+            daysUntilExpiry: lot.daysUntilExpiry,
+            openedLabel: lot.openedLabel,
+            receivedLabel: lot.receivedLabel,
+            lotCode: lot.lotCode,
+            isDepleted: lot.isDepleted,
+          ),
       ],
     );
   }

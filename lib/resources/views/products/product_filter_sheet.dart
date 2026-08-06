@@ -16,11 +16,22 @@ class FilterOption {
   /// The stored value.
   final String id;
 
-  /// The already-localised chip label.
+  /// The already-localised chip label. Short, because it sits in a capsule.
   final String label;
 
+  /// The full hierarchy path, when this option is a location.
+  ///
+  /// A chip wants "Buzdolabı" and a detail row wants "Mutfak › Buzdolabı": the short
+  /// name fits a capsule in a scrolling row, and the path answers "where exactly" on
+  /// a screen that has the width for it. Deriving one from the other loses either the
+  /// context or the space, so a location carries both. Defaults to [label].
+  final String? path;
+
   /// Creates a [FilterOption].
-  const FilterOption({required this.id, required this.label});
+  const FilterOption({required this.id, required this.label, this.path});
+
+  /// The path when one is declared, otherwise the label.
+  String get fullPath => path ?? label;
 }
 
 /// The filter sheet for the stock list.

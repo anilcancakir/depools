@@ -3,6 +3,70 @@ import 'package:flutter/foundation.dart';
 import '../../../app/models/product_filter.dart';
 import 'product_filter_sheet.dart';
 
+/// One lot of a product: a batch with its own date and its own remaining amount.
+///
+/// The lots are the SOURCE for a product's totals, not a second opinion about them.
+/// Both product screens hand-wrote their own numbers before this existed and they
+/// drifted three ways in one sitting: the detail screen claimed 5 adet while the list
+/// claimed 2.5, its target said 6 against the list's 4, and its lots summed to 4.5
+/// while holding an expired carton the list knew nothing about.
+@immutable
+class LotFixture {
+  /// Remaining amount, in base units. A half-used 1 lt carton is 0.5.
+  final num remaining;
+
+  /// The already-formatted remaining figure, in [unit].
+  final String formatted;
+
+  /// The unit this lot's remainder is expressed in.
+  ///
+  /// An open lot reports in the product's CONTENT unit (500 ml), a sealed one in its
+  /// base unit (1 adet). That is not an inconsistency: it is what the user sees when
+  /// they pick the thing up.
+  final String unit;
+
+  /// Days until this lot's binding date, whichever that is.
+  ///
+  /// For an open lot it is the after-opening limit, not the printed date (D27).
+  final int? daysUntilExpiry;
+
+  /// The already-formatted date label for a badge.
+  final String? expiryLabel;
+
+  /// Whether this lot has been opened and is on its after-opening clock.
+  final bool isOpen;
+
+  /// The already-formatted opening line, when open.
+  final String? openedLabel;
+
+  /// The already-formatted arrival line, when sealed.
+  final String? receivedLabel;
+
+  /// The supplier's batch code, when known.
+  final String? lotCode;
+
+  /// Whether this lot reached zero. Excluded from every total, kept for the history.
+  final bool isDepleted;
+
+  /// Which location holds this lot.
+  final String locationId;
+
+  /// Creates a [LotFixture].
+  const LotFixture({
+    required this.remaining,
+    required this.formatted,
+    required this.unit,
+    required this.locationId,
+    this.daysUntilExpiry,
+    this.expiryLabel,
+    this.isOpen = false,
+    this.openedLabel,
+    this.receivedLabel,
+    this.lotCode,
+    this.isDepleted = false,
+  });
+}
+
 /// One product as the stock list needs it.
 ///
 /// The list was built from hardcoded `ProductRow` widgets, which was fine while it
@@ -103,6 +167,15 @@ class ProductListItem {
   /// The already-formatted expiry label for the row.
   final String? expiryLabel;
 
+  /// The lots behind this product's stock, when the fixture declares them.
+  ///
+  /// When non-empty these are authoritative: [amount], [openRemainder] and
+  /// [daysUntilExpiry] are all derivable from them, and the detail screen renders
+  /// them directly, so the two screens cannot disagree about one product. Products
+  /// that only ever appear in the list can leave it empty and pass the totals
+  /// directly.
+  final List<LotFixture> lots;
+
   /// Creates a [ProductListItem].
   const ProductListItem({
     required this.name,
@@ -122,7 +195,21 @@ class ProductListItem {
     this.contentUnit,
     this.openRemainder,
     this.openDaysRemaining,
+    this.lots = const [],
   });
+
+  /// The lots that still hold something, earliest binding date first.
+  ///
+  /// Depleted lots are excluded from every total and kept for the history, which is
+  /// why they are filtered here rather than removed from the fixture.
+  List<LotFixture> get liveLots => lots.where((l) => !l.isDepleted).toList();
+
+  /// The lots at one location.
+  List<LotFixture> lotsAt(String locationId) =>
+      lots.where((l) => l.locationId == locationId && !l.isDepleted).toList();
+
+  /// Stock at one location, in base units, derived from its lots.
+  num amountAt(String locationId) => lotsAt(locationId).fold<num>(0, (sum, l) => sum + l.remaining);
 
   /// Whether one unit is open and partly used.
   bool get hasOpenUnit => openRemainder != null && openRemainder! > 0;
@@ -345,6 +432,50 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
     daysUntilExpiry: 2,
     parLevel: 4,
     shelfLifeDays: 5,
+    // These lots ARE the total: 0.5 + 1 + 1 = 2.5 adet, which is what `amount` says
+    // above and what the detail screen renders. The depleted one is excluded from the
+    // sum and kept as the evidence behind the consumption history.
+    lots: [
+      LotFixture(
+        remaining: 0.5,
+        formatted: '500',
+        unit: 'ml',
+        locationId: 'loc-fridge',
+        isOpen: true,
+        daysUntilExpiry: 2,
+        expiryLabel: '2 gün',
+        openedLabel: '5 Ağu açıldı · kutuda 12 Ağu yazıyor',
+      ),
+      LotFixture(
+        remaining: 1,
+        formatted: '1',
+        unit: 'adet',
+        locationId: 'loc-fridge',
+        daysUntilExpiry: 6,
+        expiryLabel: '6 gün',
+        receivedLabel: '3 Ağu alındı',
+        lotCode: 'L2408-33',
+      ),
+      LotFixture(
+        remaining: 1,
+        formatted: '1',
+        unit: 'adet',
+        locationId: 'loc-pantry',
+        daysUntilExpiry: 12,
+        expiryLabel: '12 gün',
+        receivedLabel: '5 Ağu alındı',
+      ),
+      LotFixture(
+        remaining: 0,
+        formatted: '0',
+        unit: 'adet',
+        locationId: 'loc-fridge',
+        daysUntilExpiry: -24,
+        expiryLabel: '12 Tem',
+        receivedLabel: '8 Tem alındı',
+        isDepleted: true,
+      ),
+    ],
   ),
   // The pack case from Turkish labelling law: one pack declares three sachets. Two
   // sachets are left out of an opened pack, so nothing is whole and the remainder
@@ -476,11 +607,11 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
 
 /// The location options the filter sheet offers, ordered as the tree reads.
 const List<FilterOption> locationOptions = <FilterOption>[
-  FilterOption(id: 'loc-fridge', label: 'Buzdolabı'),
-  FilterOption(id: 'loc-freezer', label: 'Derin dondurucu'),
-  FilterOption(id: 'loc-pantry', label: 'Kiler'),
-  FilterOption(id: 'loc-drawer', label: 'Kiler › Çekmece 2'),
-  FilterOption(id: 'loc-shelf', label: 'Depo › Raf A'),
+  FilterOption(id: 'loc-fridge', label: 'Buzdolabı', path: 'Mutfak › Buzdolabı'),
+  FilterOption(id: 'loc-freezer', label: 'Derin dondurucu', path: 'Mutfak › Derin dondurucu'),
+  FilterOption(id: 'loc-pantry', label: 'Kiler', path: 'Kiler › Raf 2'),
+  FilterOption(id: 'loc-drawer', label: 'Çekmece 2', path: 'Kiler › Çekmece 2'),
+  FilterOption(id: 'loc-shelf', label: 'Raf A', path: 'Depo › Raf A'),
 ];
 
 /// The category options the filter sheet offers.
@@ -501,10 +632,18 @@ const List<FilterOption> tagOptions = <FilterOption>[
   FilterOption(id: 'sarf', label: 'sarf'),
 ];
 
-/// Resolves a location id to its label, for a filter chip.
+/// Resolves a location id to its short label, for a filter chip.
 String? resolveLocationLabel(String id) {
   for (final FilterOption option in locationOptions) {
     if (option.id == id) return option.label;
+  }
+  return null;
+}
+
+/// Resolves a location id to its full hierarchy path, for a detail row.
+String? resolveLocationPath(String id) {
+  for (final FilterOption option in locationOptions) {
+    if (option.id == id) return option.fullPath;
   }
   return null;
 }

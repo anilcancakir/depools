@@ -244,6 +244,51 @@ void main() {
     });
   });
 
+  group('the lots are the source of the totals', () {
+    ProductListItem itemNamed(String name) =>
+        productFixtures.firstWhere((i) => i.name.startsWith(name));
+
+    test('the live lots sum to the declared amount', () {
+      // This is the test that would have caught the drift: the detail screen said
+      // 5 adet, the list said 2.5, and the lots summed to 4.5. Any of the three
+      // changing without the others now fails here rather than on screen.
+      for (final ProductListItem item in productFixtures.where((i) => i.lots.isNotEmpty)) {
+        final num sum = item.liveLots.fold<num>(0, (a, l) => a + l.remaining);
+        expect(
+          sum,
+          closeTo(item.amount, 0.001),
+          reason: '${item.name}: lots sum to \$sum but amount says \${item.amount}',
+        );
+      }
+    });
+
+    test('the locations sum to the total as well', () {
+      final milk = itemNamed('Pınar');
+
+      expect(milk.amountAt('loc-fridge'), 1.5); // the open half plus one sealed
+      expect(milk.amountAt('loc-pantry'), 1);
+      expect(milk.amountAt('loc-fridge') + milk.amountAt('loc-pantry'), milk.amount);
+    });
+
+    test('a depleted lot is excluded from the totals but kept', () {
+      final milk = itemNamed('Pınar');
+
+      expect(milk.lots.length, 4);
+      expect(milk.liveLots.length, 3);
+      expect(milk.lots.any((l) => l.isDepleted), isTrue);
+    });
+
+    test('the open lot reports the after-opening clock, not the printed date', () {
+      // The fixture text says the box reads 12 Ağu while the lot binds in 2 days.
+      // If these were ever equal, the whole of D27 would be untested.
+      final open = itemNamed('Pınar').lots.firstWhere((l) => l.isOpen);
+
+      expect(open.daysUntilExpiry, 2);
+      expect(open.openedLabel, contains('kutuda 12 Ağu'));
+      expect(open.unit, 'ml'); // an open lot reports in the content unit
+    });
+  });
+
   group('partial quantities', () {
     ProductListItem itemNamed(String name) =>
         productFixtures.firstWhere((i) => i.name.startsWith(name));
