@@ -184,7 +184,12 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
       case FieldEditorKind.text:
         return _group(
           'Serbest giriş',
-          MSInput(value: _value ?? '', placeholder: widget.label, onChanged: _set),
+          MSInput(
+            className: 'bg-surface-container',
+            value: _value ?? '',
+            placeholder: widget.label,
+            onChanged: _set,
+          ),
         );
       case FieldEditorKind.number:
         return _group(
@@ -195,6 +200,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
               WDiv(
                 className: 'flex-1 min-w-0',
                 child: MSInput(
+                  className: 'bg-surface-container',
                   value: _value ?? '',
                   placeholder: '0',
                   type: InputType.number,

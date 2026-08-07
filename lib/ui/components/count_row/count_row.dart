@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSInput;
 
+import '../quantity_stepper/quantity_stepper.dart';
 import 'count_row.recipe.dart';
 
 /// How far a row has got in a count.
@@ -64,6 +65,12 @@ class CountRow extends StatelessWidget {
   /// Called as the count changes.
   final ValueChanged<String>? onChanged;
 
+  /// Called when the count is stepped down.
+  final VoidCallback? onDecrement;
+
+  /// Called when the count is stepped up.
+  final VoidCallback? onIncrement;
+
   /// Called as the opened-unit count changes.
   final ValueChanged<String>? onRemainderChanged;
 
@@ -79,6 +86,8 @@ class CountRow extends StatelessWidget {
     this.state = CountState.uncounted,
     this.onChanged,
     this.onRemainderChanged,
+    this.onDecrement,
+    this.onIncrement,
   });
 
   @override
@@ -93,39 +102,51 @@ class CountRow extends StatelessWidget {
           children: [
             WText(name, className: slots['name']),
             WDiv(
-              className: slots['field'],
-              child: MSInput(
-                value: counted ?? '',
-                // The placeholder is a dash rather than a zero. A zero sitting in an empty
-                // field is an answer nobody gave, and this is the one screen where "no
-                // answer" and "zero" must not look alike.
-                placeholder: '—',
-                type: InputType.number,
-                onChanged: onChanged,
-              ),
-            ),
-            WText(unit, className: slots['unit']),
-            // The opened-unit column is ALWAYS reserved. A product with no content level
-            // gets empty space of the same width, so every field in the list stays in its
-            // column. Rendering the pair only where it exists moved the fields on the rows
-            // that had it, which is the leading-glyph mistake one axis over.
-            if (remainderUnit == null) ...[
-              WDiv(className: slots['plus']),
-              WDiv(className: slots['field']),
-              WDiv(className: slots['unit']),
-            ] else ...[
-              WText('+', className: slots['plus']),
-              WDiv(
-                className: slots['field'],
-                child: MSInput(
-                  value: countedRemainder ?? '',
-                  placeholder: '—',
-                  type: InputType.number,
-                  onChanged: onRemainderChanged,
+              className: slots['controls'],
+              children: [
+                // A stepper on the countable field and a plain box on the remainder. The step
+                // is one, so it only belongs where the unit is countable: plus-one-millilitre on
+                // an opened carton is a control that cannot reach most of its own values.
+                WDiv(
+                  className: slots['stepper'],
+                  child: QuantityStepper(
+                    semanticName: name,
+                    value: counted,
+                    onChanged: onChanged,
+                    onDecrement: onDecrement,
+                    onIncrement: onIncrement,
+                  ),
                 ),
-              ),
-              WText(remainderUnit!, className: slots['unit']),
-            ],
+                WText(unit, className: slots['unit']),
+                // The opened-unit column is ALWAYS reserved. A product with no content level
+                // gets empty space of the same width, so every field in the list stays in its
+                // column. Rendering the pair only where it exists moved the fields on the rows
+                // that had it, which is the leading-glyph mistake one axis over.
+                if (remainderUnit == null) ...[
+                  WDiv(className: slots['plus']),
+                  WDiv(className: slots['field']),
+                  WDiv(className: slots['unit']),
+                ] else ...[
+                  WText('+', className: slots['plus']),
+                  WDiv(
+                    className: slots['field'],
+                    child: MSInput(
+                      // `bg-surface-container` overrides the recipe's `-high` fill. MSInput ships the input
+                      // tone, which is `#E5E5EA` on a `#FFFFFF` card in light mode: darker than its
+                      // container, so it reads as recessed and therefore disabled, and the hairline is
+                      // too close in value to rescue it. Card tone plus the recipe's own border is the
+                      // outlined-field look every platform uses for an ENABLED input.
+                      className: 'bg-surface-container',
+                      value: countedRemainder ?? '',
+                      placeholder: '—',
+                      type: InputType.number,
+                      onChanged: onRemainderChanged,
+                    ),
+                  ),
+                  WText(remainderUnit!, className: slots['unit']),
+                ],
+              ],
+            ),
           ],
         ),
         WText(verdict, className: slots['verdict']),

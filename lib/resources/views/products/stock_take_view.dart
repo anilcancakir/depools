@@ -138,6 +138,12 @@ class _StockTakeViewState extends State<StockTakeView> {
                 ? CountState.matched
                 : CountState.variance,
             onChanged: (next) => setState(() => _whole[line.product.name] = num.tryParse(next)),
+            onDecrement: () => setState(() {
+              final num current = line.countedWhole ?? 0;
+              _whole[line.product.name] = current <= 0 ? 0 : current - 1;
+            }),
+            onIncrement: () =>
+                setState(() => _whole[line.product.name] = (line.countedWhole ?? 0) + 1),
             onRemainderChanged: (next) =>
                 setState(() => _inner[line.product.name] = num.tryParse(next)),
           ),

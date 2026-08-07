@@ -166,7 +166,11 @@ class BarcodeScanView extends StatelessWidget {
       child: SectionCard(
         label: 'Barkod',
         children: [
-          const MSInput(placeholder: '13 hane', type: InputType.number),
+          const MSInput(
+            className: 'bg-surface-container',
+            placeholder: '13 hane',
+            type: InputType.number,
+          ),
           // Checksum validation is the reason this field is not just a shortcut: a
           // mistyped EAN-13 is caught here rather than becoming a product nobody can
           // scan again.

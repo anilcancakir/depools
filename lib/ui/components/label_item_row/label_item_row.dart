@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../quantity_stepper/quantity_stepper.dart';
 import 'label_item_row.recipe.dart';
 
 /// How the label count for a line is arrived at.
@@ -32,8 +33,6 @@ enum LabelCountMode {
 /// label 40 of 96 is the case this exists for.
 @immutable
 class LabelItemRow extends StatelessWidget {
-  static const IconData _decrementIcon = Icons.remove;
-  static const IconData _incrementIcon = Icons.add;
   static const IconData _printedIcon = Icons.check_circle_outline;
   static const IconData _pendingIcon = Icons.label_outline;
 
@@ -106,28 +105,16 @@ class LabelItemRow extends StatelessWidget {
         // changing the count would describe a past event, and the row says as much two
         // lines down. Absent rather than disabled, the same call the serial row makes.
         if (mode == LabelCountMode.free && !isPrinted)
-          WDiv(
-            className: slots['stepper'],
-            children: [
-              _step(slots, _decrementIcon, 'Bir azalt', onDecrement),
-              WText('$count', className: slots['count']),
-              _step(slots, _incrementIcon, 'Bir artır', onIncrement),
-            ],
+          QuantityStepper(
+            semanticName: name,
+            value: '$count',
+            placeholder: '0',
+            onDecrement: onDecrement,
+            onIncrement: onIncrement,
           )
         else
           WText('$count etiket', className: slots['fixedCount']),
       ],
-    );
-  }
-
-  Widget _step(Map<String, String> slots, IconData icon, String label, VoidCallback? onTap) {
-    return WAnchor(
-      onTap: onTap,
-      semanticLabel: '$name, $label',
-      child: WDiv(
-        className: slots['stepButton'],
-        child: WIcon(icon, className: slots['stepIcon']),
-      ),
     );
   }
 }

@@ -57,6 +57,7 @@ import 'ui/components/movement_row/movement_row.preview.dart';
 import 'ui/components/option_row/option_row.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
+import 'ui/components/quantity_stepper/quantity_stepper.preview.dart';
 import 'ui/components/receipt_line_row/receipt_line_row.preview.dart';
 import 'ui/components/scan_row/scan_row.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
@@ -283,6 +284,11 @@ List<PreviewEntry> previewEntries() {
       label: 'Quantity',
       slug: 'quantity',
       builder: (_) => const QuantityPreview(),
+    ),
+    PreviewEntry(
+      label: 'QuantityStepper',
+      slug: 'quantity_stepper',
+      builder: (_) => const QuantityStepperPreview(),
     ),
     PreviewEntry(
       label: 'ReceiptLineRow',

@@ -359,7 +359,10 @@ class AssistantView extends StatelessWidget {
             ),
             const WDiv(
               className: 'flex-1 min-w-0',
-              child: MSInput(placeholder: 'Ne aldınız, ne soracaksınız'),
+              child: MSInput(
+                className: 'bg-surface-container',
+                placeholder: 'Ne aldınız, ne soracaksınız',
+              ),
             ),
             MSButton(
               onPressed: () {},

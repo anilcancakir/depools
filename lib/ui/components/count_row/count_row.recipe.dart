@@ -20,8 +20,12 @@ WindSlotRecipe countRowRecipe() {
       // once the count fields took fixed widths the body narrowed enough to truncate
       // "500 ml eksik" off the end, and that phrase is the entire diagnostic content.
       'root': 'flex flex-col gap-0.5 py-2',
-      'top': 'flex flex-row items-center gap-3',
-      'name': 'text-sm font-semibold text-fg flex-1 min-w-0 truncate',
+      // Reflows instead of truncating. Two steppers, two unit labels and a name do not fit
+      // one phone-width line, and DESIGN.md forbids truncating to fit: the name takes its own
+      // line below `md` and shares one above it.
+      'top': 'flex flex-col md:flex-row md:items-center gap-2 md:gap-3',
+      'name': 'text-sm font-semibold text-fg md:flex-1 md:min-w-0',
+      'controls': 'flex flex-row items-center gap-3',
       'verdict': 'text-xs text-fg-muted',
       // Fixed widths, because this is a COLUMN and not a row of content. Sized to their
       // text, `adet` is wider than `ml` and a row with no opened-unit pair has two fewer
@@ -29,6 +33,7 @@ WindSlotRecipe countRowRecipe() {
       // one glance: the same failure as a conditionally-rendered leading glyph, one axis
       // over, and the same fix (reserve the space whether or not it is used).
       'field': 'w-20 shrink-0',
+      'stepper': 'shrink-0',
       'unit': 'w-10 shrink-0 text-xs text-fg-muted',
       'plus': 'w-4 shrink-0 text-xs text-fg-muted text-center',
     },
