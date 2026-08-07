@@ -36,10 +36,12 @@ import 'preview/settings_screen.preview.dart';
 import 'preview/shopping_list_empty_screen.preview.dart';
 import 'preview/shopping_list_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
+import 'preview/stock_take_screen.preview.dart';
 import 'preview/teams_screen.preview.dart';
 import 'ui/components/callout/callout.preview.dart';
 import 'ui/components/chat_message/chat_message.preview.dart';
 import 'ui/components/choice_chip/choice_chip.preview.dart';
+import 'ui/components/count_row/count_row.preview.dart';
 import 'ui/components/draft_field/draft_field.preview.dart';
 import 'ui/components/expiry_badge/expiry_badge.preview.dart';
 import 'ui/components/filter_bar/filter_bar.preview.dart';
@@ -106,6 +108,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ChoiceChip',
       slug: 'choice_chip',
       builder: (_) => const ChoiceChipPreview(),
+    ),
+    PreviewEntry(
+      label: 'CountRow',
+      slug: 'count_row',
+      builder: (_) => const CountRowPreview(),
     ),
     PreviewEntry(
       label: 'DashboardScreen',
@@ -356,6 +363,11 @@ List<PreviewEntry> previewEntries() {
       label: 'StockBadge',
       slug: 'stock_badge',
       builder: (_) => const StockBadgePreview(),
+    ),
+    PreviewEntry(
+      label: 'StockTakeScreen',
+      slug: 'stock_take_screen',
+      builder: (_) => const StockTakeScreenPreview(),
     ),
     PreviewEntry(
       label: 'Tag',

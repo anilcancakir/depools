@@ -685,6 +685,20 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### CountRow
+
+- **File**: `lib/ui/components/count_row/`
+- **Class**: `CountRow`
+- **Token bindings**: `text-fg`, `text-fg-disabled` (uncounted), `text-in-stock` (matched), `text-low-stock` (variance)
+- **What it is**: one product being physically counted, in one of three states.
+- **Anti-patterns**:
+  - Do not show the expected figure before a count is entered. D58: a counter shown "5" looks at a shelf and sees five.
+  - Do not default the field to zero, and do not use `0` as its placeholder. An empty field means NOT COUNTED and a zero writes the balance off; this is the one screen where those must not look alike.
+  - Do not collapse a two-level count into one decimal. Whole units and an opened amount are two fields, because "1,5 adet" is not verifiable against a shelf.
+  - Do not tone the uncounted state. Every row starts uncounted, so a tone there colours the whole screen before the user has done anything.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`

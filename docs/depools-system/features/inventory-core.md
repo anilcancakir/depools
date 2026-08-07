@@ -45,6 +45,37 @@ Capture accepts whatever unit the user says. "2 koli su" resolves through `produ
 
 Stock is always stored in the base unit. Display may use whichever unit the user last used for that product.
 
+## Counting (stock take)
+
+A count is scoped to one location, because that is how a person does it: you stand in front of
+one shelf. The user types what is on it and the app writes the difference.
+
+**The reason is `stock_take`, never `correction`** (D59). `data-model.md` separates them on
+purpose, as "a counted correction after a physical count" against "fixing a data-entry error".
+Folding a count into `correction` would destroy the ability to tell shrinkage from a typo,
+which is the same distinction that keeps `waste` out of `consumption`.
+
+Because the ledger takes deltas and a count states an absolute, the screen shows both numbers:
+what was counted, and what that implies as a change. A user who types 1 and later finds a
+`-500 ml` movement they never asked for has been surprised by their own stock take.
+
+**Blind until counted** (D58). No expected figure appears beside an uncounted row. Warehouse
+practice calls this a blind count and the reason is anchoring: a counter shown "5" looks at a
+shelf and sees five. The moment a number is entered, the system figure and the difference
+appear, so a discrepancy is diagnosable while the user is still in front of the shelf.
+
+**Uncounted and zero are different facts.** An empty field means nobody looked and the row is
+left completely alone; a zero writes the whole balance off. The placeholder is a dash for that
+reason, and the summary states both figures so a user can see what they are NOT changing.
+
+**A match writes nothing.** Counting and finding agreement is not a movement, and a zero-delta
+row would do measurable harm: `movementCount` decides a product's forecast tier, so counts
+would promote products into "we can forecast this" with no consumption behind it.
+
+**A product with a content level is counted in two fields**, whole units plus an opened amount,
+never as one decimal. "1,5 adet" is not something anybody can verify against a shelf; "1 adet
+and 500 ml" is exactly what they are looking at.
+
 ## Error and empty states
 
 - **No products yet.** The empty state offers the three fastest capture paths (scan, receipt photo, say it), not a "Create product" button.

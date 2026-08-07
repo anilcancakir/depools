@@ -630,6 +630,42 @@ and it sits above the tiers so a well-forecast product with four days of cover n
 something already gone. Its rows also drop the cover figure: "0 günlük kaldı" under a heading
 reading "Stok bitti" is a true statement adding nothing.
 
+### D58. A count is blind until a number is entered, then immediately informed
+
+No expected figure appears next to an uncounted row on the stock-take screen. Warehouse
+practice calls this a blind count and the reason is anchoring: a counter shown "5" will look at
+a shelf and see five, which turns a count into a confirmation and makes it worthless as a check
+on the ledger.
+
+The moment a number is entered, the system figure and the difference appear. So the anchoring
+is avoided while it matters and the feedback arrives while the user is still standing in front
+of the shelf, which is the only moment a discrepancy is cheap to investigate.
+
+Rejected: a fully blind count with the variance shown only at the end. It is what enterprise
+systems do, and it is wrong here because our user is often the same person who put the stock
+there; making them walk back to the fridge to resolve a variance they could have seen
+immediately is friction that ends with counts not being done.
+
+**An empty field means NOT COUNTED, never zero**, and the placeholder is a dash to say so. An
+uncounted row is left completely alone at commit; a zero writes the whole balance off. A sheet
+whose empty field meant zero would zero out every product the user did not reach, which is the
+worst failure this screen could have.
+
+### D59. A count writes `stock_take`, and a match writes nothing at all
+
+`data-model.md` separates `stock_take` ("a counted correction after a physical count") from
+`correction` ("fixing a data-entry error"), and a count uses the former. The two exist
+separately for the same reason `waste` is not folded into `consumption`: without the split you
+cannot tell stock that walked out of the building from a number somebody mistyped, and
+shrinkage is a figure a business pays for.
+
+**A count that agrees writes no movement.** Nothing changed, so there is nothing to append, and
+a zero-delta row would not be harmless bookkeeping: `movementCount` is what decides whether a
+product has enough history to be forecast, so counts would promote products into the forecast
+tier on the strength of having been looked at. The commit line says so outright
+(`eşleşen sayımlar hareket üretmez`), because "I counted 12 things and it saved 1" needs
+explaining before it looks like a bug.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe
