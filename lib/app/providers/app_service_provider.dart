@@ -55,37 +55,6 @@ class AppServiceProvider extends ServiceProvider {
     // showing more rows than a narrow window does.
     MagicStarter.manager.pageContainerClassName = 'max-w-6xl px-4 md:px-5 pt-6 pb-16';
 
-    // Magic Starter: the page header, on this app's tokens and this app's geometry.
-    //
-    // Two measured defects in the starter's default, both app-wide rather than
-    // per page, and both invisible until the header sat next to a card.
-    //
-    // 1. `p-2 lg:p-4` added a SECOND edge margin on top of the container's own,
-    //    so the title started 16px inside every card edge below it while the two
-    //    right edges disagreed by the same amount. Measured on the assistant at
-    //    1400px: header content 309..1315, card 293..1331. The container owns the
-    //    edge margin, so the header keeps only its vertical rhythm.
-    //
-    // 2. `border-gray-200 dark:border-gray-700` is a raw palette pair, which
-    //    DESIGN.md's token-only rule forbids and `bin/design-tokens` cannot catch
-    //    because the hex never appears in this repository. `border-color-border`
-    //    is the alias for exactly this hairline.
-    //
-    // `pb-4` under the divider is the third fix: the chips below it were sitting
-    // on the rule with nothing between them.
-    MagicStarter.usePageHeaderTheme(
-      const MagicStarterPageHeaderTheme(
-        containerClassName:
-            'w-full flex flex-col sm:flex-row items-start sm:items-center '
-            'sm:justify-between gap-4 pb-4 border-b border-color-border',
-        containerInlineClassName:
-            'w-full flex flex-row items-center justify-between gap-4 pb-4 '
-            'border-b border-color-border',
-        titleClassName: 'text-2xl font-semibold text-fg line-clamp-2',
-        subtitleClassName: 'text-sm text-fg-muted line-clamp-2',
-      ),
-    );
-
     // Magic Starter: Navigation items for sidebar and mobile bottom bar.
     MagicStarter.useNavigation(
       mainItems: [
