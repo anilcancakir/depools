@@ -67,6 +67,13 @@ class OptionRow extends StatelessWidget {
         className: slots['root'],
         states: isSelected ? const {'selected'} : const {},
         children: [
+          // The radio is what says "pick one of these" in an appearance-independent way.
+          // The fill cannot: raised is lighter in dark and whiter in light, so a single
+          // fill token reads as tappable in one mode and disabled in the other.
+          WDiv(
+            className: slots['radio'],
+            child: WDiv(className: slots['dot']),
+          ),
           WDiv(
             className: slots['body'],
             children: [

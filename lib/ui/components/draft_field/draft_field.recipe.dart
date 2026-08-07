@@ -55,7 +55,7 @@ WindSlotRecipe draftFieldRecipe() {
       // measured finding that min-height grows a box downward without re-centring.
       'chipRoot':
           'flex flex-row items-center gap-1.5 px-3 py-2.5 rounded-full axis-min '
-          'bg-surface-container-high',
+          'bg-surface-container border border-color-border',
       'chipValue': 'text-sm font-medium text-fg',
       'chipPrompt': 'text-sm font-medium text-ai',
       'chipMarker': 'text-xs text-fg-muted',

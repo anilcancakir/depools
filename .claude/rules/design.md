@@ -84,6 +84,28 @@ Each alias already expands to a `'<light> dark:<dark>'` pair, so write `bg-surfa
 
 To add or change a semantic token: edit `DESIGN.md` and run `dart run bin/dispatcher.dart design:sync`.
 
+## Both appearances, every time
+
+**A screen is not verified until it has been seen in light AND dark.** This is already in
+the `design-first-workflow` skill and it was skipped for seven consecutive screens in one
+session; every one of them was reviewed in dark mode only, and the light-mode defect that
+came out of it (an interactive fill reading as disabled) had shipped across six of them
+before Anılcan spotted it in a single glance.
+
+The reason it needs to be a hard gate rather than a good habit: the two appearances are not
+brightness variants of each other. Elevation direction inverts, so a token pair that is
+correct in one can be actively wrong in the other, and no amount of care in dark mode will
+surface it.
+
+```sh
+# Toggle from the catalog header, then confirm the mode actually changed before trusting
+# the screenshot: the tap sometimes does not land.
+./bin/fsa dusk:snap | grep 'Toggle theme'
+./bin/fsa dusk:tap --ref=eN
+./bin/fsa dusk:screenshot -o /tmp/light.jpg
+python3 -c "from PIL import Image; px=Image.open('/tmp/light.jpg').convert('RGB').getpixel((1200,300)); print('DARK' if sum(px)<200 else 'LIGHT')"
+```
+
 ## Preview-Required Rule
 
 No component ships without a preview widget.
@@ -136,6 +158,8 @@ Each of these is a blocker, and the `component-visual-reviewer` flags every one.
 | `relative` plus an `absolute` child on the SAME `WDiv` as the flex alignment | Split the layers: an outer `relative` box holding the flex panel and the positioned overlay as two children. Wind turns a container with a positioned child into a Stack, and a Stack silently ignores `items-center justify-center`, so the content collapses to the top-left of an otherwise correct-looking panel. |
 | A raw Flutter `Expanded` or a nested `Column` inside a wind `flex` WDiv | Let one layer own the main axis. Wind paints, Flutter measures: put raw `Expanded` children in a plain `Row`/`Column` and give the surrounding WDiv paint-only tokens (`h-8`, `px-1`). Wind's flex box does not give a bare `Expanded` the parent it needs, and a `Column` nested in wind's `Column` is handed unbounded height. Both fail as `RenderBox was not laid out`, which names nothing. |
 | `items-stretch` on a Row inside a scrolling Column | `items-start`. The Row has no height of its own there, so stretch asks its children to match a height that does not exist and asserts, again without naming the Row. |
+| `bg-surface-container-high` as the fill of anything TAPPABLE (an option row, a chip, a stepper button) | Card tone plus a hairline: `bg-surface-container border border-color-border`. That token is DESIGN.md's INPUT background. Measured: it is `#2C2C2E` on a `#1C1C1E` sheet in dark (lighter than its container, reads as raised, so tappable) and `#E5E5EA` on `#FFFFFF` in light (darker than its container, reads as recessed, which is the universal look of a disabled control). **Elevation direction flips between appearances**, so no fill token can carry "pressable" in both; a border can. Anılcan caught this in one glance at a light-mode screenshot after it had shipped across six screens. Keep the input tone for actual input wells, non-tappable panels and placeholder thumbs. |
+| Selection carried by fill tint alone | Add a non-colour signal: a radio dot, a tick, a glyph. White against `#E3ECFF` is a subtle difference in light mode and no difference at all to a colour-blind user, and DESIGN.md's "colour never carries meaning alone" applies to state, not only to status. |
 | A selectable option with no fill when unselected | Give every option a `bg-surface-container-high`; a group where only the selected row has a background reads as one highlight among labels, not a set of choices |
 | Several preview classes in one `.preview.dart` | One preview class per file |
 | CSS-only Wind utilities (`box-shadow`, `filter`, `transform`, `group-*`) | Unsupported in wind; use Flutter animation APIs |

@@ -14,6 +14,7 @@ WindSlotRecipe lotRowRecipe() {
     slots: {
       'root': 'flex flex-row items-center justify-between gap-3 py-2',
       'leading': 'flex flex-col gap-1 flex-1 min-w-0',
+      'product': 'text-sm font-semibold text-fg truncate',
       'meta': 'flex flex-row items-center gap-2',
       'code': 'font-mono text-xs text-fg-muted truncate',
       'received': 'text-xs text-fg-muted',

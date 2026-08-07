@@ -14,14 +14,19 @@ import 'package:magic/magic.dart';
 /// component. On a WDiv it measures true.
 WindRecipe choiceChipRecipe() {
   return const WindRecipe(
+    // Card tone plus a hairline, never the input tone. `bg-surface-container-high` is
+    // DESIGN.md's INPUT background: in dark mode it is lighter than its container and
+    // reads as raised, but in light mode it is DARKER than a white card and reads as
+    // recessed, which is the universal look of a disabled control. Elevation direction
+    // flips between appearances, so only a border can say "pressable" in both.
     base:
         'flex flex-row items-center gap-1.5 px-4 min-h-11 rounded-full axis-min '
-        'bg-surface-container-high',
+        'bg-surface-container border border-color-border',
     variants: {
       'emphasis': {
         // The suggested answer. Every grouped card pre-fills a real, likely default, and
         // this is what marks it.
-        'suggested': 'bg-primary-container border border-color-border',
+        'suggested': 'bg-primary-container',
         'plain': '',
       },
     },

@@ -20,7 +20,11 @@ WindSlotRecipe labelItemRowRecipe() {
       'name': 'text-sm font-semibold text-fg truncate',
       'meta': 'font-mono text-xs text-fg-muted truncate',
       'stepper': 'flex flex-row items-center gap-1 axis-min',
-      'stepButton': 'p-3 rounded-md bg-surface-container-high flex items-center justify-center',
+      // Card tone plus a hairline: the input tone reads as a disabled control on a white
+      // card in light mode. See OptionRow's recipe for the measured reason.
+      'stepButton':
+          'p-3 rounded-md bg-surface-container border border-color-border '
+          'flex items-center justify-center',
       'stepIcon': 'size-4 text-fg',
       'count': 'font-mono text-sm font-semibold text-fg text-center w-8',
       'fixedCount': 'text-xs text-fg-muted axis-min',

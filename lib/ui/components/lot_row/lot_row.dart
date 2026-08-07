@@ -37,6 +37,14 @@ import 'lot_row.recipe.dart';
 @immutable
 class LotRow extends StatelessWidget {
   /// The raw remaining amount, used to derive the zero treatment.
+  /// The product this lot belongs to, when the list spans more than one.
+  ///
+  /// Null on a product's own page, where every row shares the product and the expiry is
+  /// what separates them. Present in the expiring list, where the opposite is true. Same
+  /// rule `MovementRow` follows: the primary line carries whatever distinguishes this row
+  /// from its neighbours.
+  final String? productName;
+
   final num remainingAmount;
 
   /// The remaining quantity, already formatted for the locale.
@@ -76,6 +84,7 @@ class LotRow extends StatelessWidget {
 
   /// Creates a [LotRow].
   const LotRow({
+    this.productName,
     super.key,
     required this.remainingAmount,
     required this.remaining,
@@ -99,6 +108,7 @@ class LotRow extends StatelessWidget {
         WDiv(
           className: slots['leading'],
           children: [
+            if (productName != null) WText(productName!, className: slots['product']),
             WDiv(
               className: slots['meta'],
               children: [
