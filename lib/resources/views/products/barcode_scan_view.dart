@@ -51,6 +51,7 @@ class BarcodeScanView extends StatelessWidget {
   static const IconData _cameraIcon = Icons.qr_code_scanner_outlined;
   static const IconData _emptyIcon = Icons.inventory_2_outlined;
   static const IconData _photoIcon = Icons.photo_camera_outlined;
+  static const IconData _shelfIcon = Icons.grid_view_outlined;
 
   /// Whether anything has been scanned yet.
   ///
@@ -184,7 +185,14 @@ class BarcodeScanView extends StatelessWidget {
   Widget _buildBatch() {
     return WDiv(
       className: 'flex flex-col gap-4 w-full lg:flex-1',
-      children: [hasScans ? _buildQueue() : _buildEmptyQueue(), _buildCommit()],
+      children: [
+        hasScans ? _buildQueue() : _buildEmptyQueue(),
+        _buildCommit(),
+        // Both camera paths stay available whatever the queue holds: the user who needs them
+        // is the one holding an unreadable label, and that is not a state the app can detect
+        // in order to offer the button at the right moment.
+        if (hasScans) _buildPhotoPaths(),
+      ],
     );
   }
 
@@ -237,7 +245,7 @@ class BarcodeScanView extends StatelessWidget {
   /// fallback stays, because that is the one path still open.
   Widget _buildCommit() {
     if (!hasScans) {
-      return WDiv(className: 'flex flex-col gap-2 pb-2', child: _buildPhotoFallback());
+      return _buildPhotoPaths();
     }
 
     final int ready = settledScans.length;
@@ -281,28 +289,64 @@ class BarcodeScanView extends StatelessWidget {
           className: 'justify-center',
           child: WText('$ready ürünü ekle'),
         ),
-        _buildPhotoFallback(),
       ],
     );
   }
 
-  /// The way out of a total miss, per criterion 2: never a dead end.
+  /// The two camera paths that are not barcode reading, and what each one yields.
   ///
-  /// It stays visible even on a batch that resolved perfectly, because the user who needs
-  /// it is the one holding an unreadable label, and that is not a state the app can detect
-  /// in order to offer the button at the right moment.
-  Widget _buildPhotoFallback() {
-    return MSButton(
-      onPressed: () {},
-      intent: ButtonIntent.ghost,
-      fullWidth: true,
-      className: 'justify-center',
-      semanticLabel: 'Fotoğraftan tanıt',
-      child: const WDiv(
-        className: 'flex flex-row items-center justify-center gap-2',
+  /// **They are different features and were one button until Anılcan asked what it was for.**
+  /// `Fotoğraftan tanıt` is single-product recognition: point at one thing, get one draft card.
+  /// `Rafı tara` is the shelf case: point at a shelf, get a numbered region per product and a
+  /// bulk accept. Same camera, same credit price, completely different output, so they cannot
+  /// share a label.
+  ///
+  /// They live here because this is the camera screen. A user already holding the phone up to a
+  /// shelf should not have to go back to a list to find the shelf reader, and criterion 2 wants
+  /// the single-product path reachable from a barcode that missed.
+  ///
+  /// Each line says what comes back, because "recognise from a photo" does not tell you whether
+  /// you are about to review one card or six.
+  Widget _buildPhotoPaths() {
+    return SectionCard(
+      label: 'Kamerayla başka yollar',
+      children: [
+        _photoPath(
+          _photoIcon,
+          'Fotoğraftan tanıt',
+          'Tek ürün · taslak kart açılır',
+          'Tek bir ürünü fotoğraftan tanıt',
+        ),
+        _photoPath(
+          _shelfIcon,
+          'Rafı tara',
+          'Raf dolusu · her ürün için bir bölge',
+          'Raf fotoğrafından ürünleri tanıt',
+        ),
+      ],
+    );
+  }
+
+  /// One path: what it is called, and what it gives back.
+  Widget _photoPath(IconData icon, String label, String yields, String semanticLabel) {
+    return WAnchor(
+      onTap: () {},
+      semanticLabel: semanticLabel,
+      child: WDiv(
+        className:
+            'flex flex-row items-center gap-3 px-3 py-3 rounded-md bg-surface-container border border-color-border',
         children: [
-          WIcon(_photoIcon, className: 'size-4'),
-          WText('Fotoğraftan tanıt'),
+          WDiv(
+            className: 'size-5 shrink-0 flex items-center justify-center',
+            child: WIcon(icon, className: 'size-5 text-fg'),
+          ),
+          WDiv(
+            className: 'flex flex-col gap-0.5 flex-1 min-w-0',
+            children: [
+              WText(label, className: 'text-sm font-medium text-fg'),
+              WText(yields, className: 'text-xs text-fg-muted'),
+            ],
+          ),
         ],
       ),
     );

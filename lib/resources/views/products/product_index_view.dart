@@ -423,6 +423,8 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             ListFooter(
               state: widget.isLoadingMore ? ListFooterState.loadingMore : ListFooterState.end,
               totalLabel: '${productFixtures.length} ürünün hepsi',
+              // The row draws its own placeholder, so the two cannot drift.
+              skeleton: const ProductRow.skeleton(),
             ),
           ],
         ),

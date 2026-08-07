@@ -51,6 +51,16 @@ class ListFooter extends StatelessWidget {
   /// Called when the user retries a failed page.
   final VoidCallback? onRetry;
 
+  /// One placeholder in the shape of the rows this list holds, repeated [pageSize] times.
+  ///
+  /// **The caller supplies it because only the caller knows the shape.** This component used to
+  /// draw flat text bars while its own comment claimed they were "the shape of what is coming":
+  /// the intention was written down and never delivered, and a stack of equal bars under a list
+  /// of thumbnails and figures says nothing about what is arriving. Pass
+  /// `ProductRow.skeleton()` and the placeholder is drawn by the same component as the content,
+  /// so it cannot drift.
+  final Widget? skeleton;
+
   /// Creates a [ListFooter].
   const ListFooter({
     super.key,
@@ -58,6 +68,7 @@ class ListFooter extends StatelessWidget {
     this.pageSize = 3,
     this.totalLabel,
     this.onRetry,
+    this.skeleton,
   });
 
   @override
@@ -68,13 +79,15 @@ class ListFooter extends StatelessWidget {
       className: slots['root'],
       children: [
         switch (state) {
-          // Skeleton ROWS, not a spinner. The rows are the shape of what is coming, so the
-          // list keeps its rhythm and nothing jumps when the page lands.
+          // Skeleton ROWS, not a spinner, and they have to be the ROW's shape: the list keeps
+          // its rhythm and nothing jumps when the page lands. Falls back to a bar only when the
+          // caller gave no shape, which is a caller worth fixing rather than a case to design
+          // for.
           ListFooterState.loadingMore => WDiv(
-            className: 'flex flex-col gap-3 w-full',
+            className: 'flex flex-col w-full',
             children: [
               for (int i = 0; i < pageSize; i++)
-                const MSSkeleton(shape: SkeletonShape.text, height: 16),
+                skeleton ?? const MSSkeleton(shape: SkeletonShape.text, height: 16),
             ],
           ),
           ListFooterState.end => WText(totalLabel ?? 'Hepsi yüklendi', className: slots['text']),

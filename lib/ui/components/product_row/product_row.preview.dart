@@ -64,6 +64,25 @@ class ProductRowPreview extends StatelessWidget {
             ),
           ],
         ),
+        WDiv(
+          className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+          children: [
+            WText('Yükleniyor', className: 'text-base font-semibold text-fg'),
+            WText(
+              'Placeholder gelen satirin sekli, jenerik cubuk degil',
+              className: 'text-xs text-fg-muted',
+            ),
+            ProductRow.skeleton(),
+            ProductRow.skeleton(),
+            ProductRow(
+              name: 'Pınar Süt Tam Yağlı 1 lt',
+              meta: 'Pınar · Buzdolabı',
+              amount: 2,
+              formatted: '2',
+              unit: 'adet',
+            ),
+          ],
+        ),
       ],
     );
   }

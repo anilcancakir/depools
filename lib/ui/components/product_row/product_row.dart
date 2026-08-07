@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
+import 'package:magic_starter/magic_starter.dart' show MSSkeleton, SkeletonShape;
 
 import '../expiry_badge/expiry_badge.dart';
 import '../quantity/quantity.dart';
@@ -75,6 +76,15 @@ class ProductRow extends StatelessWidget {
   /// Called when the row is tapped, which opens the product.
   final VoidCallback? onTap;
 
+  /// Whether this is a placeholder for a row still loading.
+  ///
+  /// **The skeleton is the row's own shadow, not three grey bars.** A generic bar list says
+  /// "something is coming"; a placeholder with the row's real geometry says WHAT is coming, and
+  /// it stops the list jumping when the content lands. The only way to guarantee the two match
+  /// is for the same component to draw both, which is why this is a constructor here rather
+  /// than a separate widget that would drift the first time the row changed.
+  final bool isSkeleton;
+
   /// Creates a [ProductRow].
   const ProductRow({
     super.key,
@@ -89,11 +99,31 @@ class ProductRow extends StatelessWidget {
     this.daysUntilExpiry,
     this.parLevel,
     this.onTap,
-  });
+  }) : isSkeleton = false;
+
+  /// Creates a placeholder with this row's exact geometry.
+  ///
+  /// Every measurement comes from the same recipe the real row uses, so the thumb, the two text
+  /// lines and the trailing figure land where the content will.
+  const ProductRow.skeleton({super.key})
+    : name = '',
+      meta = null,
+      amount = 0,
+      formatted = '',
+      unit = null,
+      remainderFormatted = null,
+      remainderUnit = null,
+      expiryLabel = null,
+      daysUntilExpiry = null,
+      parLevel = null,
+      onTap = null,
+      isSkeleton = true;
 
   @override
   Widget build(BuildContext context) {
     final slots = productRowRecipe()(variants: {'state': amount == 0 ? 'depleted' : 'stocked'});
+
+    if (isSkeleton) return _buildSkeleton(slots);
 
     return WAnchor(
       onTap: onTap,
@@ -146,5 +176,31 @@ class ProductRow extends StatelessWidget {
     final Widget? expiry = ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry);
     if (expiry != null) return expiry;
     return StockBadge.maybe(amount: amount, parLevel: parLevel);
+  }
+
+  /// The same three columns, filled with skeletons instead of content.
+  ///
+  /// The two text lines are different widths because a name and a meta line are: equal bars
+  /// read as a table of empty cells rather than as a row about to have a product in it.
+  Widget _buildSkeleton(Map<String, String> slots) {
+    return WDiv(
+      className: slots['root'],
+      children: [
+        // The thumb slot already carries its own fill and radius, so the placeholder is the
+        // slot itself with nothing in it.
+        WDiv(className: slots['thumb']),
+        WDiv(
+          className: slots['body'],
+          children: const [
+            MSSkeleton(shape: SkeletonShape.text, width: 160, height: 14),
+            MSSkeleton(shape: SkeletonShape.text, width: 104, height: 12),
+          ],
+        ),
+        const WDiv(
+          className: 'flex flex-col items-end gap-1',
+          child: MSSkeleton(shape: SkeletonShape.text, width: 48, height: 14),
+        ),
+      ],
+    );
   }
 }
