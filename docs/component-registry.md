@@ -699,6 +699,34 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### ShelfCandidateRow
+
+- **File**: `lib/ui/components/shelf_candidate_row/`
+- **Class**: `ShelfCandidateRow`
+- **Token bindings**: `bg-surface-container-high` (the region badge, which is not tappable), `text-fg`, `text-ai` (unresolved), `text-fg-muted`, `opacity-50` (rejected)
+- **What it is**: one region a shelf photograph produced, in one of `LineResolution`'s four states.
+- **Anti-patterns**:
+  - Do not define a new resolution enum. It shares `LineResolution` with the receipt review because the concept is identical; only the evidence differs (a printed string against a numbered region). `ScanRow` is the opposite case and has its own enum for that reason.
+  - Do not omit or reorder the region number. It is the only link to a box on the photograph, so it is fixed-width, mono, and asserted unique and contiguous by test.
+  - Do not lead an unresolved row with an empty name. The prompt takes the primary line, as in `ReceiptLineRow`.
+  - Do not hide a rejected candidate. A row that vanished on rejection cannot be un-rejected.
+
+---
+
+### QuantityStepper
+
+- **File**: `lib/ui/components/quantity_stepper/`
+- **Class**: `QuantityStepper`
+- **Token bindings**: `bg-surface-container` + `border-color-border` (the group), `text-fg`
+- **What it is**: a typed quantity with minus and plus inside one bordered group.
+- **Anti-patterns**:
+  - Do not build it as separate bordered boxes. One border owns the whole control; three give three heights and two radii. Neutralise `MSInput`'s own border with `border-0 rounded-none`.
+  - Do not reach for a raw `WInput` for an unstyled field. It needs an `Overlay` ancestor and throws a build-phase `setState` from the preview harness.
+  - Do not put a stepper on a unit whose granularity is not one. An opened remainder is measured, so plus-one-millilitre cannot reach most of its values; that field stays typed.
+  - Do not preview it without callbacks. `WAnchor` gives the pointer cursor only when it has a gesture, so a callback-less preview looks like a missing cursor in working code.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`

@@ -666,6 +666,29 @@ tier on the strength of having been looked at. The commit line says so outright
 (`eşleşen sayımlar hareket üretmez`), because "I counted 12 things and it saved 1" needs
 explaining before it looks like a bug.
 
+### D60. The shelf photograph stays on screen with numbered boxes, and the rows carry the numbers
+
+`ai-enrichment.md` sketched a film strip of candidate crops. The photograph IS the strip, so the
+boxes are drawn on it and the rows are numbered to match, which gives the same spatial link
+without generating a second set of images.
+
+The number is doing real work and it is why this is a decision rather than a rendering detail.
+It is the ONLY thing tying a row to a region: order cannot do it, because rows get filtered and
+reordered while boxes stay where the shelf put them. So the number renders on every row at a
+fixed width, in mono, and `test/shelf_photo_test.dart` asserts the numbers are unique and
+contiguous from one, because a gap would point a row at nothing and a duplicate would point two
+rows at the same box.
+
+It also works with no hover and no tap state, which matters twice: a static design review has no
+pointer, and a screen reader has no way to perceive a highlight.
+
+**The accept count is the settled count, never the region count.** Six regions yielded four
+products in the fixture; a button labelled six would promise to write an unnamed bottle and a
+price label the recogniser mistook for stock. A test locks that too.
+
+Rejected candidates fade and stay rather than disappearing, for the same reason a reversed
+movement does (D51): a row that vanished on rejection is one the user cannot un-reject.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

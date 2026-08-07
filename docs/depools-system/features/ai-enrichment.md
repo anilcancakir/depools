@@ -56,9 +56,35 @@ The MVP wrote a perceptual image hash and an md5 of the product name into the sa
 
 ## The shelf photo case
 
-"Photograph a shelf, add everything you see" is a real request and needs a different UI from single-item capture: a film strip of detected candidates, each tappable to review, with a count and a bulk accept.
+"Photograph a shelf, add everything you see" is a real request and needs a different UI from single-item capture. Every product studied that supports it (Manifest, MovingBox) routes it through a batch review step rather than committing directly. Same rule here.
 
-Every product studied that supports it (Manifest, MovingBox) routes it through a batch review step rather than committing directly. Same rule here.
+**The photograph stays on screen with numbered boxes, and every row carries its number** (D60).
+This supersedes the film strip this section originally sketched: a strip of crops is the weaker
+version of the same idea, because the photograph IS the strip. Drawing boxes on it and numbering
+the rows to match gives the spatial link without a second set of images, and it works with no
+hover or tap state, which a static review and a screen reader both need.
+
+**The accept button counts products, not regions.** Six regions can yield four products; a button
+labelled with the region count would promise to write an unnamed bottle and a price label the
+recogniser mistook for stock. Rejecting that label is routine rather than an edge case, so the
+rejected state fades and stays rather than disappearing: a candidate that vanished on rejection
+could not be un-rejected.
+
+**The read is never a blank screen.** The MVP left users watching nothing through a two-minute
+analysis, so the reading state shows the photograph immediately, draws each box as its region
+finishes, counts how far it has got, and leaves a skeleton row where the next candidate will
+land. A list that stops at four looks finished at four.
+
+**A failed read keeps the photograph.** The picture stays, the callout says what was kept and
+that no credit was spent, and both ways forward are offered. The MVP stored the upload before
+validating extraction, so a failure left a file with nothing pointing at it.
+
+**Known weakness, recorded rather than hacked around.** The region outlines use
+`border-color-border`, a deliberately low-contrast hairline that will vanish over a white shelf
+label. The badge carries the annotation for now because it is `bg-primary` and strong.
+`border-bg-primary` was tried and dropped silently, since wind's alias expander matches a whole
+token against a key and there is no such key. The real fix is a fixed high-contrast overlay
+border, listed in DESIGN.md under the tokens this palette still needs.
 
 ## Editing a field
 

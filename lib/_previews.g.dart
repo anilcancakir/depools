@@ -33,6 +33,9 @@ import 'preview/register_screen.preview.dart';
 import 'preview/running_low_empty_screen.preview.dart';
 import 'preview/running_low_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
+import 'preview/shelf_photo_failed_screen.preview.dart';
+import 'preview/shelf_photo_reading_screen.preview.dart';
+import 'preview/shelf_photo_screen.preview.dart';
 import 'preview/shopping_list_empty_screen.preview.dart';
 import 'preview/shopping_list_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
@@ -63,6 +66,7 @@ import 'ui/components/scan_row/scan_row.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/serial_row/serial_row.preview.dart';
+import 'ui/components/shelf_candidate_row/shelf_candidate_row.preview.dart';
 import 'ui/components/shopping_row/shopping_row.preview.dart';
 import 'ui/components/stat_card/stat_card.preview.dart';
 import 'ui/components/stock_badge/stock_badge.preview.dart';
@@ -339,6 +343,26 @@ List<PreviewEntry> previewEntries() {
       label: 'SettingsScreen',
       slug: 'settings_screen',
       builder: (_) => const SettingsScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShelfCandidateRow',
+      slug: 'shelf_candidate_row',
+      builder: (_) => const ShelfCandidateRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShelfPhotoFailedScreen',
+      slug: 'shelf_photo_failed_screen',
+      builder: (_) => const ShelfPhotoFailedScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShelfPhotoReadingScreen',
+      slug: 'shelf_photo_reading_screen',
+      builder: (_) => const ShelfPhotoReadingScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShelfPhotoScreen',
+      slug: 'shelf_photo_screen',
+      builder: (_) => const ShelfPhotoScreenPreview(),
     ),
     PreviewEntry(
       label: 'ShoppingListEmptyScreen',

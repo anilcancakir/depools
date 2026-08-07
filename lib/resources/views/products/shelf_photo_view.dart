@@ -133,6 +133,17 @@ class ShelfPhotoView extends StatelessWidget {
   /// invisible over a white label.
   Widget _buildBox(ShelfCandidate candidate) {
     return WDiv(
+      // **The outline is a known weakness and the badge is what carries the annotation.**
+      // This box sits on an UNCONTROLLED background, so it wants a colour that survives any
+      // photograph, and `border-color-border` is a `#D1D1D6` hairline that will vanish over a
+      // white shelf label. `border-bg-primary` was tried and DROPPED SILENTLY: wind's alias
+      // expander matches a whole token against a key, there is no `border-bg-primary` key, and
+      // the border parser then sees a colour it does not know. The boxes disappeared entirely.
+      //
+      // So the badge does the work for now (it is `bg-primary`, which is fixed and strong), and
+      // the real fix is a token: a high-contrast overlay border pinned in both appearances, the
+      // same shape as the paper tokens. Recorded rather than hacked around, because inventing
+      // it against a placeholder rather than a real photograph would be guessing.
       className: 'border-2 border-color-border rounded-sm flex flex-col items-start',
       child: WDiv(
         className: 'size-5 rounded-sm bg-primary flex items-center justify-center',

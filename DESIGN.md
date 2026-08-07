@@ -244,7 +244,21 @@ Four candidate pairings were rendered side by side at the real type scale, and a
 - Purple or violet gradients on AI surfaces.
 - Raw hex inside a component. Semantic tokens only, enforced by `.design-token-allowlist` and `bin/design-tokens`.
 - **`text-accent`. It does not exist.** `accent` is declared here but `design:sync` emits only `bg-accent`, so `text-accent` drops silently and the text renders at full foreground brightness, which looks like a value rather than a hint. For tinted text use a status family: `text-ai` (teal) for anything the app inferred or suggested, `text-expiring` / `text-low-stock` for the states they name. `bin/design-tokens` cannot catch this, because a dropped alias is not a raw hex.
+- **`border-bg-primary` and any other `border-<bg-token>` this file does not declare.** The alias expander matches a WHOLE token against a key, so `border-bg-primary` finds nothing, the border parser then sees an unknown colour, and the border vanishes with no warning. It looks valid because `magic_starter`'s input recipe uses `border-bg-destructive`; that only works where the theme declares that key. Same class of silent drop as `text-accent`.
 - Borrowing a status family for something it does not name. An inference hint in `text-expiring` reads as a date warning; suggestions belong to `text-ai`, which is what DESIGN.md defines that family for.
+
+## A token this palette still needs
+
+**A high-contrast overlay border, pinned in both appearances.** Two surfaces draw UI on top of
+an uncontrolled background: the barcode viewfinder's framing rectangle and the shelf photo's
+region boxes. Both currently use `border-color-border`, which is a deliberately low-contrast
+hairline and will disappear over a white shelf label or a bright camera frame, and neither can
+borrow `bg-primary` because a `bg-` alias cannot be reused as a border colour.
+
+The shape of the fix is the same as `depools_paper_tokens.dart`: a fixed pair, identical on both
+sides of `dark:`, because an overlay's background is the photograph rather than the app. It is
+not added yet because both cases currently render against placeholders, and picking a value
+against a placeholder rather than a real photograph would be guessing at the thing that matters.
 
 ## Verifying a change
 
