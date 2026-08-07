@@ -112,7 +112,13 @@ class AssistantView extends StatelessWidget {
         // boundary, which is what every chat does. With the band there it read as a rendering
         // fault, and Anılcan asked why it looked cut.
         SizedBox(
-          height: (MediaQuery.sizeOf(context).height * 0.62).clamp(320.0, 720.0),
+          // **The fraction has to leave room for what it cannot see.** `MediaQuery` reports the
+          // WINDOW, and the shell spends part of it on an app bar and a bottom nav before this
+          // route gets any: at 0.62 the transcript alone was taller than what was left and the
+          // composer fell below the fold, behind the nav. 0.45 plus the clamp keeps
+          // chrome + transcript + composer inside the shell's box at both phone and laptop
+          // heights, measured against the 390px frame.
+          height: (MediaQuery.sizeOf(context).height * 0.45).clamp(240.0, 520.0),
           child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
         ),
         // Pinned. A chat you have to scroll to type into is not a chat.
