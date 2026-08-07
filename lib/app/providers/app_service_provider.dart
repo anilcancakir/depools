@@ -56,12 +56,60 @@ class AppServiceProvider extends ServiceProvider {
     MagicStarter.manager.pageContainerClassName = 'max-w-6xl px-4 md:px-5 pt-6 pb-16';
 
     // Magic Starter: Navigation items for sidebar and mobile bottom bar.
+    //
+    // It offered Dashboard and Settings while twelve built screens sat unreachable in the preview
+    // catalog. `lib/routes/app.dart` now registers them; this is what makes them findable.
+    //
+    // **The labels are Turkish inside `en.json`, and that is a transitional state, not a mistake.**
+    // magic's `Translator` REPLACES its sentence map per locale instead of merging with the
+    // fallback, so a partial `tr.json` renders raw keys (`auth.login_title`) on every screen it
+    // does not cover. Until a complete `tr.json` lands, `en.json` is this app's only catalogue and
+    // its single user-facing language is Turkish, so the product vocabulary goes there.
+    //
+    // The bottom bar carries five, which is the ceiling before a mobile tab bar starts truncating
+    // labels. Which five is a claim about a phone in a stockroom: read what is urgent, capture what
+    // just arrived, look something up. Sayım and Konumlar are desk work and stay in the sidebar.
     MagicStarter.useNavigation(
       mainItems: [
         MagicStarterNavItem(
           icon: Icons.dashboard_outlined,
           labelKey: 'nav.dashboard',
           path: MagicStarterConfig.homeRoute(),
+        ),
+        MagicStarterNavItem(
+          icon: Icons.event_outlined,
+          labelKey: 'nav.dates',
+          path: '/tarihler',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.trending_down_outlined,
+          labelKey: 'nav.running_low',
+          path: '/azalanlar',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.shopping_cart_outlined,
+          labelKey: 'nav.shopping',
+          path: '/alisveris',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.inventory_2_outlined,
+          labelKey: 'nav.products',
+          path: '/urunler',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.warehouse_outlined,
+          labelKey: 'nav.locations',
+          path: '/konumlar',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.checklist_outlined,
+          labelKey: 'nav.stock_take',
+          path: '/sayim',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.auto_awesome_outlined,
+          labelKey: 'nav.assistant',
+          path: '/asistan',
         ),
         MagicStarterNavItem(
           icon: Icons.settings_outlined,
@@ -76,9 +124,24 @@ class AppServiceProvider extends ServiceProvider {
           path: MagicStarterConfig.homeRoute(),
         ),
         MagicStarterNavItem(
-          icon: Icons.settings_outlined,
-          labelKey: 'nav.settings',
-          path: MagicStarterConfig.profileRoute(),
+          icon: Icons.event_outlined,
+          labelKey: 'nav.dates',
+          path: '/tarihler',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.qr_code_scanner_outlined,
+          labelKey: 'nav.scan',
+          path: '/tara',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.shopping_cart_outlined,
+          labelKey: 'nav.shopping',
+          path: '/alisveris',
+        ),
+        MagicStarterNavItem(
+          icon: Icons.inventory_2_outlined,
+          labelKey: 'nav.products',
+          path: '/urunler',
         ),
       ],
     );

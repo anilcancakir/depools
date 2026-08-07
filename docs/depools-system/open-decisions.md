@@ -723,6 +723,56 @@ A tenant-contributed shared catalog is the moat, but it needs an opt-in, a moder
 
 Assumption until answered: contribution is opt-in per tenant and off by default, contributed rows carry `source = community` with the contributing team recorded privately, and the terms grant us a licence to redistribute the contributed fields but not the tenant's photos.
 
+### D61. Every built screen is routed, and the dashboard is the app's own
+
+For months this app registered exactly ONE route, `/` to the dashboard, while twelve designed and
+verified screens existed only as entries in the `/preview` catalog. The sidebar offered Dashboard
+and Settings. A screen nobody can navigate to is not shipped however green its preview is, and the
+gap was invisible because every review happened inside the catalog, which reaches a screen by class
+rather than by URL.
+
+`lib/routes/app.dart` now registers ten routes under the authenticated shell, with Turkish plural
+paths (`/tarihler`, `/azalanlar`, `/urunler`) because a URL is user-facing on web and `/products`
+reads as a scaffold's while `/urunler` reads as this product's. The sidebar carries nine entries and
+the bottom bar five.
+
+The views still render fixtures rather than controller state, and routing them BEFORE wiring
+controllers is deliberate: it puts every screen inside the shell it will actually live in, which is
+where header offsets, bottom-nav overlap and scroll ownership surface. None of those are visible in
+a preview pane. It found two on the first run.
+
+### D62. A dashboard card shows three rows and says how many it hid
+
+Each card caps at three rows and then renders a `ListFooter` naming the true total
+(`5 parti içinden ilk 3 gösteriliyor`). A dashboard that renders a whole list is the list screen
+with extra steps; one that truncates silently teaches the user that the counters above it are
+decoration.
+
+Three rather than five because the four cards have to coexist above the fold on a laptop: measured
+at 1400x1000, three rows each puts the last card's header just inside the viewport.
+
+The shopping card is the exception and shows a sentence instead of rows. The other three are FACTS,
+which a partial view of is still useful. The shopping list is a DOCUMENT the user works through with
+a phone in one hand, and a partial copy of it invites ticking items off in the wrong place.
+
+### D63. Every figure on the dashboard is derived from the destination screen's own source
+
+Not one number on the dashboard is typed. Each counter is the length of the collection the card it
+sits above renders, and each of those is the same fixture the linked screen reads, so the summary
+cannot disagree with the page it links to. `test/dashboard_test.dart` asserts the RELATIONSHIPS
+rather than literals: a test reading `expect(expiredRows().length, 1)` would pass while the
+dashboard displayed something else, and would fail on any honest fixture edit.
+
+The load-bearing one: the dates card sums `expiredRows()` with the flattened
+`approachingByLocation()`, and that grouping walks `locationOptions`, so a lot in a location the
+option list does not name would vanish from the group map while still counting on the dates screen.
+The test asserts the two halves add up to `datedLots()`.
+
+The counters are a `grid grid-cols-2 md:grid-cols-4 items-stretch`, not a row. The assistant learned
+this in the other direction: three stat cards in a plain row came out three different heights,
+because their labels wrapped unevenly at phone width. On a grid, `items-stretch` makes a row's cells
+match its tallest, so four values share one baseline at every width with nothing measured in Dart.
+
 ### O6. What the first paid tier actually costs in TRY
 
 Turkish price sensitivity is the binding constraint on ARPU and we have no evidence about willingness to pay in this segment. Sortly's 24 USD entry is roughly 1.000 TRY, which is far too high for a Turkish small business.

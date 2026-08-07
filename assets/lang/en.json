@@ -32,7 +32,7 @@
     "same": "The :attribute and :other must match."
   },
   "app": {
-    "name": "My App"
+    "name": "Depools"
   },
   "attributes": {
     "current_password": "Current Password",
@@ -189,10 +189,18 @@
     }
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "profile": "Profile",
-    "settings": "Settings",
-    "system": "System"
+    "dashboard": "Genel bakış",
+    "dates": "Tarihler",
+    "running_low": "Azalanlar",
+    "shopping": "Alışveriş",
+    "products": "Ürünler",
+    "locations": "Konumlar",
+    "stock_take": "Sayım",
+    "assistant": "Asistan",
+    "scan": "Tara",
+    "profile": "Profil",
+    "settings": "Ayarlar",
+    "system": "Sistem"
   },
   "notifications": {
     "empty": "No notifications",

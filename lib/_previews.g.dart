@@ -10,6 +10,7 @@ import 'preview/assistant_screen.preview.dart';
 import 'preview/barcode_scan_empty_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
+import 'preview/dashboard_phone_screen.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/dates_empty_screen.preview.dart';
 import 'preview/dates_screen.preview.dart';
@@ -124,6 +125,11 @@ List<PreviewEntry> previewEntries() {
       label: 'CountRow',
       slug: 'count_row',
       builder: (_) => const CountRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'DashboardPhoneScreen',
+      slug: 'dashboard_phone_screen',
+      builder: (_) => const DashboardPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'DashboardScreen',
