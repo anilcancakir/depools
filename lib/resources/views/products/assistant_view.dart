@@ -2,22 +2,13 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show
-        MSButton,
-        ButtonIntent,
-        ButtonSize,
-        MSInput,
-        MSPageContainer,
-        MSPageHeader,
-        MSSkeleton,
-        SkeletonShape;
+    show MSButton, ButtonIntent, ButtonSize, MSInput, MSPageContainer, MSSkeleton, SkeletonShape;
 
 import '../../../ui/components/chat_message/chat_message.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/shopping_row/shopping_row.dart';
-import '../../../ui/components/stat_card/stat_card.dart';
 import 'activity_panel.dart';
 import 'product_fixtures.dart';
 import 'shopping_fixtures.dart';
@@ -96,25 +87,9 @@ class AssistantView extends StatelessWidget {
     return WDiv(
       className: 'flex flex-col bg-surface',
       children: [
-        // Chrome. Fixed, so the overview and the mode never scroll away (D50).
-        MSPageContainer(
-          children: [
-            MSPageHeader(
-              title: 'Asistan',
-              subtitle: 'Yarı otomatik · stok değişikliği onay ister',
-              actions: [
-                MSButton(
-                  onPressed: () => ActivityPanel.show(context),
-                  intent: ButtonIntent.ghost,
-                  className: 'min-h-11 min-w-11 justify-center',
-                  semanticLabel: 'Hareketler',
-                  child: const WIcon(_activityIcon),
-                ),
-              ],
-            ),
-            _buildOverview(),
-          ],
-        ),
+        // Chrome, and it costs two rows. Fixed, so the mode and the counts never scroll away
+        // (D50).
+        MSPageContainer(children: [_buildTitleRow(context), _buildStatusRow()]),
         // The only scrolling part, and it needs a BOUNDED height to be one.
         //
         // `h-full` was the obvious way and wind asserts against it by name: the app shell wraps
@@ -129,7 +104,7 @@ class AssistantView extends StatelessWidget {
         // The remaining gap is real and is the shell's: a composer pinned to the VIEWPORT
         // bottom needs `layout.app` not to scroll this route, which is a magic_starter change.
         SizedBox(
-          height: (MediaQuery.sizeOf(context).height * 0.55).clamp(280.0, 640.0),
+          height: (MediaQuery.sizeOf(context).height * 0.62).clamp(320.0, 720.0),
           child: MSPageContainer(child: _buildTranscript(context)),
         ),
         // Pinned. A chat you have to scroll to type into is not a chat.
@@ -138,47 +113,62 @@ class AssistantView extends StatelessWidget {
     );
   }
 
-  /// The three figures a transcript cannot give.
+  /// The screen's name, its automation mode and the activity panel, on ONE row.
   ///
-  /// **Derived, never typed.** Each one counts the same fixtures the product list and the
-  /// shopping list count, so the assistant's headline cannot say "6 azalan" while the
-  /// shopping list shows eight. An assistant that contradicts the app it sits in is worse
-  /// than no assistant, and this is the cheapest possible guard against it.
-  Widget _buildOverview() {
+  /// **This replaces an `MSPageHeader`, and the reason is the shape of the screen.** A page
+  /// header spends a title line, a subtitle line, and then stacks its actions BELOW at phone
+  /// width, which left the history icon orphaned on a row of its own. Three chrome layers stood
+  /// between the app bar and the first message. A chat cannot afford that: the conversation is
+  /// the content, so its identity gets one 44pt row and no more.
+  ///
+  /// The mode sits beside the name rather than under it, because it is one word of context
+  /// rather than a subtitle, and because a wrapping subtitle is what pushed everything down.
+  Widget _buildTitleRow(BuildContext context) {
+    return WDiv(
+      className: 'flex flex-row items-center gap-2 min-h-11',
+      children: [
+        WText('Asistan', className: 'text-base font-semibold text-fg axis-min'),
+        WText('· yarı otomatik', className: 'text-xs text-fg-muted flex-auto min-w-0'),
+        MSButton(
+          onPressed: () => ActivityPanel.show(context),
+          intent: ButtonIntent.ghost,
+          className: 'h-11 w-11 justify-center',
+          semanticLabel: 'Hareketler',
+          child: const WIcon(_activityIcon, className: 'size-5'),
+        ),
+      ],
+    );
+  }
+
+  /// The three figures a transcript cannot give, as one row of counters (D50).
+  ///
+  /// **Chips, not stat cards.** Three cards were three different heights, because their labels
+  /// wrapped unevenly at phone width and put the three numbers on three baselines; they also
+  /// overflowed the row to the right and cost more vertical space than the first message did. A
+  /// chip is content-sized in width and uniform in height by construction, so this cannot
+  /// misalign however the labels change, and it is the same pill the rest of the app already
+  /// uses rather than a fourth thing to learn.
+  ///
+  /// Derived, never typed: each count reads the same fixtures the product list and the shopping
+  /// list read, so the assistant cannot headline a number the rest of the app disagrees with.
+  Widget _buildStatusRow() {
     final int expiring = productFixtures.where((p) => p.isExpiringSoon || p.isExpired).length;
     final int low = pendingLines.length;
-    // Products with no target level. A first pass counted products with no CATEGORY, which
-    // rendered "0 ürün": true, and useless. This one is the honest third figure because it
-    // explains the app's own silence: without a target there is nothing to fall below, so
-    // these products can never reach the shopping list however low they get.
     final int untargeted = productFixtures.where((p) => p.parLevel == null).length;
 
-    return SectionCard(
-      label: 'Durum',
+    return WDiv(
+      className: 'flex flex-row wrap items-center gap-2 pb-2',
       children: [
-        WDiv(
-          // `items-start`, not `items-stretch`. This Row sits in a scrolling Column and
-          // has no height to stretch to; the rule is in the anti-pattern table and this
-          // is the second time it has been broken, so it is worth the comment.
-          className: 'flex flex-row items-start gap-3 py-1',
-          children: [
-            WDiv(
-              className: 'flex-1 min-w-0',
-              // Short enough to stay on one line at phone width. The labels wrapped
-              // unevenly at three tiles, which put the three values at three different
-              // heights; `items-stretch` would have levelled them and is banned here for
-              // a better reason, so the labels get shorter instead.
-              child: StatCard(label: 'Tarihi yakın', value: '$expiring ürün'),
-            ),
-            WDiv(
-              className: 'flex-1 min-w-0',
-              child: StatCard(label: 'Azalan', value: '$low ürün'),
-            ),
-            WDiv(
-              className: 'flex-1 min-w-0',
-              child: StatCard(label: 'Hedefi yok', value: '$untargeted ürün'),
-            ),
-          ],
+        ChoiceChip(
+          label: '$expiring tarihi yakın',
+          semanticLabel: 'Tarihi yaklaşan $expiring ürünü göster',
+          onTap: () {},
+        ),
+        ChoiceChip(label: '$low azalan', semanticLabel: 'Azalan $low ürünü göster', onTap: () {}),
+        ChoiceChip(
+          label: '$untargeted hedefsiz',
+          semanticLabel: 'Hedefi olmayan $untargeted ürünü göster',
+          onTap: () {},
         ),
       ],
     );
