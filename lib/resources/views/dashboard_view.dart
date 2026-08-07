@@ -333,13 +333,24 @@ class DashboardView extends StatelessWidget {
   ///
   /// `ListFooter` rather than a bare sentence, so the "and N more" line is the same component the
   /// paginated lists use and reads identically wherever a list stops short.
+  ///
+  /// **The label states what is HIDDEN, not what is shown, and that is a width fix as well as a
+  /// better sentence.** The first version read `5 parti içinden ilk 3 gösteriliyor` and overflowed
+  /// its row by 25 logical pixels in the 390px frame; the azalanlar card's copy of it overflowed by
+  /// 11. Two rendered footers, two overflows, and the third card starts collapsed so it never laid
+  /// out. `+2 parti` also answers the question the reader actually has, which is how much they are
+  /// not seeing.
+  ///
+  /// Worth knowing for the next hunt: this only reports on the FIRST paint after a restart, because
+  /// Flutter announces an overflow once per `RenderFlex` instance. Re-navigating to the screen
+  /// showed a clean buffer and made it look fixed when it was not.
   Widget _hiddenCount(int total, String noun) {
     if (total <= _rowCap) return const SizedBox.shrink();
 
     return ListFooter(
       state: ListFooterState.end,
       pageSize: _rowCap,
-      totalLabel: '$total $noun içinden ilk $_rowCap gösteriliyor',
+      totalLabel: '+${total - _rowCap} $noun',
     );
   }
 }

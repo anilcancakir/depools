@@ -13,6 +13,7 @@ import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_phone_screen.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/dates_empty_screen.preview.dart';
+import 'preview/dates_phone_screen.preview.dart';
 import 'preview/dates_screen.preview.dart';
 import 'preview/foundations.preview.dart';
 import 'preview/label_print_screen.preview.dart';
@@ -140,6 +141,11 @@ List<PreviewEntry> previewEntries() {
       label: 'DatesEmptyScreen',
       slug: 'dates_empty_screen',
       builder: (_) => const DatesEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'DatesPhoneScreen',
+      slug: 'dates_phone_screen',
+      builder: (_) => const DatesPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'DatesScreen',

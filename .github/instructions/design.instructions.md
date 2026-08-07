@@ -174,6 +174,10 @@ Each of these is a blocker, and the `component-visual-reviewer` flags every one.
 | CSS-only Wind utilities (`box-shadow`, `filter`, `transform`, `group-*`) | Unsupported in wind; use Flutter animation APIs |
 | Hand-editing `lib/config/wind_theme.g.dart` | `dart run bin/dispatcher.dart design:sync` |
 | Shipping a component with no preview | Add the preview, run `previews:refresh` |
+| A row of badges or tags with no `wrap` | `flex flex-row wrap`. The count is variable by definition, so there is no width at which the row is known to fit. `LotRow`'s meta line carried an `AÇIK` tag, an expiry badge and a lot code and overflowed by 16 to 36 logical pixels at 390px, on a screen that had never once been laid out at phone width. DESIGN.md's answer to a narrow width is to reflow, not to truncate. |
+| `truncate` on a `WText` inside a Row, expecting it to shrink | It sets ellipsis overflow and nothing else: the Text still takes its intrinsic width, so the Row overflows and the ellipsis never appears. Pair it with `flex-1 min-w-0` on the shrinkable child and `shrink-0` on the one that must keep its width. `SectionHeader`'s count had `truncate` alone and overflowed by 11 and 25 pixels. |
+| Verifying a list screen at catalog width only | Add a `PreviewChrome.appMobile` phone preview. Every list screen in this app was verified wide only, so its densest row had never been laid out at 390px; the defects surfaced by accident, when the dashboard became the first phone-framed screen to render a `LotRow`. |
+| Trusting a clean `dusk:exceptions` after re-navigating to a screen | Flutter announces an overflow ONCE per `RenderFlex` instance, so it appears on the FIRST paint after a hot restart and never again. Re-navigating shows an empty buffer and looks like a fix. Probe with: restart, note the UTC time, navigate, then read only entries newer than that mark. The buffer is cumulative and dusk's "N render errors captured on this screen" banner reports what is IN it, not what this screen did. |
 
 ## Release Boundary
 

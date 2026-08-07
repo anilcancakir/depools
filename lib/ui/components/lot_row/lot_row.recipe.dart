@@ -15,7 +15,18 @@ WindSlotRecipe lotRowRecipe() {
       'root': 'flex flex-row items-center justify-between gap-3 py-2',
       'leading': 'flex flex-col gap-1 flex-1 min-w-0',
       'product': 'text-sm font-semibold text-fg truncate',
-      'meta': 'flex flex-row items-center gap-2',
+      // **`wrap`, because this row has no fixed number of children.** The meta line carries an
+      // `AÇIK` tag, an expiry badge and a lot code in any combination, and a row of three at 390px
+      // does not fit beside a right-aligned quantity: measured, it overflowed by 16 and 36 pixels
+      // on the dates screen and by 11 and 25 on the dashboard, the amount varying with which lot
+      // was rendered. DESIGN.md's answer to a narrow width is to reflow rather than truncate, and
+      // a wrapped badge row is what that means here.
+      //
+      // It went unseen because every list screen was verified at catalog width only; `LotRow` had
+      // never been laid out at phone width at all. It only surfaced when the dashboard became the
+      // first phone-framed screen to render one, and Flutter announces an overflow once per
+      // `RenderFlex` instance, so it appears on the FIRST paint after a restart and never again.
+      'meta': 'flex flex-row wrap items-center gap-2 min-w-0',
       'code': 'font-mono text-xs text-fg-muted truncate',
       'received': 'text-xs text-fg-muted',
       // The AÇIK marker. Uppercase and mono-adjacent so it reads as a state rather
