@@ -21,6 +21,15 @@ WindSlotRecipe labelPreviewRecipe() {
   return const WindSlotRecipe(
     slots: {
       'root': 'flex flex-col gap-2 axis-min',
+      // The page sits in a WELL, which is what every print preview in the world does: a
+      // grey canvas with a white sheet on it. Without the tray, light mode put a #FFFFFF
+      // page on a #FFFFFF card and the sheet dissolved into its container, separated by
+      // one hairline. In dark mode the contrast had been doing that job for free, which is
+      // exactly the kind of thing a dark-only review does not surface.
+      //
+      // `surface-container-high` is the input tone and this IS a well, so the semantics are
+      // right here in a way they were not on the option rows.
+      'tray': 'p-3 rounded-lg bg-surface-container-high',
       // `aspect-*` does not exist in wind, so the page's proportions come from an
       // AspectRatio inside; this only paints it.
       'page': 'bg-paper rounded-sm border border-color-border overflow-hidden',

@@ -109,10 +109,13 @@ class LabelPreview extends StatelessWidget {
       className: slots['root'],
       children: [
         WDiv(
-          className: slots['page'],
-          child: AspectRatio(
-            aspectRatio: template.pageWidthMm / template.pageHeightMm,
-            child: Column(children: _bands(slots)),
+          className: slots['tray'],
+          child: WDiv(
+            className: slots['page'],
+            child: AspectRatio(
+              aspectRatio: template.pageWidthMm / template.pageHeightMm,
+              child: Column(children: _bands(slots)),
+            ),
           ),
         ),
         if (caption != null) WText(caption!, className: slots['caption']),
