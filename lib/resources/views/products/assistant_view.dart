@@ -89,7 +89,7 @@ class AssistantView extends StatelessWidget {
       children: [
         // Chrome, and it costs two rows. Fixed, so the mode and the counts never scroll away
         // (D50).
-        MSPageContainer(children: [_buildTitleRow(context), _buildStatusRow()]),
+        MSPageContainer(className: 'pb-0', children: [_buildTitleRow(context), _buildStatusRow()]),
         // The only scrolling part, and it needs a BOUNDED height to be one.
         //
         // `h-full` was the obvious way and wind asserts against it by name: the app shell wraps
@@ -103,9 +103,14 @@ class AssistantView extends StatelessWidget {
         //
         // The remaining gap is real and is the shell's: a composer pinned to the VIEWPORT
         // bottom needs `layout.app` not to scroll this route, which is a magic_starter change.
+        // `py-0` on the container: two stacked `MSPageContainer`s put their vertical padding
+        // back to back and left a dead band between the chips and the list. With the list's top
+        // edge flush under the chrome, a half-visible card reads as content scrolled under a
+        // boundary, which is what every chat does. With the band there it read as a rendering
+        // fault, and Anılcan asked why it looked cut.
         SizedBox(
           height: (MediaQuery.sizeOf(context).height * 0.62).clamp(320.0, 720.0),
-          child: MSPageContainer(child: _buildTranscript(context)),
+          child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
         ),
         // Pinned. A chat you have to scroll to type into is not a chat.
         MSPageContainer(child: _buildComposer()),
@@ -157,7 +162,7 @@ class AssistantView extends StatelessWidget {
     final int untargeted = productFixtures.where((p) => p.parLevel == null).length;
 
     return WDiv(
-      className: 'flex flex-row wrap items-center gap-2 pb-2',
+      className: 'flex flex-row wrap items-center gap-2 pb-3',
       children: [
         ChoiceChip(
           label: '$expiring tarihi yakın',
@@ -181,7 +186,17 @@ class AssistantView extends StatelessWidget {
   /// scrolling up is scrolling back and the loader belongs there. Rendered bottom-up for the
   /// same reason, which is why the children list is reversed.
   Widget _buildTranscript(BuildContext context) {
-    final List<Widget> newestFirst = <Widget>[
+    // The first run has no history to scroll, so it gets the openers instead: sample utterances
+    // in the user's own words, because the question a new user has is not "what can this do" but
+    // "what do I type".
+    final List<Widget> items = hasTranscript ? _newestFirst() : <Widget>[_buildOpeners()];
+
+    return _transcriptList(items);
+  }
+
+  /// The exchange, newest first, because the list is reversed.
+  List<Widget> _newestFirst() {
+    return <Widget>[
       _buildApprovalCard(),
       const ChatMessage(text: 'kıymayı derin dondurucuya taşı', speaker: ChatSpeaker.user),
       _buildShortageCard(),
@@ -194,14 +209,20 @@ class AssistantView extends StatelessWidget {
       // messages are coming" belongs. Skeletons in the shape of a message, not bars.
       _buildOlderLoader(),
     ];
+  }
 
-    return ListView(
+  /// The scrolling list itself.
+  ///
+  /// `separated`, so the spacing between messages is ONE value the list owns. Each item used to
+  /// carry its own vertical padding, so a card-to-bubble gap and a bubble-to-bubble gap came out
+  /// different and the rhythm was visibly uneven.
+  Widget _transcriptList(List<Widget> items) {
+    return ListView.separated(
       reverse: true,
       padding: EdgeInsets.zero,
-      // The first run has no history to scroll, so it gets the openers instead: sample
-      // utterances in the user's own words, because the question a new user has is not "what
-      // can this do" but "what do I type".
-      children: hasTranscript ? newestFirst : [_buildOpeners()],
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemCount: items.length,
+      itemBuilder: (_, index) => items[index],
     );
   }
 
