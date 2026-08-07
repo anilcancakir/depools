@@ -89,38 +89,46 @@ class CountRow extends StatelessWidget {
       className: slots['root'],
       children: [
         WDiv(
-          className: slots['body'],
+          className: slots['top'],
           children: [
             WText(name, className: slots['name']),
-            WText(verdict, className: slots['verdict']),
+            WDiv(
+              className: slots['field'],
+              child: MSInput(
+                value: counted ?? '',
+                // The placeholder is a dash rather than a zero. A zero sitting in an empty
+                // field is an answer nobody gave, and this is the one screen where "no
+                // answer" and "zero" must not look alike.
+                placeholder: '—',
+                type: InputType.number,
+                onChanged: onChanged,
+              ),
+            ),
+            WText(unit, className: slots['unit']),
+            // The opened-unit column is ALWAYS reserved. A product with no content level
+            // gets empty space of the same width, so every field in the list stays in its
+            // column. Rendering the pair only where it exists moved the fields on the rows
+            // that had it, which is the leading-glyph mistake one axis over.
+            if (remainderUnit == null) ...[
+              WDiv(className: slots['plus']),
+              WDiv(className: slots['field']),
+              WDiv(className: slots['unit']),
+            ] else ...[
+              WText('+', className: slots['plus']),
+              WDiv(
+                className: slots['field'],
+                child: MSInput(
+                  value: countedRemainder ?? '',
+                  placeholder: '—',
+                  type: InputType.number,
+                  onChanged: onRemainderChanged,
+                ),
+              ),
+              WText(remainderUnit!, className: slots['unit']),
+            ],
           ],
         ),
-        WDiv(
-          className: slots['field'],
-          child: MSInput(
-            value: counted ?? '',
-            // The placeholder is a dash rather than a zero. A zero sitting in an empty
-            // field is an answer nobody gave, and this is the one screen where "no answer"
-            // and "zero" must not look alike.
-            placeholder: '—',
-            type: InputType.number,
-            onChanged: onChanged,
-          ),
-        ),
-        WText(unit, className: slots['unit']),
-        if (remainderUnit != null) ...[
-          WText('+', className: slots['unit']),
-          WDiv(
-            className: slots['field'],
-            child: MSInput(
-              value: countedRemainder ?? '',
-              placeholder: '—',
-              type: InputType.number,
-              onChanged: onRemainderChanged,
-            ),
-          ),
-          WText(remainderUnit!, className: slots['unit']),
-        ],
+        WText(verdict, className: slots['verdict']),
       ],
     );
   }

@@ -16,12 +16,21 @@ import 'package:magic/magic.dart';
 WindSlotRecipe countRowRecipe() {
   return const WindSlotRecipe(
     slots: {
-      'root': 'flex flex-row items-center gap-3 py-2',
-      'body': 'flex flex-col gap-0.5 flex-1 min-w-0',
-      'name': 'text-sm font-semibold text-fg truncate',
-      'verdict': 'text-xs text-fg-muted truncate',
-      'field': 'w-20 axis-min',
-      'unit': 'text-xs text-fg-muted axis-min',
+      // Two lines, not one row. The verdict is a full-width statement rather than a column:
+      // once the count fields took fixed widths the body narrowed enough to truncate
+      // "500 ml eksik" off the end, and that phrase is the entire diagnostic content.
+      'root': 'flex flex-col gap-0.5 py-2',
+      'top': 'flex flex-row items-center gap-3',
+      'name': 'text-sm font-semibold text-fg flex-1 min-w-0 truncate',
+      'verdict': 'text-xs text-fg-muted',
+      // Fixed widths, because this is a COLUMN and not a row of content. Sized to their
+      // text, `adet` is wider than `ml` and a row with no opened-unit pair has two fewer
+      // children, so the fields wandered left and right down the list. Anılcan caught it in
+      // one glance: the same failure as a conditionally-rendered leading glyph, one axis
+      // over, and the same fix (reserve the space whether or not it is used).
+      'field': 'w-20 shrink-0',
+      'unit': 'w-10 shrink-0 text-xs text-fg-muted',
+      'plus': 'w-4 shrink-0 text-xs text-fg-muted text-center',
     },
     variants: {
       'state': {
