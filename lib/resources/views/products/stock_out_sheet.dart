@@ -69,16 +69,27 @@ class StockOutSheet extends StatefulWidget {
   /// The product stock is leaving.
   final ProductListItem product;
 
-  /// Creates a [StockOutSheet].
-  const StockOutSheet({super.key, required this.product});
+  /// The reason to start on, when the caller already knows it.
+  final StockOutReason? initialReason;
 
-  /// Opens the sheet and resolves with the recorded movement, or null if dismissed.
-  static Future<StockOutDraft?> show(BuildContext context, {required ProductListItem product}) {
+  /// Creates a [StockOutSheet].
+  const StockOutSheet({super.key, required this.product, this.initialReason});
+
+  /// Opens the sheet, optionally with the reason already chosen.
+  ///
+  /// The dates screen passes `waste` when the row it came from is already past its date:
+  /// arriving at this sheet from an expired lot and having to pick "Zayi" again is asking
+  /// the user to restate what they just tapped on.
+  static Future<StockOutDraft?> show(
+    BuildContext context, {
+    required ProductListItem product,
+    StockOutReason? reason,
+  }) {
     return MSBottomSheet.show<StockOutDraft>(
       context,
       title: 'Stok çıkar',
       description: product.name,
-      body: StockOutSheet(product: product),
+      body: StockOutSheet(product: product, initialReason: reason),
     );
   }
 
@@ -148,7 +159,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
 
   /// The unit in play, for a serial-tracked product. Null in lot mode.
   late SerialFixture? _serial = _soonestWarranty;
-  StockOutReason _reason = StockOutReason.consumption;
+  late StockOutReason _reason = widget.initialReason ?? StockOutReason.consumption;
 
   /// The chosen amount, preselected rather than left empty.
   ///

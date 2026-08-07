@@ -168,7 +168,9 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
               // in a number field.
               label: _labelFor(answer),
               isSuggested: answer == _value,
-              semanticLabel: '${widget.label} alanını ${_labelFor(answer)} yap',
+              semanticLabel: answer == _value
+                  ? '${widget.label}: ${_labelFor(answer)}, seçili'
+                  : '${widget.label} alanını ${_labelFor(answer)} yap',
               onTap: () => setState(() => _value = answer),
             ),
         ],

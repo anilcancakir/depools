@@ -10,6 +10,8 @@ import 'preview/barcode_scan_empty_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
+import 'preview/dates_empty_screen.preview.dart';
+import 'preview/dates_screen.preview.dart';
 import 'preview/foundations.preview.dart';
 import 'preview/label_print_screen.preview.dart';
 import 'preview/label_print_tight_screen.preview.dart';
@@ -107,6 +109,16 @@ List<PreviewEntry> previewEntries() {
       label: 'DashboardScreen',
       slug: 'dashboard_screen',
       builder: (_) => const DashboardScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'DatesEmptyScreen',
+      slug: 'dates_empty_screen',
+      builder: (_) => const DatesEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'DatesScreen',
+      slug: 'dates_screen',
+      builder: (_) => const DatesScreenPreview(),
     ),
     PreviewEntry(
       label: 'DraftField',

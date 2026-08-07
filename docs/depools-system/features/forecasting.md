@@ -47,6 +47,30 @@ Three surfaces, in order of how often they are useful:
 
 **1. Expiring soon.** The most immediately valuable output and the one requiring no forecast at all, just a date comparison over lots. What expires in the next N days, per location, sorted by urgency. A cafe uses this daily.
 
+Three things the design settled (D55, D56):
+
+**The screen is titled for dates, not for food.** A warranty ending in two days sits next to
+a cheese that went off yesterday, and each row's label says which kind of date it is
+(`Garanti · 2 gün`, `Açık · 2 gün`, `Süresi geçti`). Filtering warranties out would be one
+more place the food assumption got baked in.
+
+**The horizon is absolute and the user sets it** (3 / 7 / 30 days, defaulting to 7). The
+first attempt filtered on each product's own D24 window instead, and measuring it produced
+ZERO rows: D24's window for a five-day product is one day, so a carton with two days left
+was excluded from the one screen built to find it. The two thresholds do different jobs.
+D24 decides what earns a badge unprompted; this screen IS the question, so it gets a horizon,
+and urgency inside it is carried by `ExpiryBadge`.
+
+**Every row is a lot.** A product with a breakdown contributes one row per lot, because a
+carton expiring Tuesday and one expiring next month are two decisions. A product carrying a
+single date contributes one row: its implicit lot. One row type, no exceptions.
+
+**Expired leads and its action differs.** A passed date is a decision rather than a warning,
+so it sits in its own non-collapsible group at the top and tapping a row there opens the
+stock-out sheet with `waste` ALREADY chosen. Making the user restate what they just tapped
+on is how you end up with nobody recording waste, and waste is the number this feature
+sells.
+
 **2. Running low.** Items below their reorder point (forecast tier) or below their par level (par tier). Days of cover shown where it is known.
 
 **3. Shopping list.** Generated from the two above, plus manual additions. Every line carries the reason it is there:

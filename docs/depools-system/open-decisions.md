@@ -565,6 +565,43 @@ The editor's number mode already keeps the two apart visually: the unit sits BES
 input rather than inside it, because changing what a number means is a different decision
 from changing the number.
 
+### D55. The dates screen gets an absolute horizon; D24's window keeps its own job
+
+The first version of this screen filtered each row on its product's own D24 window (the last
+fifth of shelf life, floored at one day). It produced **zero rows**, and the reason is worth
+keeping: for a five-day milk that window is one day, so a carton with two days left was
+excluded from the one screen built to find exactly that carton.
+
+The two thresholds are not competing definitions of "soon". D24 decides what earns a badge
+UNPROMPTED, on a screen the user did not open to ask about dates, and it has to be
+conservative or every product shouts. This screen IS the question "what is coming up", so its
+scope is a time horizon the user controls (3 / 7 / 30 days, default 7), and urgency inside it
+is carried by `ExpiryBadge`, which has a threshold tuned for exactly that.
+
+This also un-contradicts the feature doc, which said "what expires in the next N days" all
+along. The earlier draft treated that phrasing as a mistake to correct; it was right.
+
+The general lesson, and the reason this is recorded rather than quietly fixed: **a derived
+threshold that is correct for an alert is not automatically correct as a filter.** Measure a
+fixture before designing against it. One probe caught this; a screenshot would have shown an
+empty state and I would have shipped it as the populated one.
+
+### D56. Every row on the dates screen is a lot, including the products that have none
+
+A product with a lot breakdown contributes one row per lot. A carton expiring Tuesday and one
+expiring next month are two different decisions, and showing the product would tell a user
+that something needs using without telling them which one to reach for. The fixture proves
+the case: the same milk appears twice, at two dates, in two locations.
+
+A product carrying a single date contributes one row too: its implicit lot. So there is one
+row type with no exceptions, `forecasting.md`'s "a date comparison over lots" holds literally,
+and the rule states cleanly as **the row is the finest-grained thing that has a date**.
+
+Grouping is by location because the doc asks for it and the use case is why: a cafe's morning
+check is a walk to the fridge, then the freezer, then the dry store. That is the opposite call
+from the shopping list, where urgency ordering beat aisle order, and the difference is that
+there the reason column carried the trust and here the walk carries the task.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe
