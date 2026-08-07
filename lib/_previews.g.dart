@@ -48,6 +48,7 @@ import 'ui/components/location_row/location_row.preview.dart';
 import 'ui/components/location_stock_row/location_stock_row.preview.dart';
 import 'ui/components/lot_row/lot_row.preview.dart';
 import 'ui/components/movement_row/movement_row.preview.dart';
+import 'ui/components/option_row/option_row.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
 import 'ui/components/receipt_line_row/receipt_line_row.preview.dart';
@@ -201,6 +202,11 @@ List<PreviewEntry> previewEntries() {
       label: 'MovementRow',
       slug: 'movement_row',
       builder: (_) => const MovementRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'OptionRow',
+      slug: 'option_row',
+      builder: (_) => const OptionRowPreview(),
     ),
     PreviewEntry(
       label: 'ProductDraftScreen',

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSBottomSheet, MSButton, ButtonIntent;
 
+import '../../../ui/components/option_row/option_row.dart';
 import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
 
@@ -279,26 +280,14 @@ class _StockInSheetState extends State<StockInSheet> {
   }
 
   Widget _locationOption(FilterOption option) {
-    final bool selected = option.id == _locationId;
     final bool suggested = option.id == _suggestedLocationId;
 
-    return WAnchor(
-      onTap: () => setState(() => _locationId = option.id),
+    return OptionRow(
+      label: option.fullPath,
+      suggestionReason: suggested ? _suggestionReason(option.id) : null,
+      isSelected: option.id == _locationId,
       semanticLabel: '${option.fullPath} konumunu seç',
-      child: WDiv(
-        // See the note in StockOutSheet: every option gets a fill so the group reads
-        // as choices, and padding rather than min-height so the content stays centred.
-        className: '''
-          flex flex-col gap-0.5 px-3 py-2.5 rounded-md
-          bg-surface-container-high
-          selected:bg-primary-container selected:border selected:border-color-border
-        ''',
-        states: selected ? const {'selected'} : const {},
-        children: [
-          WText(option.fullPath, className: 'text-sm text-fg truncate'),
-          if (suggested) WText(_suggestionReason(option.id), className: 'text-xs text-ai'),
-        ],
-      ),
+      onTap: () => setState(() => _locationId = option.id),
     );
   }
 }

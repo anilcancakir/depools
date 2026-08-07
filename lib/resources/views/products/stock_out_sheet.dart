@@ -3,6 +3,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSBottomSheet, MSButton, MSSegmentedControl, ButtonIntent;
 
+import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import 'product_fixtures.dart';
 
@@ -395,10 +396,11 @@ class _StockOutSheetState extends State<StockOutSheet> {
 
   /// One selectable lot, showing what FEFO thinks and why.
   Widget _lotOption(LotFixture lot) {
-    final bool selected = lot == _lot;
-    final bool suggested = lot == _fefoLot;
-
-    return WAnchor(
+    return OptionRow(
+      label: [if (lot.isOpen) 'Açık', ?lot.expiryLabel].join(' · '),
+      suggestionReason: lot == _fefoLot ? 'Önerilen · en yakın tarih' : null,
+      isSelected: lot == _lot,
+      semanticLabel: '${lot.expiryLabel ?? ''} partisini seç',
       onTap: () => setState(() {
         _lot = lot;
         // The offered amounts depend on the lot, so a stale selection would let the
@@ -406,37 +408,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
         // so changing the lot never leaves the sheet in a state its button rejects.
         _amount = _options.firstOrNull;
       }),
-      semanticLabel: '${lot.expiryLabel ?? ''} partisini seç',
-      child: WDiv(
-        // Every option carries a fill, not only the selected one. With bare text on
-        // the unselected rows the group read as one highlighted item among labels
-        // rather than as a set of choices, so the user could not tell what was
-        // pickable. `bg-surface-container-high` is the same tone the search field uses
-        // for "this is an input", which is the right family of signal.
-        //
-        // Padding rather than `min-h-11` for the 44pt floor: min-height grows the box
-        // downward WITHOUT re-centering its content, measured at 8.5px off centre on a
-        // 2x screenshot, while padding grows symmetrically and stays centred.
-        className: '''
-          flex flex-row items-center gap-3 px-3 py-2.5 rounded-md
-          bg-surface-container-high
-          selected:bg-primary-container selected:border selected:border-color-border
-        ''',
-        states: selected ? const {'selected'} : const {},
-        children: [
-          WDiv(
-            className: 'flex flex-col gap-0.5 flex-1 min-w-0',
-            children: [
-              WText(
-                [if (lot.isOpen) 'Açık', ?lot.expiryLabel].join(' · '),
-                className: 'text-sm text-fg truncate',
-              ),
-              if (suggested) WText('Önerilen · en yakın tarih', className: 'text-xs text-ai'),
-            ],
-          ),
-          Quantity(amount: lot.remaining, formatted: lot.formatted, unit: lot.unit),
-        ],
-      ),
+      trailing: Quantity(amount: lot.remaining, formatted: lot.formatted, unit: lot.unit),
     );
   }
 
@@ -446,40 +418,16 @@ class _StockOutSheetState extends State<StockOutSheet> {
   /// user is matching against the object in their hand. The warranty follows, since it
   /// is what makes one unit a better one to move than another.
   Widget _serialOption(SerialFixture unit) {
-    final bool selected = unit == _serial;
-    final bool suggested = unit == _soonestWarranty;
-
-    return WAnchor(
-      onTap: () => setState(() => _serial = unit),
+    return OptionRow(
+      label: unit.serial,
+      isMono: true,
+      suggestionReason: unit == _soonestWarranty ? 'Önerilen · garantisi en yakın' : null,
+      isSelected: unit == _serial,
       semanticLabel: '${unit.serial} ünitesini seç',
-      child: WDiv(
-        // Every option carries a fill, not only the selected one. With bare text on
-        // the unselected rows the group read as one highlighted item among labels
-        // rather than as a set of choices, so the user could not tell what was
-        // pickable. `bg-surface-container-high` is the same tone the search field uses
-        // for "this is an input", which is the right family of signal.
-        //
-        // Padding rather than `min-h-11` for the 44pt floor: min-height grows the box
-        // downward WITHOUT re-centering its content, measured at 8.5px off centre on a
-        // 2x screenshot, while padding grows symmetrically and stays centred.
-        className: '''
-          flex flex-row items-center gap-3 px-3 py-2.5 rounded-md
-          bg-surface-container-high
-          selected:bg-primary-container selected:border selected:border-color-border
-        ''',
-        states: selected ? const {'selected'} : const {},
-        children: [
-          WDiv(
-            className: 'flex flex-col gap-0.5 flex-1 min-w-0',
-            children: [
-              WText(unit.serial, className: 'font-mono text-sm text-fg truncate'),
-              if (suggested) WText('Önerilen · garantisi en yakın', className: 'text-xs text-ai'),
-            ],
-          ),
-          if (unit.warrantyLabel != null)
-            WText(unit.warrantyLabel!, className: 'text-xs text-fg-muted'),
-        ],
-      ),
+      onTap: () => setState(() => _serial = unit),
+      trailing: unit.warrantyLabel == null
+          ? null
+          : WText(unit.warrantyLabel!, className: 'text-xs text-fg-muted'),
     );
   }
 

@@ -60,6 +60,34 @@ The MVP wrote a perceptual image hash and an md5 of the product name into the sa
 
 Every product studied that supports it (Manifest, MovingBox) routes it through a batch review step rather than committing directly. Same rule here.
 
+## Editing a field
+
+Every field opens the same sheet in one of three shapes: free text, a number with its unit,
+or a list of options. Nine bespoke editors would be nine things to learn on a screen whose
+whole point is that it fills itself in.
+
+The sheet has three parts in a fixed order. **What it is**: the field name and where its
+current value came from, because `Fotoğraftan okundu` and `İsteğe bağlı` are different
+situations a user cannot tell apart from the field alone. **The quick answers**: chips,
+with the current value first, so agreeing costs one tap. **The control**: always present,
+because a chip set that cannot be escaped is a wizard.
+
+A choice field gets no chips. Its options list already IS the set of one-tap answers, and a
+chip row repeating the first option was the same word twice, eight pixels apart, both
+selected. The suggested option carries its reason on the row instead
+(`Önerilen · buraya 9 kez konuldu`), the same as every other location picker in the app.
+
+**Saving clears the `otomatik` mark, whether or not the value changed** (D53). A value the
+user has looked at and kept is no longer a guess. Dismissing without saving leaves the mark,
+because looking is not confirming. So the marks decay as the draft is reviewed rather than
+persisting as permanent noise, and the screen gains a natural finish line. The sheet says
+this outright above its save button, because a mark disappearing after the user changed
+nothing is otherwise a surprise.
+
+**The unit is freely editable here and only here** (D54). A draft has no stock, so nothing
+is reinterpreted. Once a movement exists, changing the unit changes what every quantity in
+the ledger means, and that is a conversion rather than a field edit.
+
 ## Error and empty states
 
 - **Nothing recognisable.** Say so and offer manual entry. Do not return a plausible invention.

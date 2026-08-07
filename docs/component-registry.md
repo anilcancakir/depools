@@ -671,6 +671,20 @@ Components backed by a Wind W-widget with no recipe layer.
 
 ---
 
+### OptionRow
+
+- **File**: `lib/ui/components/option_row/`
+- **Class**: `OptionRow`
+- **Token bindings**: `bg-surface-container-high` (every option), `bg-primary-container` + `border-color-border` (selected), `text-fg`, `text-ai` (the suggestion reason)
+- **What it is**: one full-width choice in a picker, with an optional suggestion reason and an optional trailing figure.
+- **Anti-patterns**:
+  - Do not hand-roll a selectable row. This was extracted at the sixth caller (two in the move sheet, two in the stock-out sheet, one in stock-in, one in the label screen), each of which was a place the "every option gets a fill" rule could drift.
+  - Do not drop the fill on unselected options. A group where only the chosen row has a background reads as one highlight among labels, not a set of choices.
+  - Do not reach for `min-h-11`. Padding carries the 44pt floor; min-height lands the content 8.5px off centre, measured.
+  - Do not render a serial or a code without `isMono`. It is matched character by character against a physical object.
+
+---
+
 ### LocationRow
 
 - **File**: `lib/ui/components/location_row/`

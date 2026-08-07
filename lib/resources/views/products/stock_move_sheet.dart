@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSBottomSheet, MSButton, ButtonIntent;
 
+import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import 'product_fixtures.dart';
 
@@ -222,13 +223,15 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
 
   /// One source, showing what it holds so the choice is informed.
   Widget _sourceOption(String id) {
-    final bool selected = id == _from;
     final num here = widget.product.amountAt(id);
     final int whole = here.floor();
     final num content = widget.product.contentAmount ?? 1;
     final num remainder = ((here - whole) * content).round();
 
-    return WAnchor(
+    return OptionRow(
+      label: resolveLocationPath(id) ?? id,
+      isSelected: id == _from,
+      semanticLabel: '${resolveLocationPath(id)} konumundan taşı',
       onTap: () => setState(() {
         _from = id;
         // The destination list and the amounts both derive from the source, so a stale
@@ -239,58 +242,32 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
         _amount = _optionsFor(id).firstOrNull?.$1;
         _amountUnit = _optionsFor(id).firstOrNull?.$2;
       }),
-      semanticLabel: '${resolveLocationPath(id)} konumundan taşı',
-      child: WDiv(
-        className: '''
-          flex flex-row items-center gap-3 px-3 py-2.5 rounded-md
-          bg-surface-container-high
-          selected:bg-primary-container selected:border selected:border-color-border
-        ''',
-        states: selected ? const {'selected'} : const {},
-        children: [
-          WDiv(
-            className: 'flex flex-col gap-0.5 flex-1 min-w-0',
-            children: [WText(resolveLocationPath(id) ?? id, className: 'text-sm text-fg truncate')],
-          ),
-          Quantity(
-            amount: here,
-            formatted: '$whole',
-            unit: widget.product.unit,
-            remainderFormatted: remainder > 0 ? '$remainder' : null,
-            remainderUnit: remainder > 0 ? widget.product.contentUnit : null,
-            size: QuantitySize.sm,
-          ),
-        ],
+      trailing: Quantity(
+        amount: here,
+        formatted: '$whole',
+        unit: widget.product.unit,
+        remainderFormatted: remainder > 0 ? '$remainder' : null,
+        remainderUnit: remainder > 0 ? widget.product.contentUnit : null,
+        size: QuantitySize.sm,
       ),
     );
   }
 
-  /// One destination, with the suggestion's reason when it has one.
   Widget _destinationOption(String id) {
-    final bool selected = id == _to;
     final bool suggested = id == _suggestedDestination;
     final (String, int)? affinity = suggestLocationFor(widget.product.categoryId);
     final bool affinityMatches = affinity != null && affinity.$1 == id;
 
-    return WAnchor(
-      onTap: () => setState(() => _to = id),
+    return OptionRow(
+      label: resolveLocationPath(id) ?? id,
+      suggestionReason: !suggested
+          ? null
+          : affinityMatches
+          ? 'Önerilen · buraya ${affinity.$2} kez konuldu'
+          : 'Önerilen',
+      isSelected: id == _to,
       semanticLabel: '${resolveLocationPath(id)} konumuna taşı',
-      child: WDiv(
-        className: '''
-          flex flex-col gap-0.5 px-3 py-2.5 rounded-md
-          bg-surface-container-high
-          selected:bg-primary-container selected:border selected:border-color-border
-        ''',
-        states: selected ? const {'selected'} : const {},
-        children: [
-          WText(resolveLocationPath(id) ?? id, className: 'text-sm text-fg truncate'),
-          if (suggested)
-            WText(
-              affinityMatches ? 'Önerilen · buraya ${affinity.$2} kez konuldu' : 'Önerilen',
-              className: 'text-xs text-ai',
-            ),
-        ],
-      ),
+      onTap: () => setState(() => _to = id),
     );
   }
 }

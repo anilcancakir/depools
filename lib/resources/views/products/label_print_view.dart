@@ -8,6 +8,7 @@ import '../../../ui/components/filter_chip/filter_chip.dart';
 import '../../../ui/components/label_card/label_card.dart';
 import '../../../ui/components/label_item_row/label_item_row.dart';
 import '../../../ui/components/label_preview/label_preview.dart';
+import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'label_fixtures.dart';
 
@@ -203,26 +204,17 @@ class LabelPrintView extends StatelessWidget {
 
   /// One sheet option. Every option carries a fill so the group reads as a set of choices.
   Widget _templateRow(SheetTemplate template, bool isSelected) {
-    return WAnchor(
+    return OptionRow(
+      label: template.label,
+      isSelected: isSelected,
+      semanticLabel: '${template.label} yerleşimini seç',
       onTap: () {},
-      semanticLabel: template.label,
-      child: WDiv(
-        className: '''
-          flex flex-row items-center justify-between gap-3 px-3 py-3 rounded-md
-          bg-surface-container-high
-          selected:bg-primary-container selected:border selected:border-color-border
-        ''',
-        states: isSelected ? const {'selected'} : const {},
-        children: [
-          WText(template.label, className: 'text-sm text-fg flex-auto min-w-0'),
-          // Pages and waste together. Pages alone would show 24-up and 65-up as "1 sayfa"
-          // each and hide that one prints 3 blanks and the other 44, which is the whole
-          // difference between them for this batch.
-          WText(
-            '${sheetsFor(template)} sayfa · ${wastedCells(template)} boş',
-            className: 'font-mono text-xs text-fg-muted axis-min',
-          ),
-        ],
+      // Pages and waste together. Pages alone would show 24-up and 65-up as "1 sayfa"
+      // each and hide that one prints 3 blanks and the other 44, which is the whole
+      // difference between them for this batch.
+      trailing: WText(
+        '${sheetsFor(template)} sayfa · ${wastedCells(template)} boş',
+        className: 'font-mono text-xs text-fg-muted',
       ),
     );
   }

@@ -533,6 +533,38 @@ from a live one, and even a visibly disabled control with no reason is a dead en
 
 A correction is not itself undoable. Undoing an undo is a third movement nobody asked for.
 
+### D53. Saving a field clears its `otomatik` mark, and so does confirming it unchanged
+
+An inferred value carries a mark. Both ways out of that mark are one tap: change it, or open
+it and save it as it stands. Dismissing without saving leaves the mark, because looking is
+not confirming.
+
+The point is that the marks DECAY as the draft is reviewed. The alternative, where only an
+edit clears the mark, leaves a permanent field of `otomatik` labels on every value the model
+got right, which is most of them: the annotation would end up marking "the app filled this
+in correctly" forever, and a mark that never goes away stops being read.
+
+It also gives the screen a finish line without adding a completion bar: a draft with no
+marks left is one the user has been through.
+
+The sheet says this above its save button. A mark disappearing after the user changed
+nothing is otherwise a small surprise, and small surprises in a form are what make people
+stop trusting it.
+
+### D54. The unit is freely editable in a draft, and nowhere else
+
+Changing `adet` to `kg` reinterprets every quantity in the ledger. In a draft there is no
+ledger, so the edit is free and the field editor offers the full list.
+
+Once a movement exists it stops being a field edit. Recording this because the same editor
+is one wire away from the saved product screen, and the failure would be silent: a product
+whose history says 12 with no indication that six of them were counted before the unit
+changed.
+
+The editor's number mode already keeps the two apart visually: the unit sits BESIDE the
+input rather than inside it, because changing what a number means is a different decision
+from changing the number.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

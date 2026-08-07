@@ -7,6 +7,8 @@ import 'package:magic_starter/magic_starter.dart'
 import '../../../ui/components/draft_field/draft_field.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/tag/index.dart';
+import 'field_editor_sheet.dart';
+import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
 
 /// A product being created: the draft card that fills itself in.
@@ -69,7 +71,46 @@ class ProductDraftView extends StatelessWidget {
       title: 'Yeni ürün',
       // No subtitle: the brand is one of the fields still arriving, and a page subtitle
       // that appears a second after the page did reads as a layout jump.
-      children: [_buildIdentity(), _buildMeasure(), _buildFirstStock(), _buildSave(context)],
+      children: [
+        _buildIdentity(context),
+        _buildMeasure(context),
+        _buildFirstStock(context),
+        _buildSave(context),
+      ],
+    );
+  }
+
+  /// Opens the one editor every field shares.
+  ///
+  /// Every call passes the current value as the first quick answer, which is what makes
+  /// "I looked and it was right" a single tap. Saving clears the `otomatik` mark whether
+  /// or not the value changed (D53); dismissing leaves it, because looking is not
+  /// confirming.
+  void _edit(
+    BuildContext context, {
+    required String label,
+    String? provenance,
+    String? value,
+    String? unit,
+    FieldEditorKind kind = FieldEditorKind.text,
+    List<String> quickAnswers = const <String>[],
+    List<String> options = const <String>[],
+    String? suggestedOption,
+    String? suggestionReason,
+    bool isOptional = false,
+  }) {
+    FieldEditorSheet.show(
+      context,
+      label: label,
+      provenance: provenance,
+      value: value,
+      unit: unit,
+      kind: kind,
+      quickAnswers: [?value, ...quickAnswers],
+      options: options,
+      suggestedOption: suggestedOption,
+      suggestionReason: suggestionReason,
+      isOptional: isOptional,
     );
   }
 
@@ -77,7 +118,7 @@ class ProductDraftView extends StatelessWidget {
   ///
   /// The name is the only thing the user typed and the only thing required (D32), so it
   /// leads at page-title weight rather than sitting in a labelled row like the rest.
-  Widget _buildIdentity() {
+  Widget _buildIdentity(BuildContext context) {
     return WDiv(
       className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
       children: [
@@ -127,14 +168,25 @@ class ProductDraftView extends StatelessWidget {
           label: 'Marka',
           value: _source.brand,
           state: isEnriching ? DraftFieldState.loading : null,
-          onTap: () {},
+          onTap: () => _edit(
+            context,
+            label: 'Marka',
+            provenance: 'Fotoğraftan okundu',
+            value: _source.brand,
+          ),
         ),
         DraftField(
           label: 'Açıklama',
           value: isEnriching ? null : _source.description,
           state: isEnriching ? DraftFieldState.loading : null,
           prompt: 'Fotoğraftan okunamadı',
-          onTap: () {},
+          onTap: () => _edit(
+            context,
+            label: 'Açıklama',
+            provenance: 'Fotoğraftan okundu',
+            value: _source.description,
+            isOptional: true,
+          ),
         ),
         // SKU stays empty after enrichment settles, on purpose. It is the tenant's own
         // code and no model can know it, so this is the honest resting state of the
@@ -143,7 +195,9 @@ class ProductDraftView extends StatelessWidget {
           label: 'SKU',
           state: DraftFieldState.unsure,
           prompt: 'İsteğe bağlı',
-          onTap: () {},
+          // No provenance line and no quick answers: a tenant's own code is the one field
+          // no model can guess, so there is nothing to confirm and nothing to offer.
+          onTap: () => _edit(context, label: 'SKU', isOptional: true),
         ),
       ],
     );
@@ -154,7 +208,7 @@ class ProductDraftView extends StatelessWidget {
   /// Their own card rather than mixed into identity, because they are the fields that
   /// change what a NUMBER means. Grouping them is what makes "these three were guessed"
   /// a single glance instead of three scattered markers.
-  Widget _buildMeasure() {
+  Widget _buildMeasure(BuildContext context) {
     return SectionCard(
       label: 'Ölçü',
       children: [
@@ -163,7 +217,16 @@ class ProductDraftView extends StatelessWidget {
           value: _source.unit,
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
-          onTap: () {},
+          // Free to change here and only here (D54): a draft has no stock, so nothing is
+          // reinterpreted. After the first movement this stops being a field edit.
+          onTap: () => _edit(
+            context,
+            label: 'Birim',
+            provenance: 'Ürün adından çıkarıldı',
+            value: _source.unit,
+            kind: FieldEditorKind.choice,
+            options: const ['adet', 'kg', 'gram', 'litre', 'ml', 'paket', 'kutu'],
+          ),
         ),
         DraftField(
           label: 'İçerik',
@@ -173,7 +236,15 @@ class ProductDraftView extends StatelessWidget {
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
           prompt: 'İsteğe bağlı',
-          onTap: () {},
+          onTap: () => _edit(
+            context,
+            label: 'İçerik',
+            provenance: 'Ürün adından çıkarıldı',
+            value: _source.contentAmount?.round().toString(),
+            unit: _source.contentUnit,
+            kind: FieldEditorKind.number,
+            isOptional: true,
+          ),
         ),
         DraftField(
           label: 'Raf ömrü',
@@ -181,7 +252,16 @@ class ProductDraftView extends StatelessWidget {
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
           prompt: 'Takip edilmiyor',
-          onTap: () {},
+          onTap: () => _edit(
+            context,
+            label: 'Raf ömrü',
+            provenance: 'Kategoriden çıkarıldı',
+            value: _source.shelfLifeDays?.toString(),
+            unit: 'gün',
+            kind: FieldEditorKind.number,
+            quickAnswers: const ['7', '30', '365'],
+            isOptional: true,
+          ),
         ),
       ],
     );
@@ -197,7 +277,7 @@ class ProductDraftView extends StatelessWidget {
   /// The suggestion line carries its own reason and its count, because
   /// `location-assignment.md` makes the count the explanation rather than internal
   /// state: a suggestion the user can argue with is one they will accept.
-  Widget _buildFirstStock() {
+  Widget _buildFirstStock(BuildContext context) {
     final (String, int)? affinity = suggestLocationFor(_source.categoryId);
 
     return SectionCard(
@@ -210,7 +290,14 @@ class ProductDraftView extends StatelessWidget {
               label: 'Miktar',
               value: '1 ${_source.unit}',
               layout: DraftFieldLayout.chip,
-              onTap: () {},
+              onTap: () => _edit(
+                context,
+                label: 'Miktar',
+                value: '1',
+                unit: _source.unit,
+                kind: FieldEditorKind.number,
+                quickAnswers: const ['2', '6', '12'],
+              ),
             ),
             DraftField(
               label: 'Konum',
@@ -218,7 +305,21 @@ class ProductDraftView extends StatelessWidget {
               unconfirmed: affinity != null,
               layout: DraftFieldLayout.chip,
               state: isEnriching ? DraftFieldState.loading : null,
-              onTap: () {},
+              onTap: () => _edit(
+                context,
+                label: 'Konum',
+                provenance: 'Kategori geçmişinden önerildi',
+                value: affinity == null ? null : resolveLocationPath(affinity.$1),
+                kind: FieldEditorKind.choice,
+                options: [for (final FilterOption o in locationOptions) o.fullPath],
+                suggestedOption: affinity == null ? null : resolveLocationPath(affinity.$1),
+                // The count IS the explanation, here as everywhere else the app suggests
+                // a location. Dropping it would make the draft form's picker weaker than
+                // the stock sheets' for no reason.
+                suggestionReason: affinity == null
+                    ? null
+                    : 'Önerilen · buraya ${affinity.$2} kez konuldu',
+              ),
             ),
             DraftField(
               label: 'Son kullanma',
@@ -226,7 +327,17 @@ class ProductDraftView extends StatelessWidget {
               unconfirmed: true,
               layout: DraftFieldLayout.chip,
               state: isEnriching ? DraftFieldState.loading : null,
-              onTap: () {},
+              // Offsets rather than a calendar first. A shelf life of five days makes
+              // "+5 gün" the answer nine times out of ten, and a date picker for a date
+              // the app already computed is three taps to agree with it.
+              onTap: () => _edit(
+                context,
+                label: 'Son kullanma',
+                provenance: 'Raf ömründen hesaplandı',
+                value: '11 Ağu',
+                kind: FieldEditorKind.choice,
+                options: const ['11 Ağu (+5 gün)', '18 Ağu (+12 gün)', 'Tarih seç', 'Bilinmiyor'],
+              ),
             ),
           ],
         ),
