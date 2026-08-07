@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:magic_devtools/magic_devtools.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MagicStarter, MagicStarterCardTheme, MagicStarterPageHeaderTheme;
+import 'config/localization.dart';
 import 'config/magic_starter.dart';
 
 void main() async {
@@ -38,6 +39,7 @@ void main() async {
       () => networkConfig,
       () => cacheConfig,
       () => loggingConfig,
+      () => localizationConfig,
       () => broadcastingConfig,
       () => deeplinkConfig,
       () => magicStarterConfig,

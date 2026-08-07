@@ -189,18 +189,18 @@
     }
   },
   "nav": {
-    "dashboard": "Genel bakış",
-    "dates": "Tarihler",
-    "running_low": "Azalanlar",
-    "shopping": "Alışveriş",
-    "products": "Ürünler",
-    "locations": "Konumlar",
-    "stock_take": "Sayım",
-    "assistant": "Asistan",
-    "scan": "Tara",
-    "profile": "Profil",
-    "settings": "Ayarlar",
-    "system": "Sistem"
+    "dashboard": "Overview",
+    "dates": "Dates",
+    "running_low": "Running Low",
+    "shopping": "Shopping",
+    "products": "Products",
+    "locations": "Locations",
+    "stock_take": "Stock Take",
+    "assistant": "Assistant",
+    "scan": "Scan",
+    "profile": "Profile",
+    "settings": "Settings",
+    "system": "System"
   },
   "notifications": {
     "empty": "No notifications",

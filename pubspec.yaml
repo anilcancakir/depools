@@ -76,7 +76,12 @@ dev_dependencies:
 flutter:
 
   assets:
+    # Every locale listed in `localization.supported_locales` must appear here or it is not
+    # bundled. `tr.json` loaded fine in debug on web without this line, because the dev server
+    # serves the project directory rather than the asset manifest, so the omission would have
+    # surfaced first in a release build as a Turkish app rendering raw keys.
     - assets/lang/en.json
+    - assets/lang/tr.json
     # Runtime env. Must be bundled so flutter_dotenv can load it on web;
     # without this the app silently falls back to Env defaults
     # (BROADCAST_CONNECTION=null) and realtime never connects. `.env` is

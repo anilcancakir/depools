@@ -35,7 +35,7 @@ class AppServiceProvider extends ServiceProvider {
         await Auth.logout();
         MagicRoute.to(MagicStarterConfig.loginRoute());
       },
-      locales: {'en': 'English'},
+      locales: {'tr': 'Türkçe', 'en': 'English'},
       currentTeam: () => User.current.currentTeam?.toMagicStarterTeam(),
       allTeams: () => User.current.allTeams.map((t) => t.toMagicStarterTeam()).toList(),
       onSwitch: (teamId) => MagicStarterTeamController.instance.switchTeam(teamId),
