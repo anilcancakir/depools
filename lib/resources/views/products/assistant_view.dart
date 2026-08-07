@@ -77,39 +77,11 @@ class AssistantView extends StatelessWidget {
   static const IconData _micIcon = Icons.mic_none_outlined;
   static const IconData _activityIcon = Icons.history;
 
-  /// The conversation's column: full width on a phone, a centred reading column above `lg`.
-  /// The conversation's reading width.
-  ///
-  /// **A className cannot do this here, and three attempts proved it.** `lg:max-w-3xl lg:mx-auto`
-  /// rendered full width, so did the unprefixed pair, and so did dropping `w-full` from it. The
-  /// reason is not a missing token: `MSPageContainer` hands its child a TIGHT width, and a
-  /// max-width box inside a tight constraint cannot shrink. Wind styles, Flutter measures, which
-  /// is the same division the label sheet and the shelf boxes already needed.
-  ///
-  /// 768 rather than a breakpoint check, because the cap is a no-op below it: no phone is wider,
-  /// so this narrows only on a wide window, which is exactly where a message spanning 1300px puts
-  /// the send button an eye-movement from the text.
-  static const double _readingWidth = 768;
-
-  /// Caps a part of the conversation at the reading width and centres it.
-  ///
-  /// `Align` rather than `Center` so it does not also centre vertically, which would let the
-  /// transcript shrink away from the height it was given.
-  static Widget _centred(Widget child) {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _readingWidth),
-        child: child,
-      ),
-    );
-  }
-
   /// Whether the conversation has started.
   ///
-  /// The first run is its own state and not a lesser one: an empty transcript is where a
-  /// user decides whether this thing understands Turkish grocery sentences, and a blank box
-  /// answers that with nothing.
+  /// The first run is its own state and not a lesser one: an empty transcript is where a user
+  /// decides whether this thing understands Turkish grocery sentences, and a blank box answers
+  /// that with nothing.
   final bool hasTranscript;
 
   /// Creates the [AssistantView] mid-conversation.
@@ -118,6 +90,16 @@ class AssistantView extends StatelessWidget {
   /// Creates the view before the first message.
   const AssistantView.fresh({super.key}) : hasTranscript = false;
 
+  /// **No inner width cap.** `MSPageContainer` already caps every screen in this app at the
+  /// same width, and adding a second cap inside it made the header narrower than the transcript
+  /// beneath it: two columns, one screen. Three className attempts and then an
+  /// `Align` + `ConstrainedBox` all produced the same inconsistency, because the fix was to stop
+  /// capping rather than to cap correctly.
+  ///
+  /// The readability worry the cap was meant to answer is already answered one level down:
+  /// `ChatMessage` caps the user's bubble at `max-w-md`, so a sentence never spans the window
+  /// however wide the card behind it is. And a card here being the same width as a card on the
+  /// stock list is the point, not a problem.
   @override
   Widget build(BuildContext context) {
     return WDiv(
@@ -126,37 +108,43 @@ class AssistantView extends StatelessWidget {
         // Chrome, and it costs two rows. Fixed, so the mode and the counts never scroll away
         // (D50).
         MSPageContainer(
-          className: 'pb-0',
-          child: _centred(
-            WDiv(
-              className: 'flex flex-col',
-              children: [
-                // **The standard header, and the reason it was ever replaced no longer holds.**
-                // It was dropped because at 390px it stacked its action onto a row of its own,
-                // but that was measured inside a phone frame this preview no longer uses. Every
-                // other screen uses `MSPageHeader`, and consistency beats the forty pixels a
-                // hand-rolled row saved.
-                MSPageHeader(
-                  title: 'Asistan',
-                  // **What the automation level DOES, not what it is called.** This said
-                  // "· yarı otomatik", which is a level name from D10 and means nothing to the
-                  // person reading it. The mode matters only through its consequence, so the
-                  // consequence is what gets said.
-                  subtitle: 'Stok değişiklikleri onayınıza sunulur',
-                  actions: [
-                    MSButton(
-                      onPressed: () => ActivityPanel.show(context),
-                      intent: ButtonIntent.ghost,
-                      className: 'h-11 w-11 px-0 justify-center',
-                      semanticLabel: 'Hareketler',
-                      child: const WIcon(_activityIcon, className: 'size-5'),
-                    ),
-                  ],
+          // **No padding override.** `pb-0`/`py-0` on these containers is the granularity trap
+          // wind's own docs name: the recipe sets padding with a `p-*` shorthand, `py-*` is the
+          // SAME family, and per-family last-wins therefore replaced all four sides. The
+          // containers lost their horizontal padding, so the transcript ran ~225px wider than
+          // the header above it and looked like the header was indented. Five wrong guesses
+          // before that one, all of them about the header.
+          //
+          // The dead band those overrides were removing comes back with them gone, and equal
+          // widths are worth more than a tighter gap.
+          // Direct children, the way `MSPageScaffold` passes them. Nesting them in a WDiv left
+          // the header indented relative to the cards below it, and neither a width cap nor a
+          // cross-axis alignment explained it.
+          children: [
+            // **The standard header, and the reason it was ever replaced no longer holds.**
+            // It was dropped because at 390px it stacked its action onto a row of its own,
+            // but that was measured inside a phone frame this preview no longer uses. Every
+            // other screen uses `MSPageHeader`, and consistency beats the forty pixels a
+            // hand-rolled row saved.
+            MSPageHeader(
+              title: 'Asistan',
+              // **What the automation level DOES, not what it is called.** This said
+              // "· yarı otomatik", which is a level name from D10 and means nothing to the
+              // person reading it. The mode matters only through its consequence, so the
+              // consequence is what gets said.
+              subtitle: 'Stok değişiklikleri onayınıza sunulur',
+              actions: [
+                MSButton(
+                  onPressed: () => ActivityPanel.show(context),
+                  intent: ButtonIntent.ghost,
+                  className: 'h-11 w-11 px-0 justify-center',
+                  semanticLabel: 'Hareketler',
+                  child: const WIcon(_activityIcon, className: 'size-5'),
                 ),
-                _buildStatusRow(),
               ],
             ),
-          ),
+            _buildStatusRow(),
+          ],
         ),
         // The only scrolling part, and it needs a BOUNDED height to be one.
         //
@@ -187,7 +175,7 @@ class AssistantView extends StatelessWidget {
           child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
         ),
         // Pinned. A chat you have to scroll to type into is not a chat.
-        MSPageContainer(child: _centred(_buildComposer())),
+        MSPageContainer(child: _buildComposer()),
       ],
     );
   }
@@ -209,7 +197,9 @@ class AssistantView extends StatelessWidget {
     final int untargeted = productFixtures.where((p) => p.parLevel == null).length;
 
     return WDiv(
-      className: 'flex flex-row wrap items-center gap-2 pb-3',
+      // `pt-3`: the chips were sitting on the header's divider with no air between them, which
+      // reads as a rendering fault rather than as two grouped rows.
+      className: 'flex flex-row wrap items-center gap-2 pt-3 pb-3',
       children: [
         ChoiceChip(
           label: '$expiring tarihi yakın',
