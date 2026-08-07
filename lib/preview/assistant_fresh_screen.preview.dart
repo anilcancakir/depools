@@ -19,17 +19,7 @@ class AssistantFreshScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // **The phone shell, not bare content and not the desktop one.** This screen needs a
-    // bounded height, because the transcript is the only scrolling part and
-    // `PreviewChrome.none` hands the view infinity. `appDesktop` bounds the height but LIES
-    // about the width (it forces a wide MediaQuery so `lg` stays true inside a narrow pane),
-    // which overflowed the composer row by 107px. The phone frame bounds both honestly, and a
-    // chat surface is mostly used at that width anyway.
-    return const ScreenPreviewScaffold(
-      state: PreviewState.success,
-      chrome: PreviewChrome.appMobile,
-      builder: _build,
-    );
+    return const ScreenPreviewScaffold(state: PreviewState.success, builder: _build);
   }
 
   static Widget _build(BuildContext context) => const AssistantView.fresh();

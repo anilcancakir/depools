@@ -2,7 +2,15 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSButton, ButtonIntent, ButtonSize, MSInput, MSPageContainer, MSSkeleton, SkeletonShape;
+    show
+        MSButton,
+        ButtonIntent,
+        ButtonSize,
+        MSInput,
+        MSPageContainer,
+        MSPageHeader,
+        MSSkeleton,
+        SkeletonShape;
 
 import '../../../ui/components/chat_message/chat_message.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
@@ -70,7 +78,32 @@ class AssistantView extends StatelessWidget {
   static const IconData _activityIcon = Icons.history;
 
   /// The conversation's column: full width on a phone, a centred reading column above `lg`.
-  static const String _column = 'flex flex-col w-full lg:max-w-3xl lg:mx-auto';
+  /// The conversation's reading width.
+  ///
+  /// **A className cannot do this here, and three attempts proved it.** `lg:max-w-3xl lg:mx-auto`
+  /// rendered full width, so did the unprefixed pair, and so did dropping `w-full` from it. The
+  /// reason is not a missing token: `MSPageContainer` hands its child a TIGHT width, and a
+  /// max-width box inside a tight constraint cannot shrink. Wind styles, Flutter measures, which
+  /// is the same division the label sheet and the shelf boxes already needed.
+  ///
+  /// 768 rather than a breakpoint check, because the cap is a no-op below it: no phone is wider,
+  /// so this narrows only on a wide window, which is exactly where a message spanning 1300px puts
+  /// the send button an eye-movement from the text.
+  static const double _readingWidth = 768;
+
+  /// Caps a part of the conversation at the reading width and centres it.
+  ///
+  /// `Align` rather than `Center` so it does not also centre vertically, which would let the
+  /// transcript shrink away from the height it was given.
+  static Widget _centred(Widget child) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _readingWidth),
+        child: child,
+      ),
+    );
+  }
 
   /// Whether the conversation has started.
   ///
@@ -92,7 +125,39 @@ class AssistantView extends StatelessWidget {
       children: [
         // Chrome, and it costs two rows. Fixed, so the mode and the counts never scroll away
         // (D50).
-        MSPageContainer(className: 'pb-0', children: [_buildTitleRow(context), _buildStatusRow()]),
+        MSPageContainer(
+          className: 'pb-0',
+          child: _centred(
+            WDiv(
+              className: 'flex flex-col',
+              children: [
+                // **The standard header, and the reason it was ever replaced no longer holds.**
+                // It was dropped because at 390px it stacked its action onto a row of its own,
+                // but that was measured inside a phone frame this preview no longer uses. Every
+                // other screen uses `MSPageHeader`, and consistency beats the forty pixels a
+                // hand-rolled row saved.
+                MSPageHeader(
+                  title: 'Asistan',
+                  // **What the automation level DOES, not what it is called.** This said
+                  // "· yarı otomatik", which is a level name from D10 and means nothing to the
+                  // person reading it. The mode matters only through its consequence, so the
+                  // consequence is what gets said.
+                  subtitle: 'Stok değişiklikleri onayınıza sunulur',
+                  actions: [
+                    MSButton(
+                      onPressed: () => ActivityPanel.show(context),
+                      intent: ButtonIntent.ghost,
+                      className: 'h-11 w-11 px-0 justify-center',
+                      semanticLabel: 'Hareketler',
+                      child: const WIcon(_activityIcon, className: 'size-5'),
+                    ),
+                  ],
+                ),
+                _buildStatusRow(),
+              ],
+            ),
+          ),
+        ),
         // The only scrolling part, and it needs a BOUNDED height to be one.
         //
         // `h-full` was the obvious way and wind asserts against it by name: the app shell wraps
@@ -122,36 +187,7 @@ class AssistantView extends StatelessWidget {
           child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
         ),
         // Pinned. A chat you have to scroll to type into is not a chat.
-        MSPageContainer(
-          child: WDiv(className: _column, child: _buildComposer()),
-        ),
-      ],
-    );
-  }
-
-  /// The screen's name, its automation mode and the activity panel, on ONE row.
-  ///
-  /// **This replaces an `MSPageHeader`, and the reason is the shape of the screen.** A page
-  /// header spends a title line, a subtitle line, and then stacks its actions BELOW at phone
-  /// width, which left the history icon orphaned on a row of its own. Three chrome layers stood
-  /// between the app bar and the first message. A chat cannot afford that: the conversation is
-  /// the content, so its identity gets one 44pt row and no more.
-  ///
-  /// The mode sits beside the name rather than under it, because it is one word of context
-  /// rather than a subtitle, and because a wrapping subtitle is what pushed everything down.
-  Widget _buildTitleRow(BuildContext context) {
-    return WDiv(
-      className: 'flex flex-row items-center gap-2 min-h-11',
-      children: [
-        WText('Asistan', className: 'text-base font-semibold text-fg axis-min'),
-        WText('· yarı otomatik', className: 'text-xs text-fg-muted flex-auto min-w-0'),
-        MSButton(
-          onPressed: () => ActivityPanel.show(context),
-          intent: ButtonIntent.ghost,
-          className: 'h-11 w-11 px-0 justify-center',
-          semanticLabel: 'Hareketler',
-          child: const WIcon(_activityIcon, className: 'size-5'),
-        ),
+        MSPageContainer(child: _centred(_buildComposer())),
       ],
     );
   }
@@ -449,17 +485,27 @@ class AssistantView extends StatelessWidget {
       className: 'flex flex-col gap-2 py-3',
       children: [
         WDiv(
-          className: 'flex flex-row items-center gap-2',
+          // `items-end`: once the input grows the buttons stay on its last line rather than
+          // floating in the middle of a four-line box.
+          className: 'flex flex-row items-end gap-2',
           children: [
             _composerButton(_cameraIcon, 'Fotoğraf çek', ButtonIntent.ghost),
             _composerButton(_micIcon, 'Sesle yaz', ButtonIntent.ghost),
             const WDiv(
               className: 'flex-1 min-w-0',
               child: MSInput(
-                // Card tone so an enabled field does not read as disabled, and an explicit
-                // height so it matches the buttons beside it.
-                className: 'bg-surface-container h-11',
+                // Card tone so an enabled field does not read as disabled.
+                className: 'bg-surface-container',
                 placeholder: 'Ne aldınız, ne soracaksınız',
+                // **Multiline, growing.** It was a single line at a fixed `h-11`, which is wrong
+                // for this screen: the sentences it is built for are things like "dün akşam
+                // markete gittim, iki litre süt bir de yarım kilo kıyma aldım", and a chat
+                // composer that scrolls one line horizontally hides what you just typed. It
+                // starts at one line so the row keeps the buttons' height until there is a
+                // reason to grow, and stops at four so it cannot swallow the transcript.
+                type: InputType.multiline,
+                minLines: 1,
+                maxLines: 4,
               ),
             ),
             _composerButton(_sendIcon, 'Gönder', ButtonIntent.primary),

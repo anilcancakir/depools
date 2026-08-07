@@ -4,8 +4,8 @@
 // Source: *.preview.dart files discovered under the scan dir.
 
 import 'package:magic_devtools/preview.dart';
-import 'preview/assistant_desktop_screen.preview.dart';
 import 'preview/assistant_fresh_screen.preview.dart';
+import 'preview/assistant_phone_screen.preview.dart';
 import 'preview/assistant_screen.preview.dart';
 import 'preview/barcode_scan_empty_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
@@ -76,14 +76,14 @@ import 'ui/components/tag/tag.preview.dart';
 List<PreviewEntry> previewEntries() {
   return <PreviewEntry>[
     PreviewEntry(
-      label: 'AssistantDesktopScreen',
-      slug: 'assistant_desktop_screen',
-      builder: (_) => const AssistantDesktopScreenPreview(),
-    ),
-    PreviewEntry(
       label: 'AssistantFreshScreen',
       slug: 'assistant_fresh_screen',
       builder: (_) => const AssistantFreshScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'AssistantPhoneScreen',
+      slug: 'assistant_phone_screen',
+      builder: (_) => const AssistantPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'AssistantScreen',
