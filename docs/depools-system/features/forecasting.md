@@ -73,6 +73,24 @@ sells.
 
 **2. Running low.** Items below their reorder point (forecast tier) or below their par level (par tier). Days of cover shown where it is known.
 
+**This is the diagnosis; the shopping list is the action** (D57). The two show almost the
+same rows and answer different questions, so the numbers live here and a sentence lives
+there, and the rows here are not tickable, dismissable or reorderable. Containment runs one
+way: every product here is on the shopping list, and the list also carries expiring and
+manual rows, so it is a strict superset. `test/running_low_test.dart` asserts both
+directions, because two screens describing one shortage is exactly where a contradiction
+would show.
+
+**The tier is the group heading.** Rather than hide the history gate behind a uniform list,
+each group says in one line what it may claim: `En az 10 hareket · tüketim hızı hesaplanıyor`,
+`Geçmiş az · sadece kaba bir aralık`, `Geçmiş yok · sadece hedef seviye`. Days of cover
+appears in the top group only, because that is the only tier where the number exists.
+
+**Out of stock is its own group, not the worst kind of low.** Zero is not a degree of short:
+nothing is left to ration and there is no question of how soon to act. It leads and does not
+fold, so a well-forecast product with four days of cover never outranks something already
+gone.
+
 **3. Shopping list.** Generated from the two above, plus manual additions. Every line carries the reason it is there:
 
 ```

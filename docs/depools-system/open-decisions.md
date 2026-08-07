@@ -602,6 +602,34 @@ check is a walk to the fridge, then the freezer, then the dry store. That is the
 from the shopping list, where urgency ordering beat aisle order, and the difference is that
 there the reason column carried the trust and here the walk carries the task.
 
+### D57. Running low is the diagnosis, the shopping list is the action
+
+The two surfaces show nearly the same rows, which made it worth asking whether the second
+one earns a screen at all. It does, and the split is what each is for.
+
+Running low answers **what is short and how sure are we**: the target, the days of cover
+where a cover figure exists, and which certainty tier the product is in. Its rows are not
+tickable, dismissable or reorderable, because a diagnosis is not a document the user edits.
+The shopping list answers **what do I buy**: one line per thing, a reason phrase instead of
+figures, tick-off state, and a receipt at the end of it.
+
+So the tier shows up twice in two forms, and both read it from the product rather than
+deciding it locally: the shopping list turns it into the SHAPE of a sentence (D46), and this
+screen turns it into a group heading with a line saying what that group may claim. A user
+who wants to know why the app is confident about the bulgur and vague about the milk can
+read it off the screen instead of trusting the ranking.
+
+**Containment runs one way, and a test says so.** Every product here is on the shopping
+list; the list is a strict superset because it also carries expiring rows (an opened yoghurt
+is running out of days, not of quantity) and manual ones. Asserting equality would assert
+something false. The test exists rather than a comment because this app has already shipped
+a list and a detail page disagreeing about one product.
+
+**Out of stock is its own group.** Zero is not a degree of short. It leads, it does not fold,
+and it sits above the tiers so a well-forecast product with four days of cover never outranks
+something already gone. Its rows also drop the cover figure: "0 günlük kaldı" under a heading
+reading "Stok bitti" is a true statement adding nothing.
+
 ## Open
 
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe

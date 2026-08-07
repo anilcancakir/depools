@@ -18,6 +18,22 @@ enum TrackingMode {
   serial,
 }
 
+/// How much history a product has, and therefore what may be claimed about it.
+///
+/// Straight from `forecasting.md`'s table. The tiers are not a UI concept: they decide what
+/// the app is ALLOWED to say, and every surface that ranks or explains a product reads the
+/// same tier so two screens cannot disagree about how much they trust the same number.
+enum ForecastTier {
+  /// 10+ movements. A rate and a days-of-cover figure exist and may be stated as numbers.
+  forecast,
+
+  /// 2 to 9 movements. An interval average exists; it is context, never a number.
+  rough,
+
+  /// 0 or 1 movements. Only the user's own target level, and no time claim at all.
+  target,
+}
+
 /// One individually identified unit: a serial number and what is known about it.
 ///
 /// The serial-tracking counterpart to [LotFixture]. The differences are the point:
@@ -204,6 +220,22 @@ class ProductListItem {
   /// user chose, or every product with a little stock would report as running low.
   final num? parLevel;
 
+  /// How many non-zero movements this product has, which is the only thing that decides
+  /// which certainty tier it is in.
+  ///
+  /// `forecasting.md` gates hard on this: below roughly ten movements no forecast is shown
+  /// at all, because a household consumes a given item two to eight times a month and a
+  /// confident number from three points is how a prediction feature loses its credibility
+  /// on the first wrong guess. Ten is a reasoned starting point rather than a sourced
+  /// constant, and the doc says so.
+  final int movementCount;
+
+  /// Days of cover, and ONLY set when [movementCount] supports a forecast.
+  ///
+  /// Null is the normal case here and not a gap: it is the honest output for a product
+  /// whose history cannot carry a rate. Nothing derives a figure from it when it is null.
+  final int? daysOfCover;
+
   /// Days until the date that actually matters, whichever comes first.
   ///
   /// For a sealed product that is the earliest lot's printed date. Once something is
@@ -272,6 +304,8 @@ class ProductListItem {
     this.categoryId,
     this.tags = const {},
     this.parLevel,
+    this.movementCount = 0,
+    this.daysOfCover,
     this.daysUntilExpiry,
     this.expiryLabel,
     this.shelfLifeDays,
@@ -444,6 +478,21 @@ class ProductListItem {
   /// Whether the earliest lot is already past its date.
   bool get isExpired => daysUntilExpiry != null && daysUntilExpiry! < 0;
 
+  /// Which of `forecasting.md`'s three certainty tiers this product sits in.
+  ///
+  /// The tier is what tells a user how much to trust a ranking, so it is a property of the
+  /// product rather than of any screen: the shopping list turns it into the SHAPE of a
+  /// sentence (D46) and the running-low list turns it into a group heading, and both read
+  /// it from here so they cannot disagree about which tier a product is in.
+  ForecastTier get tier {
+    if (movementCount >= 10) return ForecastTier.forecast;
+    if (movementCount >= 2) return ForecastTier.rough;
+    return ForecastTier.target;
+  }
+
+  /// Whether stock has run out entirely, which is not "running low" but its own state.
+  bool get isOut => amount == 0;
+
   /// Whether the earliest lot falls inside this product's own warning window.
   ///
   /// Already expired is NOT expiring soon. They are different situations and the user
@@ -521,6 +570,7 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   // limit rather than the printed date, which still has a week to run.
   ProductListItem(
     name: 'Pınar Süt Tam Yağlı 1 lt',
+    movementCount: 9,
     brand: 'Pınar',
     // Sealed cartons in the pantry, the open one in the fridge. A product genuinely
     // split across locations is what keeps the location filter honest.
@@ -596,6 +646,7 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   // "0,67 paket" would be arithmetically true and useless.
   ProductListItem(
     name: 'Vanilya Tozu 3\'lü',
+    movementCount: 3,
     brand: 'Dr. Oetker',
     locationIds: {'loc-pantry'},
     locationSummary: 'Kiler › Raf 1',
@@ -628,6 +679,8 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   ),
   ProductListItem(
     name: 'Bulgur',
+    movementCount: 12,
+    daysOfCover: 4,
     brand: 'Duru',
     locationIds: {'loc-drawer'},
     locationSummary: 'Çekmece 2',
@@ -643,6 +696,8 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   ),
   ProductListItem(
     name: 'Kıyma',
+    movementCount: 14,
+    daysOfCover: 0,
     brand: 'Dana',
     locationIds: {'loc-freezer'},
     locationSummary: 'Derin dondurucu',
@@ -694,6 +749,7 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   // screen for, and it has to reach the attention section on stock level alone.
   ProductListItem(
     name: 'USB-C Kablo 2 m',
+    movementCount: 1,
     brand: 'Anker',
     locationIds: {'loc-shelf'},
     locationSummary: 'Depo › Raf A',
@@ -758,6 +814,7 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   // No expiry, at zero.
   ProductListItem(
     name: 'Tornavida Seti PH2',
+    movementCount: 1,
     brand: 'Ceta Form',
     locationIds: {'loc-shelf'},
     locationSummary: 'Depo › Raf A',

@@ -30,6 +30,8 @@ import 'preview/product_show_serial_screen.preview.dart';
 import 'preview/profile_screen.preview.dart';
 import 'preview/receipt_review_screen.preview.dart';
 import 'preview/register_screen.preview.dart';
+import 'preview/running_low_empty_screen.preview.dart';
+import 'preview/running_low_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
 import 'preview/shopping_list_empty_screen.preview.dart';
 import 'preview/shopping_list_screen.preview.dart';
@@ -289,6 +291,16 @@ List<PreviewEntry> previewEntries() {
       label: 'RegisterScreen',
       slug: 'register_screen',
       builder: (_) => const RegisterScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'RunningLowEmptyScreen',
+      slug: 'running_low_empty_screen',
+      builder: (_) => const RunningLowEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'RunningLowScreen',
+      slug: 'running_low_screen',
+      builder: (_) => const RunningLowScreenPreview(),
     ),
     PreviewEntry(
       label: 'ScanRow',
