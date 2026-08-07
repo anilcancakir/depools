@@ -69,6 +69,9 @@ class AssistantView extends StatelessWidget {
   static const IconData _micIcon = Icons.mic_none_outlined;
   static const IconData _activityIcon = Icons.history;
 
+  /// The conversation's column: full width on a phone, a centred reading column above `lg`.
+  static const String _column = 'flex flex-col w-full lg:max-w-3xl lg:mx-auto';
+
   /// Whether the conversation has started.
   ///
   /// The first run is its own state and not a lesser one: an empty transcript is where a
@@ -113,7 +116,9 @@ class AssistantView extends StatelessWidget {
           child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
         ),
         // Pinned. A chat you have to scroll to type into is not a chat.
-        MSPageContainer(child: _buildComposer()),
+        MSPageContainer(
+          child: WDiv(className: _column, child: _buildComposer()),
+        ),
       ],
     );
   }
@@ -137,7 +142,7 @@ class AssistantView extends StatelessWidget {
         MSButton(
           onPressed: () => ActivityPanel.show(context),
           intent: ButtonIntent.ghost,
-          className: 'h-11 w-11 justify-center',
+          className: 'h-11 w-11 px-0 justify-center',
           semanticLabel: 'Hareketler',
           child: const WIcon(_activityIcon, className: 'size-5'),
         ),
@@ -466,7 +471,11 @@ class AssistantView extends StatelessWidget {
     return MSButton(
       onPressed: () {},
       intent: intent,
-      className: 'h-11 w-11 justify-center',
+      // `px-0` alongside the forced square. MSButton carries its own horizontal padding, and
+      // with a fixed `w-11` that padding is asymmetric against the glyph: `justify-center`
+      // centres inside the content box, not inside the button, so the arrow sat left of centre.
+      // Same trap as `min-h-11` on this component, one axis over.
+      className: 'h-11 w-11 px-0 justify-center',
       semanticLabel: label,
       child: WIcon(icon, className: 'size-5'),
     );
