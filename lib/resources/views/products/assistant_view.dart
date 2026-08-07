@@ -108,18 +108,16 @@ class AssistantView extends StatelessWidget {
         // Chrome, and it costs two rows. Fixed, so the mode and the counts never scroll away
         // (D50).
         MSPageContainer(
-          // **No padding override.** `pb-0`/`py-0` on these containers is the granularity trap
-          // wind's own docs name: the recipe sets padding with a `p-*` shorthand, `py-*` is the
-          // SAME family, and per-family last-wins therefore replaced all four sides. The
-          // containers lost their horizontal padding, so the transcript ran ~225px wider than
-          // the header above it and looked like the header was indented. Five wrong guesses
-          // before that one, all of them about the header.
+          // **`pb-0`, and the reasoning that rejected it was wrong.** The shared geometry is
+          // `px-4 md:px-5 pt-6 pb-16`, so the page's 64px bottom margin landed between the chips
+          // and the transcript: 77px of dead band, measured, which is what Anılcan saw as the
+          // screen looking cut. An earlier pass blamed a `p-*`/`py-*` family collision and
+          // dropped the override, but the geometry names no `p-*` shorthand at all: `pb-*` and
+          // `px-*` are separate families, so this replaces the bottom margin and nothing else.
+          // Pixel-verified after the change: divider and cards both span 293..1331.
           //
-          // The dead band those overrides were removing comes back with them gone, and equal
-          // widths are worth more than a tighter gap.
-          // Direct children, the way `MSPageScaffold` passes them. Nesting them in a WDiv left
-          // the header indented relative to the cards below it, and neither a width cap nor a
-          // cross-axis alignment explained it.
+          // Direct children, the way `MSPageScaffold` passes them.
+          className: 'pb-0',
           children: [
             // **The standard header, and the reason it was ever replaced no longer holds.**
             // It was dropped because at 390px it stacked its action onto a row of its own,
@@ -164,18 +162,34 @@ class AssistantView extends StatelessWidget {
         // edge flush under the chrome, a half-visible card reads as content scrolled under a
         // boundary, which is what every chat does. With the band there it read as a rendering
         // fault, and Anılcan asked why it looked cut.
-        SizedBox(
+        ConstrainedBox(
+          // **A ceiling, not a height, and that distinction was a visible defect.** A fixed
+          // height plus `reverse: true` pins a short transcript to the BOTTOM of its box, so
+          // a SHORT transcript to the bottom of its box and leaves the rest of the box empty.
+          // The 77px band above this list turned out to be the container's `pb-16` rather than
+          // this, and the ceiling is still the right shape: `AssistantView.fresh` carries two
+          // openers and would otherwise render them against 450px of nothing.
+          //
+          // With a max and `shrinkWrap`, the list takes the smaller of its content and the
+          // ceiling: short transcripts hug, long ones fill the ceiling and scroll with the
+          // newest exchange at the bottom.
+          //
           // **The fraction has to leave room for what it cannot see.** `MediaQuery` reports the
           // WINDOW, and the shell spends part of it on an app bar and a bottom nav before this
           // route gets any: at 0.62 the transcript alone was taller than what was left and the
           // composer fell below the fold, behind the nav. 0.45 plus the clamp keeps
           // chrome + transcript + composer inside the shell's box at both phone and laptop
           // heights, measured against the 390px frame.
-          height: (MediaQuery.sizeOf(context).height * 0.45).clamp(240.0, 520.0),
+          constraints: BoxConstraints(
+            maxHeight: (MediaQuery.sizeOf(context).height * 0.45).clamp(240.0, 520.0),
+          ),
           child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
         ),
         // Pinned. A chat you have to scroll to type into is not a chat.
-        MSPageContainer(child: _buildComposer()),
+        // `pt-3`: the page geometry's `pt-6` belongs at the TOP of a page, and this container is
+        // in the middle of one. `pb-8` rather than the shared `pb-16`, because 64px under a
+        // composer that is meant to sit at the bottom of the screen is dead page.
+        MSPageContainer(className: 'pt-3 pb-8', child: _buildComposer()),
       ],
     );
   }
@@ -256,6 +270,10 @@ class AssistantView extends StatelessWidget {
   Widget _transcriptList(List<Widget> items) {
     return ListView.separated(
       reverse: true,
+      // Measured, not lazy: the ceiling above is only a ceiling if the list can report a
+      // height smaller than it. The cost is that every exchange builds at once, which a
+      // transcript this length can afford and a dead 99px band cannot.
+      shrinkWrap: true,
       padding: EdgeInsets.zero,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemCount: items.length,
@@ -414,9 +432,18 @@ class AssistantView extends StatelessWidget {
               className: 'flex-1 min-w-0',
               child: MSButton(
                 onPressed: () {},
-                intent: ButtonIntent.ghost,
+                // **Not ghost.** A ghost button beside a filled one is text with no boundary:
+                // measured on screen, `Onayla` painted a 499px fill and `Reddet` painted
+                // nothing at all, so the pair read as one button and a caption rather than a
+                // choice. Rejecting a suggestion is a peer of accepting it, not a footnote.
+                //
+                // `secondary` ships `bg-surface-container-high`, DESIGN.md's INPUT tone, which
+                // on a white card is darker than its container and reads as disabled even with
+                // the hairline. The caller className appends last, so card tone wins the fill
+                // and the recipe's border survives.
+                intent: ButtonIntent.secondary,
                 fullWidth: true,
-                className: 'justify-center',
+                className: 'justify-center bg-surface-container',
                 child: const WText('Reddet'),
               ),
             ),
@@ -479,8 +506,8 @@ class AssistantView extends StatelessWidget {
           // floating in the middle of a four-line box.
           className: 'flex flex-row items-end gap-2',
           children: [
-            _composerButton(_cameraIcon, 'Fotoğraf çek', ButtonIntent.ghost),
-            _composerButton(_micIcon, 'Sesle yaz', ButtonIntent.ghost),
+            _composerButton(_cameraIcon, 'Fotoğraf çek', ButtonIntent.secondary),
+            _composerButton(_micIcon, 'Sesle yaz', ButtonIntent.secondary),
             const WDiv(
               className: 'flex-1 min-w-0',
               child: MSInput(
@@ -509,6 +536,15 @@ class AssistantView extends StatelessWidget {
   }
 
   /// One composer button, at the row's shared height.
+  ///
+  /// **Two of the three are secondary, not ghost, and that is a correction.** Ghost paints no
+  /// surface, so the camera and the microphone were bare glyphs sitting beside a filled send
+  /// button: three controls in one row, one of which looked like a control. `secondary` gives
+  /// them the hairline that makes a tappable region visible in both appearances, and send keeps
+  /// `primary` because it IS the row's primary action.
+  ///
+  /// Card tone overrides the recipe's `bg-surface-container-high` for the same reason it does on
+  /// `Reddet`: that token is the input fill, and it reads as disabled on a light card.
   Widget _composerButton(IconData icon, String label, ButtonIntent intent) {
     return MSButton(
       onPressed: () {},
@@ -517,7 +553,9 @@ class AssistantView extends StatelessWidget {
       // with a fixed `w-11` that padding is asymmetric against the glyph: `justify-center`
       // centres inside the content box, not inside the button, so the arrow sat left of centre.
       // Same trap as `min-h-11` on this component, one axis over.
-      className: 'h-11 w-11 px-0 justify-center',
+      className: intent == ButtonIntent.secondary
+          ? 'h-11 w-11 px-0 justify-center bg-surface-container'
+          : 'h-11 w-11 px-0 justify-center',
       semanticLabel: label,
       child: WIcon(icon, className: 'size-5'),
     );
