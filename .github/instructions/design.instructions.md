@@ -162,6 +162,29 @@ component itself decides to say when the caller says nothing.
 user data and will come from the database. A user's own product name is not translated, so neither
 are these, and an English interface showing Turkish product names is correct rather than a bug.
 
+### The English side is plain, not inventory jargon
+
+`product.md` is built on the claim that the user does not understand SKUs and reorder points and
+should not have to. English copy that reaches for the trade's vocabulary re-imposes exactly what the
+Turkish side avoids, so the glossary is deliberately ordinary:
+
+| Turkish | English | Not |
+|---|---|---|
+| parti | batch | lot |
+| sayım | count | stock take |
+| hareket | change, activity | movement |
+| günlük kaldı | days left | days of cover |
+| tüketim hızı | usage rate | consumption rate |
+| hedef seviye | target level | par level |
+| zayi | waste | shrinkage |
+| konum | location | bin, storage node |
+
+`SKU` stays `SKU`: it is on the product form for businesses that already use one, and there is no
+plainer word that means the same thing.
+
+Two terms already shipped as jargon and were corrected: `days of cover` and `movements`. Check a new
+term against the table before adding it.
+
 Interpolation goes through `:placeholder` replacements, never string concatenation:
 
 ```dart
