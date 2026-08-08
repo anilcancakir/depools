@@ -9,6 +9,7 @@ import '../../ui/components/lot_row/lot_row.dart';
 import '../../ui/components/movement_row/movement_row.dart';
 import '../../ui/components/product_row/product_row.dart';
 import '../../ui/components/section_card/section_card.dart';
+import '../../ui/components/setup_step/setup_step.dart';
 import '../../ui/components/stat_card/stat_card.dart';
 import 'products/activity_fixtures.dart';
 import 'products/expiring_fixtures.dart';
@@ -65,23 +66,42 @@ class DashboardView extends StatelessWidget {
   /// How many rows a dashboard card shows before it defers to its own screen.
   static const int _rowCap = 3;
 
+  /// Whether the tenant has any stock at all.
+  ///
+  /// **"Caught up" and "not started" are not the same empty screen, and treating them as one was a
+  /// defect this screen introduced (D64).** Both produce four zeroes, and the first version showed
+  /// the same calm `Bekleyen iş yok` for both. To someone who signed up ten seconds ago that reads
+  /// as the app claiming their work is done, which is the least useful thing it could say at the
+  /// only moment they are deciding whether to continue.
+  final bool hasStock;
+
   /// Creates the [DashboardView].
-  const DashboardView({super.key});
+  const DashboardView({super.key}) : hasStock = true;
+
+  /// Creates the view for a tenant that has not added anything yet.
+  const DashboardView.fresh({super.key}) : hasStock = false;
 
   @override
   Widget build(BuildContext context) {
-    final List<DatedLot> expired = expiredRows();
-    final List<DatedLot> approaching = approachingByLocation().values
-        .expand((List<DatedLot> rows) => rows)
-        .toList();
-    final List<ProductListItem> out = outOfStock;
-    final List<ProductListItem> low = belowTarget;
+    final List<DatedLot> expired = hasStock ? expiredRows() : const <DatedLot>[];
+    final List<DatedLot> approaching = hasStock
+        ? approachingByLocation().values.expand((List<DatedLot> rows) => rows).toList()
+        : const <DatedLot>[];
+    final List<ProductListItem> out = hasStock ? outOfStock : const <ProductListItem>[];
+    final List<ProductListItem> low = hasStock ? belowTarget : const <ProductListItem>[];
+    final int products = hasStock ? productFixtures.length : 0;
+    final int locations = hasStock ? locationOptions.length : 0;
     final bool isCalm = expired.isEmpty && approaching.isEmpty && out.isEmpty && low.isEmpty;
+
+    // A fresh tenant gets a different screen, not a thinner one. The counters, the four cards and
+    // the movement history all describe stock, and every one of them would render as a zero or an
+    // empty state: six ways of saying the same nothing.
+    if (!hasStock) return _buildFirstRun(context);
 
     return MSPageScaffold(
       title: 'Genel bakış',
       // The scope of everything below, so a counter reading 6 is legible as six OF something.
-      subtitle: '${productFixtures.length} ürün · ${locationOptions.length} konum',
+      subtitle: '$products ürün · $locations konum',
       children: [
         _buildCounters(expired.length, approaching.length, out.length, low.length),
         _buildCapture(context),
@@ -90,6 +110,73 @@ class DashboardView extends StatelessWidget {
         if (out.isNotEmpty || low.isNotEmpty) _buildStock(out, low),
         if (pendingLines.isNotEmpty) _buildShopping(),
         _buildActivity(),
+      ],
+    );
+  }
+
+  /// The first thing a new tenant sees.
+  ///
+  /// ### Three steps, in the order the data depends on itself
+  ///
+  /// Locations first, because a product with nowhere to be cannot be counted and cannot appear on
+  /// a per-location dates walk. Products second. Targets third, and it is a step rather than a
+  /// detail because a product with no target can never appear in `Azalanlar` however low it gets:
+  /// the screen would stay empty and look broken. That is the same gap the running-low empty state
+  /// names, said before it can bite instead of after.
+  ///
+  /// ### Each step says what it BUYS
+  ///
+  /// A first-run screen is where someone decides whether the setup is worth their afternoon, and
+  /// they have no model of the product yet. `Konumları tanımlayın` alone is an instruction with no
+  /// reason attached.
+  ///
+  /// ### No capture card here, and dropping it fixed two things
+  ///
+  /// The first draft reused the populated dashboard's `Ekle` card. It offered `Sayım yap` to a
+  /// tenant with zero products, which is an action that cannot succeed: a count of nothing lands on
+  /// an empty screen and teaches the user that the buttons are decorative. It also put a second
+  /// `bg-primary` on the page beside step 1's marker, which DESIGN.md allows exactly one of.
+  ///
+  /// The steps already carry the actions, in the order the data depends on itself, so the card was
+  /// a second copy of step 2 plus one action that does not work yet.
+  Widget _buildFirstRun(BuildContext context) {
+    return MSPageScaffold(
+      title: 'Depools\'a hoş geldiniz',
+      subtitle: 'Stok takibine başlamak için üç adım',
+      children: [
+        SectionCard(
+          label: 'Kurulum',
+          count: '3 adım',
+          children: [
+            SetupStep(
+              marker: '1',
+              title: 'Konumları tanımlayın',
+              description:
+                  'Bir ürünün nerede durduğu bilinmeden sayım yapılamaz ve tarih listesi '
+                  'depoyu gezerken işe yaramaz.',
+              state: SetupStepState.current,
+              actionLabel: 'Konum ekle',
+              onAction: () => MagicRoute.to('/konumlar'),
+            ),
+            SetupStep(
+              marker: '2',
+              title: 'İlk ürünleri ekleyin',
+              description: 'Barkodu okutun, fotoğrafını çekin veya asistana yazın.',
+              actionLabel: 'Ürün ekle',
+              onAction: () => MagicRoute.to('/tara'),
+            ),
+            SetupStep(
+              marker: '3',
+              title: 'Hedef seviye belirleyin',
+              // The gap named before it bites. The running-low screen's own empty state says the
+              // same thing, but by then the user has already opened a screen expecting rows.
+              description: 'Hedefi olmayan bir ürün, ne kadar azalırsa azalsın Azalanlar '
+                  'listesinde görünmez.',
+              actionLabel: 'Ürünlere git',
+              onAction: () => MagicRoute.to('/urunler'),
+            ),
+          ],
+        ),
       ],
     );
   }

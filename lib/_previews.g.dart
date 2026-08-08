@@ -10,6 +10,7 @@ import 'preview/assistant_screen.preview.dart';
 import 'preview/barcode_scan_empty_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
+import 'preview/dashboard_fresh_screen.preview.dart';
 import 'preview/dashboard_phone_screen.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/dates_empty_screen.preview.dart';
@@ -69,6 +70,7 @@ import 'ui/components/scan_row/scan_row.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
 import 'ui/components/section_header/section_header.preview.dart';
 import 'ui/components/serial_row/serial_row.preview.dart';
+import 'ui/components/setup_step/setup_step.preview.dart';
 import 'ui/components/shelf_candidate_row/shelf_candidate_row.preview.dart';
 import 'ui/components/shopping_row/shopping_row.preview.dart';
 import 'ui/components/stat_card/stat_card.preview.dart';
@@ -126,6 +128,11 @@ List<PreviewEntry> previewEntries() {
       label: 'CountRow',
       slug: 'count_row',
       builder: (_) => const CountRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'DashboardFreshScreen',
+      slug: 'dashboard_fresh_screen',
+      builder: (_) => const DashboardFreshScreenPreview(),
     ),
     PreviewEntry(
       label: 'DashboardPhoneScreen',
@@ -361,6 +368,11 @@ List<PreviewEntry> previewEntries() {
       label: 'SettingsScreen',
       slug: 'settings_screen',
       builder: (_) => const SettingsScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'SetupStep',
+      slug: 'setup_step',
+      builder: (_) => const SetupStepPreview(),
     ),
     PreviewEntry(
       label: 'ShelfCandidateRow',

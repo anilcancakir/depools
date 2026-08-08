@@ -768,3 +768,15 @@ Components backed by a Wind W-widget with no recipe layer.
 | CSS-only Wind utilities (`box-shadow`, `filter`, `transform`) | Wind unsupported | Use Flutter animation APIs |
 | `Icons.*` inline in widget body | Tree-shaking | Extract as `static const IconData _icon = Icons.x;` |
 | Missing `dark:` on any color token | Dark parity | Every alias expands to a light+dark pair |
+
+### SetupStep
+- **File**: `lib/ui/components/setup_step/`
+- **Variants**: `state` (`pending` / `current` / `done`)
+- **Token bindings**: `bg-primary` + `text-on-primary` (the current marker), `border-color-border` (pending), `bg-surface-container-high` (done), `text-fg` / `text-fg-muted` / `text-fg-disabled`, `text-primary` (the action)
+- **Used by**: the dashboard's first-run screen (`DashboardView.fresh`)
+- **Notes**
+  - The marker gutter is a fixed `size-8 shrink-0` box whose CONTENTS change between a number and a tick. That is what makes a conditional leading glyph safe here: the box never moves, so the title starts at the same x in all three states.
+  - State is carried by glyph AND tone, never tone alone. Three rows told apart only by how blue their circle is are identical to a colour-blind user.
+  - Only `current` gets `bg-primary`, because `bg-primary` belongs to one thing in a view and on a checklist that thing is which step to do next. Do not put a second primary fill on a screen that renders one.
+  - A done step drops its action rather than disabling it. There is nothing left to ask, and a disabled control here would read as a live one (see `msbutton-disabled-is-invisible`).
+  - Each description says what the step BUYS. A first-run user has no model of the product and will not infer why locations matter.

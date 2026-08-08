@@ -773,6 +773,37 @@ this in the other direction: three stat cards in a plain row came out three diff
 because their labels wrapped unevenly at phone width. On a grid, `items-stretch` makes a row's cells
 match its tallest, so four values share one baseline at every width with nothing measured in Dart.
 
+### D64. "Caught up" and "not started" are two different empty screens
+
+Both produce four zeroes on the dashboard, and the first version of that screen showed the same
+calm `Bekleyen iş yok` for both. To someone who signed up ten seconds ago that reads as the app
+claiming their work is done, at the only moment they are deciding whether the setup is worth their
+afternoon.
+
+A tenant with no stock gets a DIFFERENT screen rather than a thinner one. The counters, the four
+cards and the movement history all describe stock, so every one of them would render as a zero or
+an empty state: six ways of saying the same nothing.
+
+The checklist is three steps in the order the data depends on itself. Locations first, because a
+product with nowhere to be cannot be counted and cannot appear on a per-location dates walk.
+Products second. Targets third, and a step rather than a detail because a product with no target
+can never appear in `Azalanlar` however low it gets, so the screen would stay empty and look
+broken. The running-low empty state already says this; the checklist says it before it can bite.
+
+Each step carries what it BUYS rather than only what it is, because a first-run user has no model
+of the product yet and will not infer why locations matter.
+
+**No capture card on this screen, and dropping it fixed two things.** The first draft reused the
+populated dashboard's `Ekle` row, which offered `Sayım yap` to a tenant with zero products: an
+action that cannot succeed, landing on an empty count and teaching the user that the buttons are
+decorative. It also put a second `bg-primary` on the page beside step 1's marker, which DESIGN.md
+allows exactly one of. The steps already carry the actions in the right order.
+
+`SetupStep`'s marker gutter is a fixed `size-8` box whose CONTENTS change between a number and a
+tick. `.claude/rules/design.md` forbids a conditionally-rendered leading glyph because it shifts
+the text beside it; a fixed box is what makes the change safe, and the titles share one x across
+all three states.
+
 ### O6. What the first paid tier actually costs in TRY
 
 Turkish price sensitivity is the binding constraint on ARPU and we have no evidence about willingness to pay in this segment. Sortly's 24 USD entry is roughly 1.000 TRY, which is far too high for a Turkish small business.
