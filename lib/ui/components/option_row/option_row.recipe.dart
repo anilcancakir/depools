@@ -40,6 +40,14 @@ WindSlotRecipe optionRowRecipe() {
       // rather than what the user chose, and DESIGN.md reserves a status family for the
       // state it names rather than for any tinted hint.
       'reason': 'text-xs text-ai truncate',
+      // A plain description of what the option MEANS, distinct from `reason`, which is the `ai`
+      // tone and says the app suggested this. Using one for the other tells the user something was
+      // inferred when nothing was, which is DESIGN.md's "borrowing a status family for something it
+      // does not name".
+      //
+      // No `truncate`, unlike `reason`: a suggestion is a short evidential phrase and a description
+      // is a sentence, and DESIGN.md's answer to a sentence that does not fit is to reflow.
+      'description': 'text-xs text-fg-muted',
       'trailing': 'axis-min',
     },
     variants: {

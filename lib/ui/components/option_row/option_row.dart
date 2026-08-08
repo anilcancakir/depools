@@ -14,9 +14,10 @@ import 'option_row.recipe.dart';
 /// (the draft form's field editor) is what tipped it: the rule says wait for the third
 /// concrete caller before extracting, and by then there were four.
 ///
-/// The suggestion line is `suggestionReason` rather than a general-purpose note, because
-/// that is what all four callers use it for. A neutral note would be speculation until
-/// something actually needs one.
+/// The suggestion line is `suggestionReason` rather than a general-purpose note, because that is
+/// what those callers use it for. `description` was added when something finally needed a neutral
+/// one: the settings screen explains what each option MEANS, which is not a suggestion, and
+/// rendering it in the `ai` tone told the user the app had inferred something it had not.
 @immutable
 class OptionRow extends StatelessWidget {
   /// The already-localised label.
@@ -25,6 +26,12 @@ class OptionRow extends StatelessWidget {
   /// Why this option is suggested, already localised. Rendered under the label in the
   /// `ai` tone, because it is what the app inferred rather than what the user chose.
   final String? suggestionReason;
+
+  /// What the option means, already localised.
+  ///
+  /// Plain tone, unlike [suggestionReason]. Use this when the line describes the choice rather than
+  /// arguing for it.
+  final String? description;
 
   /// A figure on the right: a quantity, a page count, whatever the picker compares on.
   final Widget? trailing;
@@ -48,6 +55,7 @@ class OptionRow extends StatelessWidget {
     required this.label,
     required this.semanticLabel,
     this.suggestionReason,
+    this.description,
     this.trailing,
     this.isMono = false,
     this.isSelected = false,
@@ -78,6 +86,7 @@ class OptionRow extends StatelessWidget {
             className: slots['body'],
             children: [
               WText(label, className: slots['label']),
+              if (description != null) WText(description!, className: slots['description']),
               if (suggestionReason != null) WText(suggestionReason!, className: slots['reason']),
             ],
           ),

@@ -108,7 +108,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ? 'screens.settings.verb_assistant'
                   : 'screens.settings.verb_inventory',
             ),
-            suggestionReason: Lang.get(
+            description: Lang.get(
               verb == CaptureVerb.assistant
                   ? 'screens.settings.verb_assistant_note'
                   : 'screens.settings.verb_inventory_note',
@@ -126,7 +126,9 @@ class _SettingsViewState extends State<SettingsView> {
           ),
         // Said once, at the bottom, rather than on each control: the storage is a property of this
         // whole screen and repeating it per row would read as a warning about the row.
-        WText(Lang.get('screens.settings.local_note'), className: 'text-xs text-fg-disabled'),
+        // `fg-muted`, not `fg-disabled`: this is a quiet note, and the disabled token is for
+        // inactive controls. Using it here would make a true statement look switched off.
+        WText(Lang.get('screens.settings.local_note'), className: 'text-xs text-fg-muted'),
       ],
     );
   }
