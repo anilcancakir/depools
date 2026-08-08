@@ -24,6 +24,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_stock', function (Blueprint $table): void {
+            MigrationHelper::primaryKey($table);
             MigrationHelper::foreignKey($table, 'team_id')->constrained()->cascadeOnDelete();
             MigrationHelper::foreignKey($table, 'product_id')->constrained()->cascadeOnDelete();
             MigrationHelper::foreignKey($table, 'location_id')->constrained()->cascadeOnDelete();
@@ -37,9 +38,15 @@ return new class extends Migration
 
             $table->timestamp('updated_at')->nullable();
 
-            // Composite key rather than a surrogate id: the row IS the pair, there is exactly one
-            // per pair, and a surrogate would let two rows describe the same pair.
-            $table->primary(['team_id', 'product_id', 'location_id']);
+            // **A surrogate key with a unique index, not a composite primary key.** The first
+            // version made the triple the primary key, reasoning that the row IS the pair so a
+            // surrogate would let two rows describe it. That reasoning was wrong twice over:
+            // uniqueness comes from the index below rather than from the primary key, and Eloquent
+            // has no composite-key support, so `updateOrCreate` matched the row and then issued an
+            // update keyed on a column that did not exist. It affected zero rows and reported
+            // success, which surfaced as a transfer that added stock to the destination without
+            // removing it from the source.
+            $table->unique(['team_id', 'product_id', 'location_id']);
             $table->index(['team_id', 'earliest_expires_at']);
         });
     }

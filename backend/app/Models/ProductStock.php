@@ -21,9 +21,6 @@ final class ProductStock extends Model
 
     protected $table = 'product_stock';
 
-    /** Composite key, so Eloquent's single-column assumptions are turned off. */
-    public $incrementing = false;
-
     /** Only `updated_at`, because a derived row has no meaningful creation moment. */
     public const CREATED_AT = null;
 
