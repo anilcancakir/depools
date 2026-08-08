@@ -112,7 +112,7 @@ class LotRow extends StatelessWidget {
             WDiv(
               className: slots['meta'],
               children: [
-                if (isOpen) WText('Açık', className: slots['openTag']),
+                if (isOpen) WText(Lang.get('components.lot_row.open'), className: slots['openTag']),
                 ?ExpiryBadge.maybe(label: expiryLabel, daysUntilExpiry: daysUntilExpiry),
                 if (lotCode != null) WText(lotCode!, className: slots['code']),
               ],

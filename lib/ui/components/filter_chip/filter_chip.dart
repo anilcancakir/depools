@@ -53,7 +53,7 @@ class FilterChip extends StatelessWidget {
       // The × is decoration to a screen reader, so the action has to be spelled out
       // here. Without this the chip announces only "Kiler", which does not say
       // whether tapping it adds or removes that location.
-      semanticLabel: applied ? '$label filtresini kaldır' : '$label filtresini uygula',
+      semanticLabel: applied ? Lang.get('components.filter_chip.remove', {'label': label}) : '$label filtresini uygula',
       child: WDiv(
         className: slots['root'],
         children: [

@@ -118,7 +118,7 @@ class FilterBar extends StatelessWidget {
             intent: ButtonIntent.ghost,
             size: ButtonSize.sm,
             className: 'min-h-11 axis-min',
-            child: WText('Kaydet', className: slots['textAction']),
+            child: WText(Lang.get('components.filter_bar.save'), className: slots['textAction']),
           ),
 
         MSButton(
@@ -126,7 +126,7 @@ class FilterBar extends StatelessWidget {
           intent: ButtonIntent.ghost,
           size: ButtonSize.sm,
           className: 'min-h-11 axis-min',
-          child: WText('Temizle', className: slots['textAction']),
+          child: WText(Lang.get('components.filter_bar.clear'), className: slots['textAction']),
         ),
       ],
     );

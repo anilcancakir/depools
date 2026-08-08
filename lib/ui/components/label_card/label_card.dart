@@ -74,7 +74,7 @@ class LabelCard extends StatelessWidget {
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: _bars(slots)),
         ),
         WText(code, className: slots['code']),
-        if (overflowField != null) WText('$overflowField sığmıyor', className: slots['overflow']),
+        if (overflowField != null) WText(Lang.get('components.label_card.overflow', {'field': overflowField}), className: slots['overflow']),
       ],
     );
   }

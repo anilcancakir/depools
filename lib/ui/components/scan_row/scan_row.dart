@@ -119,10 +119,10 @@ class ScanRow extends StatelessWidget {
   String? get _meta => switch (source) {
     // Labelled, because the trailing figure on this same row is a scan count in the same
     // unit. "Mevcut: 2 adet" states which number is which; "2 adet" would not.
-    ScanSource.own => onHandFormatted == null ? null : 'Mevcut: $onHandFormatted $unit',
-    ScanSource.catalog => 'Yeni ürün · Katalog',
-    ScanSource.unverified => 'Yeni ürün · Doğrulanmadı',
-    ScanSource.recalled => 'Yeni ürün · Elle girildi',
+    ScanSource.own => onHandFormatted == null ? null : Lang.get('components.scan_row.on_hand', {'amount': onHandFormatted, 'unit': unit}),
+    ScanSource.catalog => Lang.get('components.scan_row.new_catalog'),
+    ScanSource.unverified => Lang.get('components.scan_row.new_unverified'),
+    ScanSource.recalled => Lang.get('components.scan_row.new_manual'),
     ScanSource.unmatched => null,
   };
 
@@ -134,7 +134,7 @@ class ScanRow extends StatelessWidget {
     return WAnchor(
       onTap: onTap,
       semanticLabel: isUnmatched
-          ? '$barcode eşleştirilemedi, düzeltmek için dokunun'
+          ? Lang.get('components.scan_row.unmatched_label', {'barcode': barcode})
           : [productName ?? barcode, '$count $unit', ?_meta].join(', '),
       child: WDiv(
         className: slots['root'],
@@ -152,7 +152,7 @@ class ScanRow extends StatelessWidget {
               // barcode becomes the evidence underneath it.
               if (isUnmatched) ...[
                 WText(barcode, className: slots['unmatchedBarcode']),
-                WText('Eşleştirilemedi', className: slots['prompt']),
+                WText(Lang.get('components.scan_row.unmatched'), className: slots['prompt']),
               ] else ...[
                 WText(productName ?? barcode, className: slots['name']),
                 WText(barcode, className: slots['barcode']),

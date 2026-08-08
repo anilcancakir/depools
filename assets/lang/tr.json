@@ -764,5 +764,61 @@
       "undo_label": ":product, :reason kaydını geri al",
       "undo": "Geri al"
     }
+  },
+  "components": {
+    "draft_field": {
+      "loading": ":label yükleniyor",
+      "empty": ":label boş, doldurmak için dokun",
+      "choose": ":label seç",
+      "undetermined": "Belirlenemedi"
+    },
+    "filter_bar": {
+      "save": "Kaydet",
+      "clear": "Temizle"
+    },
+    "filter_chip": {
+      "remove": ":label filtresini kaldır"
+    },
+    "label_card": {
+      "overflow": ":field sığmıyor"
+    },
+    "label_item_row": {
+      "will_generate": "Kod üretilecek"
+    },
+    "list_footer": {
+      "end": "Hepsi yüklendi",
+      "error": "Sonraki sayfa yüklenemedi",
+      "error_note": "Yüklenen satırlar yerinde",
+      "retry": "Tekrar dene"
+    },
+    "lot_row": {
+      "open": "Açık"
+    },
+    "quantity_stepper": {
+      "decrement": ":name, bir azalt",
+      "increment": ":name, bir artır"
+    },
+    "receipt_line_row": {
+      "new_product": "Yeni ürün",
+      "skipped": "Atlandı",
+      "unmatched": "Eşleştirilemedi",
+      "unmatched_label": ":text eşleştirilemedi, eşleştirmek için dokunun",
+      "skipped_label": ":text atlandı"
+    },
+    "scan_row": {
+      "on_hand": "Mevcut: :amount :unit",
+      "new_catalog": "Yeni ürün · Katalog",
+      "new_unverified": "Yeni ürün · Doğrulanmadı",
+      "new_manual": "Yeni ürün · Elle girildi",
+      "unmatched": "Eşleştirilemedi",
+      "unmatched_label": ":barcode eşleştirilemedi, düzeltmek için dokunun"
+    },
+    "shelf_candidate_row": {
+      "unrecognised": "Tanınamadı",
+      "unrecognised_label": ":region numaralı bölge tanınamadı, düzeltmek için dokunun"
+    },
+    "stock_badge": {
+      "low": "Az kalan"
+    }
   }
 }

@@ -123,8 +123,8 @@ class ReceiptLineRow extends StatelessWidget {
   /// worth saying.
   String? get _meta {
     final List<String> parts = <String>[
-      if (resolution == LineResolution.created) 'Yeni ürün',
-      if (resolution == LineResolution.rejected) 'Atlandı',
+      if (resolution == LineResolution.created) Lang.get('components.receipt_line_row.new_product'),
+      if (resolution == LineResolution.rejected) Lang.get('components.receipt_line_row.skipped'),
       ?locationLabel,
     ];
     return parts.isEmpty ? null : parts.join(' · ');
@@ -137,8 +137,8 @@ class ReceiptLineRow extends StatelessWidget {
     return WAnchor(
       onTap: onTap,
       semanticLabel: switch (resolution) {
-        LineResolution.unresolved => '$extracted eşleştirilemedi, eşleştirmek için dokunun',
-        LineResolution.rejected => '$extracted atlandı',
+        LineResolution.unresolved => Lang.get('components.receipt_line_row.unmatched_label', {'text': extracted}),
+        LineResolution.rejected => Lang.get('components.receipt_line_row.skipped_label', {'text': extracted}),
         _ => '${productName ?? extracted}, $formatted ${unit ?? ''}',
       },
       child: WDiv(
@@ -163,7 +163,7 @@ class ReceiptLineRow extends StatelessWidget {
               // evidence, which is the other way round for the same reason.
               if (resolution == LineResolution.unresolved) ...[
                 WText(extracted, className: slots['unresolvedName']),
-                WText('Eşleştirilemedi', className: slots['prompt']),
+                WText(Lang.get('components.receipt_line_row.unmatched'), className: slots['prompt']),
               ] else ...[
                 WText(productName ?? extracted, className: slots['name']),
                 // The paper's own words, always. This is what the user checks against.

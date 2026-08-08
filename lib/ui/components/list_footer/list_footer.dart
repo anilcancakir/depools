@@ -90,20 +90,20 @@ class ListFooter extends StatelessWidget {
                 skeleton ?? const MSSkeleton(shape: SkeletonShape.text, height: 16),
             ],
           ),
-          ListFooterState.end => WText(totalLabel ?? 'Hepsi yüklendi', className: slots['text']),
+          ListFooterState.end => WText(totalLabel ?? Lang.get('components.list_footer.end'), className: slots['text']),
           ListFooterState.error => WDiv(
             className: 'flex flex-col items-center gap-2',
             children: [
               // Says what failed and what is intact. "Yüklenemedi" alone would leave the
               // user unsure whether the rows above are trustworthy.
-              WText('Sonraki sayfa yüklenemedi', className: slots['error']),
-              WText('Yüklenen satırlar yerinde', className: slots['text']),
+              WText(Lang.get('components.list_footer.error'), className: slots['error']),
+              WText(Lang.get('components.list_footer.error_note'), className: slots['text']),
               MSButton(
                 onPressed: onRetry,
                 intent: ButtonIntent.secondary,
                 size: ButtonSize.sm,
                 className: 'py-2 axis-min',
-                child: const WText('Tekrar dene'),
+                child: WText(Lang.get('components.list_footer.retry')),
               ),
             ],
           ),

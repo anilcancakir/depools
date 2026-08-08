@@ -35,10 +35,16 @@ class StockBadge extends StatelessWidget {
   static const IconData _lowIcon = Icons.trending_down_outlined;
 
   /// The already-localised label. Defaults to the below-par wording.
-  final String label;
+  /// Null takes the component's own wording from the catalogue.
+  ///
+  /// **Nullable rather than defaulted, because a `const` constructor cannot look a key up.** A
+  /// default parameter value has to be a compile-time constant, and a catalogue lookup is not one.
+  /// Resolving in `build` also means the label follows a locale change rather than freezing at the
+  /// moment the widget was constructed.
+  final String? label;
 
   /// Creates a [StockBadge].
-  const StockBadge({super.key, this.label = 'Az kalan'});
+  const StockBadge({super.key, this.label});
 
   /// Returns a badge only when [amount] is at or below [parLevel].
   ///
@@ -48,7 +54,7 @@ class StockBadge extends StatelessWidget {
   /// a chip saying so a second time.
   static StockBadge? maybe({required num amount, num? parLevel, String? label}) {
     if (parLevel == null || amount <= 0 || amount > parLevel) return null;
-    return StockBadge(label: label ?? 'Az kalan');
+    return StockBadge(label: label);
   }
 
   @override
@@ -57,7 +63,7 @@ class StockBadge extends StatelessWidget {
       className: stockBadgeRecipe()(variants: {'level': 'low'}),
       children: [
         WIcon(_lowIcon, className: stockBadgeIconRecipe()()),
-        WText(label),
+        WText(label ?? Lang.get('components.stock_badge.low')),
       ],
     );
   }

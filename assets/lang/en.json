@@ -764,5 +764,61 @@
       "undo_label": "Undo :product, :reason",
       "undo": "Undo"
     }
+  },
+  "components": {
+    "draft_field": {
+      "loading": "Loading :label",
+      "empty": ":label is empty, tap to fill it in",
+      "choose": "Choose :label",
+      "undetermined": "Could not be determined"
+    },
+    "filter_bar": {
+      "save": "Save",
+      "clear": "Clear"
+    },
+    "filter_chip": {
+      "remove": "Remove the :label filter"
+    },
+    "label_card": {
+      "overflow": ":field does not fit"
+    },
+    "label_item_row": {
+      "will_generate": "A code will be generated"
+    },
+    "list_footer": {
+      "end": "That is everything",
+      "error": "The next page could not be loaded",
+      "error_note": "The rows already loaded are fine",
+      "retry": "Try again"
+    },
+    "lot_row": {
+      "open": "Open"
+    },
+    "quantity_stepper": {
+      "decrement": ":name, one fewer",
+      "increment": ":name, one more"
+    },
+    "receipt_line_row": {
+      "new_product": "New product",
+      "skipped": "Skipped",
+      "unmatched": "Not matched",
+      "unmatched_label": ":text was not matched, tap to match it",
+      "skipped_label": ":text was skipped"
+    },
+    "scan_row": {
+      "on_hand": "On hand: :amount :unit",
+      "new_catalog": "New product · Catalogue",
+      "new_unverified": "New product · Unverified",
+      "new_manual": "New product · Entered by hand",
+      "unmatched": "Not matched",
+      "unmatched_label": ":barcode was not matched, tap to fix it"
+    },
+    "shelf_candidate_row": {
+      "unrecognised": "Not recognised",
+      "unrecognised_label": "Region :region was not recognised, tap to fix it"
+    },
+    "stock_badge": {
+      "low": "Running low"
+    }
   }
 }

@@ -72,7 +72,7 @@ class ShelfCandidateRow extends StatelessWidget {
     return WAnchor(
       onTap: onTap,
       semanticLabel: isUnresolved
-          ? '$region numaralı bölge tanınamadı, düzeltmek için dokunun'
+          ? Lang.get('components.shelf_candidate_row.unrecognised_label', {'region': region})
           : '$region numaralı bölge, ${productName ?? ''}, $formatted $unit',
       child: WDiv(
         className: slots['root'],
@@ -88,7 +88,7 @@ class ShelfCandidateRow extends StatelessWidget {
               // primary line. Same inversion `ReceiptLineRow` makes, for the same reason:
               // the row's most prominent line has to carry information.
               if (isUnresolved)
-                WText('Tanınamadı', className: slots['prompt'])
+                WText(Lang.get('components.shelf_candidate_row.unrecognised'), className: slots['prompt'])
               else
                 WText(productName ?? '', className: slots['name']),
               if (meta != null) WText(meta!, className: slots['meta']),

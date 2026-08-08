@@ -106,8 +106,8 @@ class DraftField extends StatelessWidget {
       // would let a user open an editor that a streaming value then overwrites.
       onTap: _state == DraftFieldState.loading ? null : onTap,
       semanticLabel: switch (_state) {
-        DraftFieldState.loading => '$label yükleniyor',
-        DraftFieldState.unsure => '$label boş, doldurmak için dokun',
+        DraftFieldState.loading => Lang.get('components.draft_field.loading', {'label': label}),
+        DraftFieldState.unsure => Lang.get('components.draft_field.empty', {'label': label}),
         DraftFieldState.filled => '$label: $value${unconfirmed ? ', doğrulanmadı' : ''}',
       },
       child: layout == DraftFieldLayout.chip ? _buildChip(slots) : _buildRow(slots),
@@ -129,7 +129,7 @@ class DraftField extends StatelessWidget {
             className: 'flex flex-row items-center gap-1.5 axis-min',
             children: [
               WIcon(_unsureIcon, className: 'size-3.5 text-ai'),
-              WText(prompt ?? '$label seç', className: slots['chipPrompt']),
+              WText(prompt ?? Lang.get('components.draft_field.choose', {'label': label}), className: slots['chipPrompt']),
             ],
           ),
           DraftFieldState.filled => WText(value!, className: slots['chipValue']),
@@ -156,7 +156,7 @@ class DraftField extends StatelessWidget {
             className: 'flex flex-row items-center gap-1.5',
             children: [
               WIcon(_unsureIcon, className: 'size-3.5 text-ai'),
-              WText(prompt ?? 'Belirlenemedi', className: slots['prompt']),
+              WText(prompt ?? Lang.get('components.draft_field.undetermined'), className: slots['prompt']),
             ],
           ),
           DraftFieldState.filled => WDiv(

@@ -72,7 +72,7 @@ class QuantityStepper extends StatelessWidget {
     return WDiv(
       className: slots['root'],
       children: [
-        _button(slots, slots['left'], _decrementIcon, '$semanticName, bir azalt', onDecrement),
+        _button(slots, slots['left'], _decrementIcon, Lang.get('components.quantity_stepper.decrement', {'name': semanticName}), onDecrement),
         WDiv(
           className: slots['field'],
           child: MSInput(
@@ -83,7 +83,7 @@ class QuantityStepper extends StatelessWidget {
             onChanged: onChanged,
           ),
         ),
-        _button(slots, slots['right'], _incrementIcon, '$semanticName, bir artır', onIncrement),
+        _button(slots, slots['right'], _incrementIcon, Lang.get('components.quantity_stepper.increment', {'name': semanticName}), onIncrement),
       ],
     );
   }

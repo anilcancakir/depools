@@ -78,7 +78,7 @@ class LabelItemRow extends StatelessWidget {
   String get _meta => switch ((code, mode)) {
     (final String c?, LabelCountMode.perSerial) => '$c · $count seri',
     (final String c?, _) => c,
-    (null, _) => 'Kod üretilecek',
+    (null, _) => Lang.get('components.label_item_row.will_generate'),
   };
 
   @override
