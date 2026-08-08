@@ -111,6 +111,29 @@ class ProductFilter {
   /// Whether something is narrowing the list.
   bool get isActive => !isEmpty;
 
+  /// How many criteria are narrowing the list.
+  ///
+  /// **A number rather than a colour.** The filter button used to turn `bg-primary` when a filter
+  /// was on, which broke two rules at once: it put a second blue fill on a page that already has
+  /// one, and it made the state legible only to someone who can see the difference between blue
+  /// and grey. DESIGN.md's "colour never carries meaning alone" is written about status and
+  /// applies to state exactly as much.
+  ///
+  /// The count also says more than the colour could. "Filtre var" leaves the user hunting for
+  /// which one; `3` tells them how much they are about to clear.
+  ///
+  /// Each multi-select counts ONE, not one per selection: picking three shelves is one decision
+  /// about location, and counting three would make the badge scale with how thorough the user was
+  /// rather than with how narrow the list is.
+  int get activeCount =>
+      (query.isEmpty ? 0 : 1) +
+      (locationIds.isEmpty ? 0 : 1) +
+      (categoryIds.isEmpty ? 0 : 1) +
+      (tags.isEmpty ? 0 : 1) +
+      (brands.isEmpty ? 0 : 1) +
+      (stockState == StockStateFilter.any ? 0 : 1) +
+      (expiry == ExpiryFilter.any ? 0 : 1);
+
   /// The applied criteria as a flat, removable list.
   ///
   /// Ordered so the coarse constraints read first: text, then state and expiry

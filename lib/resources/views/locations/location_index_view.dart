@@ -278,14 +278,21 @@ class LocationIndexView extends StatelessWidget {
     return MSPageScaffold(
       title: 'Konumlar',
       subtitle: isEmpty ? null : '${_tree.length} konum · $roots ana konum',
-      actions: [
-        MSButton(
-          onPressed: () {},
-          className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Konum ekle',
-          child: const WIcon(_addIcon),
-        ),
-      ],
+      // **No header action while the list is empty.** The empty state already carries a
+      // full-width `Konum ekle`, so rendering the icon button too put the same action on screen
+      // twice, both in primary blue, on the one screen where the call to action has to be
+      // unambiguous. The labelled button is the better of the two for a first-run user, so the
+      // icon waits until there is a list to add to.
+      actions: isEmpty
+          ? const <Widget>[]
+          : [
+              MSButton(
+                onPressed: () {},
+                className: 'min-h-11 min-w-11 justify-center',
+                semanticLabel: 'Konum ekle',
+                child: const WIcon(_addIcon),
+              ),
+            ],
       children: [
         if (isEmpty)
           _buildEmpty()

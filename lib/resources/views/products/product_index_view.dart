@@ -249,12 +249,26 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             onChanged: (String _) {},
           ),
         ),
+        // **The active state is a count, not a fill.** This button turned `bg-primary` when a
+        // filter was on, which put a second blue on a page whose header already carries the
+        // primary `Ürün ekle`, and made the state readable only to someone who can tell blue from
+        // grey. The number says more than the colour could: it tells the user how much they are
+        // about to clear rather than only that something is on.
         MSButton(
           onPressed: _openSheet,
-          intent: _filter.isActive ? ButtonIntent.primary : ButtonIntent.secondary,
-          className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Filtrele',
-          child: const WIcon(_filterIcon),
+          intent: ButtonIntent.secondary,
+          className: 'min-h-11 min-w-11 justify-center gap-1 bg-surface-container',
+          semanticLabel: _filter.isActive
+              ? 'Filtrele, ${_filter.activeCount} ölçüt uygulanmış'
+              : 'Filtrele',
+          child: WDiv(
+            className: 'flex flex-row items-center gap-1',
+            children: [
+              const WIcon(_filterIcon),
+              if (_filter.isActive)
+                WText('${_filter.activeCount}', className: 'text-xs font-semibold text-fg'),
+            ],
+          ),
         ),
       ],
     );
