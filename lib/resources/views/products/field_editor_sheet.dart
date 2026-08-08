@@ -156,7 +156,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
   /// The answers worth one tap. The current value leads when there is one.
   Widget _buildQuickAnswers() {
     return _group(
-      'Hazır cevaplar',
+      Lang.get('screens.field_editor.quick_group'),
       WDiv(
         className: 'flex flex-row wrap items-center gap-2',
         children: [
@@ -169,8 +169,8 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
               label: _labelFor(answer),
               isSuggested: answer == _value,
               semanticLabel: answer == _value
-                  ? '${widget.label}: ${_labelFor(answer)}, seçili'
-                  : '${widget.label} alanını ${_labelFor(answer)} yap',
+                  ? Lang.get('screens.field_editor.quick_selected', {'field': widget.label, 'value': _labelFor(answer)})
+                  : Lang.get('screens.field_editor.quick_set', {'field': widget.label, 'value': _labelFor(answer)}),
               onTap: () => setState(() => _value = answer),
             ),
         ],
@@ -183,7 +183,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
     switch (widget.kind) {
       case FieldEditorKind.text:
         return _group(
-          'Serbest giriş',
+          Lang.get('screens.field_editor.free_group'),
           MSInput(
             className: 'bg-surface-container',
             value: _value ?? '',
@@ -193,7 +193,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
         );
       case FieldEditorKind.number:
         return _group(
-          'Serbest giriş',
+          Lang.get('screens.field_editor.free_group'),
           WDiv(
             className: 'flex flex-row items-center gap-2',
             children: [
@@ -217,7 +217,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
         );
       case FieldEditorKind.choice:
         return _group(
-          'Seçenekler',
+          Lang.get('screens.field_editor.options_group'),
           WDiv(
             className: 'flex flex-col gap-1',
             children: [
@@ -228,7 +228,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
                       ? widget.suggestionReason
                       : null,
                   isSelected: option == _value,
-                  semanticLabel: '${widget.label} alanını $option yap',
+                  semanticLabel: Lang.get('screens.field_editor.option_set', {'field': widget.label, 'value': option}),
                   onTap: () => setState(() => _value = option),
                 ),
             ],
@@ -251,12 +251,12 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
         // Saying what saving DOES to the mark, because the mark disappearing is otherwise
         // a surprise: the user changed nothing and the `otomatik` label went away.
         if (widget.provenance != null)
-          WText('Kaydedildiğinde otomatik işareti kalkar', className: 'text-xs text-fg-muted'),
+          WText(Lang.get('screens.field_editor.clears_mark'), className: 'text-xs text-fg-muted'),
         MSButton(
           onPressed: () => Navigator.of(context).pop(_value),
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Kaydet'),
+          child: WText(Lang.get('screens.field_editor.save')),
         ),
         if (widget.isOptional)
           MSButton(
@@ -264,7 +264,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
             intent: ButtonIntent.ghost,
             fullWidth: true,
             className: 'justify-center',
-            child: const WText('Alanı boşalt'),
+            child: WText(Lang.get('screens.field_editor.clear')),
           ),
       ],
     );

@@ -42,10 +42,10 @@ class ActivityPanel extends StatelessWidget {
   static Future<void> show(BuildContext context) {
     return MSBottomSheet.show<void>(
       context,
-      title: 'Hareketler',
+      title: Lang.get('screens.activity.title'),
       description: automaticWrites == 0
-          ? 'Son 7 gün'
-          : 'Son 7 gün · $automaticWrites otomatik yazma',
+          ? Lang.get('screens.activity.subtitle')
+          : Lang.get('screens.activity.subtitle_auto', {'count': automaticWrites}),
       body: const ActivityPanel(),
     );
   }
@@ -88,8 +88,8 @@ class ActivityPanel extends StatelessWidget {
               onPressed: () {},
               intent: ButtonIntent.ghost,
               size: ButtonSize.sm,
-              semanticLabel: '${entry.product}, ${entry.reason} kaydını geri al',
-              child: const WText('Geri al'),
+              semanticLabel: Lang.get('screens.activity.undo_label', {'product': entry.product, 'reason': entry.reason}),
+              child: WText(Lang.get('screens.activity.undo')),
             )
           : null,
     );

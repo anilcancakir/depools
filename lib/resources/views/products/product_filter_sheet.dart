@@ -97,7 +97,7 @@ class ProductFilterSheet extends StatefulWidget {
   }) {
     return MSBottomSheet.show<ProductFilter>(
       context,
-      title: 'Filtrele',
+      title: Lang.get('screens.product_filter.title'),
       body: ProductFilterSheet(
         initial: initial,
         countMatches: countMatches,
@@ -135,7 +135,7 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
       className: 'flex flex-col gap-5',
       children: [
         _group(
-          'Stok durumu',
+          Lang.get('screens.product_filter.stock_state'),
           MSSegmentedControl<StockStateFilter>(
             options: _stockStates.map(ProductFilter.stockStateLabel).toList(),
             selectedIndex: _stockStates.indexOf(_draft.stockState),
@@ -146,7 +146,7 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
         // product from its shelf life: milk warns a day out, a tin two months out.
         // A segment saying "7 gün" would be a promise the filter no longer makes.
         _group(
-          'Son kullanma',
+          Lang.get('screens.product_filter.expiry'),
           MSSegmentedControl<ExpiryFilter>(
             options: _expiries.map(ProductFilter.expirySegmentLabel).toList(),
             selectedIndex: _expiries.indexOf(_draft.expiry),
@@ -155,21 +155,21 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
         ),
         if (widget.locations.isNotEmpty)
           _chipGroup(
-            'Konum',
+            Lang.get('screens.product_filter.location'),
             widget.locations,
             _draft.locationIds,
             (id) => _set(_draft.copyWith(locationIds: _toggled(_draft.locationIds, id))),
           ),
         if (widget.categories.isNotEmpty)
           _chipGroup(
-            'Kategori',
+            Lang.get('screens.product_filter.category'),
             widget.categories,
             _draft.categoryIds,
             (id) => _set(_draft.copyWith(categoryIds: _toggled(_draft.categoryIds, id))),
           ),
         if (widget.tags.isNotEmpty)
           _chipGroup(
-            'Etiket',
+            Lang.get('screens.product_filter.tag'),
             widget.tags,
             _draft.tags,
             (id) => _set(_draft.copyWith(tags: _toggled(_draft.tags, id))),
@@ -186,7 +186,7 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
               className: 'justify-center',
               // The count, not "Uygula". A user about to filter a 42-product list
               // down to nothing should see that before they lose the list, not after.
-              child: WText('$matches ürün göster'),
+              child: WText(Lang.get('screens.product_filter.apply', {'count': matches})),
             ),
             MSButton(
               onPressed: () => _set(const ProductFilter()),
@@ -198,7 +198,7 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
               intent: ButtonIntent.ghost,
               fullWidth: true,
               className: 'justify-center',
-              child: const WText('Sıfırla'),
+              child: WText(Lang.get('screens.product_filter.reset')),
             ),
           ],
         ),

@@ -88,8 +88,8 @@ class _StockTakeViewState extends State<StockTakeView> {
     final List<CountLine> variances = lines.where((l) => l.isCounted && !l.isMatched).toList();
 
     return MSPageScaffold(
-      title: 'Sayım',
-      subtitle: '${resolveLocationPath(_locationId)} · $counted / ${lines.length} sayıldı',
+      title: Lang.get('screens.stock_take.title'),
+      subtitle: Lang.get('screens.stock_take.subtitle', {'location': resolveLocationPath(_locationId), 'counted': counted, 'total': lines.length}),
       children: [_buildLocation(), _buildLines(lines), _buildCommit(lines, counted, variances)],
     );
   }
@@ -98,7 +98,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// tree's job (finding a place to put something) is not this screen's job.
   Widget _buildLocation() {
     return SectionCard(
-      label: 'Nerede',
+      label: Lang.get('screens.stock_take.where_group'),
       children: [
         WDiv(
           className: 'flex flex-row wrap items-center gap-2 py-1',
@@ -108,8 +108,8 @@ class _StockTakeViewState extends State<StockTakeView> {
                 label: option.fullPath,
                 isSuggested: option.id == _locationId,
                 semanticLabel: option.id == _locationId
-                    ? '${option.fullPath}, sayılan konum'
-                    : '${option.fullPath} konumunu say',
+                    ? Lang.get('screens.stock_take.current_location', {'path': option.fullPath})
+                    : Lang.get('screens.stock_take.pick_location', {'path': option.fullPath}),
                 onTap: () => setState(() => _locationId = option.id),
               ),
           ],
@@ -121,8 +121,8 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// The sheet itself.
   Widget _buildLines(List<CountLine> lines) {
     return SectionCard(
-      label: 'Sayım listesi',
-      count: '${lines.length} ürün',
+      label: Lang.get('screens.stock_take.list_group'),
+      count: Lang.get('screens.stock_take.product_count', {'count': lines.length}),
       children: [
         for (final CountLine line in lines)
           CountRow(
@@ -162,13 +162,13 @@ class _StockTakeViewState extends State<StockTakeView> {
         // about: the rows they skipped stay exactly as they were.
         WText(
           skipped == 0
-              ? '$counted ürün sayıldı · ${variances.length} fark'
-              : '$counted ürün sayıldı · $skipped ürün atlandı, olduğu gibi kalır',
+              ? Lang.get('screens.stock_take.summary', {'counted': counted, 'variances': variances.length})
+              : Lang.get('screens.stock_take.summary_skipped', {'counted': counted, 'skipped': skipped}),
           className: 'text-sm text-fg-muted',
         ),
         if (variances.isNotEmpty)
           WText(
-            '${variances.length} hareket yazılacak · eşleşen sayımlar hareket üretmez',
+            Lang.get('screens.stock_take.will_write', {'count': variances.length}),
             className: 'text-xs text-fg-muted',
           ),
         MSButton(
@@ -179,7 +179,7 @@ class _StockTakeViewState extends State<StockTakeView> {
             className: 'flex flex-row items-center justify-center gap-2',
             children: [
               const WIcon(_saveIcon, className: 'size-4'),
-              WText(variances.isEmpty ? 'Sayımı bitir' : '${variances.length} farkı kaydet'),
+              WText(variances.isEmpty ? Lang.get('screens.stock_take.finish') : Lang.get('screens.stock_take.save_variances', {'count': variances.length})),
             ],
           ),
         ),
@@ -188,7 +188,7 @@ class _StockTakeViewState extends State<StockTakeView> {
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Sayımı sürdür'),
+          child: WText(Lang.get('screens.stock_take.continue')),
         ),
       ],
     );

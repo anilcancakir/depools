@@ -694,6 +694,75 @@
       "retry": "Yeniden dene",
       "retake": "Yeniden çek",
       "manual": "Elle ekle"
+    },
+    "stock_take": {
+      "title": "Sayım",
+      "subtitle": ":location · :counted / :total sayıldı",
+      "where_group": "Nerede",
+      "current_location": ":path, sayılan konum",
+      "pick_location": ":path konumunu say",
+      "list_group": "Sayım listesi",
+      "product_count": ":count ürün",
+      "summary": ":counted ürün sayıldı · :variances fark",
+      "summary_skipped": ":counted ürün sayıldı · :skipped ürün atlandı, olduğu gibi kalır",
+      "will_write": ":count hareket yazılacak · eşleşen sayımlar hareket üretmez",
+      "finish": "Sayımı bitir",
+      "save_variances": ":count farkı kaydet",
+      "continue": "Sayımı sürdür"
+    },
+    "stock_move": {
+      "title": "Stok taşı",
+      "from_group": "Nereden",
+      "amount_group": "Ne kadar",
+      "to_group": "Nereye",
+      "submit": "Taşı",
+      "nothing": "Taşınacak stok yok",
+      "after_note": "Sonrasında :from ve :to güncellenir",
+      "quick_open": ":amount :unit · açık olan",
+      "pick_from": ":path konumundan taşı",
+      "pick_to": ":path konumuna taşı",
+      "suggested": "Önerilen",
+      "suggested_count": "Önerilen · buraya :count kez konuldu"
+    },
+    "receipt": {
+      "title": "Fiş incelemesi",
+      "subtitle": ":merchant · :date · :count satır",
+      "retake": "Yeniden çek",
+      "unresolved_group": "Eşleştirilemedi",
+      "settled_group": "Hazır",
+      "rejected_group": "Atlandı",
+      "line_count": ":count satır",
+      "will_write": ":settled satır stoğa yazılacak, :pending satır bekliyor",
+      "submit": ":count satırı kaydet",
+      "discard": "Fişi at"
+    },
+    "field_editor": {
+      "quick_group": "Hazır cevaplar",
+      "quick_selected": ":field: :value, seçili",
+      "quick_set": ":field alanını :value yap",
+      "free_group": "Serbest giriş",
+      "options_group": "Seçenekler",
+      "option_set": ":field alanını :value yap",
+      "clears_mark": "Kaydedildiğinde otomatik işareti kalkar",
+      "save": "Kaydet",
+      "clear": "Alanı boşalt"
+    },
+    "product_filter": {
+      "title": "Filtrele",
+      "stock_state": "Stok durumu",
+      "expiry": "Son kullanma",
+      "location": "Konum",
+      "category": "Kategori",
+      "tag": "Etiket",
+      "apply": ":count ürün göster",
+      "reset": "Sıfırla"
+    },
+    "activity": {
+      "title": "Hareketler",
+      "subtitle": "Son 7 gün",
+      "subtitle_auto": "Son 7 gün · :count otomatik yazma",
+      "undo_label": ":product, :reason kaydını geri al",
+      "undo": "Geri al"
     }
   }
 }

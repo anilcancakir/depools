@@ -35,7 +35,7 @@ class StockMoveSheet extends StatefulWidget {
   static Future<StockMoveDraft?> show(BuildContext context, {required ProductListItem product}) {
     return MSBottomSheet.show<StockMoveDraft>(
       context,
-      title: 'Stok taşı',
+      title: Lang.get('screens.stock_move.title'),
       description: product.name,
       body: StockMoveSheet(product: product),
     );
@@ -127,7 +127,7 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
       if (whole >= 1) (1, base, '1 $base'),
       if (whole > 1) (whole, base, '$whole $base · hepsi'),
       if (remainder > 0 && contentUnit != null)
-        (remainder, contentUnit, '$remainder $contentUnit · açık olan'),
+        (remainder, contentUnit, Lang.get('screens.stock_move.quick_open', {'amount': remainder, 'unit': contentUnit})),
     ];
   }
 
@@ -136,11 +136,11 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
 
   /// What each end will hold afterwards, which is the check a user actually wants.
   String get _resultLabel {
-    if (!_canCommit) return 'Taşınacak stok yok';
+    if (!_canCommit) return Lang.get('screens.stock_move.nothing');
 
     final String fromName = resolveLocationLabel(_from!) ?? _from!;
     final String toName = resolveLocationLabel(_to!) ?? _to!;
-    return 'Sonrasında $fromName ve $toName güncellenir';
+    return Lang.get('screens.stock_move.after_note', {'from': fromName, 'to': toName});
   }
 
   @override
@@ -152,14 +152,14 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
       className: 'flex flex-col gap-5',
       children: [
         _group(
-          'Nereden',
+          Lang.get('screens.stock_move.from_group'),
           WDiv(
             className: 'flex flex-col gap-1',
             children: [for (final String id in _sources) _sourceOption(id)],
           ),
         ),
         _group(
-          'Ne kadar',
+          Lang.get('screens.stock_move.amount_group'),
           WDiv(
             className: 'flex flex-row wrap gap-2',
             children: [
@@ -179,7 +179,7 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
           ),
         ),
         _group(
-          'Nereye',
+          Lang.get('screens.stock_move.to_group'),
           WDiv(
             className: 'flex flex-col gap-1',
             children: [for (final String id in _destinations.take(4)) _destinationOption(id)],
@@ -203,7 +203,7 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
               disabled: !_canCommit,
               fullWidth: true,
               className: 'justify-center',
-              child: const WText('Taşı'),
+              child: WText(Lang.get('screens.stock_move.submit')),
             ),
           ],
         ),
@@ -231,7 +231,7 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
     return OptionRow(
       label: resolveLocationPath(id) ?? id,
       isSelected: id == _from,
-      semanticLabel: '${resolveLocationPath(id)} konumundan taşı',
+      semanticLabel: Lang.get('screens.stock_move.pick_from', {'path': resolveLocationPath(id)}),
       onTap: () => setState(() {
         _from = id;
         // The destination list and the amounts both derive from the source, so a stale
@@ -263,10 +263,10 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
       suggestionReason: !suggested
           ? null
           : affinityMatches
-          ? 'Önerilen · buraya ${affinity.$2} kez konuldu'
-          : 'Önerilen',
+          ? Lang.get('screens.stock_move.suggested_count', {'count': affinity.$2})
+          : Lang.get('screens.stock_move.suggested'),
       isSelected: id == _to,
-      semanticLabel: '${resolveLocationPath(id)} konumuna taşı',
+      semanticLabel: Lang.get('screens.stock_move.pick_to', {'path': resolveLocationPath(id)}),
       onTap: () => setState(() => _to = id),
     );
   }

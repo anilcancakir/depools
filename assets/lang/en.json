@@ -694,6 +694,75 @@
       "retry": "Try again",
       "retake": "Take another",
       "manual": "Add by hand"
+    },
+    "stock_take": {
+      "title": "Count",
+      "subtitle": ":location · :counted of :total counted",
+      "where_group": "Where",
+      "current_location": ":path, the location being counted",
+      "pick_location": "Count :path",
+      "list_group": "Count list",
+      "product_count": ":count products",
+      "summary": ":counted counted · :variances differ",
+      "summary_skipped": ":counted counted · :skipped skipped and left as they are",
+      "will_write": ":count changes will be written · a matching count writes nothing",
+      "finish": "Finish the count",
+      "save_variances": "Save :count differences",
+      "continue": "Carry on counting"
+    },
+    "stock_move": {
+      "title": "Move stock",
+      "from_group": "From",
+      "amount_group": "How much",
+      "to_group": "To",
+      "submit": "Move",
+      "nothing": "There is nothing to move",
+      "after_note": "Afterwards :from and :to are both updated",
+      "quick_open": ":amount :unit · the open one",
+      "pick_from": "Move from :path",
+      "pick_to": "Move to :path",
+      "suggested": "Suggested",
+      "suggested_count": "Suggested · put here :count times"
+    },
+    "receipt": {
+      "title": "Receipt review",
+      "subtitle": ":merchant · :date · :count lines",
+      "retake": "Take another",
+      "unresolved_group": "Not matched",
+      "settled_group": "Ready",
+      "rejected_group": "Skipped",
+      "line_count": ":count lines",
+      "will_write": ":settled lines will be written to stock, :pending still waiting",
+      "submit": "Save :count lines",
+      "discard": "Discard the receipt"
+    },
+    "field_editor": {
+      "quick_group": "Quick answers",
+      "quick_selected": ":field: :value, selected",
+      "quick_set": "Set :field to :value",
+      "free_group": "Type it in",
+      "options_group": "Options",
+      "option_set": "Set :field to :value",
+      "clears_mark": "Saving removes the automatic mark",
+      "save": "Save",
+      "clear": "Clear the field"
+    },
+    "product_filter": {
+      "title": "Filter",
+      "stock_state": "Stock state",
+      "expiry": "Expiry",
+      "location": "Location",
+      "category": "Category",
+      "tag": "Tag",
+      "apply": "Show :count products",
+      "reset": "Reset"
+    },
+    "activity": {
+      "title": "Activity",
+      "subtitle": "Last 7 days",
+      "subtitle_auto": "Last 7 days · :count written automatically",
+      "undo_label": "Undo :product, :reason",
+      "undo": "Undo"
     }
   }
 }

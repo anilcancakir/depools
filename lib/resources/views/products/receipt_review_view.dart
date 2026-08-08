@@ -44,14 +44,14 @@ class ReceiptReviewView extends StatelessWidget {
     final int unresolved = unresolvedLines.length;
 
     return MSPageScaffold(
-      title: 'Fiş incelemesi',
-      subtitle: 'Migros · 5 Ağu 18:22 · ${receiptLines.length} satır',
+      title: Lang.get('screens.receipt.title'),
+      subtitle: Lang.get('screens.receipt.subtitle', {'merchant': 'Migros', 'date': '5 Ağu 18:22', 'count': receiptLines.length}),
       actions: [
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Yeniden çek',
+          semanticLabel: Lang.get('screens.receipt.retake'),
           child: const WIcon(_retakeIcon),
         ),
       ],
@@ -67,8 +67,8 @@ class ReceiptReviewView extends StatelessWidget {
   /// The lines that need a decision. Leads, and does not fold.
   Widget _buildUnresolved() {
     return SectionCard(
-      label: 'Eşleştirilemedi',
-      count: '${unresolvedLines.length} satır',
+      label: Lang.get('screens.receipt.unresolved_group'),
+      count: Lang.get('screens.receipt.line_count', {'count': unresolvedLines.length}),
       children: [for (final ReceiptLineFixture line in unresolvedLines) _row(line)],
     );
   }
@@ -80,8 +80,8 @@ class ReceiptReviewView extends StatelessWidget {
   /// comparison against the paper in their hand. Folding is what they do once satisfied.
   Widget _buildSettled() {
     return SectionCard(
-      label: 'Hazır',
-      count: '${settledLines.length} satır',
+      label: Lang.get('screens.receipt.settled_group'),
+      count: Lang.get('screens.receipt.line_count', {'count': settledLines.length}),
       collapsible: true,
       children: [for (final ReceiptLineFixture line in settledLines) _row(line)],
     );
@@ -90,8 +90,8 @@ class ReceiptReviewView extends StatelessWidget {
   /// The lines the user dropped, kept visible so the receipt still reconciles.
   Widget _buildRejected() {
     return SectionCard(
-      label: 'Atlandı',
-      count: '${rejectedLines.length} satır',
+      label: Lang.get('screens.receipt.rejected_group'),
+      count: Lang.get('screens.receipt.line_count', {'count': rejectedLines.length}),
       collapsible: true,
       initiallyExpanded: false,
       children: [for (final ReceiptLineFixture line in rejectedLines) _row(line)],
@@ -106,21 +106,21 @@ class ReceiptReviewView extends StatelessWidget {
         // Naming the number is the point. "Kaydet" alone would hide that four lines are
         // being left behind, and the user would find out by missing stock later.
         WText(
-          '$settled satır stoğa yazılacak, ${unresolvedLines.length} satır bekliyor',
+          Lang.get('screens.receipt.will_write', {'settled': settled, 'pending': unresolvedLines.length}),
           className: 'text-sm text-fg-muted',
         ),
         MSButton(
           onPressed: () {},
           fullWidth: true,
           className: 'justify-center',
-          child: WText('$settled satırı kaydet'),
+          child: WText(Lang.get('screens.receipt.submit', {'count': settled})),
         ),
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Fişi at'),
+          child: WText(Lang.get('screens.receipt.discard')),
         ),
       ],
     );
