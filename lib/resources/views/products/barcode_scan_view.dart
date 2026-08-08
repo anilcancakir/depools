@@ -79,10 +79,10 @@ class BarcodeScanView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MSPageScaffold(
-      title: 'Barkod tara',
+      title: Lang.get('screens.scan.title'),
       subtitle: hasScans
-          ? '${scanBatch.length} barkod · ${settledScans.length} ürün hazır'
-          : 'Sürekli tarama',
+          ? Lang.get('screens.scan.subtitle', {'scans': scanBatch.length, 'ready': settledScans.length})
+          : Lang.get('screens.scan.subtitle_empty'),
       children: [
         // items-start so the capture column keeps its own height at lg instead of
         // stretching to match a queue that can be twenty rows long.
@@ -150,7 +150,7 @@ class BarcodeScanView extends StatelessWidget {
             // Nominal, not an instruction. The frame already says where to point the
             // camera.
             WText(
-              hasScans ? 'Kamera açık · son okuma 8680000998877' : 'Kamera açık',
+              hasScans ? Lang.get('screens.scan.camera_last', {'code': '8680000998877'}) : Lang.get('screens.scan.camera_on'),
               className: 'text-xs text-fg-muted',
             ),
           ],
@@ -163,7 +163,7 @@ class BarcodeScanView extends StatelessWidget {
             onPressed: () {},
             intent: ButtonIntent.ghost,
             className: 'min-h-11 min-w-11 justify-center',
-            semanticLabel: 'Fener',
+            semanticLabel: Lang.get('screens.scan.torch'),
             child: const WIcon(_torchIcon, className: 'size-5'),
           ),
         ),
@@ -180,7 +180,7 @@ class BarcodeScanView extends StatelessWidget {
     return WDiv(
       className: 'w-full lg:order-first',
       child: SectionCard(
-        label: 'Barkod',
+        label: Lang.get('screens.scan.barcode'),
         children: [
           const MSInput(
             className: 'bg-surface-container',
@@ -190,7 +190,7 @@ class BarcodeScanView extends StatelessWidget {
           // Checksum validation is the reason this field is not just a shortcut: a
           // mistyped EAN-13 is caught here rather than becoming a product nobody can
           // scan again.
-          WText('Kontrol hanesi doğrulanır', className: 'text-xs text-fg-muted'),
+          WText(Lang.get('screens.scan.checksum'), className: 'text-xs text-fg-muted'),
         ],
       ),
     );
@@ -214,8 +214,8 @@ class BarcodeScanView extends StatelessWidget {
   /// The queue itself, newest first.
   Widget _buildQueue() {
     return SectionCard(
-      label: 'Tarananlar',
-      count: '${scanBatch.length} barkod',
+      label: Lang.get('screens.scan.scanned_group'),
+      count: Lang.get('screens.scan.scan_count', {'count': scanBatch.length}),
       children: [
         for (final ScanFixture scan in scanBatch)
           ScanRow(
@@ -234,14 +234,14 @@ class BarcodeScanView extends StatelessWidget {
   /// The queue before the first read.
   Widget _buildEmptyQueue() {
     return SectionCard(
-      label: 'Tarananlar',
+      label: Lang.get('screens.scan.scanned_group'),
       children: [
         WDiv(
           // Full width so MSEmptyState's own `items-center` has something to centre in.
           className: 'w-full',
           child: MSEmptyState(
             icon: _emptyIcon,
-            title: 'Henüz okuma yok',
+            title: Lang.get('screens.scan.empty_title'),
             description:
                 'Okunan her barkod buraya eklenir. Aynı barkod tekrar okunduğunda '
                 'yeni satır açılmaz, mevcut satırın adedi artar.',
@@ -270,7 +270,7 @@ class BarcodeScanView extends StatelessWidget {
       className: 'flex flex-col gap-2 pb-2',
       children: [
         SectionCard(
-          label: 'Nereye',
+          label: Lang.get('screens.scan.where_group'),
           children: [
             WDiv(
               className: 'flex flex-row items-center justify-between gap-3 py-1',
@@ -280,12 +280,12 @@ class BarcodeScanView extends StatelessWidget {
                   onPressed: () {},
                   intent: ButtonIntent.ghost,
                   className: 'justify-center',
-                  child: const WText('Değiştir'),
+                  child: WText(Lang.get('screens.scan.change')),
                 ),
               ],
             ),
             WText(
-              'Tüm parti buraya girer, sonrasında konumlar arası taşınabilir',
+              Lang.get('screens.scan.where_note'),
               className: 'text-xs text-fg-muted',
             ),
           ],
@@ -294,15 +294,15 @@ class BarcodeScanView extends StatelessWidget {
         // three kilos to four items produces a number that means nothing.
         WText(
           unmatched == 0
-              ? '$ready ürün stoğa yazılacak'
-              : '$ready ürün stoğa yazılacak, $unmatched barkod eşleştirilemedi',
+              ? Lang.get('screens.scan.will_write', {'count': ready})
+              : Lang.get('screens.scan.will_write_partial', {'count': ready, 'unmatched': unmatched}),
           className: 'text-sm text-fg-muted',
         ),
         MSButton(
           onPressed: () {},
           fullWidth: true,
           className: 'justify-center',
-          child: WText('$ready ürünü ekle'),
+          child: WText(Lang.get('screens.scan.submit', {'count': ready})),
         ),
       ],
     );
@@ -324,19 +324,19 @@ class BarcodeScanView extends StatelessWidget {
   /// you are about to review one card or six.
   Widget _buildPhotoPaths() {
     return SectionCard(
-      label: 'Kamerayla başka yollar',
+      label: Lang.get('screens.scan.other_ways'),
       children: [
         _photoPath(
           _photoIcon,
-          'Fotoğraftan tanıt',
-          'Tek ürün · taslak kart açılır',
-          'Tek bir ürünü fotoğraftan tanıt',
+          Lang.get('screens.scan.from_photo'),
+          Lang.get('screens.scan.from_photo_note'),
+          Lang.get('screens.scan.from_photo_label'),
         ),
         _photoPath(
           _shelfIcon,
-          'Rafı tara',
-          'Raf dolusu · her ürün için bir bölge',
-          'Raf fotoğrafından ürünleri tanıt',
+          Lang.get('screens.scan.shelf'),
+          Lang.get('screens.scan.shelf_note'),
+          Lang.get('screens.scan.shelf_label'),
         ),
       ],
     );

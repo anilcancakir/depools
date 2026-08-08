@@ -173,8 +173,8 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     final List<ProductListItem> visible = _visible;
 
     return MSPageScaffold(
-      title: 'Stok',
-      subtitle: widget.isEmpty ? null : 'Mutfak Deposu · ${productFixtures.length} ürün',
+      title: Lang.get('screens.products.title'),
+      subtitle: widget.isEmpty ? null : Lang.get('screens.products.subtitle', {'team': 'Mutfak Deposu', 'count': productFixtures.length}),
       actions: [
         // The same entry point the assistant shell has (D50). In this mode it is the only
         // place a full-auto write becomes visible, because there is no transcript.
@@ -182,20 +182,20 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           onPressed: () => ActivityPanel.show(context),
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Hareketler',
+          semanticLabel: Lang.get('screens.products.activity'),
           child: const WIcon(_activityIcon),
         ),
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Barkod tara',
+          semanticLabel: Lang.get('screens.products.scan'),
           child: const WIcon(_scanIcon),
         ),
         MSButton(
           onPressed: () {},
           className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Ürün ekle',
+          semanticLabel: Lang.get('screens.products.add'),
           child: const WIcon(_addIcon),
         ),
       ],
@@ -244,7 +244,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           className: 'flex-1 min-w-0',
           child: MSInput(
             className: 'bg-surface-container-high',
-            placeholder: 'Ara: ürün, konum, barkod',
+            placeholder: Lang.get('screens.products.search'),
             prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
             onChanged: (String _) {},
           ),
@@ -259,8 +259,8 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           intent: ButtonIntent.secondary,
           className: 'min-h-11 min-w-11 justify-center gap-1 bg-surface-container',
           semanticLabel: _filter.isActive
-              ? 'Filtrele, ${_filter.activeCount} ölçüt uygulanmış'
-              : 'Filtrele',
+              ? Lang.get('screens.products.filter_active', {'count': _filter.activeCount})
+              : Lang.get('screens.products.filter'),
           child: WDiv(
             className: 'flex flex-row items-center gap-1',
             children: [
@@ -297,10 +297,9 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           className: 'w-full',
           child: MSEmptyState(
             icon: _receiptIcon,
-            title: 'Henüz ürün yok',
+            title: Lang.get('screens.products.empty_title'),
             description:
-                'Bir fiş fotoğrafı alışverişin tamamını tek karede kaydeder. '
-                'Barkod okutulduğunda ürün bilgileri otomatik dolar.',
+                Lang.get('screens.products.empty_description'),
           ),
         ),
         WDiv(
@@ -310,11 +309,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
               onPressed: () {},
               fullWidth: true,
               className: 'justify-center gap-2',
-              child: const WDiv(
+              child: WDiv(
                 className: 'flex flex-row items-center gap-2',
                 children: [
                   WIcon(_receiptIcon, className: 'size-4'),
-                  WText('Fiş fotoğrafı çek'),
+                  WText(Lang.get('screens.products.empty_receipt')),
                 ],
               ),
             ),
@@ -328,11 +327,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
                     intent: ButtonIntent.secondary,
                     fullWidth: true,
                     className: 'justify-center gap-2',
-                    child: const WDiv(
+                    child: WDiv(
                       className: 'flex flex-row items-center gap-2',
                       children: [
                         WIcon(_scanIcon, className: 'size-4'),
-                        WText('Barkod tara'),
+                        WText(Lang.get('screens.products.scan')),
                       ],
                     ),
                   ),
@@ -344,11 +343,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
                     intent: ButtonIntent.secondary,
                     fullWidth: true,
                     className: 'justify-center gap-2',
-                    child: const WDiv(
+                    child: WDiv(
                       className: 'flex flex-row items-center gap-2',
                       children: [
                         WIcon(_photoIcon, className: 'size-4'),
-                        WText('Fotoğraftan'),
+                        WText(Lang.get('screens.products.empty_photo')),
                       ],
                     ),
                   ),
@@ -360,7 +359,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
               intent: ButtonIntent.ghost,
               fullWidth: true,
               className: 'justify-center',
-              child: const WText('Elle gir'),
+              child: WText(Lang.get('screens.products.empty_manual')),
             ),
           ],
         ),
@@ -382,17 +381,16 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           className: 'w-full',
           child: MSEmptyState(
             icon: _filterIcon,
-            title: 'Bu filtreye uyan ürün yok',
+            title: Lang.get('screens.products.filtered_empty'),
             description:
-                '${productFixtures.length} ürünün var, bu filtre hiçbirini geçirmiyor. '
-                'Bir koşulu kaldır ya da filtreyi temizle.',
+                Lang.get('screens.products.filtered_description', {'count': productFixtures.length}),
           ),
         ),
         MSButton(
           onPressed: () => setState(() => _filter = const ProductFilter()),
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Filtreyi temizle'),
+          child: WText(Lang.get('screens.products.filter_clear')),
         ),
       ],
     );
@@ -417,8 +415,8 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     return <Widget>[
       if (attention.isNotEmpty)
         SectionCard(
-          label: 'Dikkat gerekiyor',
-          count: '${attention.length} ürün',
+          label: Lang.get('screens.products.attention_group'),
+          count: Lang.get('screens.products.product_count', {'count': attention.length}),
           // The only collapsible section on the screen. A cafe owner opens this screen
           // daily for exactly this list, so it starts open; once it is dealt with, the
           // whole block folds away instead of pushing the catalogue down the page. The
@@ -428,17 +426,17 @@ class _ProductIndexViewState extends State<ProductIndexView> {
         ),
       if (rest.isNotEmpty)
         SectionCard(
-          label: 'Tüm ürünler',
-          count: '${rest.length} ürün',
+          label: Lang.get('screens.products.all_group'),
+          count: Lang.get('screens.products.product_count', {'count': rest.length}),
           action: MSButton(
             onPressed: () {},
             intent: ButtonIntent.ghost,
             size: ButtonSize.sm,
             className: 'min-h-11 axis-min',
-            child: const WDiv(
+            child: WDiv(
               className: 'flex flex-row items-center gap-0.5 axis-min',
               children: [
-                WText('Tümü'),
+                WText(Lang.get('screens.products.all')),
                 WIcon(_chevronIcon, className: 'size-4'),
               ],
             ),
@@ -450,7 +448,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             // worth having at the bottom of this particular list.
             ListFooter(
               state: widget.isLoadingMore ? ListFooterState.loadingMore : ListFooterState.end,
-              totalLabel: '${productFixtures.length} ürünün hepsi',
+              totalLabel: Lang.get('screens.products.all_of_them', {'count': productFixtures.length}),
               // The row draws its own placeholder, so the two cannot drift.
               skeleton: const ProductRow.skeleton(),
             ),
