@@ -20,7 +20,21 @@
     "page_of": ":current / :total",
     "upgrade": "Upgrade",
     "upgrade_available_on": "Available on :plan and up.",
-    "upgrade_dialog_not_now": "Not now"
+    "upgrade_dialog_not_now": "Not now",
+    "months": {
+      "1": "Jan",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Apr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Aug",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
+    }
   },
   "validation": {
     "required": "The :attribute field is required.",
@@ -545,6 +559,49 @@
       "location_reason": "Location suggestion: this category has been put here :count times",
       "save": "Save",
       "cancel": "Cancel"
+    },
+    "stock_out": {
+      "title": "Take stock out",
+      "reason_group": "Reason",
+      "reason_sold": "Sold",
+      "reason_consumed": "Used",
+      "reason_waste": "Waste",
+      "reason_count": "Count",
+      "reason_correction": "Correction",
+      "unit_group": "Which unit",
+      "lot_group": "Which batch",
+      "amount_group": "How much",
+      "submit": "Take out",
+      "open": "Open",
+      "suggested_soonest": "Suggested · soonest date",
+      "suggested_warranty": "Suggested · warranty ends soonest",
+      "pick_lot": "Choose batch :label",
+      "pick_unit": "Choose unit :serial",
+      "opens_pack": "This opens the pack",
+      "quick_half": ":amount :unit",
+      "quick_all": ":amount :unit · all of it",
+      "left_none": "Left: none",
+      "left_simple": "Left: :amount :unit",
+      "left_split": "Left: :whole :unit + :remainder :contentUnit",
+      "nothing_to_take": "There is nothing to take out"
+    },
+    "stock_in": {
+      "title": "Put stock in",
+      "amount_group": "How much",
+      "where_group": "Where",
+      "submit": "Add",
+      "suggested": "Suggested",
+      "suggested_category": "suggested · put here :count times",
+      "suggested_here": "suggested · :count :noun already here",
+      "unit_word": "units",
+      "pick_location": "Choose :path",
+      "date_with_life": ":basis (:days days)",
+      "basis_warranty": "Warranty ends",
+      "basis_expiry": "Expiry",
+      "from_warranty": "from the warranty period",
+      "from_shelf_life": "from the shelf life",
+      "left_simple": "Left: :amount :unit",
+      "left_split": "Left: :whole :unit + :remainder :contentUnit"
     }
   }
 }

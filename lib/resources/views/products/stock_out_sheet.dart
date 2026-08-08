@@ -87,7 +87,7 @@ class StockOutSheet extends StatefulWidget {
   }) {
     return MSBottomSheet.show<StockOutDraft>(
       context,
-      title: 'Stok çıkar',
+      title: Lang.get('screens.stock_out.title'),
       description: product.name,
       body: StockOutSheet(product: product, initialReason: reason),
     );
@@ -237,12 +237,12 @@ class _StockOutSheetState extends State<StockOutSheet> {
           _AmountOption(
             amount: remaining / 2,
             unit: contentUnit ?? base,
-            label: '${(remaining / 2).round()} ${contentUnit ?? base}',
+            label: Lang.get('screens.stock_out.quick_half', {'amount': (remaining / 2).round(), 'unit': contentUnit ?? base}),
           ),
         _AmountOption(
           amount: remaining,
           unit: contentUnit ?? base,
-          label: '${remaining.round()} ${contentUnit ?? base} · hepsi',
+          label: Lang.get('screens.stock_out.quick_all', {'amount': remaining.round(), 'unit': contentUnit ?? base}),
           emptiesLot: true,
         ),
       ];
@@ -254,7 +254,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
         _AmountOption(
           amount: content / 2,
           unit: contentUnit,
-          label: '${(content / 2).round()} $contentUnit',
+          label: Lang.get('screens.stock_out.quick_half', {'amount': (content / 2).round(), 'unit': contentUnit}),
           opensLot: true,
         ),
     ];
@@ -267,24 +267,24 @@ class _StockOutSheetState extends State<StockOutSheet> {
   String get _resultLabel {
     if (_isSerial) {
       final int left = widget.product.liveSerials.length - (_serial == null ? 0 : 1);
-      return left == 0 ? 'Kalan: stok yok' : 'Kalan: $left ${widget.product.unit}';
+      return left == 0 ? Lang.get('screens.stock_out.left_none') : Lang.get('screens.stock_out.left_simple', {'amount': left, 'unit': widget.product.unit});
     }
 
     final _AmountOption? option = _amount;
-    if (option == null) return 'Çıkarılacak stok yok';
+    if (option == null) return Lang.get('screens.stock_out.nothing_to_take');
 
     final num content = widget.product.contentAmount ?? 1;
     final num inBase = option.unit == widget.product.unit ? option.amount : option.amount / content;
     final num left = (widget.product.amount - inBase).clamp(0, double.infinity);
 
-    if (left == 0) return 'Kalan: stok yok';
+    if (left == 0) return Lang.get('screens.stock_out.left_none');
 
     final int whole = left.floor();
     final num remainder = ((left - whole) * content).round();
 
-    if (remainder == 0) return 'Kalan: $whole ${widget.product.unit}';
-    if (whole == 0) return 'Kalan: $remainder ${widget.product.contentUnit}';
-    return 'Kalan: $whole ${widget.product.unit} + $remainder ${widget.product.contentUnit}';
+    if (remainder == 0) return Lang.get('screens.stock_out.left_simple', {'amount': whole, 'unit': widget.product.unit});
+    if (whole == 0) return Lang.get('screens.stock_out.left_simple', {'amount': remainder, 'unit': widget.product.contentUnit});
+    return Lang.get('screens.stock_out.left_split', {'whole': whole, 'unit': widget.product.unit, 'remainder': remainder, 'contentUnit': widget.product.contentUnit});
   }
 
   /// The already-localised label for a reason, which varies by tracking mode.
@@ -297,10 +297,10 @@ class _StockOutSheetState extends State<StockOutSheet> {
   String _reasonLabel(StockOutReason reason) {
     final bool serial = widget.product.tracking == TrackingMode.serial;
     return switch (reason) {
-      StockOutReason.consumption => serial ? 'Satıldı' : 'Tüketildi',
-      StockOutReason.waste => 'Zayi',
-      StockOutReason.stockTake => 'Sayım',
-      StockOutReason.correction => 'Düzeltme',
+      StockOutReason.consumption => serial ? Lang.get('screens.stock_out.reason_sold') : Lang.get('screens.stock_out.reason_consumed'),
+      StockOutReason.waste => Lang.get('screens.stock_out.reason_waste'),
+      StockOutReason.stockTake => Lang.get('screens.stock_out.reason_count'),
+      StockOutReason.correction => Lang.get('screens.stock_out.reason_correction'),
     };
   }
 
@@ -316,7 +316,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
         // that before they know how much. Asking last also invites leaving it on the
         // default, which would quietly log every thrown-out carton as consumption.
         _group(
-          'Neden',
+          Lang.get('screens.stock_out.reason_group'),
           MSSegmentedControl<StockOutReason>(
             options: _reasons.map(_reasonLabel).toList(),
             selectedIndex: _reasons.indexOf(_reason),
@@ -326,7 +326,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
 
         if (_isSerial)
           _group(
-            'Hangi ünite',
+            Lang.get('screens.stock_out.unit_group'),
             WDiv(
               className: 'flex flex-col gap-1',
               children: [
@@ -337,7 +337,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
         else ...[
           if (widget.product.liveLots.length > 1)
             _group(
-              'Hangi parti',
+              Lang.get('screens.stock_out.lot_group'),
               WDiv(
                 className: 'flex flex-col gap-1',
                 children: [for (final LotFixture lot in widget.product.liveLots) _lotOption(lot)],
@@ -347,7 +347,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
           // No amount section in serial mode. A unit is whole, so a control with one
           // option would be a question with one answer.
           _group(
-            'Ne kadar',
+            Lang.get('screens.stock_out.amount_group'),
             WDiv(
               className: 'flex flex-row wrap gap-2',
               children: [for (final _AmountOption option in options) _amountButton(option)],
@@ -387,7 +387,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
               disabled: !_canCommit,
               fullWidth: true,
               className: 'justify-center',
-              child: const WText('Çıkar'),
+              child: WText(Lang.get('screens.stock_out.submit')),
             ),
           ],
         ),
@@ -408,10 +408,10 @@ class _StockOutSheetState extends State<StockOutSheet> {
   /// One selectable lot, showing what FEFO thinks and why.
   Widget _lotOption(LotFixture lot) {
     return OptionRow(
-      label: [if (lot.isOpen) 'Açık', ?lot.expiryLabel].join(' · '),
-      suggestionReason: lot == _fefoLot ? 'Önerilen · en yakın tarih' : null,
+      label: [if (lot.isOpen) Lang.get('screens.stock_out.open'), ?lot.expiryLabel].join(' · '),
+      suggestionReason: lot == _fefoLot ? Lang.get('screens.stock_out.suggested_soonest') : null,
       isSelected: lot == _lot,
-      semanticLabel: '${lot.expiryLabel ?? ''} partisini seç',
+      semanticLabel: Lang.get('screens.stock_out.pick_lot', {'label': lot.expiryLabel ?? ''}),
       onTap: () => setState(() {
         _lot = lot;
         // The offered amounts depend on the lot, so a stale selection would let the
@@ -432,9 +432,9 @@ class _StockOutSheetState extends State<StockOutSheet> {
     return OptionRow(
       label: unit.serial,
       isMono: true,
-      suggestionReason: unit == _soonestWarranty ? 'Önerilen · garantisi en yakın' : null,
+      suggestionReason: unit == _soonestWarranty ? Lang.get('screens.stock_out.suggested_warranty') : null,
       isSelected: unit == _serial,
-      semanticLabel: '${unit.serial} ünitesini seç',
+      semanticLabel: Lang.get('screens.stock_out.pick_unit', {'serial': unit.serial}),
       onTap: () => setState(() => _serial = unit),
       trailing: unit.warrantyLabel == null
           ? null
@@ -457,7 +457,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
           // Naming the side effect on the button is the point. Opening a carton
           // shortens its expiry from the printed date to a few days, and a user who
           // discovers that afterwards has been told the opposite of the truth.
-          if (option.opensLot) WText('Ambalaj açılır', className: 'text-xs opacity-70'),
+          if (option.opensLot) WText(Lang.get('screens.stock_out.opens_pack'), className: 'text-xs opacity-70'),
         ],
       ),
     );

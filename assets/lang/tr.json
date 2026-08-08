@@ -20,7 +20,21 @@
     "page_of": ":current / :total",
     "upgrade": "Yükselt",
     "upgrade_available_on": ":plan ve üzerinde kullanılabilir.",
-    "upgrade_dialog_not_now": "Şimdi değil"
+    "upgrade_dialog_not_now": "Şimdi değil",
+    "months": {
+      "1": "Oca",
+      "2": "Şub",
+      "3": "Mar",
+      "4": "Nis",
+      "5": "May",
+      "6": "Haz",
+      "7": "Tem",
+      "8": "Ağu",
+      "9": "Eyl",
+      "10": "Eki",
+      "11": "Kas",
+      "12": "Ara"
+    }
   },
   "validation": {
     "required": ":attribute alanı zorunludur.",
@@ -545,6 +559,49 @@
       "location_reason": "Konum önerisi: bu kategori buraya :count kez konuldu",
       "save": "Kaydet",
       "cancel": "Vazgeç"
+    },
+    "stock_out": {
+      "title": "Stok çıkar",
+      "reason_group": "Neden",
+      "reason_sold": "Satıldı",
+      "reason_consumed": "Tüketildi",
+      "reason_waste": "Zayi",
+      "reason_count": "Sayım",
+      "reason_correction": "Düzeltme",
+      "unit_group": "Hangi ünite",
+      "lot_group": "Hangi parti",
+      "amount_group": "Ne kadar",
+      "submit": "Çıkar",
+      "open": "Açık",
+      "suggested_soonest": "Önerilen · en yakın tarih",
+      "suggested_warranty": "Önerilen · garantisi en yakın",
+      "pick_lot": ":label partisini seç",
+      "pick_unit": ":serial ünitesini seç",
+      "opens_pack": "Ambalaj açılır",
+      "quick_half": ":amount :unit",
+      "quick_all": ":amount :unit · hepsi",
+      "left_none": "Kalan: stok yok",
+      "left_simple": "Kalan: :amount :unit",
+      "left_split": "Kalan: :whole :unit + :remainder :contentUnit",
+      "nothing_to_take": "Çıkarılacak stok yok"
+    },
+    "stock_in": {
+      "title": "Stok ekle",
+      "amount_group": "Ne kadar",
+      "where_group": "Nereye",
+      "submit": "Ekle",
+      "suggested": "Önerilen",
+      "suggested_category": "önerilen · buraya :count kez konuldu",
+      "suggested_here": "önerilen · burada :count :noun var",
+      "unit_word": "ünite",
+      "pick_location": ":path konumunu seç",
+      "date_with_life": ":basis (:days gün)",
+      "basis_warranty": "Garanti bitişi",
+      "basis_expiry": "Son kullanma",
+      "from_warranty": "garanti süresinden",
+      "from_shelf_life": "raf ömründen",
+      "left_simple": "Kalan: :amount :unit",
+      "left_split": "Kalan: :whole :unit + :remainder :contentUnit"
     }
   }
 }

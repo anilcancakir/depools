@@ -38,7 +38,7 @@ class StockInSheet extends StatefulWidget {
   static Future<StockInDraft?> show(BuildContext context, {required ProductListItem product}) {
     return MSBottomSheet.show<StockInDraft>(
       context,
-      title: 'Stok ekle',
+      title: Lang.get('screens.stock_in.title'),
       description: product.name,
       body: StockInSheet(product: product),
     );
@@ -116,14 +116,14 @@ class _StockInSheetState extends State<StockInSheet> {
     // suggestion is arguable rather than magic.
     final (String, int)? byCategory = suggestLocationFor(widget.product.categoryId);
     if (byCategory != null && byCategory.$1 == locationId) {
-      return 'önerilen · buraya ${byCategory.$2} kez konuldu';
+      return Lang.get('screens.stock_in.suggested_category', {'count': byCategory.$2});
     }
 
     final num here = widget.product.amountAt(locationId);
-    if (here == 0) return 'Önerilen';
+    if (here == 0) return Lang.get('screens.stock_in.suggested');
 
-    final String noun = widget.product.tracking == TrackingMode.serial ? 'ünite' : 'parti';
-    return 'önerilen · burada ${here.floor()} $noun var';
+    final String noun = widget.product.tracking == TrackingMode.serial ? Lang.get('screens.stock_in.unit_word') : 'parti';
+    return Lang.get('screens.stock_in.suggested_here', {'count': here.floor(), 'noun': noun});
   }
 
   /// The locations to offer, suggestion first.
@@ -152,19 +152,11 @@ class _StockInSheetState extends State<StockInSheet> {
 
     final DateTime now = DateTime.now();
     final DateTime date = now.add(Duration(days: life));
-    const List<String> months = [
-      'Oca',
-      'Şub',
-      'Mar',
-      'Nis',
-      'May',
-      'Haz',
-      'Tem',
-      'Ağu',
-      'Eyl',
-      'Eki',
-      'Kas',
-      'Ara',
+    // Locale data rather than screen copy, so it lives under `common.months`. The real answer is
+    // a date formatter; this keeps the abbreviation out of Dart until there is one, and stops an
+    // English interface printing `Ağu`.
+    final List<String> months = [
+      for (int m = 1; m <= 12; m++) Lang.get('common.months.$m'),
     ];
 
     // The YEAR appears whenever it is not this one. A two-year warranty rendered
@@ -173,7 +165,7 @@ class _StockInSheetState extends State<StockInSheet> {
     final String day = '${date.day} ${months[date.month - 1]}';
     final String label = date.year == now.year ? day : '$day ${date.year}';
 
-    return (label, '$_dateBasis ($life gün)');
+    return (label, Lang.get('screens.stock_in.date_with_life', {'basis': _dateBasis, 'days': life}));
   }
 
   /// What the date on this product means, which is not the same for both unit models.
@@ -182,11 +174,11 @@ class _StockInSheetState extends State<StockInSheet> {
   /// kullanma" put a food word on a power tool, which is the D2 framing mistake in
   /// miniature: expiry is one kind of date this app holds, not the only kind.
   String get _dateGroupLabel =>
-      widget.product.tracking == TrackingMode.serial ? 'Garanti bitişi' : 'Son kullanma';
+      widget.product.tracking == TrackingMode.serial ? Lang.get('screens.stock_in.basis_warranty') : Lang.get('screens.stock_in.basis_expiry');
 
   /// Where the suggested date came from, phrased for what it is.
   String get _dateBasis =>
-      widget.product.tracking == TrackingMode.serial ? 'garanti süresinden' : 'raf ömründen';
+      widget.product.tracking == TrackingMode.serial ? Lang.get('screens.stock_in.from_warranty') : Lang.get('screens.stock_in.from_shelf_life');
 
   /// What the product will hold after this arrival.
   String get _resultLabel {
@@ -195,8 +187,8 @@ class _StockInSheetState extends State<StockInSheet> {
     final int whole = total.floor();
     final num remainder = ((total - whole) * content).round();
 
-    if (remainder == 0) return 'Kalan: $whole ${widget.product.unit}';
-    return 'Kalan: $whole ${widget.product.unit} + $remainder ${widget.product.contentUnit}';
+    if (remainder == 0) return Lang.get('screens.stock_in.left_simple', {'amount': whole, 'unit': widget.product.unit});
+    return Lang.get('screens.stock_in.left_split', {'whole': whole, 'unit': widget.product.unit, 'remainder': remainder, 'contentUnit': widget.product.contentUnit});
   }
 
   @override
@@ -207,7 +199,7 @@ class _StockInSheetState extends State<StockInSheet> {
       className: 'flex flex-col gap-5',
       children: [
         _group(
-          'Ne kadar',
+          Lang.get('screens.stock_in.amount_group'),
           WDiv(
             className: 'flex flex-row wrap gap-2',
             children: [
@@ -223,7 +215,7 @@ class _StockInSheetState extends State<StockInSheet> {
         ),
 
         _group(
-          'Nereye',
+          Lang.get('screens.stock_in.where_group'),
           WDiv(
             className: 'flex flex-col gap-1',
             children: [
@@ -261,7 +253,7 @@ class _StockInSheetState extends State<StockInSheet> {
               ),
               fullWidth: true,
               className: 'justify-center',
-              child: const WText('Ekle'),
+              child: WText(Lang.get('screens.stock_in.submit')),
             ),
           ],
         ),
@@ -286,7 +278,7 @@ class _StockInSheetState extends State<StockInSheet> {
       label: option.fullPath,
       suggestionReason: suggested ? _suggestionReason(option.id) : null,
       isSelected: option.id == _locationId,
-      semanticLabel: '${option.fullPath} konumunu seç',
+      semanticLabel: Lang.get('screens.stock_in.pick_location', {'path': option.fullPath}),
       onTap: () => setState(() => _locationId = option.id),
     );
   }
