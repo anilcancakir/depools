@@ -371,6 +371,29 @@
       "empty_action": "Add a product",
       "receipt_hint": "Basket items enter stock when the receipt is scanned",
       "receipt_action": "Scan the receipt"
+    },
+    "locations": {
+      "title": "Locations",
+      "subtitle": ":total locations · :roots top level",
+      "add": "Add a location",
+      "search": "Search: location name",
+      "scope_all": "All",
+      "scope_stocked": "Has stock",
+      "scope_empty": "Empty",
+      "placement_group": "Placement",
+      "mode_manual": "Manual",
+      "mode_suggested": "Suggested",
+      "mode_auto": "Automatic",
+      "mode_manual_note": "You always pick the location yourself; nothing is suggested.",
+      "mode_suggested_note": "A location is suggested with its reason, and you accept or change it.",
+      "mode_auto_note": "A location is assigned without asking. It can be undone and it is written to the history. If your correction rate rises, this drops back to Suggested on its own.",
+      "layout_group": "Layout",
+      "matches_group": "Matching locations",
+      "filtered_empty": "No location matches this filter",
+      "filtered_hint": "All :total locations hold stock. An empty place needs a location first.",
+      "empty_title": "No locations yet",
+      "empty_description": "Stock goes into a location, so you need at least one. Start with top-level places like Kitchen and Pantry, and add shelves later.",
+      "empty_template": "Start from a template"
     }
   }
 }

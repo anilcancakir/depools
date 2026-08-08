@@ -236,9 +236,9 @@ class LocationIndexView extends StatelessWidget {
 
   /// The already-localised label for a scope.
   static String _scopeLabel(LocationScope value) => switch (value) {
-    LocationScope.all => 'Tümü',
-    LocationScope.stocked => 'Stok var',
-    LocationScope.empty => 'Boş',
+    LocationScope.all => Lang.get('screens.locations.scope_all'),
+    LocationScope.stocked => Lang.get('screens.locations.scope_stocked'),
+    LocationScope.empty => Lang.get('screens.locations.scope_empty'),
   };
 
   /// The nodes the current scope admits.
@@ -253,9 +253,9 @@ class LocationIndexView extends StatelessWidget {
 
   /// The already-localised label for a dial position.
   static String _dialLabel(PlacementAutomation value) => switch (value) {
-    PlacementAutomation.manual => 'Elle',
-    PlacementAutomation.semiAuto => 'Önerili',
-    PlacementAutomation.fullAuto => 'Otomatik',
+    PlacementAutomation.manual => Lang.get('screens.locations.mode_manual'),
+    PlacementAutomation.semiAuto => Lang.get('screens.locations.mode_suggested'),
+    PlacementAutomation.fullAuto => Lang.get('screens.locations.mode_auto'),
   };
 
   /// What the current dial position actually does, in one line.
@@ -264,11 +264,10 @@ class LocationIndexView extends StatelessWidget {
   /// that a placement will happen without asking, and that is the part they would want to
   /// know before choosing it.
   String get _dialExplanation => switch (automation) {
-    PlacementAutomation.manual => 'Konumu her zaman siz seçersiniz, öneri gösterilmez.',
-    PlacementAutomation.semiAuto => 'Konum gerekçesiyle önerilir, onaylanır ya da değiştirilir.',
+    PlacementAutomation.manual => Lang.get('screens.locations.mode_manual_note'),
+    PlacementAutomation.semiAuto => Lang.get('screens.locations.mode_suggested_note'),
     PlacementAutomation.fullAuto =>
-      'Konum sorulmadan atanır. Geri alınabilir ve hareket geçmişine yazılır. '
-          'Düzeltme oranı yükselirse otomatik olarak Önerili moda düşer.',
+      Lang.get('screens.locations.mode_auto_note'),
   };
 
   @override
@@ -276,8 +275,10 @@ class LocationIndexView extends StatelessWidget {
     final int roots = _tree.where((n) => n.depth == 0).length;
 
     return MSPageScaffold(
-      title: 'Konumlar',
-      subtitle: isEmpty ? null : '${_tree.length} konum · $roots ana konum',
+      title: Lang.get('screens.locations.title'),
+      subtitle: isEmpty
+          ? null
+          : Lang.get('screens.locations.subtitle', {'total': _tree.length, 'roots': roots}),
       // **No header action while the list is empty.** The empty state already carries a
       // full-width `Konum ekle`, so rendering the icon button too put the same action on screen
       // twice, both in primary blue, on the one screen where the call to action has to be
@@ -289,7 +290,7 @@ class LocationIndexView extends StatelessWidget {
               MSButton(
                 onPressed: () {},
                 className: 'min-h-11 min-w-11 justify-center',
-                semanticLabel: 'Konum ekle',
+                semanticLabel: Lang.get('screens.locations.add'),
                 child: const WIcon(_addIcon),
               ),
             ],
@@ -329,7 +330,7 @@ class LocationIndexView extends StatelessWidget {
         // rule it would break is on a white CARD, where the same token reads as disabled.
         MSInput(
           className: 'bg-surface-container-high',
-          placeholder: 'Ara: konum adı',
+          placeholder: Lang.get('screens.locations.search'),
           prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
           onChanged: (String _) {},
         ),
@@ -351,10 +352,11 @@ class LocationIndexView extends StatelessWidget {
           className: 'w-full',
           child: MSEmptyState(
             icon: _noMatchIcon,
-            title: 'Bu filtreye uyan konum yok',
-            description:
-                '${_tree.length} konumun hepsi stok tutuyor. '
-                'Boş bir yer için önce konum eklenir.',
+            title: Lang.get('screens.locations.filtered_empty'),
+            description: Lang.get(
+              'screens.locations.filtered_hint',
+              {'total': _tree.length},
+            ),
           ),
         ),
       ],
@@ -366,7 +368,7 @@ class LocationIndexView extends StatelessWidget {
     final List<LocationNode> nodes = _visible;
 
     return SectionCard(
-      label: _isWholeTree ? 'Yerleşim' : 'Eşleşen konumlar',
+      label: _isWholeTree ? Lang.get('screens.locations.layout_group') : Lang.get('screens.locations.matches_group'),
       count: '${nodes.length} konum',
       children: [
         for (final LocationNode node in nodes)
@@ -392,7 +394,7 @@ class LocationIndexView extends StatelessWidget {
   /// The placement dial, with what it does spelled out.
   Widget _buildAutomation() {
     return SectionCard(
-      label: 'Yerleştirme',
+      label: Lang.get('screens.locations.placement_group'),
       children: [
         WDiv(
           className: 'flex flex-col gap-2 py-1',
@@ -422,24 +424,23 @@ class LocationIndexView extends StatelessWidget {
           className: 'w-full',
           child: MSEmptyState(
             icon: _emptyIcon,
-            title: 'Henüz konum yok',
+            title: Lang.get('screens.locations.empty_title'),
             description:
-                'Stok bir konuma girer, o yüzden en az bir konum gerekir. '
-                'Mutfak ve Kiler gibi ana konumlarla başlanır, rafları sonra eklenir.',
+                Lang.get('screens.locations.empty_description'),
           ),
         ),
         MSButton(
           onPressed: () {},
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Konum ekle'),
+          child: WText(Lang.get('screens.locations.add')),
         ),
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Hazır şablonla başla'),
+          child: WText(Lang.get('screens.locations.empty_template')),
         ),
       ],
     );
