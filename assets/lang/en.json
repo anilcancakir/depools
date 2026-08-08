@@ -763,6 +763,23 @@
       "subtitle_auto": "Last 7 days · :count written automatically",
       "undo_label": "Undo :product, :reason",
       "undo": "Undo"
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "How the app behaves",
+      "assistant_group": "Assistant",
+      "assistant_toggle": "Assistant on every screen",
+      "assistant_note": "Adding stock, taking it out, scanning: everything can be done by telling the assistant. Turned off, the assistant is reachable only from its own screen.",
+      "assistant_on": "On",
+      "assistant_off": "Off",
+      "start_group": "Start",
+      "start_note": "Which way in sits at the top of the overview.",
+      "verb_assistant": "Tell the assistant",
+      "verb_assistant_note": "You describe what happened in a sentence.",
+      "verb_inventory": "Search products",
+      "verb_inventory_note": "You find what you are after in the list.",
+      "local_note": "These preferences are kept on this device.",
+      "assistant_open": "Open the assistant"
     }
   },
   "components": {

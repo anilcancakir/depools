@@ -142,6 +142,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const DatesScreenPreview(),
     ),
     PreviewEntry(
+      label: 'DepoolsSettingsScreen',
+      slug: 'depools_settings_screen',
+      builder: (_) => const DepoolsSettingsScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'DraftField',
       slug: 'draft_field',
       builder: (_) => const DraftFieldPreview(),
@@ -345,11 +350,6 @@ List<PreviewEntry> previewEntries() {
       label: 'SerialRow',
       slug: 'serial_row',
       builder: (_) => const SerialRowPreview(),
-    ),
-    PreviewEntry(
-      label: 'SettingsScreen',
-      slug: 'settings_screen',
-      builder: (_) => const SettingsScreenPreview(),
     ),
     PreviewEntry(
       label: 'SetupStep',

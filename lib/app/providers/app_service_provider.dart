@@ -111,10 +111,12 @@ class AppServiceProvider extends ServiceProvider {
           labelKey: 'nav.assistant',
           path: '/asistan',
         ),
+        // This app's own settings, not the starter's profile screen: the two preferences D66 and
+        // D67 created live here, and the account settings are one tap further in.
         MagicStarterNavItem(
           icon: Icons.settings_outlined,
           labelKey: 'nav.settings',
-          path: MagicStarterConfig.profileRoute(),
+          path: '/ayarlar',
         ),
       ],
       bottomItems: [

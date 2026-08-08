@@ -881,6 +881,32 @@ the affordance overlays content, so it needs a safe inset that does not collide 
 or a 44pt target at narrow widths; and it cannot be a second `bg-primary` competing with a screen's
 own primary action.
 
+### D68. The app owns a settings screen, and the shared layout id is what nearly hid the assistant
+
+D66 and D67 both created a preference and neither had anywhere to live: `nav.settings` pointed at
+`magic_starter`'s profile screen, which knows nothing about either. `/ayarlar` is this app's own
+settings, and the account settings are one tap further in.
+
+Preferences are stored in magic's local cache rather than on the account. There is no preferences
+endpoint yet, and inventing one would mean guessing at a shape the backend has not agreed to. The
+local failure mode is also the better one: the worst case is re-picking on a second device, not a
+sync that silently loses a choice.
+
+**The assistant launcher is not `bg-primary`.** DESIGN.md allows one primary fill per view and this
+floats over EVERY view, including ones whose own primary action is a filled button. A second blue
+circle on top of `Stok ekle` would make both look like the main action. Card tone plus a hairline,
+the same reasoning that took `Reddet` off ghost.
+
+**The bug worth recording is the shared layout id.** magic merges layouts by id and the FIRST
+builder wins (`magic_router.dart`, `_mergeLayouts`). `magic_starter` registers `'app'` before this
+app's routes do, so a `layout:` closure written here was collected and then discarded. The launcher
+built correctly, threw nothing, logged nothing, and was never in the tree. Two wrong diagnoses came
+first, an auth redirect and a `Positioned` inside a scroll view, both plausible and both wrong.
+
+Dropping the id gives these routes their own shell. The cost is that they no longer share a shell
+instance with the starter's screens, so shell state rebuilds when crossing between them. Acceptable:
+the crossing is rare and the shell holds nothing worth preserving.
+
 ### O6. What the first paid tier actually costs in TRY
 
 Turkish price sensitivity is the binding constraint on ARPU and we have no evidence about willingness to pay in this segment. Sortly's 24 USD entry is roughly 1.000 TRY, which is far too high for a Turkish small business.

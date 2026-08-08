@@ -1,8 +1,10 @@
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart';
 
+import '../ui/components/assistant_launcher/assistant_launcher.dart';
 import '../resources/views/dashboard_view.dart';
 import '../resources/views/locations/location_index_view.dart';
+import '../resources/views/settings_view.dart';
 import '../resources/views/products/assistant_view.dart';
 import '../resources/views/products/barcode_scan_view.dart';
 import '../resources/views/products/dates_view.dart';
@@ -37,9 +39,30 @@ import '../resources/views/products/stock_take_view.dart';
 void registerAppRoutes() {
   // Auth-protected routes with AppLayout
   MagicRoute.group(
-    layout: (child) => MagicStarter.view.makeLayout('layout.app', child: child),
+    // The assistant wraps the SHELL rather than each route, which is what makes it persistent
+    // (D67).
+    //
+    // **Outside the layout, not inside it, and the first version had it the wrong way round.**
+    // Wrapping the route's child put the `Positioned` inside the shell's scroll view, so it
+    // anchored to the bottom of the SCROLLED CONTENT rather than to the viewport and sat far below
+    // the fold. It rendered nothing and threw nothing, which is the worst combination: the widget
+    // was building correctly the whole time.
+    //
+    // Outside, it floats over the navigation as well, which the launcher's own bottom inset is
+    // there to clear. A control that covers a tab steals taps from it.
+    layout: (child) => AssistantLauncher(
+      child: MagicStarter.view.makeLayout('layout.app', child: child),
+    ),
     middleware: ['auth'],
-    layoutId: 'app',
+    // **No shared `layoutId`, and that is what makes the wrapper above run at all.**
+    // magic merges layouts by id and the FIRST builder wins (`magic_router.dart`
+    // `_mergeLayouts`). `magic_starter` registers `'app'` before this file does, so a builder
+    // here was collected and then discarded: the launcher built correctly and was never in the
+    // tree, with nothing logged. Dropping the id gives this group its own shell.
+    //
+    // The cost is that these routes no longer share a shell instance with the starter's own
+    // screens, so shell state is rebuilt when crossing between them. That is acceptable: the
+    // crossing is rare (settings, profile) and the shell holds no state worth preserving.
     routes: () {
       MagicRoute.page('/', () => const DashboardView()).name('dashboard');
 
@@ -59,6 +82,10 @@ void registerAppRoutes() {
       // end in the same pending-change review, so they are peers rather than one inside the other.
       MagicRoute.page('/asistan', () => const AssistantView()).name('assistant');
       MagicRoute.page('/tara', () => const BarcodeScanView()).name('scan');
+
+      // This app's own settings, distinct from the account settings `magic_starter` owns. It
+      // holds the two preferences D66 and D67 created and had nowhere to live.
+      MagicRoute.page('/ayarlar', () => const SettingsView()).name('settings');
     },
   );
 }
