@@ -836,6 +836,51 @@ weak link.
 `bin/verify-design-contrast.py` sweeps the whole luminance range and fails the build below 3:1,
 rather than trusting the arithmetic in the docs.
 
+### D66. One home screen, and the mode preference becomes the pinned capture verb
+
+`product.md` used to offer two front doors chosen by the user: an assistant mode where chat is the
+home, and an inventory mode where the stock list is. The 2026 literature on conversational
+interfaces is unusually united against that shape. Design Key (2026-05): "they pick one pattern and
+commit, no hybrids", and it names forcing a conversation for a transactional question as always
+worse than a screen. Adaline (2026-06): the products winning now put the AI behind a verb, a canvas
+or a delegation rather than behind a prompt, with the diagnostic "could a new user finish a real job
+in under ninety seconds without typing a sentence". The Conversation Trap (2026-03): conversation is
+for meaning-making, direct manipulation is for doing, and there is a hidden literacy tax on prompt
+writing that fluent communicators still pay.
+
+Two front doors is the hybrid all three warn about. It doubles the surface to maintain and makes a
+blank text box the first thing a whole class of users sees, which collides with this product's own
+first success criterion: ten items into stock in under five minutes without reading anything.
+
+So there is one home, the overview, and the preference decides which capture surface is PINNED at
+the top of it: the assistant composer, or search plus the stock list. The choice stays the user's,
+the pattern stays single, and the assistant is behind a verb rather than being the whole door.
+
+The overview itself was not in any document before it was built, which is the other half of this
+decision: it is now the named home rather than an unrecorded third thing.
+
+### D67. The assistant is persistent on every screen, and can be turned off
+
+D66 puts the AI behind a verb. This decides how big that verb is, and the answer is bigger than the
+research alone would suggest, for a product reason the research does not know about: **every
+capability in Depools is reachable through the assistant.** Stock movements, adding a product,
+scanning a barcode, setting a par level. The assistant is not a feature sitting on the product, it
+is the layer the product is meant to be operated through, and an affordance that only exists on one
+route contradicts that.
+
+So it is persistent, on every screen, rather than a route with a button pointing at it.
+
+The concession that keeps this honest is the settings toggle. The literature's objection to
+chat-everywhere is that it taxes users who would rather click, and a persistent affordance they
+cannot dismiss is exactly that tax made permanent. A user who wants the conventional path turns it
+off and never sees it again. That is what earns the persistence: always within reach, never in the
+way.
+
+Two constraints this puts on the design, both from `DESIGN.md`'s own rules rather than from taste:
+the affordance overlays content, so it needs a safe inset that does not collide with a bottom nav
+or a 44pt target at narrow widths; and it cannot be a second `bg-primary` competing with a screen's
+own primary action.
+
 ### O6. What the first paid tier actually costs in TRY
 
 Turkish price sensitivity is the binding constraint on ARPU and we have no evidence about willingness to pay in this segment. Sortly's 24 USD entry is roughly 1.000 TRY, which is far too high for a Turkish small business.

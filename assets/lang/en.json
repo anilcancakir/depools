@@ -325,5 +325,22 @@
     "just_now": "Just now",
     "minutes_ago": ":minutes m ago",
     "date_format": ":day/:month/:year"
+  },
+  "screens": {
+    "dates": {
+      "title": "Upcoming dates",
+      "subtitle": ":approaching within :days days · :expired expired",
+      "subtitle_empty": "No upcoming dates",
+      "horizon_label": "How far ahead",
+      "horizon_chip": ":days days",
+      "horizon_selected": ":days days, selected range",
+      "horizon_apply": "Show what falls within :days days",
+      "expired_group": "Expired",
+      "lot_count": ":count lots",
+      "row_stock_out": ":product, :label, remove stock",
+      "row_waste": ":product, :label, record waste",
+      "empty_title": "No upcoming dates",
+      "empty_description": "Expiry and warranty dates appear here once they fall inside the selected range. Products with no date never appear."
+    }
   }
 }

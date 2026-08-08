@@ -49,20 +49,49 @@ Ordered by how central each is to the promise.
 6. **Label.** Print barcode labels for items that have none, so they can be scanned later. See `features/labeling-and-printing.md`.
 7. **Open up.** Expose the user's own inventory to the user's own AI assistant over MCP. See `features/mcp-server.md`.
 
-## Two ways to use it, chosen by the user
+## One home, and the AI is the layer rather than a mode
 
-The research on conversational interfaces is consistent and worth stating plainly: chat is an excellent capture surface and a poor system of record. Users cannot get an overview from a transcript, cannot bulk-edit in a text box, and abandon after two or three clarifying questions.
+The research on conversational interfaces is consistent and worth stating plainly: chat is an
+excellent capture surface and a poor system of record. Users cannot get an overview from a
+transcript, cannot bulk-edit in a text box, and abandon after two or three clarifying questions.
 
-So the app ships both surfaces and lets the user pick which one is the front door:
+An earlier version of this document drew the wrong conclusion from that. It offered two front
+doors, an assistant mode and an inventory mode, chosen by the user. The 2026 literature is
+unusually united against that shape: "they pick one pattern and commit, no hybrids" (Design Key,
+2026-05), "the products winning in 2026 put the AI behind a verb, a canvas, a delegation or an
+ambient capture rather than behind a prompt" (Adaline, 2026-06), and conversation is for
+meaning-making while direct manipulation is for doing (The Conversation Trap, 2026-03). Two front
+doors is a hybrid, it doubles the surface to maintain, and it makes a blank text box the first
+thing a whole class of users sees. The same literature names a hidden literacy tax on that: people
+who are fluent communicators still struggle to write effective prompts, and our user is precisely
+the person who should never have to learn.
 
-- **Assistant mode.** The assistant is the home screen. You talk or photograph, it acts, and it shows you a compact card to fill in the rest. Conventional screens are still there, one tap away.
-- **Inventory mode.** A conventional stock list is the home screen, with search, filters and bulk edit. The assistant is available as a sidekick, not a wall.
+So there is ONE home screen, the overview, and it answers "what needs my attention". Four counters,
+the capture actions, and the four surfaces that carry work: dates, running low, the shopping list
+and recent movements.
 
-This is a user preference, changeable at any time, not an onboarding fork that locks them in. Both modes read and write the same data through the same rules. Neither mode is a degraded version of the other.
+**What the user chooses is the first capture verb, not the front door.** The preference decides
+which surface is pinned at the top of the overview: the assistant composer, for someone who
+describes what happened, or search plus the stock list, for someone who looks things up. One home,
+one pattern, and the choice is still the user's. Changeable at any time, and neither option is a
+degraded version of the other.
 
-There is no platform split. iOS, Android and web are one Flutter app with one feature set: everything a user can do on a phone they can do in a browser, and the design is the same in both. Capture (camera, scanner, voice) and review (bulk edit, reports, label sheets, billing) are all present everywhere, laid out for the WIDTH they are given rather than for the platform they run on.
+**The AI is the foundation, not a feature on it.** Stock movements, adding a product, scanning a
+barcode: every capability in this product is reachable through the assistant, and that is a
+positioning decision rather than a convenience. So the assistant has a persistent affordance on
+every screen rather than living behind one route. A user who wants the conventional path never has
+to use it, and can turn it off in settings, which is the concession the research above earns: the
+assistant is always within reach and never in the way.
 
-What differs is only what the hardware makes convenient. A phone in a shop is where a receipt photo usually gets taken because the camera is in your hand; a wide window is where a bulk edit usually happens because the rows fit. Neither is enforced, and neither screen is missing on the other platform.
+There is no platform split. iOS, Android and web are one Flutter app with one feature set:
+everything a user can do on a phone they can do in a browser, and the design is the same in both.
+Capture (camera, scanner, voice) and review (bulk edit, reports, label sheets, billing) are all
+present everywhere, laid out for the WIDTH they are given rather than for the platform they run on.
+
+What differs is only what the hardware makes convenient. A phone in a shop is where a receipt photo
+usually gets taken because the camera is in your hand; a wide window is where a bulk edit usually
+happens because the rows fit. Neither is enforced, and neither screen is missing on the other
+platform.
 
 ## What the product does not do
 

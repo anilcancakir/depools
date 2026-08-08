@@ -325,5 +325,22 @@
     "just_now": "Az önce",
     "minutes_ago": ":minutes dakika önce",
     "date_format": ":day.:month.:year"
+  },
+  "screens": {
+    "dates": {
+      "title": "Yaklaşan tarihler",
+      "subtitle": ":days gün içinde :approaching · :expired süresi geçmiş",
+      "subtitle_empty": "Yaklaşan tarih yok",
+      "horizon_label": "Ne kadar ileri",
+      "horizon_chip": ":days gün",
+      "horizon_selected": ":days gün, seçili aralık",
+      "horizon_apply": ":days gün içindekileri göster",
+      "expired_group": "Süresi geçmiş",
+      "lot_count": ":count parti",
+      "row_stock_out": ":product, :label, stok çıkar",
+      "row_waste": ":product, :label, zayi kaydet",
+      "empty_title": "Yaklaşan tarih yok",
+      "empty_description": "Son kullanma ve garanti tarihleri seçilen aralığa girdiğinde burada listelenir. Tarihi olmayan ürünler hiç görünmez."
+    }
   }
 }

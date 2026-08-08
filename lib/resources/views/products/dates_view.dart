@@ -78,10 +78,14 @@ class _DatesViewState extends State<DatesView> {
     final int approaching = groups.values.fold(0, (sum, rows) => sum + rows.length);
 
     return MSPageScaffold(
-      title: 'Yaklaşan tarihler',
+      title: Lang.get('screens.dates.title'),
       subtitle: widget.hasRows
-          ? '$_horizon gün içinde $approaching · ${expired.length} süresi geçmiş'
-          : 'Yaklaşan tarih yok',
+          ? Lang.get('screens.dates.subtitle', {
+              'days': _horizon,
+              'approaching': approaching,
+              'expired': expired.length,
+            })
+          : Lang.get('screens.dates.subtitle_empty'),
       children: [
         if (widget.hasRows) _buildHorizon(),
         if (expired.isNotEmpty) _buildExpired(expired),
@@ -99,22 +103,22 @@ class _DatesViewState extends State<DatesView> {
   /// definition, so narrowing to three days never hides something already off.
   Widget _buildHorizon() {
     return SectionCard(
-      label: 'Ne kadar ileri',
+      label: Lang.get('screens.dates.horizon_label'),
       children: [
         WDiv(
           className: 'flex flex-row wrap items-center gap-2 py-1',
           children: [
             for (final int days in _horizons)
               ChoiceChip(
-                label: '$days gün',
+                label: Lang.get('screens.dates.horizon_chip', {'days': days}),
                 isSuggested: days == _horizon,
                 // The selected chip has to SAY it is selected. Its tint is the only other
                 // signal and a screen reader cannot see a tint, so without this the current
                 // horizon is unknowable: three chips announcing "show N days" with no
                 // indication of which one is already showing.
                 semanticLabel: days == _horizon
-                    ? '$days gün, seçili aralık'
-                    : '$days gün içindekileri göster',
+                    ? Lang.get('screens.dates.horizon_selected', {'days': days})
+                    : Lang.get('screens.dates.horizon_apply', {'days': days}),
                 onTap: () => setState(() => _horizon = days),
               ),
           ],
@@ -130,8 +134,8 @@ class _DatesViewState extends State<DatesView> {
   /// offer to hide itself. Same call the receipt review's unresolved group makes.
   Widget _buildExpired(List<DatedLot> rows) {
     return SectionCard(
-      label: 'Süresi geçmiş',
-      count: '${rows.length} parti',
+      label: Lang.get('screens.dates.expired_group'),
+      count: Lang.get('screens.dates.lot_count', {'count': rows.length}),
       children: [for (final DatedLot row in rows) _buildRow(row, isExpired: true)],
     );
   }
@@ -151,8 +155,14 @@ class _DatesViewState extends State<DatesView> {
     return WAnchor(
       onTap: () => _openStockOut(row, isExpired: isExpired),
       semanticLabel: isExpired
-          ? '${row.productName}, ${row.label}, zayi kaydet'
-          : '${row.productName}, ${row.label}, stok çıkar',
+          ? Lang.get('screens.dates.row_waste', {
+              'product': row.productName,
+              'label': row.label,
+            })
+          : Lang.get('screens.dates.row_stock_out', {
+              'product': row.productName,
+              'label': row.label,
+            }),
       child: LotRow(
         productName: row.productName,
         remainingAmount: row.remaining,
@@ -181,19 +191,17 @@ class _DatesViewState extends State<DatesView> {
   /// Nothing approaching, which is the good outcome.
   Widget _buildEmpty() {
     return SectionCard(
-      label: 'Yaklaşan tarihler',
+      label: Lang.get('screens.dates.title'),
       children: [
         WDiv(
           // Full width so MSEmptyState's own `items-center` has something to centre in.
           className: 'w-full',
           child: MSEmptyState(
             icon: _emptyIcon,
-            title: 'Yaklaşan tarih yok',
+            title: Lang.get('screens.dates.empty_title'),
             // Names the mechanism rather than apologising for the blank, and says which
             // dates count, since a warranty appears here too.
-            description:
-                'Son kullanma ve garanti tarihleri seçilen aralığa girdiğinde burada '
-                'listelenir. Tarihi olmayan ürünler hiç görünmez.',
+            description: Lang.get('screens.dates.empty_description'),
           ),
         ),
       ],

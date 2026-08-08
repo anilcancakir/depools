@@ -25,7 +25,7 @@ The v1 test: a cafe owner who has never used inventory software can get their st
 
 ### Capture
 
-- Manual entry, in both interface modes.
+- Manual entry. One home screen (the overview); the user's preference selects the pinned capture verb rather than a separate front door (D66).
 - Barcode scanning on all three platforms via `mobile_scanner`, with the three-stage resolution cascade: own products, community catalog, external lookup.
 - Receipt photo to line items, with a mandatory per-line confirmation screen.
 - Structured e-Fatura and e-Arşiv XML ingestion (UBL-TR 1.2.1) for business supplier purchases.
@@ -39,9 +39,11 @@ The v1 test: a cafe owner who has never used inventory software can get their st
 - Automatic location suggestion from co-location affinity, with the manual, semi-auto and full-auto dial.
 - Expiry list: what expires in the next N days, per location.
 - Par-level tracking for items with insufficient history.
+- Guided stock take producing `stock_take` corrections. Moved up from v2: the ledger carries the reason from day one, so the screen was the only missing part, and a cafe that cannot reconcile a count against the record stops trusting the record.
 - SBA forecasting, consumption rate and days of cover for items with enough history.
 - Generated shopping list with the reason attached to each line.
 - Assistant with read tools plus write tools behind an approval gate, streaming responses, image input, and web search.
+- A persistent assistant affordance on every screen, dismissable from settings (D67). The AI is the layer the product is operated through, so it is not confined to one route.
 
 ### Labels
 
@@ -79,7 +81,6 @@ Ordered by expected value, not by ease.
 - **Hands-free voice**, wake word plus streaming transcription, with real foreground-service plumbing.
 - **Supplier and purchase orders.** Once the shopping list is trusted, the next step is sending it somewhere.
 - **Waste and cost reporting.** Waste percentage, sell-through before expiry, cost of spoilage. The ledger already carries the data from day one.
-- **Stock take flow.** Guided physical count producing `stock_take` corrections.
 - **Multi-location transfer workflow** beyond the simple paired movement.
 - **Announcement and changelog system**, if in-app communication becomes a real need.
 
