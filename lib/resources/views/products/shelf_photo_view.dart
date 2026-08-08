@@ -132,24 +132,34 @@ class ShelfPhotoView extends StatelessWidget {
   /// photograph is an uncontrolled background: bare text is legible over a dark bottle and
   /// invisible over a white label.
   Widget _buildBox(ShelfCandidate candidate) {
+    // **Two concentric strokes, and the pair is what makes it legible over any photograph.**
+    //
+    // This box sits on an UNCONTROLLED background. `border-color-border` is a `#D1D1D6` hairline
+    // that vanishes over a white shelf label, and `border-bg-primary` was tried and DROPPED
+    // SILENTLY: wind's alias expander matches a WHOLE token against a key, there is no
+    // `border-bg-primary` key, the border parser then sees a colour it does not know, and the
+    // boxes disappeared entirely.
+    //
+    // A single colour cannot solve this, which is why DESIGN.md deferred the token: the right hex
+    // depends on the image. A pair escapes the dependency by arithmetic rather than by taste. For
+    // a background of luminance L, contrast to the light stroke and contrast to the dark stroke
+    // move in opposite directions, so the better of the two never falls below 3.91:1 with these
+    // values, whatever the photograph does. See `lib/config/depools_overlay_tokens.dart`; the
+    // floor is checked in `bin/verify-design-contrast.py` rather than asserted here.
+    //
+    // Ink outside and paper inside, because the outer edge meets the photograph at a hard
+    // boundary and the darker stroke reads as a shadow there, which is what an edge over an image
+    // is expected to look like.
     return WDiv(
-      // **The outline is a known weakness and the badge is what carries the annotation.**
-      // This box sits on an UNCONTROLLED background, so it wants a colour that survives any
-      // photograph, and `border-color-border` is a `#D1D1D6` hairline that will vanish over a
-      // white shelf label. `border-bg-primary` was tried and DROPPED SILENTLY: wind's alias
-      // expander matches a whole token against a key, there is no `border-bg-primary` key, and
-      // the border parser then sees a colour it does not know. The boxes disappeared entirely.
-      //
-      // So the badge does the work for now (it is `bg-primary`, which is fixed and strong), and
-      // the real fix is a token: a high-contrast overlay border pinned in both appearances, the
-      // same shape as the paper tokens. Recorded rather than hacked around, because inventing
-      // it against a placeholder rather than a real photograph would be guessing.
-      className: 'border-2 border-color-border rounded-sm flex flex-col items-start',
+      className: 'border-2 border-color-overlay-ink rounded-sm',
       child: WDiv(
-        className: 'size-5 rounded-sm bg-primary flex items-center justify-center',
-        child: WText(
-          '${candidate.region}',
-          className: 'font-mono text-xs font-semibold text-on-primary',
+        className: 'border-2 border-color-overlay-paper rounded-sm flex flex-col items-start',
+        child: WDiv(
+          className: 'size-5 rounded-sm bg-primary flex items-center justify-center',
+          child: WText(
+            '${candidate.region}',
+            className: 'font-mono text-xs font-semibold text-on-primary',
+          ),
         ),
       ),
     );

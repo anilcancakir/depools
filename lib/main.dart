@@ -11,6 +11,7 @@ import 'config/logging.dart';
 import 'config/broadcasting.dart';
 import 'config/deeplink.dart';
 import 'config/wind_theme.g.dart';
+import 'config/depools_overlay_tokens.dart';
 import 'config/depools_paper_tokens.dart';
 import 'config/depools_status_tokens.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -69,7 +70,12 @@ void main() async {
   // for explicitly on quantities and codes.
   final windTheme = WindThemeData(
     colors: designColors,
-    aliases: {...designAliases, ...depoolsStatusAliases, ...depoolsPaperAliases},
+    aliases: {
+      ...designAliases,
+      ...depoolsStatusAliases,
+      ...depoolsPaperAliases,
+      ...depoolsOverlayAliases,
+    },
     fontFamilies: const {'sans': 'Inter', 'mono': 'Geist Mono'},
   );
 

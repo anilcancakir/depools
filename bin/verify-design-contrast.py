@@ -79,6 +79,12 @@ PAIRS = [
 
 STATUS_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_status_tokens.dart'
 PAPER_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_paper_tokens.dart'
+OVERLAY_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_overlay_tokens.dart'
+
+# WCAG 1.4.11 asks 3:1 of a UI-component boundary. An overlay stroke's background is a
+# photograph, so it has to clear that against EVERY possible background rather than against a
+# known surface, which is why this is a floor over the whole luminance range rather than a pair.
+OVERLAY_FLOOR = 3.0
 
 # Ink read against paper, never against an app surface. The label preview renders a
 # picture of a printed sheet, so both sides of every `dark:` pair hold the same hex
@@ -132,6 +138,47 @@ def parse_status() -> dict[str, dict[str, tuple[str, str]]]:
         role = {None: 'solid', '-soft': 'soft', '-soft-foreground': 'soft-foreground'}[suffix]
         families.setdefault(family, {})[role] = (light, dark)
     return families
+
+
+def check_overlay() -> tuple[str, str, float, float]:
+    """Return the overlay pair and the worst background it can face.
+
+    The overlay strokes do not sit on an app surface, so there is no pair to check. What has to
+    hold is that for ANY background, at least one of the two strokes is legible against it.
+
+    Contrast to the light stroke falls as the background brightens and contrast to the dark stroke
+    rises, so the better of the two is worst exactly where the curves cross. Sweeping luminance
+    finds that crossing without having to solve for it, and the result is the guarantee the two
+    overlay screens rely on: it does not matter what the camera is pointed at.
+    """
+    pattern = re.compile(
+        r"^\s*'([a-z-]+)':\s*'[a-z-]+\[(#[0-9A-Fa-f]{6})\]\s+dark:[a-z-]+\[(#[0-9A-Fa-f]{6})\]'")
+    values: dict[str, str] = {}
+    for line in OVERLAY_TOKENS.read_text().splitlines():
+        if not (m := pattern.match(line)):
+            continue
+        key, light, dark = m.groups()
+        if light.upper() != dark.upper():
+            raise SystemExit(f'{key}: overlay tokens must be identical in both appearances, '
+                             f'got {light} and {dark}')
+        values[key] = light
+
+    ink = values['border-color-overlay-ink']
+    paper = values['border-color-overlay-paper']
+    l_ink, l_paper = luminance(ink), luminance(paper)
+
+    worst = 99.0
+    worst_at = 0.0
+    for i in range(0, 10001):
+        bg = i / 10000
+        better = max(
+            (max(bg, l_ink) + 0.05) / (min(bg, l_ink) + 0.05),
+            (max(bg, l_paper) + 0.05) / (min(bg, l_paper) + 0.05),
+        )
+        if better < worst:
+            worst, worst_at = better, bg
+
+    return ink, paper, worst, worst_at
 
 
 def main() -> int:
@@ -211,6 +258,18 @@ def main() -> int:
               f'{need if need else "-":>6}')
         if note:
             print(f'  {note}')
+
+    print()
+    print(f'OVERLAY: two strokes over a photograph, worst case across every background '
+          f'(parsed from {OVERLAY_TOKENS.name})')
+    print('-' * 78)
+    ink, paper_stroke, worst, worst_at = check_overlay()
+    if worst < OVERLAY_FLOOR:
+        failures.append(f'overlay pair {worst:.2f} < {OVERLAY_FLOOR} at background L={worst_at:.3f}')
+    mark = '   OK' if worst >= OVERLAY_FLOOR else '  FAIL'
+    print(f'{"ink " + ink + " + paper " + paper_stroke:<44}{worst:>8.2f}{mark:>4}'
+          f'{worst:>8.2f}{mark:>4}{OVERLAY_FLOOR:>6}')
+    print(f'  the better of the two strokes, at its worst background (L={worst_at:.3f})')
 
     print()
     if failures:

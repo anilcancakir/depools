@@ -804,6 +804,38 @@ tick. `.claude/rules/design.md` forbids a conditionally-rendered leading glyph b
 the text beside it; a fixed box is what makes the change safe, and the titles share one x across
 all three states.
 
+### D65. An overlay border is a PAIR of strokes, and that is arithmetic rather than taste
+
+Two surfaces draw UI over an uncontrolled background: the barcode viewfinder's framing rectangle
+and the shelf photo's numbered region boxes. Both used `border-color-border`, a `#D1D1D6` hairline
+that vanishes over a white shelf label or a bright camera frame, and neither could borrow
+`bg-primary` because `border-bg-primary` drops silently (the alias expander matches a WHOLE token
+against a key, finds nothing, and the border parser then sees an unknown colour).
+
+DESIGN.md deferred the token, and the reason was correct for what it was considering: picking one
+hex against a placeholder rather than a real photograph is guessing at the thing that matters,
+because the right value depends on the image.
+
+**A single stroke cannot escape that dependency. A pair can.** For a background of relative
+luminance L, contrast to a light stroke is `1.05 / (L + 0.05)` and to a dark stroke is
+`(L + 0.05) / 0.05`. They move in opposite directions, so the better of the two is worst exactly
+where the curves cross and nowhere else. Ideal black and white cross at 4.58:1; the chosen values
+cross at **3.91:1**, above the 3:1 WCAG 1.4.11 asks of a UI-component boundary. That figure is a
+floor over every background that can ever exist behind them, so there is nothing left to guess and
+the deferral no longer applies.
+
+`border-color-overlay-ink` (`#1C1C1E`) outside, `border-color-overlay-paper` (`#F2F2F7`) inside,
+drawn as two concentric strokes. Both pinned identically on each side of `dark:`, like the paper
+tokens, because an overlay's background is a photograph rather than a surface the app controls.
+
+Not pure black and white: that buys 0.67 of a contrast point and reads as a rendering artefact
+rather than as interface, the same objection DESIGN.md raises to pure black text on a saturated
+fill. The two strokes are 15.25:1 against each other, so the boundary between them is never the
+weak link.
+
+`bin/verify-design-contrast.py` sweeps the whole luminance range and fails the build below 3:1,
+rather than trusting the arithmetic in the docs.
+
 ### O6. What the first paid tier actually costs in TRY
 
 Turkish price sensitivity is the binding constraint on ARPU and we have no evidence about willingness to pay in this segment. Sortly's 24 USD entry is roughly 1.000 TRY, which is far too high for a Turkish small business.

@@ -247,18 +247,45 @@ Four candidate pairings were rendered side by side at the real type scale, and a
 - **`border-bg-primary` and any other `border-<bg-token>` this file does not declare.** The alias expander matches a WHOLE token against a key, so `border-bg-primary` finds nothing, the border parser then sees an unknown colour, and the border vanishes with no warning. It looks valid because `magic_starter`'s input recipe uses `border-bg-destructive`; that only works where the theme declares that key. Same class of silent drop as `text-accent`.
 - Borrowing a status family for something it does not name. An inference hint in `text-expiring` reads as a date warning; suggestions belong to `text-ai`, which is what DESIGN.md defines that family for.
 
-## A token this palette still needs
+## Overlay strokes: the pair that does not depend on the photograph
 
-**A high-contrast overlay border, pinned in both appearances.** Two surfaces draw UI on top of
-an uncontrolled background: the barcode viewfinder's framing rectangle and the shelf photo's
-region boxes. Both currently use `border-color-border`, which is a deliberately low-contrast
-hairline and will disappear over a white shelf label or a bright camera frame, and neither can
-borrow `bg-primary` because a `bg-` alias cannot be reused as a border colour.
+Two surfaces draw UI on top of an uncontrolled background: the barcode viewfinder's framing
+rectangle and the shelf photo's region boxes. Both used `border-color-border`, a deliberately
+low-contrast hairline that disappears over a white shelf label or a bright camera frame, and
+neither can borrow `bg-primary`, because a `bg-` alias cannot be reused as a border colour
+(`border-bg-primary` drops silently, see the avoid list above).
 
-The shape of the fix is the same as `depools_paper_tokens.dart`: a fixed pair, identical on both
-sides of `dark:`, because an overlay's background is the photograph rather than the app. It is
-not added yet because both cases currently render against placeholders, and picking a value
-against a placeholder rather than a real photograph would be guessing at the thing that matters.
+This was deferred for a while, and the reason was sound for what it was considering: picking one
+hex against a placeholder rather than a real photograph is guessing at the thing that matters,
+because the right value depends on the image.
+
+**A single stroke cannot escape that. A pair can, and the escape is arithmetic rather than taste.**
+For a background of relative luminance L, contrast to a light stroke is `1.05 / (L + 0.05)` and
+contrast to a dark stroke is `(L + 0.05) / 0.05`. The two move in opposite directions, so the
+better of the two is worst exactly where they cross, and nowhere else. With ideal black and white
+that crossing is 4.58:1. With the values below it is **3.91:1**, at L = 0.191, and that figure is
+the floor for every background that can ever exist behind them.
+
+| Token | Value (both appearances) | Role |
+|---|---|---|
+| `border-color-overlay-ink` | `#1C1C1E` | outer stroke |
+| `border-color-overlay-paper` | `#F2F2F7` | inner stroke |
+
+Drawn as two concentric strokes, ink outside and paper inside. The darker stroke meets the
+photograph at the hard outer boundary, which is what an edge over an image is expected to look
+like, and the lighter one carries the shape when the image behind it is dark.
+
+Both hold the same value on each side of `dark:`, like `depools_paper_tokens.dart`, because an
+overlay's background is a photograph rather than a surface the app controls: it does not get
+lighter because the user turned dark mode on.
+
+**Not pure black and white**, which would buy 0.67 of a contrast point and read as a rendering
+artefact rather than as part of the interface, the same way this file rejects pure black text on a
+saturated fill. These are Apple's darkest and lightest system greys, and they are 15.25:1 against
+each other, so the boundary between the two strokes is never the weak link.
+
+`bin/verify-design-contrast.py` sweeps the whole luminance range and fails the build below 3:1,
+rather than trusting the arithmetic in this section.
 
 ## Verifying a change
 

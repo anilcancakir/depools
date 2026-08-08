@@ -125,12 +125,20 @@ class BarcodeScanView extends StatelessWidget {
             flex flex-col items-center justify-center gap-3
           ''',
           children: [
+            // The framing rectangle, drawn with the same two-stroke pair the shelf-photo boxes
+            // use. It renders against a placeholder today and against a live camera feed in the
+            // real app, and the pair is chosen so that distinction does not matter: the better of
+            // the two strokes clears 3.91:1 over any background. A single hairline picked against
+            // this placeholder would have looked fine here and disappeared over a bright frame.
             WDiv(
-              className: '''
-                size-32 rounded-md border-2 border-color-border bg-surface-container
-                flex flex-col items-center justify-center
-              ''',
-              child: const WIcon(_cameraIcon, className: 'size-10 text-fg-disabled'),
+              className: 'size-32 rounded-md border-2 border-color-overlay-ink',
+              child: WDiv(
+                className: '''
+                  border-2 border-color-overlay-paper rounded-md bg-surface-container
+                  flex flex-col items-center justify-center h-full w-full
+                ''',
+                child: const WIcon(_cameraIcon, className: 'size-10 text-fg-disabled'),
+              ),
             ),
             // Nominal, not an instruction. The frame already says where to point the
             // camera.
