@@ -99,9 +99,9 @@ class DashboardView extends StatelessWidget {
     if (!hasStock) return _buildFirstRun(context);
 
     return MSPageScaffold(
-      title: 'Genel bakış',
+      title: Lang.get('screens.dashboard.title'),
       // The scope of everything below, so a counter reading 6 is legible as six OF something.
-      subtitle: '$products ürün · $locations konum',
+      subtitle: Lang.get('screens.dashboard.subtitle', {'products': products, 'locations': locations}),
       children: [
         _buildCounters(expired.length, approaching.length, out.length, low.length),
         _buildCapture(context),
@@ -141,38 +141,35 @@ class DashboardView extends StatelessWidget {
   /// a second copy of step 2 plus one action that does not work yet.
   Widget _buildFirstRun(BuildContext context) {
     return MSPageScaffold(
-      title: 'Depools\'a hoş geldiniz',
-      subtitle: 'Stok takibine başlamak için üç adım',
+      title: Lang.get('screens.dashboard.welcome_title'),
+      subtitle: Lang.get('screens.dashboard.welcome_subtitle'),
       children: [
         SectionCard(
-          label: 'Kurulum',
-          count: '3 adım',
+          label: Lang.get('screens.dashboard.setup_group'),
+          count: Lang.get('screens.dashboard.setup_count', {'count': 3}),
           children: [
             SetupStep(
               marker: '1',
-              title: 'Konumları tanımlayın',
-              description:
-                  'Bir ürünün nerede durduğu bilinmeden sayım yapılamaz ve tarih listesi '
-                  'depoyu gezerken işe yaramaz.',
+              title: Lang.get('screens.dashboard.step_locations'),
+              description: Lang.get('screens.dashboard.step_locations_note'),
               state: SetupStepState.current,
-              actionLabel: 'Konum ekle',
+              actionLabel: Lang.get('screens.dashboard.step_locations_action'),
               onAction: () => MagicRoute.to('/konumlar'),
             ),
             SetupStep(
               marker: '2',
-              title: 'İlk ürünleri ekleyin',
-              description: 'Barkodu okutun, fotoğrafını çekin veya asistana yazın.',
-              actionLabel: 'Ürün ekle',
+              title: Lang.get('screens.dashboard.step_products'),
+              description: Lang.get('screens.dashboard.step_products_note'),
+              actionLabel: Lang.get('screens.dashboard.step_products_action'),
               onAction: () => MagicRoute.to('/tara'),
             ),
             SetupStep(
               marker: '3',
-              title: 'Hedef seviye belirleyin',
+              title: Lang.get('screens.dashboard.step_targets'),
               // The gap named before it bites. The running-low screen's own empty state says the
               // same thing, but by then the user has already opened a screen expecting rows.
-              description: 'Hedefi olmayan bir ürün, ne kadar azalırsa azalsın Azalanlar '
-                  'listesinde görünmez.',
-              actionLabel: 'Ürünlere git',
+              description: Lang.get('screens.dashboard.step_targets_note'),
+              actionLabel: Lang.get('screens.dashboard.step_targets_action'),
               onAction: () => MagicRoute.to('/urunler'),
             ),
           ],
@@ -191,20 +188,32 @@ class DashboardView extends StatelessWidget {
       className: 'grid grid-cols-2 md:grid-cols-4 gap-3 items-stretch',
       children: [
         WDiv(
-          child: StatCard(label: 'Süresi geçmiş', value: '$expired', delta: 'parti'),
-        ),
-        WDiv(
           child: StatCard(
-            label: 'Yaklaşan',
-            value: '$approaching',
-            delta: '$defaultHorizonDays gün içinde',
+            label: Lang.get('screens.dashboard.counter_expired'),
+            value: '$expired',
+            delta: Lang.get('screens.dashboard.unit_batches'),
           ),
         ),
         WDiv(
-          child: StatCard(label: 'Stok bitti', value: '$out', delta: 'ürün'),
+          child: StatCard(
+            label: Lang.get('screens.dashboard.counter_approaching'),
+            value: '$approaching',
+            delta: Lang.get('screens.dashboard.counter_within', {'days': defaultHorizonDays}),
+          ),
         ),
         WDiv(
-          child: StatCard(label: 'Hedefin altında', value: '$low', delta: 'ürün'),
+          child: StatCard(
+            label: Lang.get('screens.dashboard.counter_out'),
+            value: '$out',
+            delta: Lang.get('screens.dashboard.unit_products'),
+          ),
+        ),
+        WDiv(
+          child: StatCard(
+            label: Lang.get('screens.dashboard.counter_low'),
+            value: '$low',
+            delta: Lang.get('screens.dashboard.unit_products'),
+          ),
         ),
       ],
     );
@@ -221,14 +230,14 @@ class DashboardView extends StatelessWidget {
   /// reads as a mistake rather than as a layout.
   Widget _buildCapture(BuildContext context) {
     return SectionCard(
-      label: 'Ekle',
+      label: Lang.get('screens.dashboard.capture_group'),
       children: [
         WDiv(
           className: 'flex flex-col md:flex-row gap-2 w-full',
           children: [
-            _captureButton(context, 'Tara', _iconScan, '/tara', ButtonIntent.primary),
-            _captureButton(context, 'Asistana yaz', _iconAssistant, '/asistan'),
-            _captureButton(context, 'Sayım yap', _iconCount, '/sayim'),
+            _captureButton(context, Lang.get('screens.dashboard.capture_scan'), _iconScan, '/tara', ButtonIntent.primary),
+            _captureButton(context, Lang.get('screens.dashboard.capture_assistant'), _iconAssistant, '/asistan'),
+            _captureButton(context, Lang.get('screens.dashboard.capture_count'), _iconCount, '/sayim'),
           ],
         ),
       ],
@@ -278,9 +287,9 @@ class DashboardView extends StatelessWidget {
     final List<DatedLot> rows = <DatedLot>[...expired, ...approaching];
 
     return SectionCard(
-      label: 'Tarihler',
-      count: '${rows.length} parti',
-      action: _seeAll('/tarihler', 'Tüm tarihleri gör'),
+      label: Lang.get('screens.dashboard.dates_group'),
+      count: Lang.get('screens.dashboard.count_batches', {'count': rows.length}),
+      action: _seeAll('/tarihler', Lang.get('screens.dashboard.dates_action')),
       children: [
         for (final DatedLot row in rows.take(_rowCap))
           LotRow(
@@ -295,7 +304,7 @@ class DashboardView extends StatelessWidget {
             isOpen: row.isOpen,
             openedLabel: row.receivedLabel,
           ),
-        _hiddenCount(rows.length, 'parti'),
+        _hiddenCount(rows.length, Lang.get('screens.dashboard.unit_batches')),
       ],
     );
   }
@@ -311,12 +320,12 @@ class DashboardView extends StatelessWidget {
     ];
 
     return SectionCard(
-      label: 'Azalanlar',
-      count: '${rows.length} ürün',
-      action: _seeAll('/azalanlar', 'Tümünü gör'),
+      label: Lang.get('screens.dashboard.stock_group'),
+      count: Lang.get('screens.dashboard.count_products', {'count': rows.length}),
+      action: _seeAll('/azalanlar', Lang.get('screens.dashboard.stock_action')),
       children: [
         for (final ProductListItem p in rows.take(_rowCap)) _productRow(p),
-        _hiddenCount(rows.length, 'ürün'),
+        _hiddenCount(rows.length, Lang.get('screens.dashboard.unit_products')),
       ],
     );
   }
@@ -328,7 +337,7 @@ class DashboardView extends StatelessWidget {
 
     return ProductRow(
       name: product.name,
-      meta: 'Hedef ${product.parLevel} ${product.unit}',
+      meta: Lang.get('screens.dashboard.stock_meta', {'par': product.parLevel, 'unit': product.unit}),
       amount: product.amount,
       formatted: primary,
       unit: primaryUnit,
@@ -346,12 +355,12 @@ class DashboardView extends StatelessWidget {
   /// the other three cards are facts, which a partial view of is still useful.
   Widget _buildShopping() {
     return SectionCard(
-      label: 'Alışveriş listesi',
-      count: '${pendingLines.length} satır',
-      action: _seeAll('/alisveris', 'Listeyi aç'),
+      label: Lang.get('screens.dashboard.shopping_group'),
+      count: Lang.get('screens.dashboard.shopping_count', {'count': pendingLines.length}),
+      action: _seeAll('/alisveris', Lang.get('screens.dashboard.shopping_action')),
       children: [
         WText(
-          'Azalan ve tarihi yaklaşan ürünlerden derlendi. Kalemler listede işaretlenir.',
+          Lang.get('screens.dashboard.shopping_note'),
           className: 'text-sm text-fg-muted',
         ),
       ],
@@ -363,8 +372,8 @@ class DashboardView extends StatelessWidget {
     final List<ActivityFixture> rows = activityEntries;
 
     return SectionCard(
-      label: 'Son hareketler',
-      count: '${rows.length} hareket',
+      label: Lang.get('screens.dashboard.activity_group'),
+      count: Lang.get('screens.dashboard.count_changes', {'count': rows.length}),
       collapsible: true,
       children: [
         for (final ActivityFixture entry in rows.take(_rowCap))
@@ -377,7 +386,7 @@ class DashboardView extends StatelessWidget {
             direction: entry.direction,
             note: entry.note,
           ),
-        _hiddenCount(rows.length, 'hareket'),
+        _hiddenCount(rows.length, Lang.get('screens.dashboard.unit_changes')),
       ],
     );
   }
@@ -389,16 +398,15 @@ class DashboardView extends StatelessWidget {
   /// has cleared their dates and restocked lands on exactly this.
   Widget _buildCalm() {
     return SectionCard(
-      label: 'Durum',
+      label: Lang.get('screens.dashboard.calm_group'),
       children: [
         WDiv(
           className: 'w-full',
-          child: const MSEmptyState(
+          child: MSEmptyState(
             icon: _iconCalm,
-            title: 'Bekleyen iş yok',
+            title: Lang.get('screens.dashboard.calm_title'),
             description:
-                'Süresi geçen, tarihi yaklaşan veya hedefin altına düşen ürün yok. '
-                'Yeni bir giriş için yukarıdaki eylemleri kullanın.',
+                Lang.get('screens.dashboard.calm_description'),
           ),
         ),
       ],
@@ -437,7 +445,7 @@ class DashboardView extends StatelessWidget {
     return ListFooter(
       state: ListFooterState.end,
       pageSize: _rowCap,
-      totalLabel: '+${total - _rowCap} $noun',
+      totalLabel: Lang.get('screens.dashboard.hidden_more', {'count': total - _rowCap, 'noun': noun}),
     );
   }
 }
