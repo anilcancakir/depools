@@ -45,7 +45,9 @@ class ReceiptReviewView extends StatelessWidget {
 
     return MSPageScaffold(
       title: Lang.get('screens.receipt.title'),
+      // demo-data-start: the receipt header, standing in for the parsed document
       subtitle: Lang.get('screens.receipt.subtitle', {'merchant': 'Migros', 'date': '5 Ağu 18:22', 'count': receiptLines.length}),
+      // demo-data-end
       actions: [
         MSButton(
           onPressed: () {},

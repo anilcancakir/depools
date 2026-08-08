@@ -12,6 +12,7 @@ import 'package:magic_starter/magic_starter.dart'
 
 import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/location_row/location_row.dart';
+import 'location_fixtures.dart';
 import '../../../ui/components/section_card/section_card.dart';
 
 /// How much the app decides about placement on its own.
@@ -151,88 +152,7 @@ class LocationIndexView extends StatelessWidget {
   /// Flat plus a depth rather than nested children, because that is what the screen
   /// renders and what a materialised `path` gives cheaply. Nesting the fixture would model
   /// the database and complicate the view for no gain.
-  static const List<LocationNode> _tree = <LocationNode>[
-    LocationNode(
-      name: 'Mutfak',
-      path: 'Mutfak',
-      depth: 0,
-      productCount: 5,
-      summary: '5 ürün · 2 alt konum',
-      icon: Icons.kitchen_outlined,
-    ),
-    LocationNode(
-      name: 'Buzdolabı',
-      path: 'Mutfak › Buzdolabı',
-      depth: 1,
-      productCount: 3,
-      summary: '3 ürün',
-      icon: Icons.kitchen_outlined,
-    ),
-    LocationNode(
-      name: 'Derin dondurucu',
-      path: 'Mutfak › Derin dondurucu',
-      depth: 1,
-      productCount: 1,
-      summary: '1 ürün',
-      icon: Icons.ac_unit_outlined,
-    ),
-    LocationNode(
-      name: 'Kiler',
-      path: 'Kiler',
-      depth: 0,
-      productCount: 4,
-      summary: '4 ürün · 3 alt konum',
-      icon: Icons.shelves,
-    ),
-    LocationNode(
-      name: 'Raf 1',
-      path: 'Kiler › Raf 1',
-      depth: 1,
-      productCount: 1,
-      summary: '1 ürün',
-      icon: Icons.shelves,
-    ),
-    LocationNode(
-      name: 'Raf 2',
-      path: 'Kiler › Raf 2',
-      depth: 1,
-      productCount: 2,
-      summary: '2 ürün',
-      icon: Icons.shelves,
-    ),
-    LocationNode(
-      name: 'Çekmece 2',
-      path: 'Kiler › Çekmece 2',
-      depth: 1,
-      productCount: 1,
-      summary: '1 ürün',
-      icon: Icons.inbox_outlined,
-    ),
-    LocationNode(
-      name: 'Depo',
-      path: 'Depo',
-      depth: 0,
-      productCount: 2,
-      summary: '2 ürün · 1 alt konum',
-      icon: Icons.warehouse_outlined,
-    ),
-    LocationNode(
-      name: 'Raf A',
-      path: 'Depo › Raf A',
-      depth: 1,
-      productCount: 2,
-      summary: '2 ürün',
-      icon: Icons.shelves,
-    ),
-    LocationNode(
-      name: 'Raf B',
-      path: 'Depo › Raf B',
-      depth: 1,
-      productCount: 0,
-      summary: 'Boş',
-      icon: Icons.shelves,
-    ),
-  ];
+
 
   /// The already-localised label for a scope.
   static String _scopeLabel(LocationScope value) => switch (value) {
@@ -243,9 +163,9 @@ class LocationIndexView extends StatelessWidget {
 
   /// The nodes the current scope admits.
   List<LocationNode> get _visible => switch (scope) {
-    LocationScope.all => _tree,
-    LocationScope.stocked => _tree.where((n) => n.productCount > 0).toList(),
-    LocationScope.empty => _tree.where((n) => n.productCount == 0).toList(),
+    LocationScope.all => locationTree,
+    LocationScope.stocked => locationTree.where((n) => n.productCount > 0).toList(),
+    LocationScope.empty => locationTree.where((n) => n.productCount == 0).toList(),
   };
 
   /// Whether the tree is being shown whole, which decides indent versus path.
@@ -272,13 +192,13 @@ class LocationIndexView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int roots = _tree.where((n) => n.depth == 0).length;
+    final int roots = locationTree.where((n) => n.depth == 0).length;
 
     return MSPageScaffold(
       title: Lang.get('screens.locations.title'),
       subtitle: isEmpty
           ? null
-          : Lang.get('screens.locations.subtitle', {'total': _tree.length, 'roots': roots}),
+          : Lang.get('screens.locations.subtitle', {'total': locationTree.length, 'roots': roots}),
       // **No header action while the list is empty.** The empty state already carries a
       // full-width `Konum ekle`, so rendering the icon button too put the same action on screen
       // twice, both in primary blue, on the one screen where the call to action has to be
@@ -355,7 +275,7 @@ class LocationIndexView extends StatelessWidget {
             title: Lang.get('screens.locations.filtered_empty'),
             description: Lang.get(
               'screens.locations.filtered_hint',
-              {'total': _tree.length},
+              {'total': locationTree.length},
             ),
           ),
         ),

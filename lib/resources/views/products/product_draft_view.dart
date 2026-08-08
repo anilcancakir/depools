@@ -325,7 +325,9 @@ class ProductDraftView extends StatelessWidget {
             ),
             DraftField(
               label: Lang.get('screens.product_draft.expiry'),
+              // demo-data-start: the computed dates, standing in for a date formatter
               value: _source.shelfLifeDays == null ? null : '11 Ağu',
+              // demo-data-end
               unconfirmed: true,
               layout: DraftFieldLayout.chip,
               state: isEnriching ? DraftFieldState.loading : null,
@@ -336,9 +338,11 @@ class ProductDraftView extends StatelessWidget {
                 context,
                 label: Lang.get('screens.product_draft.expiry'),
                 provenance: Lang.get('screens.product_draft.from_shelf_life'),
+                // demo-data-start: the computed dates, standing in for a date formatter
                 value: '11 Ağu',
                 kind: FieldEditorKind.choice,
                 options: ['11 Ağu (+5 gün)', '18 Ağu (+12 gün)', Lang.get('screens.product_draft.pick_date'), Lang.get('screens.product_draft.unknown')],
+                // demo-data-end
               ),
             ),
           ],

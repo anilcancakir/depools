@@ -253,13 +253,17 @@ class AssistantView extends StatelessWidget {
   List<Widget> _newestFirst() {
     return <Widget>[
       _buildApprovalCard(),
+      // demo-data-start: the transcript the preview renders, standing in for a real exchange
       const ChatMessage(text: 'kıymayı derin dondurucuya taşı', speaker: ChatSpeaker.user),
+      // demo-data-end
       _buildShortageCard(),
       const ChatMessage(text: 'neyim eksik', speaker: ChatSpeaker.user),
       _buildPlacementCard(),
       _buildWriteCard(),
+      // demo-data-start: the transcript the preview renders, standing in for a real exchange
       const ChatMessage(text: 'Süt stoğa yazıldı.'),
       const ChatMessage(text: '1 adet süt aldım', speaker: ChatSpeaker.user),
+      // demo-data-end
       // The far end of a reversed list is the top of the screen, so this is where "older
       // messages are coming" belongs. Skeletons in the shape of a message, not bars.
       _buildOlderLoader(),
@@ -329,7 +333,9 @@ class AssistantView extends StatelessWidget {
           // Product and surface, which is what criterion 4 asks a feed entry to carry.
           // The timestamp was here too and truncated the product name off the end, which
           // is the one part that cannot be dropped.
+          // demo-data-start: the transcript the preview renders, standing in for a real exchange
           meta: 'Pınar Süt Tam Yağlı 1 lt · asistan',
+          // demo-data-end
           direction: MovementDirection.inbound,
         ),
       ],
@@ -351,7 +357,9 @@ class AssistantView extends StatelessWidget {
           children: [
             if (affinity != null)
               ChoiceChip(
+                // demo-data-start: the transcript the preview renders, standing in for a real exchange
                 label: resolveLocationLabel(affinity.$1) ?? 'Buzdolabı',
+                // demo-data-end
                 evidence: '${affinity.$2} kez',
                 isSuggested: true,
                 semanticLabel: Lang.get('screens.assistant.where_put', {'location': resolveLocationLabel(affinity.$1)}),
@@ -405,19 +413,27 @@ class AssistantView extends StatelessWidget {
       label: Lang.get('screens.assistant.pending_group'),
       children: [
         const MovementRow(
+          // demo-data-start: the transcript the preview renders, standing in for a real exchange
           reason: 'Konumlar arası taşıma',
+          // demo-data-end
           deltaAmount: -1,
           delta: '-1',
           unit: 'kg',
+          // demo-data-start: the transcript the preview renders, standing in for a real exchange
           meta: 'Kıyma · Mutfak › Buzdolabı',
+          // demo-data-end
           direction: MovementDirection.outbound,
         ),
         const MovementRow(
+          // demo-data-start: the transcript the preview renders, standing in for a real exchange
           reason: 'Konumlar arası taşıma',
+          // demo-data-end
           deltaAmount: 1,
           delta: '+1',
           unit: 'kg',
+          // demo-data-start: the transcript the preview renders, standing in for a real exchange
           meta: 'Kıyma · Mutfak › Derin dondurucu',
+          // demo-data-end
           direction: MovementDirection.inbound,
         ),
         WDiv(

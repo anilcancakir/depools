@@ -642,19 +642,27 @@ class ProductShowView extends StatelessWidget {
       ),
       children: [
         const MovementRow(
+          // demo-data-start: the movement rows, standing in for ledger entries
           reason: 'Satın alındı',
+          // demo-data-end
           deltaAmount: 2,
           delta: '+2',
           unit: 'adet',
+          // demo-data-start: the movement rows, standing in for ledger entries
           meta: 'Fiş taraması · 5 Ağu 18:22',
+          // demo-data-end
           direction: MovementDirection.inbound,
         ),
         const MovementRow(
+          // demo-data-start: the movement rows, standing in for ledger entries
           reason: 'Tüketildi',
+          // demo-data-end
           deltaAmount: -1,
           delta: '-1',
           unit: 'adet',
+          // demo-data-start: the movement rows, standing in for ledger entries
           meta: 'Anılcan · bugün 09:14',
+          // demo-data-end
           direction: MovementDirection.outbound,
         ),
         const MovementRow(
@@ -662,15 +670,21 @@ class ProductShowView extends StatelessWidget {
           deltaAmount: -1,
           delta: '-1',
           unit: 'adet',
+          // demo-data-start: the movement rows, standing in for ledger entries
           meta: 'Anılcan · bugün 09:15',
+          // demo-data-end
           direction: MovementDirection.waste,
         ),
         const MovementRow(
+          // demo-data-start: the movement rows, standing in for ledger entries
           reason: 'Sayım düzeltmesi',
+          // demo-data-end
           deltaAmount: 1,
           delta: '+1',
           unit: 'adet',
+          // demo-data-start: the movement rows, standing in for ledger entries
           meta: 'Asistan onaylı · dün 21:40',
+          // demo-data-end
           direction: MovementDirection.correction,
         ),
       ],

@@ -178,8 +178,10 @@ class LabelPrintView extends StatelessWidget {
               // overflow line, computed, rather than from a user eyeballing a wrap.
               className: _template.labelHeightMm < 30 ? 'w-40 axis-min' : 'w-56 axis-min',
               child: LabelCard(
+                // demo-data-start: the sample label, standing in for the first row of the batch
                 name: 'Pınar Süt Tam Yağlı 1 lt',
                 meta: 'Mutfak › Buzdolabı',
+                // demo-data-end
                 code: '8690504004073',
                 overflowField: _overflowField,
                 size: _template.labelHeightMm < 30 ? LabelCardSize.sm : LabelCardSize.md,

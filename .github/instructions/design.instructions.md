@@ -185,6 +185,21 @@ plainer word that means the same thing.
 Two terms already shipped as jargon and were corrected: `days of cover` and `movements`. Check a new
 term against the table before adding it.
 
+### Demo data inside a view is marked, not exempted in a list
+
+Most fixtures live in a `*_fixtures.dart` file. A few demo rows sit inside a view because they only
+make sense next to the widget they feed, and those carry a region marker:
+
+```dart
+// demo-data-start: the movement rows, standing in for ledger entries
+...
+// demo-data-end
+```
+
+`test/no_hardcoded_copy_test.dart` honours the marker and fails on anything else. A marker rather
+than an allow-list in the test, because the decision belongs where the data is, and because it makes
+every demo block greppable when the backend replaces it.
+
 Interpolation goes through `:placeholder` replacements, never string concatenation:
 
 ```dart
