@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../resources/views/products/product_show_view.dart';
 import 'preview_mock_harness.dart';
-import 'screen_preview_scaffold.dart';
+import 'responsive_screen_preview.dart';
 
 /// Feature-screen preview: product detail for a SERIAL-tracked product.
 ///
@@ -17,7 +17,7 @@ class ProductShowSerialScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ScreenPreviewScaffold(state: PreviewState.success, builder: _build);
+    return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
   static Widget _build(BuildContext context) => const ProductShowView.serialTracked();

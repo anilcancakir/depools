@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../resources/views/products/dates_view.dart';
 import 'preview_mock_harness.dart';
-import 'screen_preview_scaffold.dart';
+import 'responsive_screen_preview.dart';
 
 /// Feature-screen preview: what is running out of time.
 ///
@@ -25,7 +25,7 @@ class DatesScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ScreenPreviewScaffold(state: PreviewState.success, builder: _build);
+    return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
   static Widget _build(BuildContext context) => const DatesView();

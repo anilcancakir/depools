@@ -4,7 +4,7 @@ import 'package:magic_starter/magic_starter.dart'
     show MagicStarterProfileController, MagicStarterProfileSettingsView;
 
 import 'preview_mock_harness.dart';
-import 'screen_preview_scaffold.dart';
+import 'responsive_screen_preview.dart';
 
 /// Feature-screen preview: the profile settings view with a sample user,
 /// rendered backend-free.
@@ -14,7 +14,7 @@ class ProfileScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ScreenPreviewScaffold(state: PreviewState.success, builder: _build);
+    return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
   /// **The controller has to exist before the view's `initState` looks for it.**
