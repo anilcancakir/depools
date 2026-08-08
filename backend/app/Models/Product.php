@@ -65,6 +65,17 @@ final class Product extends Model
     }
 
     /**
+     * The materialised per-location totals.
+     *
+     * The list screen's only source for quantity. Eager-loaded by the index endpoint so fifty
+     * products cost one extra query rather than fifty aggregations over the ledger.
+     */
+    public function stock(): HasMany
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+
+    /**
      * Every movement that touched this product.
      */
     public function movements(): HasMany
