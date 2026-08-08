@@ -125,18 +125,18 @@ class AssistantView extends StatelessWidget {
             // other screen uses `MSPageHeader`, and consistency beats the forty pixels a
             // hand-rolled row saved.
             MSPageHeader(
-              title: 'Asistan',
+              title: Lang.get('screens.assistant.title'),
               // **What the automation level DOES, not what it is called.** This said
               // "· yarı otomatik", which is a level name from D10 and means nothing to the
               // person reading it. The mode matters only through its consequence, so the
               // consequence is what gets said.
-              subtitle: 'Stok değişiklikleri onayınıza sunulur',
+              subtitle: Lang.get('screens.assistant.subtitle'),
               actions: [
                 MSButton(
                   onPressed: () => ActivityPanel.show(context),
                   intent: ButtonIntent.ghost,
                   className: 'h-11 w-11 px-0 justify-center',
-                  semanticLabel: 'Hareketler',
+                  semanticLabel: Lang.get('screens.assistant.activity'),
                   child: const WIcon(_activityIcon, className: 'size-5'),
                 ),
               ],
@@ -216,14 +216,18 @@ class AssistantView extends StatelessWidget {
       className: 'flex flex-row wrap items-center gap-2 pt-3 pb-3',
       children: [
         ChoiceChip(
-          label: '$expiring tarihi yakın',
-          semanticLabel: 'Tarihi yaklaşan $expiring ürünü göster',
+          label: Lang.get('screens.assistant.chip_expiring', {'count': expiring}),
+          semanticLabel: Lang.get('screens.assistant.chip_expiring_label', {'count': expiring}),
           onTap: () {},
         ),
-        ChoiceChip(label: '$low azalan', semanticLabel: 'Azalan $low ürünü göster', onTap: () {}),
+        ChoiceChip(
+          label: Lang.get('screens.assistant.chip_low', {'count': low}),
+          semanticLabel: Lang.get('screens.assistant.chip_low_label', {'count': low}),
+          onTap: () {},
+        ),
         ChoiceChip(
           label: '$untargeted hedefsiz',
-          semanticLabel: 'Hedefi olmayan $untargeted ürünü göster',
+          semanticLabel: Lang.get('screens.assistant.chip_untargeted_label', {'count': untargeted}),
           onTap: () {},
         ),
       ],
@@ -288,7 +292,7 @@ class AssistantView extends StatelessWidget {
   Widget _buildOlderLoader() {
     return WDiv(
       className: 'flex flex-col gap-2 py-3',
-      children: const [
+      children: [
         WDiv(
           className: 'flex flex-row justify-end',
           child: MSSkeleton(shape: SkeletonShape.text, width: 140, height: 34),
@@ -297,7 +301,7 @@ class AssistantView extends StatelessWidget {
           className: 'flex flex-row justify-start',
           child: MSSkeleton(shape: SkeletonShape.text, width: 220, height: 16),
         ),
-        WText('Daha eski mesajlar yükleniyor', className: 'text-xs text-fg-muted'),
+        WText(Lang.get('screens.assistant.older'), className: 'text-xs text-fg-muted'),
       ],
     );
   }
@@ -309,16 +313,16 @@ class AssistantView extends StatelessWidget {
   /// so scrolling back through the conversation reads as a list of changes.
   Widget _buildWriteCard() {
     return SectionCard(
-      label: 'Stoğa yazıldı',
+      label: Lang.get('screens.assistant.written'),
       action: MSButton(
         onPressed: () {},
         intent: ButtonIntent.ghost,
         size: ButtonSize.sm,
-        child: const WText('Geri al'),
+        child: WText(Lang.get('screens.assistant.undo')),
       ),
-      children: const [
+      children: [
         MovementRow(
-          reason: 'Satın alma',
+          reason: Lang.get('screens.assistant.purchase'),
           deltaAmount: 1,
           delta: '+1',
           unit: 'adet',
@@ -340,7 +344,7 @@ class AssistantView extends StatelessWidget {
     final (String, int)? affinity = suggestLocationFor('cat-dairy');
 
     return SectionCard(
-      label: 'Nereye',
+      label: Lang.get('screens.assistant.where_group'),
       children: [
         WDiv(
           className: 'flex flex-row wrap items-center gap-2 py-1',
@@ -350,12 +354,12 @@ class AssistantView extends StatelessWidget {
                 label: resolveLocationLabel(affinity.$1) ?? 'Buzdolabı',
                 evidence: '${affinity.$2} kez',
                 isSuggested: true,
-                semanticLabel: '${resolveLocationLabel(affinity.$1)} konumuna koy',
+                semanticLabel: Lang.get('screens.assistant.where_put', {'location': resolveLocationLabel(affinity.$1)}),
               ),
-            const ChoiceChip(label: 'Kiler', semanticLabel: 'Kiler konumuna koy'),
+            ChoiceChip(label: 'Kiler', semanticLabel: Lang.get('screens.assistant.where_put', {'location': 'Kiler'})),
             // An explicit skip, because every chip has to be a real answer and "I will do
             // it later" is one of them.
-            const ChoiceChip(label: 'Sonra', semanticLabel: 'Konumu şimdi belirleme'),
+            ChoiceChip(label: Lang.get('screens.assistant.where_later'), semanticLabel: Lang.get('screens.assistant.where_skip')),
           ],
         ),
       ],
@@ -365,15 +369,15 @@ class AssistantView extends StatelessWidget {
   /// The answer to "neyim eksik", rendered as the shopping list itself.
   Widget _buildShortageCard() {
     return SectionCard(
-      label: 'Alınacak',
-      count: '${pendingLines.length} ürün',
+      label: Lang.get('screens.assistant.shopping_group'),
+      count: Lang.get('screens.assistant.shopping_count', {'count': pendingLines.length}),
       // The way out to the real screen. Criterion 7 says every capability here is also
       // reachable in inventory mode, and a link is how that stops being a promise.
       action: MSButton(
         onPressed: () {},
         intent: ButtonIntent.ghost,
         size: ButtonSize.sm,
-        child: const WText('Listeyi aç'),
+        child: WText(Lang.get('screens.assistant.shopping_open')),
       ),
       children: [
         for (final ShoppingFixture line in pendingLines.take(3))
@@ -398,7 +402,7 @@ class AssistantView extends StatelessWidget {
   /// something else.
   Widget _buildApprovalCard() {
     return SectionCard(
-      label: 'Onay bekliyor',
+      label: Lang.get('screens.assistant.pending_group'),
       children: [
         const MovementRow(
           reason: 'Konumlar arası taşıma',
@@ -425,7 +429,7 @@ class AssistantView extends StatelessWidget {
                 onPressed: () {},
                 fullWidth: true,
                 className: 'justify-center',
-                child: const WText('Onayla'),
+                child: WText(Lang.get('screens.assistant.approve')),
               ),
             ),
             WDiv(
@@ -444,7 +448,7 @@ class AssistantView extends StatelessWidget {
                 intent: ButtonIntent.secondary,
                 fullWidth: true,
                 className: 'justify-center bg-surface-container',
-                child: const WText('Reddet'),
+                child: WText(Lang.get('screens.assistant.reject')),
               ),
             ),
           ],
@@ -461,25 +465,29 @@ class AssistantView extends StatelessWidget {
   /// has to survive.
   Widget _buildOpeners() {
     return SectionCard(
-      label: 'Örnek',
+      label: Lang.get('screens.assistant.opener_group'),
       children: [
         WDiv(
           className: 'flex flex-row wrap items-center gap-2 py-1',
           children: [
             ChoiceChip(
-              label: '1 adet süt aldım',
-              semanticLabel: 'Bir adet süt aldım yaz',
+              label: Lang.get('screens.assistant.opener_buy'),
+              semanticLabel: Lang.get('screens.assistant.opener_buy_label'),
               onTap: () {},
             ),
             ChoiceChip(
-              label: 'yarım kilo kıyma aldım',
-              semanticLabel: 'Yarım kilo kıyma aldım yaz',
+              label: Lang.get('screens.assistant.opener_mince'),
+              semanticLabel: Lang.get('screens.assistant.opener_mince_label'),
               onTap: () {},
             ),
-            ChoiceChip(label: 'neyim eksik', semanticLabel: 'Neyim eksik diye sor', onTap: () {}),
             ChoiceChip(
-              label: 'buzdolabında ne var',
-              semanticLabel: 'Buzdolabında ne var diye sor',
+              label: 'neyim eksik',
+              semanticLabel: Lang.get('screens.assistant.opener_missing'),
+              onTap: () {},
+            ),
+            ChoiceChip(
+              label: Lang.get('screens.assistant.opener_ask'),
+              semanticLabel: Lang.get('screens.assistant.opener_ask_label'),
               onTap: () {},
             ),
           ],
@@ -506,14 +514,14 @@ class AssistantView extends StatelessWidget {
           // floating in the middle of a four-line box.
           className: 'flex flex-row items-end gap-2',
           children: [
-            _composerButton(_cameraIcon, 'Fotoğraf çek', ButtonIntent.secondary),
-            _composerButton(_micIcon, 'Sesle yaz', ButtonIntent.secondary),
-            const WDiv(
+            _composerButton(_cameraIcon, Lang.get('screens.assistant.photo'), ButtonIntent.secondary),
+            _composerButton(_micIcon, Lang.get('screens.assistant.voice'), ButtonIntent.secondary),
+            WDiv(
               className: 'flex-1 min-w-0',
               child: MSInput(
                 // Card tone so an enabled field does not read as disabled.
                 className: 'bg-surface-container',
-                placeholder: 'Ne aldınız, ne soracaksınız',
+                placeholder: Lang.get('screens.assistant.composer'),
                 // **Multiline, growing.** It was a single line at a fixed `h-11`, which is wrong
                 // for this screen: the sentences it is built for are things like "dün akşam
                 // markete gittim, iki litre süt bir de yarım kilo kıyma aldım", and a chat
@@ -525,12 +533,12 @@ class AssistantView extends StatelessWidget {
                 maxLines: 4,
               ),
             ),
-            _composerButton(_sendIcon, 'Gönder', ButtonIntent.primary),
+            _composerButton(_sendIcon, Lang.get('screens.assistant.send'), ButtonIntent.primary),
           ],
         ),
         // Voice is the one input that confirms before committing, and saying so here is
         // cheaper than surprising someone with a confirmation card they did not expect.
-        WText('Sesle yazılanlar kaydedilmeden önce onaylanır', className: 'text-xs text-fg-muted'),
+        WText(Lang.get('screens.assistant.voice_note'), className: 'text-xs text-fg-muted'),
       ],
     );
   }
