@@ -803,7 +803,8 @@
       "skipped": "Atlandı",
       "unmatched": "Eşleştirilemedi",
       "unmatched_label": ":text eşleştirilemedi, eşleştirmek için dokunun",
-      "skipped_label": ":text atlandı"
+      "skipped_label": ":text atlandı",
+      "label": ":name, :amount :unit"
     },
     "scan_row": {
       "on_hand": "Mevcut: :amount :unit",
@@ -815,10 +816,19 @@
     },
     "shelf_candidate_row": {
       "unrecognised": "Tanınamadı",
-      "unrecognised_label": ":region numaralı bölge tanınamadı, düzeltmek için dokunun"
+      "unrecognised_label": ":region numaralı bölge tanınamadı, düzeltmek için dokunun",
+      "label": ":region numaralı bölge, :name, :amount :unit"
     },
     "stock_badge": {
       "low": "Az kalan"
+    },
+    "location_row": {
+      "label": ":name, :summary",
+      "empty": "boş"
+    },
+    "shopping_row": {
+      "label": ":name, :amount :unit, :reason",
+      "label_checked": ":name, :amount :unit, :reason, sepette"
     }
   }
 }

@@ -73,7 +73,12 @@ class ShelfCandidateRow extends StatelessWidget {
       onTap: onTap,
       semanticLabel: isUnresolved
           ? Lang.get('components.shelf_candidate_row.unrecognised_label', {'region': region})
-          : '$region numaralı bölge, ${productName ?? ''}, $formatted $unit',
+          : Lang.get('components.shelf_candidate_row.label', {
+              'region': region,
+              'name': productName ?? '',
+              'amount': formatted,
+              'unit': unit,
+            }),
       child: WDiv(
         className: slots['root'],
         children: [

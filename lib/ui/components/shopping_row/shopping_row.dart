@@ -129,9 +129,10 @@ class ShoppingRow extends StatelessWidget {
 
     return WAnchor(
       onTap: onToggle,
-      semanticLabel: isChecked
-          ? '$name, $formatted $unit, $reasonDetail, sepette'
-          : '$name, $formatted $unit, $reasonDetail',
+      semanticLabel: Lang.get(
+        isChecked ? 'components.shopping_row.label_checked' : 'components.shopping_row.label',
+        {'name': name, 'amount': formatted, 'unit': unit, 'reason': reasonDetail},
+      ),
       child: WDiv(
         className: slots['root'],
         children: [

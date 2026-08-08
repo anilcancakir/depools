@@ -139,7 +139,11 @@ class ReceiptLineRow extends StatelessWidget {
       semanticLabel: switch (resolution) {
         LineResolution.unresolved => Lang.get('components.receipt_line_row.unmatched_label', {'text': extracted}),
         LineResolution.rejected => Lang.get('components.receipt_line_row.skipped_label', {'text': extracted}),
-        _ => '${productName ?? extracted}, $formatted ${unit ?? ''}',
+        _ => Lang.get('components.receipt_line_row.label', {
+          'name': productName ?? extracted,
+          'amount': formatted,
+          'unit': unit ?? '',
+        }),
       },
       child: WDiv(
         className: slots['root'],

@@ -61,7 +61,10 @@ class LocationRow extends StatelessWidget {
 
     return WAnchor(
       onTap: onTap,
-      semanticLabel: '$name, ${itemSummary ?? 'boş'}',
+      semanticLabel: Lang.get('components.location_row.label', {
+        'name': name,
+        'summary': itemSummary ?? Lang.get('components.location_row.empty'),
+      }),
       child: WDiv(
         // The indent is padding on the row rather than a spacer child, so the whole row
         // stays one tap target at every depth. A nested Row of spacers would put the
