@@ -2,7 +2,13 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageScaffold, MSButton, ButtonIntent, MSSegmentedControl, MSEmptyState;
+    show
+        ButtonIntent,
+        MSButton,
+        MSEmptyState,
+        MSInput,
+        MSPageScaffold,
+        MSSegmentedControl;
 
 import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/location_row/location_row.dart';
@@ -305,15 +311,20 @@ class LocationIndexView extends StatelessWidget {
     return WDiv(
       className: 'flex flex-col gap-2',
       children: [
-        WDiv(
-          className: '''
-            flex flex-row items-center gap-2 w-full
-            bg-surface-container-high rounded-md px-3 min-h-11
-          ''',
-          children: [
-            const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
-            WText('Ara: konum adı', className: 'text-sm text-fg-muted truncate'),
-          ],
+        // **A real field, not a picture of one.** This was a `WDiv` holding a magnifier and a
+        // `WText`: it looked exactly like a search box and had no gesture at all, so tapping it
+        // did nothing on either platform. A control that cannot be used is worse than an absent
+        // one, because the user spends a tap finding out.
+        //
+        // The input tone is correct HERE and only here. This field sits on the PAGE rather than on
+        // a card, so `bg-surface-container-high` is `#E5E5EA` on `#F2F2F7`: slightly recessed,
+        // which is what an input well is meant to look like and what iOS search fields do. The
+        // rule it would break is on a white CARD, where the same token reads as disabled.
+        MSInput(
+          className: 'bg-surface-container-high',
+          placeholder: 'Ara: konum adı',
+          prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+          onChanged: (String _) {},
         ),
         MSSegmentedControl<LocationScope>(
           options: _scopes.map(_scopeLabel).toList(),
