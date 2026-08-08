@@ -140,21 +140,21 @@ class ProductShowView extends StatelessWidget {
           disabled: _product.amount == 0,
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Konum değiştir',
+          semanticLabel: Lang.get('screens.product.action_move'),
           child: const WIcon(_moveIcon),
         ),
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
-          semanticLabel: 'Etiket bas',
+          semanticLabel: Lang.get('screens.product.action_label'),
           child: const WIcon(_labelIcon),
         ),
         MSDropdownMenu(
           items: [
-            MSDropdownMenuItem(label: 'Barkod ekle', onTap: () {}),
-            MSDropdownMenuItem(label: 'Ürünü düzenle', onTap: () {}),
-            MSDropdownMenuItem(label: 'Arşivle', onTap: () {}),
+            MSDropdownMenuItem(label: Lang.get('screens.product.action_barcode'), onTap: () {}),
+            MSDropdownMenuItem(label: Lang.get('screens.product.action_edit'), onTap: () {}),
+            MSDropdownMenuItem(label: Lang.get('screens.product.action_archive'), onTap: () {}),
           ],
           child: MSButton(
             // Null on purpose, and NOT disabled: MSDropdownMenu owns the gesture and
@@ -163,7 +163,7 @@ class ProductShowView extends StatelessWidget {
             onPressed: null,
             intent: ButtonIntent.ghost,
             className: 'min-h-11 min-w-11 justify-center',
-            semanticLabel: 'Diğer işlemler',
+            semanticLabel: Lang.get('screens.product.action_more'),
             child: const WIcon(_moreIcon),
           ),
         ),
@@ -255,7 +255,7 @@ class ProductShowView extends StatelessWidget {
   /// noise competing with the two that mean something.
   Widget _buildBarcodes() {
     return SectionCard(
-      label: 'Barkodlar',
+      label: Lang.get('screens.product.barcodes_group'),
       count: '${_product.barcodes.length} kod',
       children: [
         for (final (String code, String meta) in _product.barcodes) _buildBarcodeRow(code, meta),
@@ -297,7 +297,7 @@ class ProductShowView extends StatelessWidget {
       return WDiv(
         className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
         children: [
-          WText('Toplam stok', className: 'text-xs text-fg-muted'),
+          WText(Lang.get('screens.product.total_stock'), className: 'text-xs text-fg-muted'),
           const Quantity(amount: 0, formatted: '0', unit: 'adet', size: QuantitySize.lg),
         ],
       );
@@ -312,7 +312,7 @@ class ProductShowView extends StatelessWidget {
         WDiv(
           className: 'flex flex-col gap-1',
           children: [
-            WText('Toplam stok', className: 'text-xs text-fg-muted'),
+            WText(Lang.get('screens.product.total_stock'), className: 'text-xs text-fg-muted'),
             // Derived, so it cannot disagree with the list row for this product.
             Quantity(
               amount: _product.amount,
@@ -327,7 +327,7 @@ class ProductShowView extends StatelessWidget {
         WDiv(
           className: 'flex flex-col items-end gap-1',
           children: [
-            WText('En yakın tarih', className: 'text-xs text-fg-muted'),
+            WText(Lang.get('screens.product.soonest_date'), className: 'text-xs text-fg-muted'),
             // The open unit's clock, which is sooner than any printed date here. A
             // headline showing the printed date while an opened carton expires in two
             // days would be the screen contradicting its own lot list.
@@ -360,21 +360,29 @@ class ProductShowView extends StatelessWidget {
   /// "Henüz yok" would be noise agreeing with the second one.
   Widget _buildForecast() {
     if (isNew) {
-      return const WDiv(
+      return WDiv(
         className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
         children: [
           WDiv(
-            child: StatCard(label: 'Hedef seviye', value: 'Belirlenmedi', delta: 'Belirlenmedi'),
+            child: StatCard(
+              label: Lang.get('screens.product.stat_target'),
+              value: Lang.get('screens.product.stat_target_unset'),
+              delta: Lang.get('screens.product.stat_target_unset'),
+            ),
           ),
           WDiv(
             child: StatCard(
-              label: 'Tüketim tahmini',
-              value: 'Henüz yok',
+              label: Lang.get('screens.product.stat_forecast'),
+              value: Lang.get('screens.product.stat_forecast_none'),
               delta: '0 hareket, 10 gerekiyor',
             ),
           ),
           WDiv(
-            child: StatCard(label: 'Zayi', value: '0', delta: 'son 30 günde'),
+            child: StatCard(
+              label: Lang.get('screens.product.stat_waste'),
+              value: '0',
+              delta: Lang.get('screens.product.stat_waste_window'),
+            ),
           ),
         ],
       );
@@ -385,20 +393,24 @@ class ProductShowView extends StatelessWidget {
       children: [
         WDiv(
           child: StatCard(
-            label: 'Hedef seviye',
-            value: '${_product.parLevel} ${_product.unit}',
-            delta: 'Elle belirlendi',
+            label: Lang.get('screens.product.stat_target'),
+            value: Lang.get('screens.product.stat_target_value', {'par': _product.parLevel, 'unit': _product.unit}),
+            delta: Lang.get('screens.product.stat_target_manual'),
           ),
         ),
-        const WDiv(
+        WDiv(
           child: StatCard(
-            label: 'Tüketim tahmini',
-            value: 'Henüz yok',
+            label: Lang.get('screens.product.stat_forecast'),
+            value: Lang.get('screens.product.stat_forecast_none'),
             delta: '9 hareket, 10 gerekiyor',
           ),
         ),
-        const WDiv(
-          child: StatCard(label: 'Zayi', value: '1 adet', delta: 'son 30 günde'),
+        WDiv(
+          child: StatCard(
+            label: Lang.get('screens.product.stat_waste'),
+            value: '1 adet',
+            delta: Lang.get('screens.product.stat_waste_window'),
+          ),
         ),
       ],
     );
@@ -407,7 +419,7 @@ class ProductShowView extends StatelessWidget {
   Widget _buildLocations() {
     if (isNew) {
       return SectionCard(
-        label: 'Konumlar',
+        label: Lang.get('screens.product.locations_group'),
         children: [
           WDiv(
             // Full width so MSEmptyState's own `items-center` has something to centre
@@ -416,8 +428,8 @@ class ProductShowView extends StatelessWidget {
             className: 'w-full',
             child: MSEmptyState(
               icon: _moveIcon,
-              title: 'Henüz bir konumda değil',
-              description: 'Stok girişinde konum sorulur, sonraki girişlerde otomatik önerilir.',
+              title: Lang.get('screens.product.locations_empty'),
+              description: Lang.get('screens.product.locations_empty_note'),
             ),
           ),
         ],
@@ -429,8 +441,8 @@ class ProductShowView extends StatelessWidget {
     // carton and an open half-litre, so the breakdown came to less than the total it
     // breaks down.
     return SectionCard(
-      label: 'Konumlar',
-      count: '${_locationIds.length} konum',
+      label: Lang.get('screens.product.locations_group'),
+      count: Lang.get('screens.product.locations_count', {'count': _locationIds.length}),
       children: [for (final String locationId in _locationIds) _locationRow(locationId)],
     );
   }
@@ -468,7 +480,9 @@ class ProductShowView extends StatelessWidget {
       remainderFormatted: open?.formatted,
       remainderUnit: open?.unit,
       lotsLabel: '${lots.length} parti',
-      expiryLabel: soonest.isOpen ? 'Açık · ${soonest.expiryLabel}' : soonest.expiryLabel,
+      expiryLabel: soonest.isOpen
+          ? Lang.get('screens.product.open_soonest', {'label': soonest.expiryLabel})
+          : soonest.expiryLabel,
       daysUntilExpiry: soonest.daysUntilExpiry,
     );
   }
@@ -476,7 +490,7 @@ class ProductShowView extends StatelessWidget {
   Widget _buildLots() {
     if (isNew) {
       return SectionCard(
-        label: 'Partiler',
+        label: Lang.get('screens.product.lots_group'),
         children: [
           WDiv(
             // Full width so MSEmptyState's own `items-center` has something to centre
@@ -485,10 +499,9 @@ class ProductShowView extends StatelessWidget {
             className: 'w-full',
             child: MSEmptyState(
               icon: _emptyLotsIcon,
-              title: 'Parti yok',
+              title: Lang.get('screens.product.lots_empty'),
               description:
-                  'Her stok girişi bir parti açar. Son kullanma tarihi girildiğinde '
-                  'önce tükenmesi gereken parti buradan izlenir.',
+                  Lang.get('screens.product.lots_empty_note'),
             ),
           ),
         ],
@@ -506,7 +519,7 @@ class ProductShowView extends StatelessWidget {
     // cannot disagree with the list row or with each other. A test asserts the live
     // lots add up to `amount`, which is what the hand-written version could not do.
     return SectionCard(
-      label: 'Partiler',
+      label: Lang.get('screens.product.lots_group'),
       count: '${_product.lots.length} parti',
       children: [
         for (final LotFixture lot in _product.lots)
@@ -563,7 +576,7 @@ class ProductShowView extends StatelessWidget {
     final int live = _product.liveSerials.length;
 
     return SectionCard(
-      label: 'Seri numaraları',
+      label: Lang.get('screens.product.serials_group'),
       count: '$live adet',
       collapsible: true,
       children: [
@@ -583,7 +596,7 @@ class ProductShowView extends StatelessWidget {
   Widget _buildMovements() {
     if (isNew) {
       return SectionCard(
-        label: 'Hareketler',
+        label: Lang.get('screens.product.activity_group'),
         children: [
           WDiv(
             // Full width so MSEmptyState's own `items-center` has something to centre
@@ -592,10 +605,9 @@ class ProductShowView extends StatelessWidget {
             className: 'w-full',
             child: MSEmptyState(
               icon: _emptyMovementsIcon,
-              title: 'Hiç hareket yok',
+              title: Lang.get('screens.product.activity_empty'),
               description:
-                  'İlk giriş ya da çıkış aşağıdaki iki butonla kaydedilir. '
-                  'Tüketim tahmini için gereken geçmiş buradan başlar.',
+                  Lang.get('screens.product.activity_empty_note'),
             ),
           ),
         ],
@@ -603,8 +615,8 @@ class ProductShowView extends StatelessWidget {
     }
 
     return SectionCard(
-      label: 'Hareketler',
-      count: '9 kayıt',
+      label: Lang.get('screens.product.activity_group'),
+      count: Lang.get('screens.product.activity_count', {'count': 9}),
       // Collapsible, unlike the sections above it. This is the audit trail: a user
       // reads it when a number looks wrong, not on every visit, and it is the one
       // section that keeps growing. It still starts open, because a section a new
@@ -620,10 +632,10 @@ class ProductShowView extends StatelessWidget {
         // rather than a link. `justify-center` only centres the content inside
         // that stretched box; `axis-min` is what stops the stretching.
         className: 'min-h-11 axis-min',
-        child: const WDiv(
+        child: WDiv(
           className: 'flex flex-row items-center gap-0.5 axis-min',
           children: [
-            WText('Tümü'),
+            WText(Lang.get('screens.product.activity_all')),
             WIcon(_chevronIcon, className: 'size-4'),
           ],
         ),
@@ -706,11 +718,11 @@ class ProductShowView extends StatelessWidget {
             intent: ButtonIntent.secondary,
             fullWidth: true,
             className: 'justify-center gap-2 bg-surface-container',
-            child: const WDiv(
+            child: WDiv(
               className: 'flex flex-row items-center gap-2',
               children: [
                 WIcon(_outIcon, className: 'size-4'),
-                WText('Stok çıkar'),
+                WText(Lang.get('screens.product.stock_out')),
               ],
             ),
           ),
@@ -723,11 +735,11 @@ class ProductShowView extends StatelessWidget {
             onPressed: () => StockInSheet.show(context, product: _product),
             fullWidth: true,
             className: 'justify-center gap-2',
-            child: const WDiv(
+            child: WDiv(
               className: 'flex flex-row items-center gap-2',
               children: [
                 WIcon(_inIcon, className: 'size-4'),
-                WText('Stok ekle'),
+                WText(Lang.get('screens.product.stock_in')),
               ],
             ),
           ),
