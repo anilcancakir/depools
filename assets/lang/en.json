@@ -654,6 +654,46 @@
       "shelf_note": "A whole shelf · one region per product",
       "shelf_label": "Identify products from a shelf photo",
       "subtitle_empty": "Keep scanning"
+    },
+    "labels": {
+      "title": "Print labels",
+      "subtitle": ":labels labels · :sheets sheets",
+      "preview_group": "Preview",
+      "preview_one_sheet": "1 sheet · :used of :total used",
+      "preview_sheets": ":sheets sheets · :used labels on the last",
+      "what_group": "What gets printed",
+      "label_count": ":count labels",
+      "already_printed": ":count already printed and will not print again",
+      "layout_group": "Layout",
+      "field_name": "Product name",
+      "field_barcode": "Barcode",
+      "field_location": "Location",
+      "sample_label": "The label as it will print, with real content",
+      "overflow": ":field does not fit this size",
+      "overflow_note": "The label is :width×:height mm. A field is never shortened; you either turn it off or pick a bigger layout.",
+      "pick_layout": "Choose the :label layout",
+      "layout_meta": ":sheets sheets · :wasted empty",
+      "submit_note": ":labels labels, :sheets sheets",
+      "submit": "Print"
+    },
+    "shelf_photo": {
+      "title": "Shelf photo",
+      "subtitle_reading": "Reading · :done of :total regions done",
+      "subtitle": ":regions regions · :ready ready",
+      "subtitle_failed": "Could not be read",
+      "photo_group": "Photo",
+      "region_count": ":count regions",
+      "found_group": "What was found",
+      "result_group": "Result",
+      "failed_title": "The photo could not be read",
+      "failed_note": "The photo is kept and no credit was spent. You can try again or add the products by hand.",
+      "will_write": ":count products will be written to stock",
+      "will_write_partial": ":count products will be written to stock, :unresolved regions were not recognised",
+      "credit_note": "One photo costs 1 credit, however many products it finds",
+      "submit": "Add :count products",
+      "retry": "Try again",
+      "retake": "Take another",
+      "manual": "Add by hand"
     }
   }
 }

@@ -68,13 +68,13 @@ class ShelfPhotoView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MSPageScaffold(
-      title: 'Raf fotoğrafı',
+      title: Lang.get('screens.shelf_photo.title'),
       subtitle: switch (state) {
         ShelfReadState.reading =>
-          'Okunuyor · $resolvedSoFar / ${shelfCandidates.length} bölge çözüldü',
+          Lang.get('screens.shelf_photo.subtitle_reading', {'done': resolvedSoFar, 'total': shelfCandidates.length}),
         ShelfReadState.ready =>
-          '${shelfCandidates.length} bölge · ${settledCandidates.length} ürün hazır',
-        ShelfReadState.failed => 'Okunamadı',
+          Lang.get('screens.shelf_photo.subtitle', {'regions': shelfCandidates.length, 'ready': settledCandidates.length}),
+        ShelfReadState.failed => Lang.get('screens.shelf_photo.subtitle_failed'),
       },
       children: [
         _buildPhoto(),
@@ -92,8 +92,8 @@ class ShelfPhotoView extends StatelessWidget {
   /// forbidden and would break the parser cache anyway.
   Widget _buildPhoto() {
     return SectionCard(
-      label: 'Fotoğraf',
-      count: state == ShelfReadState.failed ? null : '$_visibleRegions bölge',
+      label: Lang.get('screens.shelf_photo.photo_group'),
+      count: state == ShelfReadState.failed ? null : Lang.get('screens.shelf_photo.region_count', {'count': _visibleRegions}),
       children: [
         WDiv(
           className: 'w-full rounded-md bg-surface-container-high overflow-hidden',
@@ -171,8 +171,8 @@ class ShelfPhotoView extends StatelessWidget {
     final List<ShelfCandidate> shown = shelfCandidates.take(_visibleRegions).toList();
 
     return SectionCard(
-      label: 'Bulunanlar',
-      count: '${shown.length} bölge',
+      label: Lang.get('screens.shelf_photo.found_group'),
+      count: Lang.get('screens.shelf_photo.region_count', {'count': shown.length}),
       children: [
         for (final ShelfCandidate c in shown)
           ShelfCandidateRow(
@@ -202,16 +202,15 @@ class ShelfPhotoView extends StatelessWidget {
   /// The read failed, and the photograph is still here.
   Widget _buildFailure() {
     return SectionCard(
-      label: 'Sonuç',
-      children: const [
+      label: Lang.get('screens.shelf_photo.result_group'),
+      children: [
         Callout(
           intent: CalloutIntent.danger,
-          title: 'Fotoğraf okunamadı',
+          title: Lang.get('screens.shelf_photo.failed_title'),
           // Says what was kept, because the MVP's failure mode was an uploaded file with
           // nothing pointing at it and a user who had to start over.
           message:
-              'Fotoğraf saklandı, kredi harcanmadı. Yeniden denenebilir ya da ürünler '
-              'elle eklenebilir.',
+              Lang.get('screens.shelf_photo.failed_note'),
         ),
       ],
     );
@@ -231,7 +230,7 @@ class ShelfPhotoView extends StatelessWidget {
         if (state == ShelfReadState.ready) ...[
           WText(
             unresolvedCandidates.isEmpty
-                ? '$ready ürün stoğa yazılacak'
+                ? Lang.get('screens.shelf_photo.will_write', {'count': ready})
                 : '$ready ürün stoğa yazılacak, ${unresolvedCandidates.length} bölge '
                       'tanınamadı',
             className: 'text-sm text-fg-muted',
@@ -239,14 +238,14 @@ class ShelfPhotoView extends StatelessWidget {
           // The economics, stated once. It is the cheapest capture path in the app and
           // nothing in the interface would say so.
           WText(
-            'Tek fotoğraf 1 kredi · kaç ürün bulunursa bulunsun',
+            Lang.get('screens.shelf_photo.credit_note'),
             className: 'text-xs text-fg-muted',
           ),
           MSButton(
             onPressed: () {},
             fullWidth: true,
             className: 'justify-center',
-            child: WText('$ready ürünü ekle'),
+            child: WText(Lang.get('screens.shelf_photo.submit', {'count': ready})),
           ),
         ],
         MSButton(
@@ -258,7 +257,7 @@ class ShelfPhotoView extends StatelessWidget {
             className: 'flex flex-row items-center justify-center gap-2',
             children: [
               const WIcon(_retakeIcon, className: 'size-4'),
-              WText(state == ShelfReadState.failed ? 'Yeniden dene' : 'Yeniden çek'),
+              WText(state == ShelfReadState.failed ? Lang.get('screens.shelf_photo.retry') : Lang.get('screens.shelf_photo.retake')),
             ],
           ),
         ),
@@ -268,11 +267,11 @@ class ShelfPhotoView extends StatelessWidget {
             intent: ButtonIntent.ghost,
             fullWidth: true,
             className: 'justify-center',
-            child: const WDiv(
+            child: WDiv(
               className: 'flex flex-row items-center justify-center gap-2',
               children: [
                 WIcon(_manualIcon, className: 'size-4'),
-                WText('Elle ekle'),
+                WText(Lang.get('screens.shelf_photo.manual')),
               ],
             ),
           ),

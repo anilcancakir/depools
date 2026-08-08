@@ -654,6 +654,46 @@
       "shelf_note": "Raf dolusu · her ürün için bir bölge",
       "shelf_label": "Raf fotoğrafından ürünleri tanıt",
       "subtitle_empty": "Sürekli tarama"
+    },
+    "labels": {
+      "title": "Etiket bas",
+      "subtitle": ":labels etiket · :sheets sayfa",
+      "preview_group": "Önizleme",
+      "preview_one_sheet": "1 sayfa · :used / :total kullanılır",
+      "preview_sheets": ":sheets sayfa · son sayfada :used etiket",
+      "what_group": "Ne basılacak",
+      "label_count": ":count etiket",
+      "already_printed": ":count satır basıldı, yeniden basılmaz",
+      "layout_group": "Yerleşim",
+      "field_name": "Ürün adı",
+      "field_barcode": "Barkod",
+      "field_location": "Konum",
+      "sample_label": "Basılacak etiket, gerçek içerikle",
+      "overflow": ":field bu boyuta sığmıyor",
+      "overflow_note": "Etiket :width×:height mm. Alan kısaltılmaz, ya kapatılır ya daha büyük bir yerleşim seçilir.",
+      "pick_layout": ":label yerleşimini seç",
+      "layout_meta": ":sheets sayfa · :wasted boş",
+      "submit_note": ":labels etiket, :sheets sayfa",
+      "submit": "Yazdır"
+    },
+    "shelf_photo": {
+      "title": "Raf fotoğrafı",
+      "subtitle_reading": "Okunuyor · :done / :total bölge çözüldü",
+      "subtitle": ":regions bölge · :ready ürün hazır",
+      "subtitle_failed": "Okunamadı",
+      "photo_group": "Fotoğraf",
+      "region_count": ":count bölge",
+      "found_group": "Bulunanlar",
+      "result_group": "Sonuç",
+      "failed_title": "Fotoğraf okunamadı",
+      "failed_note": "Fotoğraf saklandı, kredi harcanmadı. Yeniden denenebilir ya da ürünler elle eklenebilir.",
+      "will_write": ":count ürün stoğa yazılacak",
+      "will_write_partial": ":count ürün stoğa yazılacak, :unresolved bölge tanınamadı",
+      "credit_note": "Tek fotoğraf 1 kredi · kaç ürün bulunursa bulunsun",
+      "submit": ":count ürünü ekle",
+      "retry": "Yeniden dene",
+      "retake": "Yeniden çek",
+      "manual": "Elle ekle"
     }
   }
 }

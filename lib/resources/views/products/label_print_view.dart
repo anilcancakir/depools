@@ -64,13 +64,13 @@ class LabelPrintView extends StatelessWidget {
   /// **Named rather than truncated**, because the doc requires it and because truncation in
   /// a preview reads as a design choice while the same truncation on 200 printed labels
   /// reads as a defect. At 38×21 mm the name and the code fit and the location does not.
-  String? get _overflowField => _template.labelHeightMm < 30 ? 'Konum' : null;
+  String? get _overflowField => _template.labelHeightMm < 30 ? Lang.get('screens.labels.field_location') : null;
 
   @override
   Widget build(BuildContext context) {
     return MSPageScaffold(
-      title: 'Etiket bas',
-      subtitle: '$pendingLabels etiket · ${sheetsFor(_template)} sayfa',
+      title: Lang.get('screens.labels.title'),
+      subtitle: Lang.get('screens.labels.subtitle', {'labels': pendingLabels, 'sheets': sheetsFor(_template)}),
       children: [
         WDiv(
           className: 'flex flex-col lg:flex-row items-start gap-4',
@@ -89,7 +89,7 @@ class LabelPrintView extends StatelessWidget {
     return WDiv(
       className: 'w-full lg:flex-1 lg:order-first',
       child: SectionCard(
-        label: 'Önizleme',
+        label: Lang.get('screens.labels.preview_group'),
         count: _template.label,
         children: [
           LabelPreview(
@@ -98,9 +98,11 @@ class LabelPrintView extends StatelessWidget {
             barcode: '8690504004073',
             // The last sheet is the one drawn, because it is the one with the waste on it.
             caption: sheetsFor(_template) == 1
-                ? '1 sayfa · ${lastSheetFill(_template)} / ${_template.perSheet} kullanılır'
-                : '${sheetsFor(_template)} sayfa · son sayfada '
-                      '${lastSheetFill(_template)} etiket',
+                ? Lang.get('screens.labels.preview_one_sheet', {'used': lastSheetFill(_template), 'total': _template.perSheet})
+                : Lang.get('screens.labels.preview_sheets', {
+                    'sheets': sheetsFor(_template),
+                    'used': lastSheetFill(_template),
+                  }),
           ),
         ],
       ),
@@ -118,8 +120,8 @@ class LabelPrintView extends StatelessWidget {
   /// The batch. Printed lines stay, because criterion 5 makes it resumable.
   Widget _buildItems() {
     return SectionCard(
-      label: 'Ne basılacak',
-      count: '$pendingLabels etiket',
+      label: Lang.get('screens.labels.what_group'),
+      count: Lang.get('screens.labels.label_count', {'count': pendingLabels}),
       children: [
         for (final LabelItemFixture item in labelBatch)
           LabelItemRow(
@@ -144,7 +146,7 @@ class LabelPrintView extends StatelessWidget {
   /// Sheet, fields, and the proof of what they produce.
   Widget _buildLayout() {
     return SectionCard(
-      label: 'Yerleşim',
+      label: Lang.get('screens.labels.layout_group'),
       children: [
         for (final SheetTemplate template in sheetTemplates)
           _templateRow(template, template == _template),
@@ -157,7 +159,7 @@ class LabelPrintView extends StatelessWidget {
                 // The name and the code are what makes a label a label; the other two are
                 // the tenant's choice. A default that switched everything on would put a
                 // team name on a 21 mm sticker and call it a fit problem.
-                applied: field == 'Ürün adı' || field == 'Barkod' || field == 'Konum',
+                applied: field == Lang.get('screens.labels.field_name') || field == Lang.get('screens.labels.field_barcode') || field == Lang.get('screens.labels.field_location'),
                 onTap: () {},
               ),
           ],
@@ -185,7 +187,7 @@ class LabelPrintView extends StatelessWidget {
               ),
             ),
             WText(
-              'Basılacak etiket, gerçek içerikle',
+              Lang.get('screens.labels.sample_label'),
               className: 'text-xs text-fg-muted flex-auto min-w-0',
             ),
           ],
@@ -193,7 +195,7 @@ class LabelPrintView extends StatelessWidget {
         if (_overflowField != null)
           Callout(
             intent: CalloutIntent.danger,
-            title: '$_overflowField bu boyuta sığmıyor',
+            title: Lang.get('screens.labels.overflow', {'field': _overflowField}),
             message:
                 'Etiket ${_template.labelWidthMm}×${_template.labelHeightMm} mm. '
                 'Alan kısaltılmaz, ya kapatılır ya daha büyük bir yerleşim seçilir.',
@@ -207,13 +209,13 @@ class LabelPrintView extends StatelessWidget {
     return OptionRow(
       label: template.label,
       isSelected: isSelected,
-      semanticLabel: '${template.label} yerleşimini seç',
+      semanticLabel: Lang.get('screens.labels.pick_layout', {'label': template.label}),
       onTap: () {},
       // Pages and waste together. Pages alone would show 24-up and 65-up as "1 sayfa"
       // each and hide that one prints 3 blanks and the other 44, which is the whole
       // difference between them for this batch.
       trailing: WText(
-        '${sheetsFor(template)} sayfa · ${wastedCells(template)} boş',
+        Lang.get('screens.labels.layout_meta', {'sheets': sheetsFor(template), 'wasted': wastedCells(template)}),
         className: 'font-mono text-xs text-fg-muted',
       ),
     );
@@ -228,18 +230,18 @@ class LabelPrintView extends StatelessWidget {
       className: 'flex flex-col gap-2 pb-2',
       children: [
         WText(
-          '$pendingLabels etiket, ${sheetsFor(_template)} sayfa',
+          Lang.get('screens.labels.submit_note', {'labels': pendingLabels, 'sheets': sheetsFor(_template)}),
           className: 'text-sm text-fg-muted',
         ),
         MSButton(
           onPressed: () {},
           fullWidth: true,
           className: 'justify-center',
-          child: const WDiv(
+          child: WDiv(
             className: 'flex flex-row items-center justify-center gap-2',
             children: [
               WIcon(_printIcon, className: 'size-4'),
-              WText('Yazdır'),
+              WText(Lang.get('screens.labels.submit')),
             ],
           ),
         ),
