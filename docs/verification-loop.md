@@ -144,3 +144,19 @@ This is not optional polish. A single session of skipping it shipped a self-hidi
 badge that left a phantom flex gap, a full-width button whose label sat against the
 left edge, a navigation link stretched to half a card, and an empty state still
 reading "5 adet" and "9 hareket". `flutter analyze` was clean through all four.
+
+## Seeing both widths in one capture
+
+`ResponsiveScreenPreview` stacks the wide arrangement above the 390px frame, so one preview holds
+both. A screenshot does NOT hold both by default: `dusk:screenshot` captures the viewport and has
+no full-page flag, so the phone half sits below the fold.
+
+```sh
+./bin/fsa dusk:resize --width=1400 --height=2200   # tall enough for both halves
+./bin/fsa dusk:navigate --route=/preview/<screen>
+./bin/fsa dusk:screenshot -o /tmp/<screen>.jpg
+./bin/fsa dusk:resize --width=1400 --height=1000   # put it back
+```
+
+Restore the height afterwards. A 2200px viewport changes what `MediaQuery` reports, and the next
+screen you look at would be laid out against a window no phone or laptop has.

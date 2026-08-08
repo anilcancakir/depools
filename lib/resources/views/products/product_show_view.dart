@@ -682,11 +682,20 @@ class ProductShowView extends StatelessWidget {
   /// about the main axis, so a stretched button otherwise leaves its label against
   /// the left edge.
   Widget _buildPrimaryAction(BuildContext context) {
+    // **Two filled blue buttons that do opposite things.** That is how this shipped, and it broke
+    // DESIGN.md's one-primary-per-view rule in the way that rule exists to prevent: `Stok çıkar`
+    // and `Stok ekle` were pixel-identical apart from their label and their glyph, sat next to each
+    // other, and removed or added stock. Adding is the affirmative action and keeps the fill;
+    // taking out is a peer rather than a footnote, so it gets the bordered treatment instead of
+    // `ghost`, which paints no boundary at all.
+    //
+    // `flex-col md:flex-row`, because two full-width buttons side by side at 390px leave each about
+    // 155px and a label plus a glyph does not fit that without truncating, which DESIGN.md forbids.
     return WDiv(
-      className: 'flex flex-row gap-3 pb-2',
+      className: 'flex flex-col md:flex-row gap-3 pb-2',
       children: [
         WDiv(
-          className: 'flex-1',
+          className: 'w-full md:flex-1',
           child: MSButton(
             // Disabled with nothing on hand. A stock-out sheet that opens on an empty
             // product has no lot to preselect and nothing to offer, so it would be a
@@ -694,8 +703,9 @@ class ProductShowView extends StatelessWidget {
             onPressed: _product.amount == 0
                 ? null
                 : () => StockOutSheet.show(context, product: _product),
+            intent: ButtonIntent.secondary,
             fullWidth: true,
-            className: 'justify-center gap-2',
+            className: 'justify-center gap-2 bg-surface-container',
             child: const WDiv(
               className: 'flex flex-row items-center gap-2',
               children: [
@@ -706,7 +716,7 @@ class ProductShowView extends StatelessWidget {
           ),
         ),
         WDiv(
-          className: 'flex-1',
+          className: 'w-full md:flex-1',
           child: MSButton(
             // Never disabled, unlike its neighbour. Adding stock is valid at any
             // level, including from zero: that is how a depleted product comes back.
