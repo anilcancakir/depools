@@ -513,6 +513,38 @@
       "composer": "What did you get, what do you want to ask",
       "send": "Send",
       "voice_note": "Anything spoken is confirmed before it is saved"
+    },
+    "product_draft": {
+      "title": "New product",
+      "add_photo": "Add a photo",
+      "photo": "Photo",
+      "brand": "Brand",
+      "from_photo": "Read from the photo",
+      "description": "Description",
+      "unread": "Could not be read from the photo",
+      "optional": "Optional",
+      "measure_group": "Measurement",
+      "unit": "Unit",
+      "from_name": "Taken from the product name",
+      "content": "Contents",
+      "content_value": ":amount :unit",
+      "shelf_life": "Shelf life",
+      "shelf_life_value": ":days days",
+      "not_tracked": "Not tracked",
+      "from_category": "Taken from the category",
+      "days": "days",
+      "first_stock_group": "First stock",
+      "quantity": "Quantity",
+      "location": "Location",
+      "from_history": "Suggested from this category's history",
+      "suggested_count": "Suggested · put here :count times",
+      "expiry": "Expiry",
+      "from_shelf_life": "Worked out from the shelf life",
+      "pick_date": "Pick a date",
+      "unknown": "Unknown",
+      "location_reason": "Location suggestion: this category has been put here :count times",
+      "save": "Save",
+      "cancel": "Cancel"
     }
   }
 }

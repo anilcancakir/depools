@@ -68,7 +68,7 @@ class ProductDraftView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MSPageScaffold(
-      title: 'Yeni ürün',
+      title: Lang.get('screens.product_draft.title'),
       // No subtitle: the brand is one of the fields still arriving, and a page subtitle
       // that appears a second after the page did reads as a layout jump.
       children: [
@@ -129,7 +129,7 @@ class ProductDraftView extends StatelessWidget {
             // enrichment accepts, so an empty slot here is an offer to fill the card.
             WAnchor(
               onTap: () {},
-              semanticLabel: 'Fotoğraf ekle',
+              semanticLabel: Lang.get('screens.product_draft.add_photo'),
               child: WDiv(
                 className: '''
                   size-20 rounded-md bg-surface-container-high
@@ -137,7 +137,7 @@ class ProductDraftView extends StatelessWidget {
                 ''',
                 children: [
                   const WIcon(_cameraIcon, className: 'size-6 text-fg-muted'),
-                  WText('Fotoğraf', className: 'text-xs text-fg-muted'),
+                  WText(Lang.get('screens.product_draft.photo'), className: 'text-xs text-fg-muted'),
                 ],
               ),
             ),
@@ -165,25 +165,25 @@ class ProductDraftView extends StatelessWidget {
           ],
         ),
         DraftField(
-          label: 'Marka',
+          label: Lang.get('screens.product_draft.brand'),
           value: _source.brand,
           state: isEnriching ? DraftFieldState.loading : null,
           onTap: () => _edit(
             context,
-            label: 'Marka',
-            provenance: 'Fotoğraftan okundu',
+            label: Lang.get('screens.product_draft.brand'),
+            provenance: Lang.get('screens.product_draft.from_photo'),
             value: _source.brand,
           ),
         ),
         DraftField(
-          label: 'Açıklama',
+          label: Lang.get('screens.product_draft.description'),
           value: isEnriching ? null : _source.description,
           state: isEnriching ? DraftFieldState.loading : null,
-          prompt: 'Fotoğraftan okunamadı',
+          prompt: Lang.get('screens.product_draft.unread'),
           onTap: () => _edit(
             context,
-            label: 'Açıklama',
-            provenance: 'Fotoğraftan okundu',
+            label: Lang.get('screens.product_draft.description'),
+            provenance: Lang.get('screens.product_draft.from_photo'),
             value: _source.description,
             isOptional: true,
           ),
@@ -194,7 +194,7 @@ class ProductDraftView extends StatelessWidget {
         DraftField(
           label: 'SKU',
           state: DraftFieldState.unsure,
-          prompt: 'İsteğe bağlı',
+          prompt: Lang.get('screens.product_draft.optional'),
           // No provenance line and no quick answers: a tenant's own code is the one field
           // no model can guess, so there is nothing to confirm and nothing to offer.
           onTap: () => _edit(context, label: 'SKU', isOptional: true),
@@ -210,10 +210,10 @@ class ProductDraftView extends StatelessWidget {
   /// a single glance instead of three scattered markers.
   Widget _buildMeasure(BuildContext context) {
     return SectionCard(
-      label: 'Ölçü',
+      label: Lang.get('screens.product_draft.measure_group'),
       children: [
         DraftField(
-          label: 'Birim',
+          label: Lang.get('screens.product_draft.unit'),
           value: _source.unit,
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
@@ -221,25 +221,25 @@ class ProductDraftView extends StatelessWidget {
           // reinterpreted. After the first movement this stops being a field edit.
           onTap: () => _edit(
             context,
-            label: 'Birim',
-            provenance: 'Ürün adından çıkarıldı',
+            label: Lang.get('screens.product_draft.unit'),
+            provenance: Lang.get('screens.product_draft.from_name'),
             value: _source.unit,
             kind: FieldEditorKind.choice,
             options: const ['adet', 'kg', 'gram', 'litre', 'ml', 'paket', 'kutu'],
           ),
         ),
         DraftField(
-          label: 'İçerik',
+          label: Lang.get('screens.product_draft.content'),
           value: _source.contentAmount == null
               ? null
-              : '${_source.contentAmount!.round()} ${_source.contentUnit}',
+              : Lang.get('screens.product_draft.content_value', {'amount': _source.contentAmount!.round(), 'unit': _source.contentUnit}),
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
-          prompt: 'İsteğe bağlı',
+          prompt: Lang.get('screens.product_draft.optional'),
           onTap: () => _edit(
             context,
-            label: 'İçerik',
-            provenance: 'Ürün adından çıkarıldı',
+            label: Lang.get('screens.product_draft.content'),
+            provenance: Lang.get('screens.product_draft.from_name'),
             value: _source.contentAmount?.round().toString(),
             unit: _source.contentUnit,
             kind: FieldEditorKind.number,
@@ -247,17 +247,19 @@ class ProductDraftView extends StatelessWidget {
           ),
         ),
         DraftField(
-          label: 'Raf ömrü',
-          value: _source.shelfLifeDays == null ? null : '${_source.shelfLifeDays} gün',
+          label: Lang.get('screens.product_draft.shelf_life'),
+          value: _source.shelfLifeDays == null
+              ? null
+              : Lang.get('screens.product_draft.shelf_life_value', {'days': _source.shelfLifeDays}),
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
-          prompt: 'Takip edilmiyor',
+          prompt: Lang.get('screens.product_draft.not_tracked'),
           onTap: () => _edit(
             context,
-            label: 'Raf ömrü',
-            provenance: 'Kategoriden çıkarıldı',
+            label: Lang.get('screens.product_draft.shelf_life'),
+            provenance: Lang.get('screens.product_draft.from_category'),
             value: _source.shelfLifeDays?.toString(),
-            unit: 'gün',
+            unit: Lang.get('screens.product_draft.days'),
             kind: FieldEditorKind.number,
             quickAnswers: const ['7', '30', '365'],
             isOptional: true,
@@ -281,18 +283,18 @@ class ProductDraftView extends StatelessWidget {
     final (String, int)? affinity = suggestLocationFor(_source.categoryId);
 
     return SectionCard(
-      label: 'İlk stok',
+      label: Lang.get('screens.product_draft.first_stock_group'),
       children: [
         WDiv(
           className: 'flex flex-row wrap items-center gap-2 py-1',
           children: [
             DraftField(
-              label: 'Miktar',
+              label: Lang.get('screens.product_draft.quantity'),
               value: '1 ${_source.unit}',
               layout: DraftFieldLayout.chip,
               onTap: () => _edit(
                 context,
-                label: 'Miktar',
+                label: Lang.get('screens.product_draft.quantity'),
                 value: '1',
                 unit: _source.unit,
                 kind: FieldEditorKind.number,
@@ -300,15 +302,15 @@ class ProductDraftView extends StatelessWidget {
               ),
             ),
             DraftField(
-              label: 'Konum',
+              label: Lang.get('screens.product_draft.location'),
               value: affinity == null ? null : resolveLocationPath(affinity.$1),
               unconfirmed: affinity != null,
               layout: DraftFieldLayout.chip,
               state: isEnriching ? DraftFieldState.loading : null,
               onTap: () => _edit(
                 context,
-                label: 'Konum',
-                provenance: 'Kategori geçmişinden önerildi',
+                label: Lang.get('screens.product_draft.location'),
+                provenance: Lang.get('screens.product_draft.from_history'),
                 value: affinity == null ? null : resolveLocationPath(affinity.$1),
                 kind: FieldEditorKind.choice,
                 options: [for (final FilterOption o in locationOptions) o.fullPath],
@@ -318,11 +320,11 @@ class ProductDraftView extends StatelessWidget {
                 // the stock sheets' for no reason.
                 suggestionReason: affinity == null
                     ? null
-                    : 'Önerilen · buraya ${affinity.$2} kez konuldu',
+                    : Lang.get('screens.product_draft.suggested_count', {'count': affinity.$2}),
               ),
             ),
             DraftField(
-              label: 'Son kullanma',
+              label: Lang.get('screens.product_draft.expiry'),
               value: _source.shelfLifeDays == null ? null : '11 Ağu',
               unconfirmed: true,
               layout: DraftFieldLayout.chip,
@@ -332,18 +334,18 @@ class ProductDraftView extends StatelessWidget {
               // the app already computed is three taps to agree with it.
               onTap: () => _edit(
                 context,
-                label: 'Son kullanma',
-                provenance: 'Raf ömründen hesaplandı',
+                label: Lang.get('screens.product_draft.expiry'),
+                provenance: Lang.get('screens.product_draft.from_shelf_life'),
                 value: '11 Ağu',
                 kind: FieldEditorKind.choice,
-                options: const ['11 Ağu (+5 gün)', '18 Ağu (+12 gün)', 'Tarih seç', 'Bilinmiyor'],
+                options: ['11 Ağu (+5 gün)', '18 Ağu (+12 gün)', Lang.get('screens.product_draft.pick_date'), Lang.get('screens.product_draft.unknown')],
               ),
             ),
           ],
         ),
         if (!isEnriching && affinity != null)
           WText(
-            'Konum önerisi: bu kategori buraya ${affinity.$2} kez konuldu',
+            Lang.get('screens.product_draft.location_reason', {'count': affinity.$2}),
             className: 'text-xs text-ai',
           ),
       ],
@@ -364,14 +366,14 @@ class ProductDraftView extends StatelessWidget {
           onPressed: () {},
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Kaydet'),
+          child: WText(Lang.get('screens.product_draft.save')),
         ),
         MSButton(
           onPressed: () {},
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
-          child: const WText('Vazgeç'),
+          child: WText(Lang.get('screens.product_draft.cancel')),
         ),
       ],
     );

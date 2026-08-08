@@ -513,6 +513,38 @@
       "composer": "Ne aldınız, ne soracaksınız",
       "send": "Gönder",
       "voice_note": "Sesle yazılanlar kaydedilmeden önce onaylanır"
+    },
+    "product_draft": {
+      "title": "Yeni ürün",
+      "add_photo": "Fotoğraf ekle",
+      "photo": "Fotoğraf",
+      "brand": "Marka",
+      "from_photo": "Fotoğraftan okundu",
+      "description": "Açıklama",
+      "unread": "Fotoğraftan okunamadı",
+      "optional": "İsteğe bağlı",
+      "measure_group": "Ölçü",
+      "unit": "Birim",
+      "from_name": "Ürün adından çıkarıldı",
+      "content": "İçerik",
+      "content_value": ":amount :unit",
+      "shelf_life": "Raf ömrü",
+      "shelf_life_value": ":days gün",
+      "not_tracked": "Takip edilmiyor",
+      "from_category": "Kategoriden çıkarıldı",
+      "days": "gün",
+      "first_stock_group": "İlk stok",
+      "quantity": "Miktar",
+      "location": "Konum",
+      "from_history": "Kategori geçmişinden önerildi",
+      "suggested_count": "Önerilen · buraya :count kez konuldu",
+      "expiry": "Son kullanma",
+      "from_shelf_life": "Raf ömründen hesaplandı",
+      "pick_date": "Tarih seç",
+      "unknown": "Bilinmiyor",
+      "location_reason": "Konum önerisi: bu kategori buraya :count kez konuldu",
+      "save": "Kaydet",
+      "cancel": "Vazgeç"
     }
   }
 }
