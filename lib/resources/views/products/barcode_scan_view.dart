@@ -243,8 +243,7 @@ class BarcodeScanView extends StatelessWidget {
             icon: _emptyIcon,
             title: Lang.get('screens.scan.empty_title'),
             description:
-                'Okunan her barkod buraya eklenir. Aynı barkod tekrar okunduğunda '
-                'yeni satır açılmaz, mevcut satırın adedi artar.',
+                Lang.get('screens.scan.empty_description'),
           ),
         ),
       ],

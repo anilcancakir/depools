@@ -161,7 +161,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       resolveLocation: resolveLocationLabel,
       resolveCategory: resolveCategoryLabel,
     );
-    if (parts.isEmpty) return 'Filtre';
+    if (parts.isEmpty) return Lang.get('screens.products.saved_prefix');
 
     final String named = parts.take(2).map((c) => c.label).join(' · ');
     final int rest = parts.length - 2;

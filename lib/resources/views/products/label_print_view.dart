@@ -135,8 +135,7 @@ class LabelPrintView extends StatelessWidget {
           ),
         if (labelBatch.any((i) => i.isPrinted))
           WText(
-            '${labelBatch.where((i) => i.isPrinted).length} satır basıldı, '
-            'yeniden basılmaz',
+            Lang.get('screens.labels.already_printed', {'count': labelBatch.where((i) => i.isPrinted).length}),
             className: 'text-xs text-fg-muted',
           ),
       ],
@@ -197,8 +196,7 @@ class LabelPrintView extends StatelessWidget {
             intent: CalloutIntent.danger,
             title: Lang.get('screens.labels.overflow', {'field': _overflowField}),
             message:
-                'Etiket ${_template.labelWidthMm}×${_template.labelHeightMm} mm. '
-                'Alan kısaltılmaz, ya kapatılır ya daha büyük bir yerleşim seçilir.',
+                Lang.get('screens.labels.overflow_note', {'width': _template.labelWidthMm, 'height': _template.labelHeightMm}),
           ),
       ],
     );

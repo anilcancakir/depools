@@ -231,8 +231,7 @@ class ShelfPhotoView extends StatelessWidget {
           WText(
             unresolvedCandidates.isEmpty
                 ? Lang.get('screens.shelf_photo.will_write', {'count': ready})
-                : '$ready ürün stoğa yazılacak, ${unresolvedCandidates.length} bölge '
-                      'tanınamadı',
+                : Lang.get('screens.shelf_photo.will_write_partial', {'count': ready, 'unresolved': unresolvedCandidates.length}),
             className: 'text-sm text-fg-muted',
           ),
           // The economics, stated once. It is the cheapest capture path in the app and

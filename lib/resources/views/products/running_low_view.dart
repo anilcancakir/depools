@@ -103,7 +103,7 @@ class RunningLowView extends StatelessWidget {
 
     return SectionCard(
       label: _tierLabel(tier),
-      count: '${rows.length} ürün',
+      count: Lang.get('screens.running_low.product_count', {'count': rows.length}),
       collapsible: true,
       children: [
         // The honesty made legible. Without it the three groups are three unexplained
