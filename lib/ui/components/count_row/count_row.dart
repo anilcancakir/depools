@@ -104,47 +104,68 @@ class CountRow extends StatelessWidget {
             WDiv(
               className: slots['controls'],
               children: [
-                // A stepper on the countable field and a plain box on the remainder. The step
-                // is one, so it only belongs where the unit is countable: plus-one-millilitre on
-                // an opened carton is a control that cannot reach most of its own values.
+                // **The two quantity groups are their own rows, and that is a width fix.**
+                // Measured in the 390px frame: the flat version needed 370px of a 326px card and
+                // overflowed by 44, the second unit label landing at x=1019 against a card edge at
+                // 975. Everything in here is `shrink-0` by design, so nothing could give. The
+                // groups stack below `md` and share one line above it, which is the same reflow
+                // the name above them already does.
                 WDiv(
-                  className: slots['stepper'],
-                  child: QuantityStepper(
-                    semanticName: name,
-                    value: counted,
-                    onChanged: onChanged,
-                    onDecrement: onDecrement,
-                    onIncrement: onIncrement,
-                  ),
-                ),
-                WText(unit, className: slots['unit']),
-                // The opened-unit column is ALWAYS reserved. A product with no content level
-                // gets empty space of the same width, so every field in the list stays in its
-                // column. Rendering the pair only where it exists moved the fields on the rows
-                // that had it, which is the leading-glyph mistake one axis over.
-                if (remainderUnit == null) ...[
-                  WDiv(className: slots['plus']),
-                  WDiv(className: slots['field']),
-                  WDiv(className: slots['unit']),
-                ] else ...[
-                  WText('+', className: slots['plus']),
-                  WDiv(
-                    className: slots['field'],
-                    child: MSInput(
-                      // `bg-surface-container` overrides the recipe's `-high` fill. MSInput ships the input
-                      // tone, which is `#E5E5EA` on a `#FFFFFF` card in light mode: darker than its
-                      // container, so it reads as recessed and therefore disabled, and the hairline is
-                      // too close in value to rescue it. Card tone plus the recipe's own border is the
-                      // outlined-field look every platform uses for an ENABLED input.
-                      className: 'bg-surface-container',
-                      value: countedRemainder ?? '',
-                      placeholder: '—',
-                      type: InputType.number,
-                      onChanged: onRemainderChanged,
+                  className: slots['group'],
+                  children: [
+                    // A stepper on the countable field and a plain box on the remainder. The step
+                    // is one, so it only belongs where the unit is countable: plus-one-millilitre
+                    // on an opened carton is a control that cannot reach most of its own values.
+                    WDiv(
+                      className: slots['stepper'],
+                      child: QuantityStepper(
+                        semanticName: name,
+                        value: counted,
+                        onChanged: onChanged,
+                        onDecrement: onDecrement,
+                        onIncrement: onIncrement,
+                      ),
                     ),
+                    WText(unit, className: slots['unit']),
+                  ],
+                ),
+                // The opened-unit column is ALWAYS reserved, and above `md` that is what keeps
+                // every field in its column down the list. Below `md` the groups are on separate
+                // lines, so a reserved empty group would be a blank line whose height varies per
+                // row: `hidden md:flex` keeps the reservation exactly where it does work.
+                if (remainderUnit == null)
+                  WDiv(
+                    className: slots['reservedGroup'],
+                    children: [
+                      WDiv(className: slots['plus']),
+                      WDiv(className: slots['field']),
+                      WDiv(className: slots['unit']),
+                    ],
+                  )
+                else
+                  WDiv(
+                    className: slots['group'],
+                    children: [
+                      WText('+', className: slots['plus']),
+                      WDiv(
+                        className: slots['field'],
+                        child: MSInput(
+                          // `bg-surface-container` overrides the recipe's `-high` fill. MSInput
+                          // ships the input tone, which is `#E5E5EA` on a `#FFFFFF` card in light
+                          // mode: darker than its container, so it reads as recessed and therefore
+                          // disabled, and the hairline is too close in value to rescue it. Card
+                          // tone plus the recipe's own border is the outlined-field look every
+                          // platform uses for an ENABLED input.
+                          className: 'bg-surface-container',
+                          value: countedRemainder ?? '',
+                          placeholder: '—',
+                          type: InputType.number,
+                          onChanged: onRemainderChanged,
+                        ),
+                      ),
+                      WText(remainderUnit!, className: slots['unit']),
+                    ],
                   ),
-                  WText(remainderUnit!, className: slots['unit']),
-                ],
               ],
             ),
           ],

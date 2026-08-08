@@ -25,7 +25,14 @@ WindSlotRecipe countRowRecipe() {
       // line below `md` and shares one above it.
       'top': 'flex flex-col md:flex-row md:items-center gap-2 md:gap-3',
       'name': 'text-sm font-semibold text-fg md:flex-1 md:min-w-0',
-      'controls': 'flex flex-row items-center gap-3',
+      // Stacks below `md`, one line above it. See the widget: flat, this row needed 370px of a
+      // 326px phone card and every child in it is `shrink-0`.
+      'controls': 'flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-3',
+      // One quantity group: a control and its unit, kept together on every width.
+      'group': 'flex flex-row items-center gap-3',
+      // The reserved empty group, which only earns its space where the groups share a line.
+      // Below `md` it would be a blank line of varying height instead of a held column.
+      'reservedGroup': 'hidden md:flex md:flex-row md:items-center gap-3',
       'verdict': 'text-xs text-fg-muted',
       // Fixed widths, because this is a COLUMN and not a row of content. Sized to their
       // text, `adet` is wider than `ml` and a row with no opened-unit pair has two fewer

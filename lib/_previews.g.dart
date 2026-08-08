@@ -8,6 +8,7 @@ import 'preview/assistant_fresh_screen.preview.dart';
 import 'preview/assistant_phone_screen.preview.dart';
 import 'preview/assistant_screen.preview.dart';
 import 'preview/barcode_scan_empty_screen.preview.dart';
+import 'preview/barcode_scan_phone_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_fresh_screen.preview.dart';
@@ -17,32 +18,42 @@ import 'preview/dates_empty_screen.preview.dart';
 import 'preview/dates_phone_screen.preview.dart';
 import 'preview/dates_screen.preview.dart';
 import 'preview/foundations.preview.dart';
+import 'preview/label_print_phone_screen.preview.dart';
 import 'preview/label_print_screen.preview.dart';
 import 'preview/label_print_tight_screen.preview.dart';
 import 'preview/location_index_empty_screen.preview.dart';
 import 'preview/location_index_filtered_screen.preview.dart';
+import 'preview/location_index_phone_screen.preview.dart';
 import 'preview/location_index_screen.preview.dart';
 import 'preview/login_screen.preview.dart';
+import 'preview/product_draft_phone_screen.preview.dart';
 import 'preview/product_draft_screen.preview.dart';
 import 'preview/product_draft_settled_screen.preview.dart';
 import 'preview/product_index_empty_screen.preview.dart';
 import 'preview/product_index_loading_more_screen.preview.dart';
+import 'preview/product_index_phone_screen.preview.dart';
 import 'preview/product_index_screen.preview.dart';
 import 'preview/product_show_empty_screen.preview.dart';
+import 'preview/product_show_phone_screen.preview.dart';
 import 'preview/product_show_screen.preview.dart';
 import 'preview/product_show_serial_screen.preview.dart';
 import 'preview/profile_screen.preview.dart';
+import 'preview/receipt_review_phone_screen.preview.dart';
 import 'preview/receipt_review_screen.preview.dart';
 import 'preview/register_screen.preview.dart';
 import 'preview/running_low_empty_screen.preview.dart';
+import 'preview/running_low_phone_screen.preview.dart';
 import 'preview/running_low_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
 import 'preview/shelf_photo_failed_screen.preview.dart';
+import 'preview/shelf_photo_phone_screen.preview.dart';
 import 'preview/shelf_photo_reading_screen.preview.dart';
 import 'preview/shelf_photo_screen.preview.dart';
 import 'preview/shopping_list_empty_screen.preview.dart';
+import 'preview/shopping_list_phone_screen.preview.dart';
 import 'preview/shopping_list_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
+import 'preview/stock_take_phone_screen.preview.dart';
 import 'preview/stock_take_screen.preview.dart';
 import 'preview/teams_screen.preview.dart';
 import 'ui/components/callout/callout.preview.dart';
@@ -98,6 +109,11 @@ List<PreviewEntry> previewEntries() {
       label: 'BarcodeScanEmptyScreen',
       slug: 'barcode_scan_empty_screen',
       builder: (_) => const BarcodeScanEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'BarcodeScanPhoneScreen',
+      slug: 'barcode_scan_phone_screen',
+      builder: (_) => const BarcodeScanPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'BarcodeScanScreen',
@@ -200,6 +216,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const LabelPreviewPreview(),
     ),
     PreviewEntry(
+      label: 'LabelPrintPhoneScreen',
+      slug: 'label_print_phone_screen',
+      builder: (_) => const LabelPrintPhoneScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'LabelPrintScreen',
       slug: 'label_print_screen',
       builder: (_) => const LabelPrintScreenPreview(),
@@ -223,6 +244,11 @@ List<PreviewEntry> previewEntries() {
       label: 'LocationIndexFilteredScreen',
       slug: 'location_index_filtered_screen',
       builder: (_) => const LocationIndexFilteredScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'LocationIndexPhoneScreen',
+      slug: 'location_index_phone_screen',
+      builder: (_) => const LocationIndexPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'LocationIndexScreen',
@@ -260,6 +286,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const OptionRowPreview(),
     ),
     PreviewEntry(
+      label: 'ProductDraftPhoneScreen',
+      slug: 'product_draft_phone_screen',
+      builder: (_) => const ProductDraftPhoneScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'ProductDraftScreen',
       slug: 'product_draft_screen',
       builder: (_) => const ProductDraftScreenPreview(),
@@ -280,6 +311,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const ProductIndexLoadingMoreScreenPreview(),
     ),
     PreviewEntry(
+      label: 'ProductIndexPhoneScreen',
+      slug: 'product_index_phone_screen',
+      builder: (_) => const ProductIndexPhoneScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'ProductIndexScreen',
       slug: 'product_index_screen',
       builder: (_) => const ProductIndexScreenPreview(),
@@ -293,6 +329,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ProductShowEmptyScreen',
       slug: 'product_show_empty_screen',
       builder: (_) => const ProductShowEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductShowPhoneScreen',
+      slug: 'product_show_phone_screen',
+      builder: (_) => const ProductShowPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'ProductShowScreen',
@@ -325,6 +366,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const ReceiptLineRowPreview(),
     ),
     PreviewEntry(
+      label: 'ReceiptReviewPhoneScreen',
+      slug: 'receipt_review_phone_screen',
+      builder: (_) => const ReceiptReviewPhoneScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'ReceiptReviewScreen',
       slug: 'receipt_review_screen',
       builder: (_) => const ReceiptReviewScreenPreview(),
@@ -338,6 +384,11 @@ List<PreviewEntry> previewEntries() {
       label: 'RunningLowEmptyScreen',
       slug: 'running_low_empty_screen',
       builder: (_) => const RunningLowEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'RunningLowPhoneScreen',
+      slug: 'running_low_phone_screen',
+      builder: (_) => const RunningLowPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'RunningLowScreen',
@@ -385,6 +436,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const ShelfPhotoFailedScreenPreview(),
     ),
     PreviewEntry(
+      label: 'ShelfPhotoPhoneScreen',
+      slug: 'shelf_photo_phone_screen',
+      builder: (_) => const ShelfPhotoPhoneScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'ShelfPhotoReadingScreen',
       slug: 'shelf_photo_reading_screen',
       builder: (_) => const ShelfPhotoReadingScreenPreview(),
@@ -398,6 +454,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ShoppingListEmptyScreen',
       slug: 'shopping_list_empty_screen',
       builder: (_) => const ShoppingListEmptyScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ShoppingListPhoneScreen',
+      slug: 'shopping_list_phone_screen',
+      builder: (_) => const ShoppingListPhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'ShoppingListScreen',
@@ -423,6 +484,11 @@ List<PreviewEntry> previewEntries() {
       label: 'StockBadge',
       slug: 'stock_badge',
       builder: (_) => const StockBadgePreview(),
+    ),
+    PreviewEntry(
+      label: 'StockTakePhoneScreen',
+      slug: 'stock_take_phone_screen',
+      builder: (_) => const StockTakePhoneScreenPreview(),
     ),
     PreviewEntry(
       label: 'StockTakeScreen',

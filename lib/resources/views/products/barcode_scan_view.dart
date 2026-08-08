@@ -130,12 +130,19 @@ class BarcodeScanView extends StatelessWidget {
             // real app, and the pair is chosen so that distinction does not matter: the better of
             // the two strokes clears 3.91:1 over any background. A single hairline picked against
             // this placeholder would have looked fine here and disappeared over a bright frame.
+            //
+            // **The fixed size is on the INNER box and the outer one wraps it.** The first version
+            // put `size-32` outside and `h-full w-full` inside, which wind rejects by name: a
+            // child with `h-full` inside a vertical scroll resolves to an unbounded height, and
+            // the app shell wraps every route in one. It asserted at phone width on the first
+            // paint. This shape needs no fill token at all, because a box with one child sizes to
+            // it: the ink stroke lands 2px outside the paper stroke by construction.
             WDiv(
-              className: 'size-32 rounded-md border-2 border-color-overlay-ink',
+              className: 'rounded-md border-2 border-color-overlay-ink',
               child: WDiv(
                 className: '''
-                  border-2 border-color-overlay-paper rounded-md bg-surface-container
-                  flex flex-col items-center justify-center h-full w-full
+                  size-32 rounded-md border-2 border-color-overlay-paper bg-surface-container
+                  flex flex-col items-center justify-center
                 ''',
                 child: const WIcon(_cameraIcon, className: 'size-10 text-fg-disabled'),
               ),
