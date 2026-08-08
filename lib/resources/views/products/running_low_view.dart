@@ -58,15 +58,15 @@ class RunningLowView extends StatelessWidget {
 
   /// What each tier is allowed to say, in the user's own terms.
   static String _tierNote(ForecastTier tier) => switch (tier) {
-    ForecastTier.forecast => 'En az 10 hareket · tüketim hızı hesaplanıyor',
-    ForecastTier.rough => 'Geçmiş az · sadece kaba bir aralık',
-    ForecastTier.target => 'Geçmiş yok · sadece hedef seviye',
+    ForecastTier.forecast => Lang.get('screens.running_low.note_forecast'),
+    ForecastTier.rough => Lang.get('screens.running_low.note_rough'),
+    ForecastTier.target => Lang.get('screens.running_low.note_target'),
   };
 
   static String _tierLabel(ForecastTier tier) => switch (tier) {
-    ForecastTier.forecast => 'Tahmine göre',
-    ForecastTier.rough => 'Geçmişi az',
-    ForecastTier.target => 'Hedefe göre',
+    ForecastTier.forecast => Lang.get('screens.running_low.tier_forecast'),
+    ForecastTier.rough => Lang.get('screens.running_low.tier_rough'),
+    ForecastTier.target => Lang.get('screens.running_low.tier_target'),
   };
 
   @override
@@ -75,8 +75,10 @@ class RunningLowView extends StatelessWidget {
     final int short = hasRows ? belowTarget.length : 0;
 
     return MSPageScaffold(
-      title: 'Azalanlar',
-      subtitle: hasRows ? '$short ürün · ${out.length} stok bitti' : 'Hedefin altında ürün yok',
+      title: Lang.get('screens.running_low.title'),
+      subtitle: hasRows
+          ? Lang.get('screens.running_low.subtitle', {'short': short, 'out': out.length})
+          : Lang.get('screens.running_low.subtitle_empty'),
       children: [
         if (out.isNotEmpty) _buildOut(context, out),
         for (final ForecastTier tier in ForecastTier.values)
@@ -89,8 +91,8 @@ class RunningLowView extends StatelessWidget {
   /// Gone entirely. Leads, and does not fold.
   Widget _buildOut(BuildContext context, List<ProductListItem> rows) {
     return SectionCard(
-      label: 'Stok bitti',
-      count: '${rows.length} ürün',
+      label: Lang.get('screens.running_low.out_group'),
+      count: Lang.get('screens.running_low.product_count', {'count': rows.length}),
       children: [for (final ProductListItem p in rows) _buildRow(context, p)],
     );
   }
@@ -135,8 +137,12 @@ class RunningLowView extends StatelessWidget {
     return ProductRow(
       name: product.name,
       meta: [
-        'Hedef ${product.parLevel} ${product.unit}',
-        if (showsCover) '${product.daysOfCover} günlük kaldı',
+        Lang.get('screens.running_low.meta_target', {
+          'par': product.parLevel,
+          'unit': product.unit,
+        }),
+        if (showsCover)
+          Lang.get('screens.running_low.meta_cover', {'days': product.daysOfCover}),
       ].join(' · '),
       amount: product.amount,
       formatted: primary,
@@ -151,20 +157,18 @@ class RunningLowView extends StatelessWidget {
   /// Nothing short, which is the good outcome.
   Widget _buildEmpty() {
     return SectionCard(
-      label: 'Azalanlar',
+      label: Lang.get('screens.running_low.title'),
       children: [
         WDiv(
           // Full width so MSEmptyState's own `items-center` has something to centre in.
           className: 'w-full',
           child: MSEmptyState(
             icon: _emptyIcon,
-            title: 'Hedefin altında ürün yok',
+            title: Lang.get('screens.running_low.empty_title'),
             // Names the mechanism, and names the gap: a product with no target can never
             // appear here however low it gets, which is worth saying to someone looking at
             // an empty screen with a half-empty pantry.
-            description:
-                'Hedef seviyesi belirlenmiş ürünler o seviyenin altına düştüğünde burada '
-                'listelenir. Hedefi olmayan ürünler hiç görünmez.',
+            description: Lang.get('screens.running_low.empty_description'),
           ),
         ),
       ],

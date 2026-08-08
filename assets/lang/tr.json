@@ -341,6 +341,36 @@
       "row_waste": ":product, :label, zayi kaydet",
       "empty_title": "Yaklaşan tarih yok",
       "empty_description": "Son kullanma ve garanti tarihleri seçilen aralığa girdiğinde burada listelenir. Tarihi olmayan ürünler hiç görünmez."
+    },
+    "running_low": {
+      "title": "Azalanlar",
+      "subtitle": ":short ürün · :out stok bitti",
+      "subtitle_empty": "Hedefin altında ürün yok",
+      "out_group": "Stok bitti",
+      "product_count": ":count ürün",
+      "tier_forecast": "Tahmine göre",
+      "tier_rough": "Geçmişi az",
+      "tier_target": "Hedefe göre",
+      "note_forecast": "En az 10 hareket · tüketim hızı hesaplanıyor",
+      "note_rough": "Geçmiş az · sadece kaba bir aralık",
+      "note_target": "Geçmiş yok · sadece hedef seviye",
+      "meta_target": "Hedef :par :unit",
+      "meta_cover": ":days günlük kaldı",
+      "empty_title": "Hedefin altında ürün yok",
+      "empty_description": "Hedef seviyesi belirlenmiş ürünler o seviyenin altına düştüğünde burada listelenir. Hedefi olmayan ürünler hiç görünmez."
+    },
+    "shopping": {
+      "title": "Alışveriş listesi",
+      "subtitle": ":pending ürün alınacak · :checked sepette",
+      "subtitle_empty": "Eksik yok",
+      "pending_group": "Alınacak",
+      "checked_group": "Sepette",
+      "product_count": ":count ürün",
+      "empty_title": "Şu an eksik yok",
+      "empty_description": "Hedef seviyesi belirlenmiş ve azalan ürünler burada görünür. Yeterli geçmiş biriktikçe tahmin de devreye girer.",
+      "empty_action": "Ürün ekle",
+      "receipt_hint": "Sepettekiler stoğa fiş tarandığında girer",
+      "receipt_action": "Fişi tara"
     }
   }
 }

@@ -341,6 +341,36 @@
       "row_waste": ":product, :label, record waste",
       "empty_title": "No upcoming dates",
       "empty_description": "Expiry and warranty dates appear here once they fall inside the selected range. Products with no date never appear."
+    },
+    "running_low": {
+      "title": "Running low",
+      "subtitle": ":short products · :out out of stock",
+      "subtitle_empty": "Nothing below its target",
+      "out_group": "Out of stock",
+      "product_count": ":count products",
+      "tier_forecast": "By forecast",
+      "tier_rough": "Little history",
+      "tier_target": "By target",
+      "note_forecast": "At least 10 movements · consumption rate computed",
+      "note_rough": "Little history · a rough range only",
+      "note_target": "No history · target level only",
+      "meta_target": "Target :par :unit",
+      "meta_cover": ":days days of cover left",
+      "empty_title": "Nothing below its target",
+      "empty_description": "Products with a target level appear here once they fall below it. Products with no target never appear."
+    },
+    "shopping": {
+      "title": "Shopping list",
+      "subtitle": ":pending to buy · :checked in the basket",
+      "subtitle_empty": "Nothing missing",
+      "pending_group": "To buy",
+      "checked_group": "In the basket",
+      "product_count": ":count products",
+      "empty_title": "Nothing missing right now",
+      "empty_description": "Products with a target level that are running low appear here. Forecasting joins in once enough history has built up.",
+      "empty_action": "Add a product",
+      "receipt_hint": "Basket items enter stock when the receipt is scanned",
+      "receipt_action": "Scan the receipt"
     }
   }
 }

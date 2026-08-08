@@ -144,6 +144,33 @@ Two consequences worth stating:
 - **Do not tell the user to tap.** The row is tappable; saying `dokunup eşleştir` explains a touchscreen. Affordance carries the action, the label carries the state. `semanticLabel` is the exception, because a screen reader has no affordance to feel.
 - **`otomatik`, not `tahmin`.** An inferred value was derived from the name, the barcode or the category. "Guess" understates the mechanism and invites less trust than it deserves.
 
+## Copy lives in the catalogues, not in Dart
+
+Every user-visible string resolves through `Lang.get`. `iterations.md` requires complete Turkish AND
+English for v1 and says the MVP's 25 percent coverage will not repeat; a literal in a widget is that
+coverage gap being created one line at a time.
+
+**Key shape: `screens.<screen>.<key>` and `components.<component>.<key>.`** A bottom sheet or a
+panel is a screen too and lives under `screens.*`, because splitting sheets into their own root buys
+one more thing to remember and nothing else.
+
+**Components own their own default copy** (`components.list_footer.end`, `components.filter_chip.remove`).
+Their parameters stay "already-localised" text from the caller; the keys are only for what the
+component itself decides to say when the caller says nothing.
+
+**Fixtures are NOT translated.** `productFixtures`, location names and movement notes stand in for
+user data and will come from the database. A user's own product name is not translated, so neither
+are these, and an English interface showing Turkish product names is correct rather than a bug.
+
+Interpolation goes through `:placeholder` replacements, never string concatenation:
+
+```dart
+Lang.get('screens.dates.subtitle', {'days': _horizon, 'approaching': approaching})
+```
+
+`test/localization_test.dart` asserts every placeholder survives translation, which a concatenated
+string cannot be checked for.
+
 ## Anti-Patterns
 
 Each of these is a blocker, and the `component-visual-reviewer` flags every one.

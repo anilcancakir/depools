@@ -58,10 +58,13 @@ class ShoppingListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MSPageScaffold(
-      title: 'Alışveriş listesi',
+      title: Lang.get('screens.shopping.title'),
       subtitle: hasLines
-          ? '${pendingLines.length} ürün alınacak · ${checkedLines.length} sepette'
-          : 'Eksik yok',
+          ? Lang.get('screens.shopping.subtitle', {
+              'pending': pendingLines.length,
+              'checked': checkedLines.length,
+            })
+          : Lang.get('screens.shopping.subtitle_empty'),
       children: hasLines
           ? [_buildPending(), if (checkedLines.isNotEmpty) _buildChecked(), _buildActions()]
           : [_buildEmpty(), _buildActions()],
@@ -71,8 +74,8 @@ class ShoppingListView extends StatelessWidget {
   /// What is left to get, urgency first.
   Widget _buildPending() {
     return SectionCard(
-      label: 'Alınacak',
-      count: '${pendingLines.length} ürün',
+      label: Lang.get('screens.shopping.pending_group'),
+      count: Lang.get('screens.shopping.product_count', {'count': pendingLines.length}),
       children: [
         for (final ShoppingFixture line in pendingLines)
           ShoppingRow(
@@ -91,8 +94,8 @@ class ShoppingListView extends StatelessWidget {
   /// What is in the trolley. Collapsible, because it only grows.
   Widget _buildChecked() {
     return SectionCard(
-      label: 'Sepette',
-      count: '${checkedLines.length} ürün',
+      label: Lang.get('screens.shopping.checked_group'),
+      count: Lang.get('screens.shopping.product_count', {'count': checkedLines.length}),
       collapsible: true,
       children: [
         for (final ShoppingFixture line in checkedLines)
@@ -113,19 +116,18 @@ class ShoppingListView extends StatelessWidget {
   /// Nothing to buy, which is the good outcome and has to read like one.
   Widget _buildEmpty() {
     return SectionCard(
-      label: 'Alınacak',
+      label: Lang.get('screens.shopping.pending_group'),
       children: [
         WDiv(
           // Full width so MSEmptyState's own `items-center` has something to centre in.
           className: 'w-full',
           child: MSEmptyState(
             icon: _emptyIcon,
-            title: 'Şu an eksik yok',
+            title: Lang.get('screens.shopping.empty_title'),
             // Says the mechanism rather than apologising for the blank: a product appears
             // here once it has a target level or enough history to run one.
             description:
-                'Hedef seviyesi belirlenmiş ve azalan ürünler burada görünür. '
-                'Yeterli geçmiş biriktikçe tahmin de devreye girer.',
+                Lang.get('screens.shopping.empty_description'),
           ),
         ),
       ],
@@ -142,11 +144,11 @@ class ShoppingListView extends StatelessWidget {
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
-          child: const WDiv(
+          child: WDiv(
             className: 'flex flex-row items-center justify-center gap-2',
             children: [
-              WIcon(_addIcon, className: 'size-4'),
-              WText('Ürün ekle'),
+              const WIcon(_addIcon, className: 'size-4'),
+              WText(Lang.get('screens.shopping.empty_action')),
             ],
           ),
         ),
@@ -154,16 +156,16 @@ class ShoppingListView extends StatelessWidget {
         // anything. Absent rather than disabled: a disabled primary button is visually
         // indistinguishable from a live one in this theme, measured.
         if (hasLines && checkedLines.isNotEmpty) ...[
-          WText('Sepettekiler stoğa fiş tarandığında girer', className: 'text-xs text-fg-muted'),
+          WText(Lang.get('screens.shopping.receipt_hint'), className: 'text-xs text-fg-muted'),
           MSButton(
             onPressed: () {},
             fullWidth: true,
             className: 'justify-center',
-            child: const WDiv(
+            child: WDiv(
               className: 'flex flex-row items-center justify-center gap-2',
               children: [
-                WIcon(_receiptIcon, className: 'size-4'),
-                WText('Fişi tara'),
+                const WIcon(_receiptIcon, className: 'size-4'),
+                WText(Lang.get('screens.shopping.receipt_action')),
               ],
             ),
           ),
