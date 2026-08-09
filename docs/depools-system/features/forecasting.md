@@ -1,7 +1,5 @@
 # Feature: consumption, expiry and the shopping list
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 Tell the user what is running out, what is about to spoil, and what to buy. Without lying to them.
 
 Decisions D7 and D8 in `open-decisions.md`.
@@ -157,6 +155,28 @@ Phrasing a shopping list into natural language through the assistant consumes a 
 5. Waste percentage is computed only from `waste`-reason movements.
 6. An item not consumed for three intervals drops off the shopping list rather than persisting.
 7. No forecasting code path calls a model.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `DatesView` | `/tarihler` | expired + grouped, empty |
+| `RunningLowView` | `/azalanlar` | tiers, empty |
+| `ShoppingListView` | `/alisveris` | pending + checked, empty |
+
+## What the design settled
+
+- **The dates screen is titled for dates, not for food** (D55). A warranty ending in two days sits
+  beside a cheese that went off yesterday, and each row says which kind of date it is.
+- **The horizon is absolute and the user sets it** (D56). Filtering on each product's own D24 window
+  produced ZERO rows when measured, because that window for a five-day product is one day.
+- **Every row is a lot**, so a product with three cartons contributes three decisions.
+- **Expired leads and its action differs**: its group is not collapsible and tapping opens stock-out
+  with `waste` already chosen. Making the user restate what they just tapped is how nobody records
+  waste, and waste is the number this feature sells.
+- **Running low is the diagnosis, the shopping list is the action** (D57). Same rows, different
+  questions, so the numbers live on one and a sentence on the other, and containment runs one way.
+- **The shopping list's actions are pinned** (D70), because the list is as long as the shop.
 
 ## Open
 

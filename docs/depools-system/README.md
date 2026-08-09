@@ -22,7 +22,7 @@ Written 2026-08-05 from nine research passes plus a full read of the abandoned M
 
 One document per feature. Each carries the flow, error and empty states, quota effects, acceptance criteria, and what is still open.
 
-These are at **summary depth on purpose**. Design mockups come next, and the interaction decisions that come out of them are what these documents will be grown with. Writing full specifications before the design exists would mean writing detail twice.
+These were written at summary depth on purpose, to be grown once the design mockups settled the interaction decisions. That has happened: every one now carries a **Screens** table (the surfaces it owns, their routes and the states each renders) and a **What the design settled** section naming the decisions the mockups produced. What remains under **Open** is genuinely open.
 
 | Feature | |
 |---|---|

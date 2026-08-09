@@ -84,3 +84,23 @@ Recorded because the MVP hit two of them:
 
 1. **Currency entry errors.** The MVP's seed data set Starter's TRY web price to 9.99 against Plus at 399.99, an obvious data-entry mistake that would have sold a subscription for roughly a quarter of a dollar. Prices need a validation rule that rejects a value implausibly far from the tier's other currencies.
 2. **Repeated schema churn.** The plan schema was rewritten five times in three months because the metering model was never settled. It is settled here first, which is the point of writing this document before the code.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `PlanView` | `/plan` | room left, at the limit |
+
+## What the design settled
+
+- **Every meter states its consequence beside its number.** D4 names the MVP's failure exactly: five
+  axes metered at once and no way to tell which limit was hit, surfacing as a dead-end 403. A bar
+  says how full something is; it does not say what stops.
+- **Nothing on the screen is a warning.** At the limit everything existing keeps working and only the
+  metered action is blocked, so the notes say what stops rather than what breaks and the full state
+  does not turn the screen red. A tenant at their product limit has not done anything wrong.
+- **Retention draws no bar**, and that was a correction. Rendered as `1 / 1` it filled the track and
+  turned red, telling a free-plan tenant they had hit a limit they had not touched. Retention is a
+  window length, not a quantity being consumed.
+- **Unlimited seats are stated rather than omitted.** Every competing product meters them, so a user
+  comparing plans looks for the number first; saying it is absent is worth more than leaving it out.

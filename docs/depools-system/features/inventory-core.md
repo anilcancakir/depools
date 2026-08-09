@@ -1,7 +1,5 @@
 # Feature: inventory core
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 Products, locations, lots and the movement ledger. Everything else in the product writes into this or reads out of it.
 
 Schema in `data-model.md`. Decisions D3 and D8 in `open-decisions.md`.
@@ -100,6 +98,48 @@ and 500 ml" is exactly what they are looking at.
 5. A transfer between locations produces exactly two movements with equal and opposite deltas and a shared reference.
 6. A second tenant cannot read or write any row belonging to the first. Tested per table.
 7. `remaining_quantity` never goes negative under any sequence of operations, including concurrent ones.
+
+## Screens
+
+Every surface this feature owns, with the states each preview renders. The catalog entry is the
+screen name plus `Screen`.
+
+| Screen | Route | States |
+|---|---|---|
+| `ProductIndexView` | `/urunler` | data, empty, loading-more |
+| `ProductFormView` | `/urunler/yeni` | empty (invalid), filled |
+| `ProductShowView` | `/urunler/:id` | data |
+| `LocationIndexView` | `/konumlar` | data, empty, filtered-empty |
+| `LocationFormView` | `/konumlar/yeni` | empty (invalid), filled |
+| `LocationShowView` | `/konumlar/:id` | holds stock, empty |
+| `StockTakeView` | `/sayim` | uncounted, variance, matched |
+| `UnitDefinitionSheet` | sheet | empty, factor entered |
+| `StockInSheet` / `StockOutSheet` / `StockMoveSheet` | sheet | see `stock-movements.md` |
+
+## What the design settled
+
+- **The manual product form is short by construction.** Two required fields, expiry as one switch,
+  everything else folded. The 60-second acceptance criterion rules out both a long form and the
+  tap-a-field-open-a-sheet pattern the AI draft uses: that pattern is right when values ARRIVE and
+  need checking, wrong when the user is typing from nothing.
+- **`tracking_mode` and `par_level` are not on the creation form.** D30 keeps the first off it
+  (a user adding a drill does not yet know they will want serials); the second is asked when it
+  becomes useful, at the moment the product first appears on a shortage surface with no target.
+- **The depth cap and the cycle guard are design, not validation.** A parent that would breach
+  depth 6 is not offered, and the path the choice produces is spelled out under the chips.
+  Discovering a modelled constraint at submit time turns it into an error message.
+- **A location separates what it HOLDS from what is INSIDE it.** Folding both into one list makes a
+  place with three sub-locations read as if it physically contained forty items, which is how a
+  user stops trusting a count. The header's rolled-up figure is derived from the same source as the
+  sections, because two fixture files disagreed and a header that contradicts its list is worse
+  than no header.
+- **An unknown purchase unit is taught, not rejected** (the sheet this document already sketched).
+  Wiring it exposed that no capture surface offered a purchase unit at all: every quantity was in
+  the base unit, so a delivery arriving in cases had nowhere to say so.
+- **The stock take's commit is pinned** (D70). At the end of a forty-line count it was a full
+  scroll away from the last line the user typed.
+- Counting decisions: blind until counted (D58), `stock_take` and never `correction` (D59),
+  uncounted and zero are different facts, a match writes nothing.
 
 ## Open
 

@@ -1,7 +1,5 @@
 # Feature: automatic location assignment
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 When a product is added, propose where it goes, from the user's own location hierarchy, and be able to say why.
 
 Decisions D9 and D10 in `open-decisions.md`.
@@ -107,6 +105,25 @@ The optional explanation sentence can go through `PlacementExplanationGateway` f
 5. Full-auto assignments are all visible in the activity feed and all undoable.
 6. A tenant with one location and no history is never shown a suggestion.
 7. The affinity table never leaks across tenants. Tested.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `LocationIndexView` | `/konumlar` | data, empty, filtered-empty |
+| `LocationFormView` | `/konumlar/yeni` | empty (invalid), filled |
+| `LocationShowView` | `/konumlar/:id` | holds stock, empty |
+| placement dial | `/ayarlar` and folded on `/konumlar` | manual, suggested, auto |
+
+## What the design settled
+
+- **The dial is reachable from settings AND from the locations screen**, over one stored value
+  (D70). Below an unbounded tree it was unreachable for exactly the tenants who have enough
+  locations to care.
+- **Every node carries an icon, children included**, so the form asks for one rather than treating
+  it as decoration.
+- **An empty location is not a failure state.** Finding one is a first-class task, which is what
+  the tree's `Boş` filter is for, so the detail screen offers stock-in rather than apologising.
 
 ## Open
 

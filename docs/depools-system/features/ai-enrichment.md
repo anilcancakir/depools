@@ -1,7 +1,5 @@
 # Feature: AI product enrichment
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 Fill in a product card from as little as the user gave us: a photograph, a name, or a barcode.
 
 This is the one area where the previous MVP was genuinely strong, and most of its design survives. Decision D6 and the cost model in `ai-design.md`.
@@ -138,6 +136,23 @@ the ledger means, and that is a conversion rather than a field edit.
 5. With zero credits, manual product creation still works end to end.
 6. No code path anywhere calls a model outside a gateway. Verified by test, because the MVP's icon endpoint did exactly that and escaped quota entirely.
 7. No artificial delay exists in any path.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `ProductDraftView` | `/taslak` | fields with confidence, unconfirmed, unresolved |
+| `ShelfPhotoView` | `/raf` | reading, ready, failed |
+
+## What the design settled
+
+- **A draft field states where its value came from and how sure the model is**, and an unconfirmed
+  one is marked rather than silently accepted. `DraftField` carries that; it is the pattern for
+  values that ARRIVE, as opposed to the manual form's plain inputs for values that are typed.
+- **The shelf photograph stays on screen with numbered boxes and the rows carry the same numbers**
+  (D60). A candidate list detached from the image is unreviewable.
+- **The failed read is its own state**, not an empty list. A photograph the model could not use is
+  a different situation from a photograph containing nothing.
 
 ## Open
 

@@ -1,7 +1,5 @@
 # Feature: barcode labels and printing
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 Print barcode labels for items that have none, so they can be scanned later.
 
 Decision D18 in `open-decisions.md`.
@@ -115,6 +113,22 @@ None. Label generation is local computation.
 5. A partially printed batch is resumable.
 6. An internally generated barcode cannot be confused with a manufacturer EAN-13.
 7. Preview matches print output.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `LabelPrintView` | `/etiket` | sheet preview with the item list and layout controls |
+
+## What the design settled
+
+- **It is reached from the product it labels**, through the detail screen's menu, rather than from a
+  global menu. Until that entry point existed the screen was unreachable from the running app.
+- **The preview and the controls sit side by side at width and stack below it.** The actions are
+  deliberately NOT pinned, unlike every other terminal action in the app: they belong to the control
+  column they sit in, and pinning them would break the pairing with the sheet they act on.
+- **Millimetre dimensions are the point.** A label sheet that is nearly right is waste, so the
+  preview is proportional to the real page rather than a decorative thumbnail.
 
 ## Open
 

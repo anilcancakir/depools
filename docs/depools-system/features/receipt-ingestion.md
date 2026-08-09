@@ -1,7 +1,5 @@
 # Feature: receipt and invoice ingestion
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 Turn a purchase document into stock. This is the headline capture path and the reason a non-technical user would choose this product.
 
 Decisions D14 and D15 in `open-decisions.md`. Legal position in `legal-and-privacy.md`.
@@ -79,6 +77,27 @@ Detail in `ai-design.md`.
 5. The same receipt submitted twice does not double stock.
 6. Mail spoofed to another tenant's inbound address is rejected.
 7. With zero AI credits, the manual path still completes.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `ReceiptReviewView` | `/fis` | lines with confidence and resolution state |
+| forwarding address | `/ayarlar` | the tenant's inbound address, with copy |
+
+## What the design settled
+
+- **It is entered from the overview's capture actions**, beside the barcode scanner and the shelf
+  photo, because all three are "point the camera at the thing". Until that existed the screen had no
+  way in.
+- **Unresolved lines float to the top**, which is the opposite of the scan queue's ordering. The two
+  differ for a reason: paper is static and finite, so the user works the exceptions; a scan queue is
+  live, so the newest read has to be visible or the user gets no feedback.
+- **The forwarding address is a settings section rather than a screen**, because there is nothing to
+  do with it but read and copy. It is rendered in mono for the same reason a barcode is: it has to
+  be transcribed into a mail rule exactly.
+- **Recognition runs server-side**, and that is forced rather than chosen: `mobile_scanner` has no
+  `analyzeImage` on web, so a still photo cannot be decoded on the device there at all.
 
 ## Open
 

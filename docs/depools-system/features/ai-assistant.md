@@ -1,7 +1,5 @@
 # Feature: the AI assistant
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 An assistant that does the work, not one that explains how the user could do it. Reachable from every screen, and opening over the one you are on.
 
 Decisions D13, D66, D67 and D69 in `open-decisions.md`. D12's two-front-doors shape was removed by D66. Tool catalog and approval policy in `ai-design.md`.
@@ -153,6 +151,22 @@ conventional screen. If something is only reachable through conversation, that i
 6. Under semi-auto, no stock-changing write happens without approval.
 7. Every capability reachable through the assistant is also reachable through a conventional screen.
 8. Text from a web search or a product description cannot cause a tool call. Tested with an injection payload.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `AssistantView` | `/asistan`, and as a full-screen overlay | fresh, mid-conversation |
+| `ActivityPanel` | panel over the current screen | recent writes with undo |
+
+## What the design settled
+
+- **It opens OVER the screen rather than replacing it** (D69). Asking about the product in front of
+  you must not cost you the product, and closing returns to the same scroll position and filter.
+- **The transcript is made of components, not prose about state** (D49), and the overview above it
+  is chrome rather than a message (D50).
+- **The composer is pinned to the viewport**, which is what taking the screen out of the shell
+  bought: the transcript is a plain `Expanded` and the computed-height hack is gone.
 
 ## Open
 

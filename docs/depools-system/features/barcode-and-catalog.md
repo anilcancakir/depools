@@ -1,7 +1,5 @@
 # Feature: barcode scanning and the product catalog
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 Scan a barcode, get a product. Build a Turkish product catalog nobody else has, without breaking anyone's licence.
 
 Decision D11 in `open-decisions.md`. Licence positions in `legal-and-privacy.md`.
@@ -138,6 +136,26 @@ order token.
 5. Open Food Facts rows live only in `off_products` and never merge into `global_products`. Verified by test.
 6. Every scraping source can be disabled independently without a deploy.
 7. A `source = scraped` row is presented to the user as unverified.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `BarcodeScanView` | `/tara` | queue with reads, empty |
+| `ProductDraftView` | `/taslak` | draft from the cascade's miss |
+
+## What the design settled
+
+- **The scan result is a QUEUE beside a live viewfinder**, not a modal per read. Unpacking a
+  delivery means scanning twenty things in a row, so the scanner stays open and accumulates.
+- **`ScanSource` carries provenance, not resolution state.** Five values (`own`, `catalog`,
+  `unverified`, `recalled`, `unmatched`) and the axis that varies between them is the leading
+  glyph's TONE rather than the row's geometry. Folding scans into the receipt line's resolution
+  enum would corrupt the one thing that enum is careful about.
+- **`unmatched` is the entry to the draft screen.** Stage 6 of the cascade found nothing anywhere,
+  so typing or photographing is the only way forward. That row is the only tappable one.
+- **The viewfinder's framing rectangle is an aiming aid, not a gate**, because `scanWindow` is
+  unsupported on web. The copy must never promise that only what is inside counts.
 
 ## Open
 

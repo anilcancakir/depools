@@ -1,7 +1,5 @@
 # Feature: MCP server
 
-> Summary depth. Deepens after the design mockups settle the interaction decisions.
-
 Let the user connect their own AI assistant to their own inventory. Read-only in v1, write in v2.
 
 Decision D16 in `open-decisions.md`.
@@ -89,6 +87,25 @@ Metered as rate-limited requests per tier, not as AI credits. The model calls ha
 5. Rate limits are enforced per tier and reported clearly on 429.
 6. A product name containing injected instruction text cannot cause a tool call or leak data. Tested with a payload.
 7. No write tool exists in v1. Verified by test, because the safest v1 write surface is none.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `McpAccessView` | `/mcp` | connected clients, nothing connected |
+
+## What the design settled
+
+- **This was the only feature document with no mockup at all**, which meant the server could ship
+  and nobody could connect: no address to copy, no way to authorise, no way to take a key back.
+- **Revoking is the primary affordance.** The user is handing a third-party program a key to their
+  stock records, and the incident this document cites went unnoticed for over a month. Every
+  connection is listed with when it was last used, one control removes one, and a pinned destructive
+  action removes all of them. A key you cannot see is a key you cannot take back.
+- **The read-only scope is stated in a callout, not a footnote.** A user connecting an assistant will
+  reasonably assume it can act; saying it cannot is the accurate description of what they are
+  granting, and it is what makes granting it comfortable.
+- **The address is mono**, for the same reason as the receipt-forwarding address and a barcode.
 
 ## Open
 
