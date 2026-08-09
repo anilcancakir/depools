@@ -110,9 +110,23 @@ void main() async {
   // on the rule with nothing between them.
   MagicStarter.usePageHeaderTheme(
     const MagicStarterPageHeaderTheme(
+      // **A row at every width, not a column below `sm`.** The starter's default stacks the
+      // header on a phone, which drops the action under the subtitle: on the locations screen
+      // the `+` sat alone on its own line under "10 konum · 3 ana konum", reading as a stray
+      // button rather than as the header's action. Anılcan asked for it beside the title
+      // wherever it fits, which on a 390px viewport it comfortably does: one 44pt control
+      // against titles like "Konumlar" and "Genel bakış".
+      //
+      // `items-start` rather than `items-center` so the control aligns with the TITLE and does
+      // not drift downward when the subtitle wraps to two lines.
+      //
+      // The constraint this accepts: below `sm` the starter gives the title block `sm:flex-1`,
+      // so the title takes its intrinsic width and a genuinely long one could overflow rather
+      // than shrink. Every title in this app is one or two short words. A longer one is the
+      // signal to reach for `inlineActions`, which `MSPageScaffold` does not forward today.
       containerClassName:
-          'w-full flex flex-col sm:flex-row items-start sm:items-center '
-          'sm:justify-between gap-4 pb-4 border-b border-color-border',
+          'w-full flex flex-row items-start justify-between gap-3 pb-4 '
+          'border-b border-color-border',
       containerInlineClassName:
           'w-full flex flex-row items-center justify-between gap-4 pb-4 '
           'border-b border-color-border',

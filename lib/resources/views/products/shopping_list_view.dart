@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
+import '../../../ui/layouts/app_page_scaffold.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageScaffold, MSButton, ButtonIntent, MSEmptyState;
+    show MSButton, ButtonIntent, MSEmptyState;
 
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/shopping_row/shopping_row.dart';
@@ -57,7 +58,7 @@ class ShoppingListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MSPageScaffold(
+    return AppPageScaffold(
       title: Lang.get('screens.shopping.title'),
       subtitle: hasLines
           ? Lang.get('screens.shopping.subtitle', {
@@ -65,9 +66,12 @@ class ShoppingListView extends StatelessWidget {
               'checked': checkedLines.length,
             })
           : Lang.get('screens.shopping.subtitle_empty'),
+      // Pinned rather than trailing (D70): a shopping list is as long as the shop, so the
+      // actions that finish it cannot live at the end of it.
+      footer: _buildActions(),
       children: hasLines
-          ? [_buildPending(), if (checkedLines.isNotEmpty) _buildChecked(), _buildActions()]
-          : [_buildEmpty(), _buildActions()],
+          ? [_buildPending(), if (checkedLines.isNotEmpty) _buildChecked()]
+          : [_buildEmpty()],
     );
   }
 

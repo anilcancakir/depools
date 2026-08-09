@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
+import '../../../ui/layouts/app_page_scaffold.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageScaffold, MSButton, ButtonIntent, MSSkeleton, SkeletonShape;
+    show MSButton, ButtonIntent, MSSkeleton, SkeletonShape;
 
 import '../../../ui/components/callout/callout.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -67,7 +68,7 @@ class ShelfPhotoView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MSPageScaffold(
+    return AppPageScaffold(
       title: Lang.get('screens.shelf_photo.title'),
       subtitle: switch (state) {
         ShelfReadState.reading =>
@@ -76,10 +77,12 @@ class ShelfPhotoView extends StatelessWidget {
           Lang.get('screens.shelf_photo.subtitle', {'regions': shelfCandidates.length, 'ready': settledCandidates.length}),
         ShelfReadState.failed => Lang.get('screens.shelf_photo.subtitle_failed'),
       },
+      // Pinned rather than trailing (D70). A photograph of a full shelf yields a candidate per
+      // region, so accepting them sits under a list whose length the user does not control.
+      footer: _buildActions(),
       children: [
         _buildPhoto(),
         if (state == ShelfReadState.failed) _buildFailure() else _buildCandidates(),
-        _buildActions(),
       ],
     );
   }
