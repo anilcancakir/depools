@@ -214,7 +214,8 @@
     "scan": "Scan",
     "profile": "Profile",
     "settings": "Settings",
-    "system": "System"
+    "system": "System",
+    "search": "Search"
   },
   "notifications": {
     "empty": "No notifications",
@@ -934,6 +935,16 @@
       "revoke_title": "Remove every connection?",
       "revoke_description": "Every connected program loses access and has to be authorised again. This cannot be undone.",
       "revoke_confirm": "Remove all"
+    },
+    "search": {
+      "title": "Search",
+      "subtitle": "A product, a location or a barcode",
+      "placeholder": "What are you looking for",
+      "products_group": "Products",
+      "locations_group": "Locations",
+      "places_group": "Your locations",
+      "empty_title": "Nothing matched \":query\"",
+      "empty_description": "You can search by product name, brand, SKU or location name."
     }
   },
   "components": {

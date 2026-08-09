@@ -39,6 +39,7 @@ import 'preview/receipt_review_screen.preview.dart';
 import 'preview/register_screen.preview.dart';
 import 'preview/running_low_empty_screen.preview.dart';
 import 'preview/running_low_screen.preview.dart';
+import 'preview/search_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
 import 'preview/sheets_screen.preview.dart';
 import 'preview/shelf_photo_failed_screen.preview.dart';
@@ -378,6 +379,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ScanRow',
       slug: 'scan_row',
       builder: (_) => const ScanRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'SearchScreen',
+      slug: 'search_screen',
+      builder: (_) => const SearchScreenPreview(),
     ),
     PreviewEntry(
       label: 'SectionCard',

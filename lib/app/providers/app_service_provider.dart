@@ -96,6 +96,13 @@ class AppServiceProvider extends ServiceProvider {
           labelKey: 'nav.products',
           path: '/urunler',
         ),
+        // Search is a destination rather than a field on one list, because it answers across
+        // products AND locations and neither list can host the other's results.
+        MagicStarterNavItem(
+          icon: Icons.search_outlined,
+          labelKey: 'nav.search',
+          path: '/ara',
+        ),
         MagicStarterNavItem(
           icon: Icons.warehouse_outlined,
           labelKey: 'nav.locations',
@@ -144,6 +151,13 @@ class AppServiceProvider extends ServiceProvider {
           icon: Icons.inventory_2_outlined,
           labelKey: 'nav.products',
           path: '/urunler',
+        ),
+        // Search is a destination rather than a field on one list, because it answers across
+        // products AND locations and neither list can host the other's results.
+        MagicStarterNavItem(
+          icon: Icons.search_outlined,
+          labelKey: 'nav.search',
+          path: '/ara',
         ),
       ],
     );

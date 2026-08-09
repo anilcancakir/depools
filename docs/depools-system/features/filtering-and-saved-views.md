@@ -71,3 +71,25 @@ That is why mode 2 of the chip row is not decoration. **The active criteria are 
 
 - **Filter on the assistant's side.** The assistant can already express these as tool arguments. Whether a chat answer offers "bunu filtre olarak kaydet" is a v2 question, listed in `iterations.md`.
 - **Whether the axes need a tracking-mode filter.** D28 puts lot-tracked and serial-tracked products in one catalogue. A user hunting a specific IMEI searches rather than filters, so this is probably not an axis, but it is unverified against a real serial-tracking workflow.
+
+## Screens
+
+| Screen | Route | States |
+|---|---|---|
+| `SearchView` | `/ara` | empty query, results, nothing matched |
+| `FilterBar` + `ProductFilterSheet` | on `/urunler` | saved filters, applied criteria, full axis set |
+
+## What the design settled
+
+- **Search is one destination, not a field per list.** Four per-list inputs existed and every one
+  was dead, each scoped to the list it sat on, which cannot answer what v1 asks for: a location is
+  not findable from the product list, and a user who remembers "it is in the drawer" has nowhere to
+  type that. It is also the surface `CaptureVerb.inventory` exists for.
+- **Results are grouped by kind rather than interleaved by score.** The two kinds answer different
+  questions and their rows carry different information, so a mixed list makes the reader re-parse
+  the shape of every row. Products lead because most searches are for one.
+- **The empty query is not an empty screen.** Before anything is typed it offers the places the
+  user keeps things, so the screen is useful on arrival. Same reasoning as the assistant's fresh
+  state.
+- **Filtering stays on the list it filters.** Search finds a thing; a filter narrows a set. Merging
+  them would put the stock list's eight axes on a screen that also returns locations.

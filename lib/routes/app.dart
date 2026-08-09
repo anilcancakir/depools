@@ -9,6 +9,7 @@ import '../resources/views/locations/location_index_view.dart';
 import '../resources/views/locations/location_show_view.dart';
 import '../resources/views/mcp_access_view.dart';
 import '../resources/views/plan_view.dart';
+import '../resources/views/search_view.dart';
 import '../resources/views/settings_view.dart';
 import '../resources/views/products/assistant_view.dart';
 import '../resources/views/products/barcode_scan_view.dart';
@@ -121,6 +122,10 @@ void registerAppRoutes() {
 
       // This app's own settings, distinct from the account settings `magic_starter` owns. It
       // holds the two preferences D66 and D67 created and had nowhere to live.
+      // One search over everything, because four dead per-list fields could not answer what
+      // `iterations.md` asks of v1: a location is not findable from the product list.
+      MagicRoute.page('/ara', () => const SearchView()).name('search');
+
       MagicRoute.page('/ayarlar', () => const SettingsView()).name('settings');
 
       // The two v1 surfaces that had no screen at all. Both are reached from settings, which is

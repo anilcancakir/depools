@@ -214,7 +214,8 @@
     "scan": "Tara",
     "profile": "Profil",
     "settings": "Ayarlar",
-    "system": "Sistem"
+    "system": "Sistem",
+    "search": "Ara"
   },
   "notifications": {
     "empty": "Bildirim yok",
@@ -934,6 +935,16 @@
       "revoke_title": "Tüm bağlantılar kaldırılsın mı?",
       "revoke_description": "Bağlı her program erişimini kaybeder ve yeniden yetkilendirilmesi gerekir. Bu işlem geri alınamaz.",
       "revoke_confirm": "Hepsini kaldır"
+    },
+    "search": {
+      "title": "Ara",
+      "subtitle": "Ürün, konum ya da barkod",
+      "placeholder": "Ne arıyorsunuz",
+      "products_group": "Ürünler",
+      "locations_group": "Konumlar",
+      "places_group": "Konumlarınız",
+      "empty_title": "\":query\" bulunamadı",
+      "empty_description": "Ürün adı, marka, SKU ya da konum adıyla arayabilirsiniz."
     }
   },
   "components": {

@@ -21,7 +21,7 @@ The v1 test: a cafe owner who has never used inventory software can get their st
 - Append-only movement ledger with the full reason and source vocabulary.
 - Lot-level expiry, FEFO consumption, `waste` as a distinct reason.
 - Derived stock per product and location, with a consistency check against the ledger.
-- Search and filtering on Meilisearch, covering products, locations, categories and the global catalog.
+- Search and filtering on Meilisearch, covering products, locations, categories and the global catalog. One search destination (`/ara`) returning results grouped by kind, with filtering staying on the list it narrows.
 
 ### Capture
 
