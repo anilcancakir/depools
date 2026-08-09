@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show MSPageScaffold, MSButton, ButtonIntent;
+import 'package:magic_starter/magic_starter.dart' show MSButton, ButtonIntent;
+
+import '../../../ui/layouts/app_page_scaffold.dart';
 
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/count_row/count_row.dart';
@@ -87,10 +89,14 @@ class _StockTakeViewState extends State<StockTakeView> {
     final int counted = lines.where((l) => l.isCounted).length;
     final List<CountLine> variances = lines.where((l) => l.isCounted && !l.isMatched).toList();
 
-    return MSPageScaffold(
+    // The commit is the point of this screen and it used to sit at the END of the count, so a
+    // forty-line shelf put `Sayımı kaydet` a full scroll away from the last line the user typed.
+    // Pinned, it is where the user's thumb already is when they finish.
+    return AppPageScaffold(
       title: Lang.get('screens.stock_take.title'),
       subtitle: Lang.get('screens.stock_take.subtitle', {'location': resolveLocationPath(_locationId), 'counted': counted, 'total': lines.length}),
-      children: [_buildLocation(), _buildLines(lines), _buildCommit(lines, counted, variances)],
+      footer: _buildCommit(lines, counted, variances),
+      children: [_buildLocation(), _buildLines(lines)],
     );
   }
 

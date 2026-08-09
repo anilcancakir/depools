@@ -2,6 +2,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart';
 
 import '../ui/components/assistant_launcher/assistant_launcher.dart';
+import '../ui/layouts/page_chrome.dart';
 import '../resources/views/dashboard_view.dart';
 import '../resources/views/locations/location_index_view.dart';
 import '../resources/views/settings_view.dart';
@@ -50,8 +51,19 @@ void registerAppRoutes() {
     //
     // Outside, it floats over the navigation as well, which the launcher's own bottom inset is
     // there to clear. A control that covers a tab steals taps from it.
-    layout: (child) => AssistantLauncher(
-      child: MagicStarter.view.makeLayout('layout.app', child: child),
+    // `PageChromeHost` is outside the layout for the same reason the launcher is: the shell puts
+    // every route inside a scroll view with unbounded height, so a pinned footer can only be
+    // anchored from a box that knows the viewport. See `ui/layouts/page_chrome.dart`.
+    //
+    // The launcher is INSIDE the chrome host, and that ordering is what keeps the floating
+    // button off a pinned footer. The host folds the footer's measured height into
+    // `MediaQuery.padding.bottom` for everything below it, and the launcher already reads that
+    // padding to clear the navigation bar, so it lifts by exactly the footer's height without
+    // knowing footers exist. Outside the host it would not see the injected padding at all.
+    layout: (child) => PageChromeHost(
+      child: AssistantLauncher(
+        child: MagicStarter.view.makeLayout('layout.app', child: child),
+      ),
     ),
     middleware: ['auth'],
     // **No shared `layoutId`, and that is what makes the wrapper above run at all.**
