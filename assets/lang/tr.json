@@ -599,7 +599,9 @@
       "from_warranty": "garanti süresinden",
       "from_shelf_life": "raf ömründen",
       "left_simple": "Kalan: :amount :unit",
-      "left_split": "Kalan: :whole :unit + :remainder :contentUnit"
+      "left_split": "Kalan: :whole :unit + :remainder :contentUnit",
+      "other_unit": "Başka birimle gir",
+      "other_unit_name": "koli"
     },
     "products": {
       "title": "Stok",
@@ -845,6 +847,16 @@
       "empty_title": "Burası boş",
       "empty_description": "Bu konumda henüz ürün yok. Yeni gelen stok buraya yerleştirilebilir.",
       "stock_in": "Buraya stok gir"
+    },
+    "unit_definition": {
+      "title": "\":unit\" birimini tanımla",
+      "description": "Bu birim daha önce kullanılmadı. Bir kez tanımlanır, sonra hatırlanır.",
+      "one": "1 :unit =",
+      "placeholder": "Kaç",
+      "factor_label": "Bir :unit kaç :base eder",
+      "result": ":quantity :unit = :total :base olarak kaydedilir",
+      "save": "Kaydet",
+      "cancel": ":base olarak devam et"
     }
   },
   "components": {

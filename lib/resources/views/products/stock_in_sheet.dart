@@ -5,6 +5,7 @@ import 'package:magic_starter/magic_starter.dart' show MSBottomSheet, MSButton, 
 import '../../../ui/components/option_row/option_row.dart';
 import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
+import 'unit_definition_sheet.dart';
 
 /// Put stock into a product.
 ///
@@ -201,15 +202,39 @@ class _StockInSheetState extends State<StockInSheet> {
         _group(
           Lang.get('screens.stock_in.amount_group'),
           WDiv(
-            className: 'flex flex-row wrap gap-2',
+            className: 'flex flex-col gap-2',
             children: [
-              for (final (num value, String label) in _amountOptions)
-                MSButton(
-                  onPressed: () => setState(() => _amount = value),
-                  intent: _amount == value ? ButtonIntent.primary : ButtonIntent.secondary,
-                  className: 'py-3 axis-min',
-                  child: WText(label),
+              WDiv(
+                className: 'flex flex-row wrap gap-2',
+                children: [
+                  for (final (num value, String label) in _amountOptions)
+                    MSButton(
+                      onPressed: () => setState(() => _amount = value),
+                      intent: _amount == value ? ButtonIntent.primary : ButtonIntent.secondary,
+                      className: 'py-3 axis-min',
+                      child: WText(label),
+                    ),
+                ],
+              ),
+              // **The purchase unit, which had no surface anywhere.** `inventory-core.md` says
+              // capture accepts whatever unit the user says and resolves it through
+              // `product_units`, and nothing in the app offered one: every quantity on every
+              // screen was in the base unit. A delivery arrives in cases, not in pieces.
+              //
+              // Ghost rather than a chip, because this is an escape hatch and not a fourth
+              // quantity: the common case is the row above, and a user who bought a case taps
+              // once more to say so.
+              MSButton(
+                onPressed: () => UnitDefinitionSheet.show(
+                  context,
+                  unit: Lang.get('screens.stock_in.other_unit_name'),
+                  baseUnit: widget.product.unit,
+                  quantity: _amount,
                 ),
+                intent: ButtonIntent.ghost,
+                className: 'py-3 axis-min',
+                child: WText(Lang.get('screens.stock_in.other_unit')),
+              ),
             ],
           ),
         ),
