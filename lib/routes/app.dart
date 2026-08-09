@@ -13,6 +13,7 @@ import '../resources/views/products/product_draft_view.dart';
 import '../resources/views/products/receipt_review_view.dart';
 import '../resources/views/products/shelf_photo_view.dart';
 import '../resources/views/products/dates_view.dart';
+import '../resources/views/products/product_form_view.dart';
 import '../resources/views/products/product_index_view.dart';
 import '../resources/views/products/product_show_view.dart';
 import '../resources/views/products/running_low_view.dart';
@@ -85,6 +86,10 @@ void registerAppRoutes() {
 
       // Stock itself.
       MagicRoute.page('/urunler', () => const ProductIndexView()).name('products');
+      // **Before `:id`, and the order is load-bearing.** A path parameter matches any segment, so
+      // registering the literal second would send `/urunler/yeni` to the detail screen looking for
+      // a product whose id is the word "yeni".
+      MagicRoute.page('/urunler/yeni', () => const ProductFormView()).name('product-create');
       MagicRoute.page('/urunler/:id', () => const ProductShowView()).name('product');
       MagicRoute.page('/konumlar', () => const LocationIndexView()).name('locations');
       MagicRoute.page('/sayim', () => const StockTakeView()).name('stock-take');

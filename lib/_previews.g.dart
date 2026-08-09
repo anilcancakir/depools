@@ -22,6 +22,7 @@ import 'preview/location_index_screen.preview.dart';
 import 'preview/login_screen.preview.dart';
 import 'preview/product_draft_screen.preview.dart';
 import 'preview/product_draft_settled_screen.preview.dart';
+import 'preview/product_form_screen.preview.dart';
 import 'preview/product_index_empty_screen.preview.dart';
 import 'preview/product_index_loading_more_screen.preview.dart';
 import 'preview/product_index_screen.preview.dart';
@@ -255,6 +256,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ProductDraftSettledScreen',
       slug: 'product_draft_settled_screen',
       builder: (_) => const ProductDraftSettledScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductFormScreen',
+      slug: 'product_form_screen',
+      builder: (_) => const ProductFormScreenPreview(),
     ),
     PreviewEntry(
       label: 'ProductIndexEmptyScreen',

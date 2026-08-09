@@ -193,7 +193,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           child: const WIcon(_scanIcon),
         ),
         MSButton(
-          onPressed: () {},
+          onPressed: () => MagicRoute.to('/urunler/yeni'),
           className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: Lang.get('screens.products.add'),
           child: const WIcon(_addIcon),
@@ -313,7 +313,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           className: 'flex flex-col gap-2',
           children: [
             MSButton(
-              onPressed: () {},
+              onPressed: () => MagicRoute.to('/fis'),
               fullWidth: true,
               className: 'justify-center gap-2',
               child: WDiv(
@@ -330,7 +330,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
                 WDiv(
                   className: 'flex-1',
                   child: MSButton(
-                    onPressed: () {},
+                    onPressed: () => MagicRoute.to('/tara'),
                     intent: ButtonIntent.secondary,
                     fullWidth: true,
                     className: 'justify-center gap-2',
@@ -346,7 +346,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
                 WDiv(
                   className: 'flex-1',
                   child: MSButton(
-                    onPressed: () {},
+                    onPressed: () => MagicRoute.to('/raf'),
                     intent: ButtonIntent.secondary,
                     fullWidth: true,
                     className: 'justify-center gap-2',
