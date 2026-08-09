@@ -10,25 +10,11 @@ import 'package:magic_starter/magic_starter.dart'
         MSPageScaffold,
         MSSegmentedControl;
 
+import '../../../app/models/app_preferences.dart';
 import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/location_row/location_row.dart';
 import 'location_fixtures.dart';
 import '../../../ui/components/section_card/section_card.dart';
-
-/// How much the app decides about placement on its own.
-///
-/// `location-assignment.md`'s dial, verbatim. The names are its names so no translation
-/// layer is needed between the setting and the behaviour it controls.
-enum PlacementAutomation {
-  /// The user always picks. Nothing is proposed.
-  manual,
-
-  /// A location is proposed with a visible reason. The user confirms or overrides.
-  semiAuto,
-
-  /// The location is assigned without asking. Undoable, and in the activity feed.
-  fullAuto,
-}
 
 /// Which locations the list is narrowed to.
 ///
@@ -92,12 +78,18 @@ class LocationNode {
 /// structure the schema maintains (`parent_location_id`, a materialised `path`, a depth
 /// capped at 6) existed nowhere a user could see or edit it.
 ///
-/// ### The automation dial lives here, not in settings
+/// ### The automation dial is reachable from here AND from settings
 ///
-/// `location-assignment.md` makes placement automation a user-set dial. It belongs on this
-/// screen rather than buried in preferences, because the thing it automates is exactly
-/// what this screen is about, and because the dial is only meaningful once the user has a
-/// tree for it to choose from.
+/// `location-assignment.md` makes placement automation a user-set dial, and the first
+/// version put it on this screen only, below the tree, reasoning that a setting belongs
+/// beside what it governs. Half of that survives: the shortcut here is worth having,
+/// because this is where a user forms an opinion about placement.
+///
+/// The other half was wrong twice. Below an unbounded list, the control is unreachable for
+/// exactly the tenants who have enough locations to care. And a preference that exists on
+/// one screen only is a preference nobody finds, because settings is where people look. So
+/// the value lives in `AppPreferences`, settings owns the canonical copy, and this screen
+/// renders a folded shortcut to the same stored value.
 ///
 /// **Full-auto is gated on a measured reversion rate, not a predicted confidence.** The
 /// doc is explicit: if the tenant's corrections exceed the threshold the action drops back
@@ -117,23 +109,14 @@ class LocationIndexView extends StatelessWidget {
   /// Whether the tenant has no locations yet.
   final bool isEmpty;
 
-  /// Where the dial currently sits.
-  final PlacementAutomation automation;
-
   /// Which locations are shown.
   final LocationScope scope;
 
   /// Creates the [LocationIndexView].
-  const LocationIndexView({super.key})
-    : isEmpty = false,
-      automation = PlacementAutomation.semiAuto,
-      scope = LocationScope.all;
+  const LocationIndexView({super.key}) : isEmpty = false, scope = LocationScope.all;
 
   /// Creates the view for a tenant with no locations yet.
-  const LocationIndexView.empty({super.key})
-    : isEmpty = true,
-      automation = PlacementAutomation.semiAuto,
-      scope = LocationScope.all;
+  const LocationIndexView.empty({super.key}) : isEmpty = true, scope = LocationScope.all;
 
   /// Creates the view narrowed to empty places, which is its own reviewable state.
   ///
@@ -144,7 +127,6 @@ class LocationIndexView extends StatelessWidget {
   /// with no tree on screen, the path is the only context left.
   const LocationIndexView.filtered({super.key})
     : isEmpty = false,
-      automation = PlacementAutomation.semiAuto,
       scope = LocationScope.empty;
 
   /// The tree, flattened in reading order with its depths.
@@ -173,21 +155,20 @@ class LocationIndexView extends StatelessWidget {
 
   /// The already-localised label for a dial position.
   static String _dialLabel(PlacementAutomation value) => switch (value) {
-    PlacementAutomation.manual => Lang.get('screens.locations.mode_manual'),
-    PlacementAutomation.semiAuto => Lang.get('screens.locations.mode_suggested'),
-    PlacementAutomation.fullAuto => Lang.get('screens.locations.mode_auto'),
+    PlacementAutomation.manual => Lang.get('screens.settings.mode_manual'),
+    PlacementAutomation.semiAuto => Lang.get('screens.settings.mode_suggested'),
+    PlacementAutomation.fullAuto => Lang.get('screens.settings.mode_auto'),
   };
 
-  /// What the current dial position actually does, in one line.
+  /// What a dial position actually does, in one line.
   ///
   /// Stated rather than left to the label, because "Otomatik" alone does not tell a user
   /// that a placement will happen without asking, and that is the part they would want to
   /// know before choosing it.
-  String get _dialExplanation => switch (automation) {
-    PlacementAutomation.manual => Lang.get('screens.locations.mode_manual_note'),
-    PlacementAutomation.semiAuto => Lang.get('screens.locations.mode_suggested_note'),
-    PlacementAutomation.fullAuto =>
-      Lang.get('screens.locations.mode_auto_note'),
+  static String _dialExplanation(PlacementAutomation value) => switch (value) {
+    PlacementAutomation.manual => Lang.get('screens.settings.mode_manual_note'),
+    PlacementAutomation.semiAuto => Lang.get('screens.settings.mode_suggested_note'),
+    PlacementAutomation.fullAuto => Lang.get('screens.settings.mode_auto_note'),
   };
 
   @override
@@ -218,9 +199,12 @@ class LocationIndexView extends StatelessWidget {
         if (isEmpty)
           _buildEmpty()
         else ...[
+          // The dial goes ABOVE the tree because the tree does not end. See
+          // [_buildAutomation] for why that is a correctness problem rather than a
+          // preference about ordering.
+          _buildAutomation(),
           _buildSearch(),
           if (_visible.isEmpty) _buildNoMatch() else _buildTree(),
-          _buildAutomation(),
         ],
       ],
     );
@@ -312,22 +296,50 @@ class LocationIndexView extends StatelessWidget {
   }
 
   /// The placement dial, with what it does spelled out.
+  ///
+  /// ### Above the list, and folded shut
+  ///
+  /// This card used to sit BELOW the location tree, on the argument that a setting belongs
+  /// beside what it governs. Anılcan named what that ignores: the tree scrolls without
+  /// bound, so a control under it is reachable only by a tenant with few enough locations
+  /// not to need it. Anything downstream of an unbounded list is unreachable by
+  /// construction, and no amount of scrolling fixes it.
+  ///
+  /// Folded rather than merely moved, because a full dial pinned above every visit to this
+  /// screen taxes the common case (look something up) to serve the rare one (change how
+  /// placement works). The header carries the CURRENT position as its count, so the state
+  /// is readable without opening it: a collapsed section that hides which mode is active
+  /// would be worse than the version this replaces.
+  ///
+  /// It is also mirrored in settings, which is where a user goes looking for a preference.
+  /// Two doors to one stored value, not two values.
   Widget _buildAutomation() {
-    return SectionCard(
-      label: Lang.get('screens.locations.placement_group'),
-      children: [
-        WDiv(
-          className: 'flex flex-col gap-2 py-1',
+    return ListenableBuilder(
+      listenable: AppPreferences.instance,
+      builder: (BuildContext context, Widget? _) {
+        final PlacementAutomation current = AppPreferences.instance.placementAutomation;
+
+        return SectionCard(
+          label: Lang.get('screens.settings.placement_group'),
+          count: _dialLabel(current),
+          collapsible: true,
+          initiallyExpanded: false,
           children: [
-            MSSegmentedControl<PlacementAutomation>(
-              options: _dial.map(_dialLabel).toList(),
-              selectedIndex: _dial.indexOf(automation),
-              onChanged: (_) {},
+            WDiv(
+              className: 'flex flex-col gap-2 py-1',
+              children: [
+                MSSegmentedControl<PlacementAutomation>(
+                  options: _dial.map(_dialLabel).toList(),
+                  selectedIndex: _dial.indexOf(current),
+                  onChanged: (int index) =>
+                      AppPreferences.instance.setPlacementAutomation(_dial[index]),
+                ),
+                WText(_dialExplanation(current), className: 'text-xs text-fg-muted'),
+              ],
             ),
-            WText(_dialExplanation, className: 'text-xs text-fg-muted'),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 

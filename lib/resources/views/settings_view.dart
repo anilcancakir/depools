@@ -49,9 +49,58 @@ class _SettingsViewState extends State<SettingsView> {
       children: [
         _buildAssistant(),
         _buildStart(),
+        _buildPlacement(),
       ],
     );
   }
+
+  /// How much the app decides about placement on its own.
+  ///
+  /// **Mirrored from the locations screen rather than moved off it.** The dial started as a
+  /// control below the location tree, which put it downstream of an infinite scroll: any tenant
+  /// with enough locations to care about automated placement could not reach the setting that
+  /// governs it. Anılcan named the shape, and it generalises past this one control, so the rule
+  /// is now that a preference is reachable from settings whatever else also offers it.
+  ///
+  /// The stored value is `AppPreferences.placementAutomation`, so the two surfaces cannot
+  /// disagree; this screen holds the canonical copy under `screens.settings.mode_*` and the
+  /// locations screen reads the same keys.
+  Widget _buildPlacement() {
+    final PlacementAutomation current = _prefs.placementAutomation;
+
+    return SectionCard(
+      label: Lang.get('screens.settings.placement_group'),
+      count: _modeLabel(current),
+      children: [
+        WText(Lang.get('screens.settings.placement_note'), className: 'text-xs text-fg-muted'),
+        for (final PlacementAutomation mode in PlacementAutomation.values)
+          OptionRow(
+            label: _modeLabel(mode),
+            description: _modeNote(mode),
+            isSelected: current == mode,
+            semanticLabel: _modeLabel(mode),
+            onTap: () async {
+              await _prefs.setPlacementAutomation(mode);
+              if (mounted) setState(() {});
+            },
+          ),
+      ],
+    );
+  }
+
+  /// The already-localised label for a dial position.
+  static String _modeLabel(PlacementAutomation value) => switch (value) {
+    PlacementAutomation.manual => Lang.get('screens.settings.mode_manual'),
+    PlacementAutomation.semiAuto => Lang.get('screens.settings.mode_suggested'),
+    PlacementAutomation.fullAuto => Lang.get('screens.settings.mode_auto'),
+  };
+
+  /// What a dial position actually does, in one line.
+  static String _modeNote(PlacementAutomation value) => switch (value) {
+    PlacementAutomation.manual => Lang.get('screens.settings.mode_manual_note'),
+    PlacementAutomation.semiAuto => Lang.get('screens.settings.mode_suggested_note'),
+    PlacementAutomation.fullAuto => Lang.get('screens.settings.mode_auto_note'),
+  };
 
   /// The persistent-assistant switch.
   Widget _buildAssistant() {

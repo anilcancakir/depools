@@ -394,13 +394,6 @@
       "scope_all": "All",
       "scope_stocked": "Has stock",
       "scope_empty": "Empty",
-      "placement_group": "Placement",
-      "mode_manual": "Manual",
-      "mode_suggested": "Suggested",
-      "mode_auto": "Automatic",
-      "mode_manual_note": "You always pick the location yourself; nothing is suggested.",
-      "mode_suggested_note": "A location is suggested with its reason, and you accept or change it.",
-      "mode_auto_note": "A location is assigned without asking. It can be undone and it is written to the history. If your correction rate rises, this drops back to Suggested on its own.",
       "layout_group": "Layout",
       "matches_group": "Matching locations",
       "filtered_empty": "No location matches this filter",
@@ -526,7 +519,8 @@
       "voice": "Speak instead",
       "composer": "What did you get, what do you want to ask",
       "send": "Send",
-      "voice_note": "Anything spoken is confirmed before it is saved"
+      "voice_note": "Anything spoken is confirmed before it is saved",
+      "back": "Back"
     },
     "product_draft": {
       "title": "New product",
@@ -779,7 +773,15 @@
       "verb_inventory": "Search products",
       "verb_inventory_note": "You find what you are after in the list.",
       "local_note": "These preferences are kept on this device.",
-      "assistant_open": "Open the assistant"
+      "assistant_open": "Open the assistant",
+      "placement_group": "Placement",
+      "mode_manual": "Manual",
+      "mode_suggested": "Suggested",
+      "mode_auto": "Automatic",
+      "mode_manual_note": "You always pick the location yourself; nothing is suggested.",
+      "mode_suggested_note": "A location is suggested with its reason, and you accept or change it.",
+      "mode_auto_note": "A location is assigned without asking. It can be undone and it is written to the history. If your correction rate rises, this drops back to Suggested on its own.",
+      "placement_note": "Who decides where incoming stock goes."
     }
   },
   "components": {

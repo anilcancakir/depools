@@ -36,15 +36,37 @@ class ResponsiveScreenPreview extends StatelessWidget {
   /// The view under test, built once per width.
   final WidgetBuilder builder;
 
+  /// Whether the wide half needs a bounded height.
+  ///
+  /// **Only a screen that fills the viewport needs this, and only the assistant does.** Most screens
+  /// are a scrolling column and are happy with the unbounded height the catalog pane gives them. A
+  /// chat window is the opposite shape: its composer sits at the bottom of the VIEWPORT and its
+  /// transcript takes what is left, which is an `Expanded` and therefore needs a height to divide.
+  ///
+  /// The real app supplies that height because the assistant route renders outside the app shell.
+  /// The catalog pane does not, so without this the wide half asserts on an unbounded height while
+  /// the phone frame, which is bounded, renders correctly.
+  final bool bounded;
+
   /// Creates a [ResponsiveScreenPreview].
-  const ResponsiveScreenPreview({super.key, required this.builder, this.state = PreviewState.success});
+  const ResponsiveScreenPreview({
+    super.key,
+    required this.builder,
+    this.state = PreviewState.success,
+    this.bounded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return WDiv(
       className: 'flex flex-col gap-6 w-full',
       children: <Widget>[
-        _labelled('Geniş', ScreenPreviewScaffold(state: state, builder: builder)),
+        _labelled(
+          'Geniş',
+          bounded
+              ? SizedBox(height: 720, child: ScreenPreviewScaffold(state: state, builder: builder))
+              : ScreenPreviewScaffold(state: state, builder: builder),
+        ),
         _labelled(
           'Telefon · 390px',
           ScreenPreviewScaffold(

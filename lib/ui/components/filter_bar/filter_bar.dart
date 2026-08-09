@@ -112,12 +112,21 @@ class FilterBar extends StatelessWidget {
         // "Kaydet" only for an ad-hoc filter. Offering it on an already-saved one
         // invites a second copy of the same criteria under a different name, which
         // is how a short saved list turns into an untrustworthy long one.
+        //
+        // **`py-3.5`, not `min-h-11`, and the difference is visible.** Both reach the 44pt
+        // target; only one keeps the label centred. `min-h-11` grows the box DOWNWARD without
+        // re-centring its child, so the text sat above centre and stopped lining up with the
+        // chips beside it. Anılcan spotted it in the row. Padding grows both edges.
+        //
+        // `3.5` rather than `3` because these are `sm` buttons: 14 + 14 + a 16px `text-xs`
+        // line is 44, where `py-3` would land at 40 and quietly miss the target the token was
+        // there to hold. The anti-pattern table's `py-3` assumes the `md` size.
         if (applied == null && onSave != null)
           MSButton(
             onPressed: onSave,
             intent: ButtonIntent.ghost,
             size: ButtonSize.sm,
-            className: 'min-h-11 axis-min',
+            className: 'py-3.5 axis-min',
             child: WText(Lang.get('components.filter_bar.save'), className: slots['textAction']),
           ),
 
@@ -125,7 +134,7 @@ class FilterBar extends StatelessWidget {
           onPressed: () => onChanged(const ProductFilter()),
           intent: ButtonIntent.ghost,
           size: ButtonSize.sm,
-          className: 'min-h-11 axis-min',
+          className: 'py-3.5 axis-min',
           child: WText(Lang.get('components.filter_bar.clear'), className: slots['textAction']),
         ),
       ],

@@ -102,95 +102,57 @@ class AssistantView extends StatelessWidget {
   /// stock list is the point, not a problem.
   @override
   Widget build(BuildContext context) {
-    return WDiv(
-      className: 'flex flex-col bg-surface',
-      children: [
-        // Chrome, and it costs two rows. Fixed, so the mode and the counts never scroll away
-        // (D50).
-        MSPageContainer(
-          // **`pb-0`, and the reasoning that rejected it was wrong.** The shared geometry is
-          // `px-4 md:px-5 pt-6 pb-16`, so the page's 64px bottom margin landed between the chips
-          // and the transcript: 77px of dead band, measured, which is what Anılcan saw as the
-          // screen looking cut. An earlier pass blamed a `p-*`/`py-*` family collision and
-          // dropped the override, but the geometry names no `p-*` shorthand at all: `pb-*` and
-          // `px-*` are separate families, so this replaces the bottom margin and nothing else.
-          // Pixel-verified after the change: divider and cards both span 293..1331.
-          //
-          // Direct children, the way `MSPageScaffold` passes them.
-          className: 'pb-0',
-          children: [
-            // **The standard header, and the reason it was ever replaced no longer holds.**
-            // It was dropped because at 390px it stacked its action onto a row of its own,
-            // but that was measured inside a phone frame this preview no longer uses. Every
-            // other screen uses `MSPageHeader`, and consistency beats the forty pixels a
-            // hand-rolled row saved.
-            MSPageHeader(
-              title: Lang.get('screens.assistant.title'),
-              // **What the automation level DOES, not what it is called.** This said
-              // "· yarı otomatik", which is a level name from D10 and means nothing to the
-              // person reading it. The mode matters only through its consequence, so the
-              // consequence is what gets said.
-              subtitle: Lang.get('screens.assistant.subtitle'),
-              actions: [
-                MSButton(
-                  onPressed: () => ActivityPanel.show(context),
-                  intent: ButtonIntent.ghost,
-                  className: 'h-11 w-11 px-0 justify-center',
-                  semanticLabel: Lang.get('screens.assistant.activity'),
-                  child: const WIcon(_activityIcon, className: 'size-5'),
-                ),
-              ],
-            ),
-            _buildStatusRow(),
-          ],
-        ),
-        // The only scrolling part, and it needs a BOUNDED height to be one.
-        //
-        // `h-full` was the obvious way and wind asserts against it by name: the app shell wraps
-        // a route in a vertical scroll, so `h-full` there resolves to infinity. The guard even
-        // names the fix (`flex-1` inside a `flex flex-col`), which does not apply either,
-        // because there is no bounded column to divide: the shell's scroll is the parent.
-        //
-        // So the height comes from the viewport, computed in Flutter because Core Law 3 forbids
-        // interpolating it into a className. Clamped at both ends: below 280 a transcript shows
-        // one exchange and above 640 the composer drifts off a laptop screen.
-        //
-        // The remaining gap is real and is the shell's: a composer pinned to the VIEWPORT
-        // bottom needs `layout.app` not to scroll this route, which is a magic_starter change.
-        // `py-0` on the container: two stacked `MSPageContainer`s put their vertical padding
-        // back to back and left a dead band between the chips and the list. With the list's top
-        // edge flush under the chrome, a half-visible card reads as content scrolled under a
-        // boundary, which is what every chat does. With the band there it read as a rendering
-        // fault, and Anılcan asked why it looked cut.
-        ConstrainedBox(
-          // **A ceiling, not a height, and that distinction was a visible defect.** A fixed
-          // height plus `reverse: true` pins a short transcript to the BOTTOM of its box, so
-          // a SHORT transcript to the bottom of its box and leaves the rest of the box empty.
-          // The 77px band above this list turned out to be the container's `pb-16` rather than
-          // this, and the ceiling is still the right shape: `AssistantView.fresh` carries two
-          // openers and would otherwise render them against 450px of nothing.
-          //
-          // With a max and `shrinkWrap`, the list takes the smaller of its content and the
-          // ceiling: short transcripts hug, long ones fill the ceiling and scroll with the
-          // newest exchange at the bottom.
-          //
-          // **The fraction has to leave room for what it cannot see.** `MediaQuery` reports the
-          // WINDOW, and the shell spends part of it on an app bar and a bottom nav before this
-          // route gets any: at 0.62 the transcript alone was taller than what was left and the
-          // composer fell below the fold, behind the nav. 0.45 plus the clamp keeps
-          // chrome + transcript + composer inside the shell's box at both phone and laptop
-          // heights, measured against the 390px frame.
-          constraints: BoxConstraints(
-            maxHeight: (MediaQuery.sizeOf(context).height * 0.45).clamp(240.0, 520.0),
+    // **A full-height column, not a scrolling page.** This route is registered outside the app
+    // shell, so nothing above it scrolls and nothing below it takes space: the composer can sit at
+    // the bottom of the VIEWPORT rather than at the bottom of the content.
+    //
+    // That is what removed the height hack this screen used to carry. The transcript's height was
+    // computed from `MediaQuery` and clamped, because inside the shell there was no bounded column
+    // to divide. There is one now, so the transcript is simply `Expanded` and the arithmetic is
+    // gone.
+    return SafeArea(
+      child: WDiv(
+        className: 'flex flex-col bg-surface',
+        children: [
+          MSPageContainer(
+            className: 'pb-0',
+            children: [
+              MSPageHeader(
+                title: Lang.get('screens.assistant.title'),
+                // **What the automation level DOES, not what it is called.** This said
+                // "· yarı otomatik", which is a level name from D10 and means nothing to the
+                // person reading it. The mode matters only through its consequence, so the
+                // consequence is what gets said.
+                subtitle: Lang.get('screens.assistant.subtitle'),
+                // The way out. A chat screen that takes over the display has to give the user a
+                // way back, and the bottom navigation is not there to do it any more.
+                backLabel: Lang.get('screens.assistant.back'),
+                backFallback: '/',
+                actions: [
+                  MSButton(
+                    onPressed: () => ActivityPanel.show(context),
+                    intent: ButtonIntent.ghost,
+                    className: 'h-11 w-11 px-0 justify-center',
+                    semanticLabel: Lang.get('screens.assistant.activity'),
+                    child: const WIcon(_activityIcon, className: 'size-5'),
+                  ),
+                ],
+              ),
+              _buildStatusRow(),
+            ],
           ),
-          child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
-        ),
-        // Pinned. A chat you have to scroll to type into is not a chat.
-        // `pt-3`: the page geometry's `pt-6` belongs at the TOP of a page, and this container is
-        // in the middle of one. `pb-8` rather than the shared `pb-16`, because 64px under a
-        // composer that is meant to sit at the bottom of the screen is dead page.
-        MSPageContainer(className: 'pt-3 pb-8', child: _buildComposer()),
-      ],
+          // The only scrolling part, and it takes whatever is left between the chrome and the
+          // composer. `Expanded` in a plain Column rather than wind's `flex-1`: wind's flex box
+          // does not give a bare Expanded the parent it needs, and the failure is a
+          // RenderBox-was-not-laid-out assertion that names nothing.
+          Expanded(
+            child: MSPageContainer(className: 'py-0', child: _buildTranscript(context)),
+          ),
+          // Pinned to the bottom of the screen now, not merely to the end of the content. A chat
+          // you have to scroll to type into is not a chat.
+          MSPageContainer(className: 'pt-3 pb-4', child: _buildComposer()),
+        ],
+      ),
     );
   }
 

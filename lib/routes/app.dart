@@ -78,14 +78,34 @@ void registerAppRoutes() {
       MagicRoute.page('/konumlar', () => const LocationIndexView()).name('locations');
       MagicRoute.page('/sayim', () => const StockTakeView()).name('stock-take');
 
-      // Capture. The assistant is the sentence path and the scanner is the barcode path; both
-      // end in the same pending-change review, so they are peers rather than one inside the other.
-      MagicRoute.page('/asistan', () => const AssistantView()).name('assistant');
+      // Capture. The scanner is the barcode path; the assistant is the sentence path and is
+      // registered separately below, because it takes over the screen.
       MagicRoute.page('/tara', () => const BarcodeScanView()).name('scan');
 
       // This app's own settings, distinct from the account settings `magic_starter` owns. It
       // holds the two preferences D66 and D67 created and had nowhere to live.
       MagicRoute.page('/ayarlar', () => const SettingsView()).name('settings');
+    },
+  );
+
+  // **The assistant is outside the shell, and that is what makes it a chat window.**
+  //
+  // Anılcan: on a phone it should hide the bottom menu and be a full chat window, like WhatsApp or
+  // ChatGPT. Those apps do not put a conversation in a tab; entering one is a push that takes over
+  // the display, and leaving it is a back gesture. Rendering it inside the shell put a navigation
+  // bar under the composer and made the whole page scroll, so the composer moved with the content
+  // instead of staying where a thumb expects it.
+  //
+  // Outside the shell there is no bottom bar to work around and no ambient scroll, which is also
+  // why the transcript could drop the computed height it used to carry. The screen provides its own
+  // way back through the header.
+  //
+  // The floating assistant launcher is attached to the shell group, so it correctly does not appear
+  // here: a button to the screen you are already on is noise.
+  MagicRoute.group(
+    middleware: ['auth'],
+    routes: () {
+      MagicRoute.page('/asistan', () => const AssistantView()).name('assistant');
     },
   );
 }

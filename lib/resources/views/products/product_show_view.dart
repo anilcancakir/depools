@@ -631,7 +631,7 @@ class ProductShowView extends StatelessWidget {
         // it: this one grew to half the card width and read as a filled panel
         // rather than a link. `justify-center` only centres the content inside
         // that stretched box; `axis-min` is what stops the stretching.
-        className: 'min-h-11 axis-min',
+        className: 'py-3.5 axis-min',
         child: WDiv(
           className: 'flex flex-row items-center gap-0.5 axis-min',
           children: [

@@ -21,7 +21,7 @@ class AssistantScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
+    return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build, bounded: true);
   }
 
   static Widget _build(BuildContext context) => const AssistantView();

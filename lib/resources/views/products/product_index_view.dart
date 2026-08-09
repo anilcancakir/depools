@@ -243,7 +243,12 @@ class _ProductIndexViewState extends State<ProductIndexView> {
         WDiv(
           className: 'flex-1 min-w-0',
           child: MSInput(
-            className: 'bg-surface-container-high',
+            // **`h-11` on BOTH halves, because a shared row does not give them one.**
+            // The field took its height from its own padding and the button took its from
+            // `min-h-11`, so the two sat at 52 and 44 in a row that reads as one control.
+            // `items-center` centred that mismatch rather than hiding it. This is the same
+            // fix the assistant composer needed: one height, declared on every part.
+            className: 'h-11 bg-surface-container-high',
             placeholder: Lang.get('screens.products.search'),
             prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
             onChanged: (String _) {},
@@ -257,7 +262,9 @@ class _ProductIndexViewState extends State<ProductIndexView> {
         MSButton(
           onPressed: _openSheet,
           intent: ButtonIntent.secondary,
-          className: 'min-h-11 min-w-11 justify-center gap-1 bg-surface-container',
+          // `h-11` to match the field beside it; `min-w-11` rather than `w-11` because the
+          // active-filter count widens the button and a fixed width would clip it.
+          className: 'h-11 min-w-11 justify-center gap-1 bg-surface-container',
           semanticLabel: _filter.isActive
               ? Lang.get('screens.products.filter_active', {'count': _filter.activeCount})
               : Lang.get('screens.products.filter'),
@@ -432,7 +439,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             onPressed: () {},
             intent: ButtonIntent.ghost,
             size: ButtonSize.sm,
-            className: 'min-h-11 axis-min',
+            className: 'py-3.5 axis-min',
             child: WDiv(
               className: 'flex flex-row items-center gap-0.5 axis-min',
               children: [
