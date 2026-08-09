@@ -122,7 +122,7 @@ class LocationShowView extends StatelessWidget {
             daysUntilExpiry: item.daysUntilExpiry,
             expiryLabel: item.expiryLabel,
             parLevel: item.parLevel,
-            onTap: () {},
+            onTap: () => MagicRoute.to('/urunler/${Uri.encodeComponent(item.name)}'),
           ),
       ],
     );
@@ -143,7 +143,8 @@ class LocationShowView extends StatelessWidget {
             productCount: child.productCount,
             itemSummary: child.summary,
             icon: child.icon,
-            onTap: () {},
+            // Descending into a child is the whole point of a tree screen.
+            onTap: () => MagicRoute.to('/konumlar/${Uri.encodeComponent(child.path)}'),
           ),
       ],
     );

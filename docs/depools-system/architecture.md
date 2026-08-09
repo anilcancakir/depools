@@ -19,6 +19,7 @@ depools/
 │   ├── check                  the gate: analyze, test, design tokens, backend tests
 │   ├── design-tokens          enforces the allowlist
 │   ├── sync-instructions      regenerates .github mirrors from AGENTS.md and .claude/rules
+│   ├── sync-registry          regenerates docs/component-registry.md from lib/ui/
 │   ├── dispatcher.dart        design:sync, make:component, previews:refresh
 │   └── fsa                    dev server launcher
 ├── docs/depools-system/       this documentation set
@@ -46,7 +47,7 @@ lib/
 │   └── support/               helpers, extensions
 ├── config/                    app, auth, network, routing, view, localization, wind_theme.g.dart
 ├── routes/
-├── resources/views/           magic_starter view overrides
+├── resources/views/           the app's own screens, plus magic_starter view overrides
 ├── ui/
 │   ├── components/            one directory per component: widget, preview, test
 │   └── layouts/               the app shell's viewport-anchored chrome: the assistant

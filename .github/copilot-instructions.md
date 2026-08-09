@@ -31,7 +31,7 @@ That override file is also why a green local run can be a red CI: with it, this 
 
 `bin/check` is the gate. It fans the suites out across cores and prints one line per job:
 
-- `bin/check` runs `flutter analyze`, `flutter test`, `pint --test`, and the PHP suite.
+- `bin/check` runs `flutter analyze`, `flutter test`, `pint --test`, the PHP suite, and the two generated-file gates (the lockfile is hosted-only, the component registry is current).
 - `bin/check --fast` runs only the static passes.
 - `bin/check flutter|backend` scopes it to one half.
 
@@ -44,7 +44,7 @@ A green suite is the floor, not the finish line. Anything a person clicks gets d
 
 ## Off-limits
 
-- Generated files are regenerated, never edited: `lib/config/wind_theme.g.dart` (`design:sync`), `lib/preview/_previews.g.dart` (`previews:refresh`), `lib/app/commands/_index.g.dart` (`commands:refresh`), `.artisan/plugins.json`, and everything `bin/sync-instructions` writes under `.github/`.
+- Generated files are regenerated, never edited: `docs/component-registry.md` (`bin/sync-registry`), `lib/config/wind_theme.g.dart` (`design:sync`), `lib/preview/_previews.g.dart` (`previews:refresh`), `lib/app/commands/_index.g.dart` (`commands:refresh`), `.artisan/plugins.json`, and everything `bin/sync-instructions` writes under `.github/`.
 - `backend/vendor/`, `build/`, `.dart_tool/`.
 - The fluttersdk packages are separate repositories. Reading them is expected; changing one is a PR in that repo under its own rules. `design:sync`, `design:lint`, `make:component`, and `previews:refresh` are `magic`'s commands, not this project's, and there is no `depools:artisan`.
 
