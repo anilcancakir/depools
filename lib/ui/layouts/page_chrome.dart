@@ -115,7 +115,18 @@ class _PageChromeHostState extends State<PageChromeHost> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: MediaQuery.paddingOf(context).bottom + 64,
+                // **60, and the 2 logical pixels of overlap are the point.** The shell's bottom
+                // navigation has no fixed height: it is its item content plus the device's safe
+                // area, measured at 62 logical px on a 390px viewport. Sitting at 64 left a 2px
+                // strip between the footer and the nav, and the scrolling list showed through it,
+                // which reads as a rendering glitch rather than as chrome.
+                //
+                // Overlapping is the safe direction of the two. The footer's own hairline lands on
+                // the nav's hairline, which is invisible because both are `bg-surface` with the
+                // same border token; a gap is never invisible. The safe-area term is still added
+                // because the nav grows by it, so the pair tracks together on a device with a home
+                // indicator.
+                bottom: MediaQuery.paddingOf(context).bottom + 60,
                 // The `Material` is the same one the assistant overlay needed, for the same
                 // reason: this draws OUTSIDE `layout.app`, which is what was providing the
                 // ancestor every `Text` under a `MaterialApp` resolves its style from. Without
