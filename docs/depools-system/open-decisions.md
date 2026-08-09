@@ -244,6 +244,8 @@ Nothing in the app showed the hierarchy until now, even though every screen assu
 
 `location-assignment.md`'s automation dial belongs on that screen rather than in settings. What it automates is exactly what the screen is about, and the dial is meaningless before the user has a tree for it to choose from.
 
+> **Half of this was corrected by D70.** The dial rendered UNDER the tree, which scrolls without bound, so it was unreachable for exactly the tenant with enough locations to care. And a preference living on one screen only is a preference nobody finds. The value now lives in `AppPreferences`, Ayarlar holds the canonical copy, and this screen keeps a folded shortcut ABOVE the tree with the current position in its header. The argument for the shortcut being here still stands; the argument for it being ONLY here does not.
+
 **The dial states what each position does, not just its name.** "Otomatik" alone does not tell a user that a placement will happen without being asked, which is the part they would want before choosing it. And because full-auto is gated on a measured reversion rate rather than a predicted confidence, the screen says the setting can drop back on its own: the dial is a request, not a guarantee.
 
 The empty state is a **blocker, not decoration**. A tenant with no locations cannot receive stock anywhere, so it is the first screen of every account and it offers two ways out: add one, or start from a template.
@@ -918,3 +920,56 @@ Assumption until answered: model three price points and test them, and keep the 
 That revision removed the initialize handshake and the session model. `laravel/mcp` has no support and no stated plan.
 
 Assumption until the ecosystem moves: build on 2025-11-25 semantics, keep the MCP layer thin enough that the transport can be replaced without touching the tools, and carry the migration as a known risk.
+
+### D69. The assistant opens over the screen, not instead of it
+
+D67 makes the assistant reachable everywhere. This decides what "open" means, and the first
+implementation got it wrong: the floating button pushed `/asistan`, which replaced whatever the user
+was looking at.
+
+That is the wrong shape for what this thing is for. The assistant is meant to be asked about the
+product, the count or the shelf in front of you, and a push costs you exactly that context. It also
+costs the scroll position, the filter and the row, none of which a route restores.
+
+So the button opens a full-screen modal overlay above the app shell. The screen underneath stays
+mounted, closing returns to it unchanged, and there is no state to carry across because nothing was
+torn down. On a phone the overlay covers the bottom navigation too, which is what makes it a chat
+window rather than a tab, and matches how WhatsApp and ChatGPT treat entering a conversation.
+
+The `/asistan` route stays for the addressable case: a deep link, and the overview's pinned
+assistant verb from D66. Same screen, two presentations, differing only in the way out (a back
+arrow on the route, a close control in the overlay).
+
+Two implementation facts that are not free and are worth recording, because both cost a debugging
+cycle. The overlay has to be mounted OUTSIDE `layout.app` to cover the navigation, and that is
+exactly what removes its `Material` ancestor: without one, every string renders in Flutter's yellow
+double-underlined fallback, which looks like a theme bug. And the shell wraps each route in a scroll
+view, so anything anchored from inside a page anchors to the scrolled content rather than to the
+viewport.
+
+### D70. Nothing a screen exists for may sit below an unbounded list
+
+Anılcan found this on the locations screen: the placement automation dial rendered under the
+location tree, so any tenant with enough locations to care about automated placement could not reach
+the setting that governs it. The shape turned out to be under six screens, and it is a correctness
+problem rather than a layout preference. A list that grows without bound has no bottom, so anything
+downstream of it is unreachable by construction and no amount of scrolling fixes it.
+
+The remedy depends on what the thing is, and the two cases are genuinely different:
+
+**A setting moves.** It goes to `/ayarlar`, which is where a user looks for a preference anyway, and
+the screen that governs it keeps a shortcut ABOVE the list, folded shut, with the current value in
+its header. One stored value, two doors. That is what the placement dial did.
+
+**An action gets pinned.** `Sayımı kaydet` belongs to the count in front of you and has nowhere else
+to go, so it stays on the screen and stops scrolling instead. `AppPageScaffold`'s `footer:` is that,
+and `ui/layouts/page_chrome.dart` explains why it cannot be a `Column` plus `Expanded` here.
+
+Material warns against stacking a bottom action bar with a navigation bar, and the warning is about
+a bar of ACTIONS competing with destinations. One primary action with its own summary is the
+checkout-bar shape both iOS and Material use, and it reads as belonging to the page. Keep it to one
+action and the warning does not apply; add a second and it does.
+
+The same reasoning removed the floating assistant button from on top of that footer. Two viewport-
+anchored controls in the bottom-right is two primary actions, which is what Material objects to, so
+the host measures the footer and lifts the button by its height rather than letting them overlap.

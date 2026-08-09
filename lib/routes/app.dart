@@ -1,7 +1,7 @@
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart';
 
-import '../ui/components/assistant_launcher/assistant_launcher.dart';
+import '../ui/layouts/assistant_launcher.dart';
 import '../ui/layouts/page_chrome.dart';
 import '../resources/views/dashboard_view.dart';
 import '../resources/views/locations/location_index_view.dart';
@@ -40,26 +40,21 @@ import '../resources/views/products/stock_take_view.dart';
 void registerAppRoutes() {
   // Auth-protected routes with AppLayout
   MagicRoute.group(
-    // The assistant wraps the SHELL rather than each route, which is what makes it persistent
-    // (D67).
+    // **Both wrappers go OUTSIDE the layout, and that is the whole reason they work.**
     //
-    // **Outside the layout, not inside it, and the first version had it the wrong way round.**
-    // Wrapping the route's child put the `Positioned` inside the shell's scroll view, so it
-    // anchored to the bottom of the SCROLLED CONTENT rather than to the viewport and sat far below
-    // the fold. It rendered nothing and threw nothing, which is the worst combination: the widget
-    // was building correctly the whole time.
+    // The shell puts every route inside `WDiv(className: 'flex-1 overflow-y-auto')`, so anything
+    // mounted from a page is handed unbounded height and anchors to the bottom of the SCROLLED
+    // CONTENT rather than to the viewport. The first assistant launcher wrapped the route's child
+    // and sat far below the fold: it rendered nothing and threw nothing, which is the worst
+    // combination, because the widget was building correctly the whole time. Out here the box is
+    // the window, so a `Stack` can anchor to it, and both wrappers paint over the navigation as
+    // well. `ui/layouts/page_chrome.dart` carries the longer version.
     //
-    // Outside, it floats over the navigation as well, which the launcher's own bottom inset is
-    // there to clear. A control that covers a tab steals taps from it.
-    // `PageChromeHost` is outside the layout for the same reason the launcher is: the shell puts
-    // every route inside a scroll view with unbounded height, so a pinned footer can only be
-    // anchored from a box that knows the viewport. See `ui/layouts/page_chrome.dart`.
-    //
-    // The launcher is INSIDE the chrome host, and that ordering is what keeps the floating
-    // button off a pinned footer. The host folds the footer's measured height into
-    // `MediaQuery.padding.bottom` for everything below it, and the launcher already reads that
-    // padding to clear the navigation bar, so it lifts by exactly the footer's height without
-    // knowing footers exist. Outside the host it would not see the injected padding at all.
+    // **The order between them is load-bearing.** The host folds the pinned footer's measured
+    // height into `MediaQuery.padding.bottom` for everything below it, and the launcher already
+    // reads that padding to clear the navigation bar. Nested inside, the floating button lifts by
+    // exactly the footer's height and needs to know nothing about footers. Outside, it would not
+    // see the injected padding and would land on top of the footer, which is what it did.
     layout: (child) => PageChromeHost(
       child: AssistantLauncher(
         child: MagicStarter.view.makeLayout('layout.app', child: child),

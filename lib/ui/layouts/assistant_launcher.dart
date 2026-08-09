@@ -2,8 +2,8 @@ import 'package:flutter/material.dart' show Icons, Material, MaterialType;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
-import '../../../app/models/app_preferences.dart';
-import '../../../resources/views/products/assistant_view.dart';
+import '../../app/models/app_preferences.dart';
+import '../../resources/views/products/assistant_view.dart';
 
 /// The assistant, reachable from every screen and opening over it (D67).
 ///

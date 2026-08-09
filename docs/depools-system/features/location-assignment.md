@@ -42,7 +42,13 @@ The shared category taxonomy (see `barcode-and-catalog.md`) is what makes step 1
 
 ## Where the dial lives, and what the tree looks like
 
-The dial is on the **Konumlar** screen, not in settings (D34): it automates exactly what that screen is about, and it is meaningless before a tenant has a tree for it to choose from. Each position states what it does rather than relying on its label, and the screen says out loud that full-auto can drop back on its own, because the demotion below is measured rather than predicted.
+The dial is reachable from BOTH the **Konumlar** screen and **Ayarlar**, over one stored value. D34 originally put it on Konumlar only, arguing that it automates exactly what that screen is about and is meaningless before a tenant has a tree for it to choose from. Half of that survives, and D70 corrects the other half.
+
+What it got wrong is that the dial rendered UNDER the location tree, which scrolls without bound: the tenant with enough locations to care about automated placement is precisely the one who cannot reach the control. And a preference that lives on one screen only is a preference nobody finds, because settings is where people look for one.
+
+So the canonical copy is in Ayarlar, the value lives in `AppPreferences.placementAutomation`, and Konumlar carries a folded shortcut ABOVE the tree with the current position in its header. Folded rather than merely moved, because a full dial pinned above every visit taxes the common case (look something up) to serve the rare one (change how placement works); the header showing "Yerleştirme · Önerili" is what keeps it readable while closed.
+
+Each position states what it does rather than relying on its label, and the screen says out loud that full-auto can drop back on its own, because the demotion below is measured rather than predicted.
 
 The tree itself renders one row per node: its own name (never the full path, since the ancestors are above it), the subtree's product count, and depth by indent with the icon gutter reserved on every row. Detail in D35 and `docs/component-registry.md`.
 

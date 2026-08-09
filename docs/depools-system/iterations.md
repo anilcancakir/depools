@@ -43,7 +43,10 @@ The v1 test: a cafe owner who has never used inventory software can get their st
 - SBA forecasting, consumption rate and days of cover for items with enough history.
 - Generated shopping list with the reason attached to each line.
 - Assistant with read tools plus write tools behind an approval gate, streaming responses, image input, and web search.
-- A persistent assistant affordance on every screen, dismissable from settings (D67). The AI is the layer the product is operated through, so it is not confined to one route.
+- A persistent assistant affordance on every screen, dismissable from settings (D67), opening as a
+  full-screen overlay above the current screen rather than pushing a route (D69). The AI is the
+  layer the product is operated through, so it is not confined to one route, and asking it about
+  the thing in front of you must not cost you the thing in front of you.
 
 ### Labels
 
