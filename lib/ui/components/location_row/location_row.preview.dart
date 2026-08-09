@@ -15,6 +15,14 @@ import 'location_row.dart';
 /// schema permits it, and a layout that only works to depth 2 fails silently on the one
 /// tenant who does.
 class LocationRowPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the LocationRow preview.
   const LocationRowPreview({super.key});
 
@@ -33,49 +41,49 @@ class LocationRowPreview extends StatelessWidget {
               productCount: 5,
               itemSummary: '5 ürün · 2 alt konum',
               icon: Icons.kitchen_outlined,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Buzdolabı',
               depth: 1,
               productCount: 3,
               itemSummary: '3 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Derin dondurucu',
               depth: 1,
               productCount: 1,
               itemSummary: '1 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Kiler',
               depth: 0,
               productCount: 4,
               itemSummary: '4 ürün · 3 alt konum',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Raf 1',
               depth: 1,
               productCount: 1,
               itemSummary: '1 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Raf 2',
               depth: 1,
               productCount: 2,
               itemSummary: '2 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Çekmece 2',
               depth: 1,
               productCount: 1,
               itemSummary: '1 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
           ],
         ),
         WDiv(
@@ -88,49 +96,49 @@ class LocationRowPreview extends StatelessWidget {
               productCount: 2,
               itemSummary: '2 ürün',
               icon: Icons.warehouse_outlined,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Koridor B',
               depth: 1,
               productCount: 2,
               itemSummary: '2 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Raf A',
               depth: 2,
               productCount: 2,
               itemSummary: '2 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Kutu 3',
               depth: 3,
               productCount: 2,
               itemSummary: '2 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Bölme 1',
               depth: 4,
               productCount: 2,
               itemSummary: '2 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Göz 2',
               depth: 5,
               productCount: 2,
               itemSummary: '2 ürün',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
             LocationRow(
               name: 'Raf B',
               depth: 1,
               productCount: 0,
               itemSummary: 'Boş',
               icon: Icons.shelves,
-            ),
+            onTap: _noop),
           ],
         ),
       ],

@@ -520,7 +520,8 @@
       "composer": "What did you get, what do you want to ask",
       "send": "Send",
       "voice_note": "Anything spoken is confirmed before it is saved",
-      "back": "Back"
+      "back": "Back",
+      "close": "Close assistant"
     },
     "product_draft": {
       "title": "New product",

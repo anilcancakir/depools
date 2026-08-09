@@ -15,6 +15,14 @@ import 'scan_row.dart';
 /// And the barcodes must line up digit under digit, because the whole reason they render
 /// in mono is so they can be compared against a label by eye.
 class ScanRowPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the ScanRow preview.
   const ScanRowPreview({super.key});
 
@@ -31,32 +39,32 @@ class ScanRowPreview extends StatelessWidget {
               productName: 'Pınar Süt Tam Yağlı 1 lt',
               count: 6,
               onHandFormatted: '2',
-            ),
+            onTap: _noop),
             ScanRow(
               barcode: '8691234567890',
               productName: 'Tornavida Seti PH2',
               count: 1,
               onHandFormatted: '0',
-            ),
+            onTap: _noop),
             ScanRow(
               barcode: '8690632073415',
               productName: 'Sütaş Ayran 250 ml',
               source: ScanSource.catalog,
               count: 4,
-            ),
+            onTap: _noop),
             ScanRow(
               barcode: '6941487206643',
               productName: 'Powerbank 10000 mAh',
               source: ScanSource.unverified,
               count: 2,
-            ),
+            onTap: _noop),
             ScanRow(
               barcode: '8680000998877',
               productName: 'Kablo bağı 200 mm',
               source: ScanSource.recalled,
               count: 1,
-            ),
-            ScanRow(barcode: '8680000123456', source: ScanSource.unmatched, count: 1),
+            onTap: _noop),
+            ScanRow(barcode: '8680000123456', source: ScanSource.unmatched, count: 1, onTap: _noop),
           ],
         ),
       ],

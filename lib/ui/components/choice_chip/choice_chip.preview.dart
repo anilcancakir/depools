@@ -13,6 +13,14 @@ import 'choice_chip.dart';
 /// who does not know the expiry should be able to say so in one tap rather than inventing a
 /// date to get past the card.
 class ChoiceChipPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the ChoiceChip preview.
   const ChoiceChipPreview({super.key});
 
@@ -32,9 +40,9 @@ class ChoiceChipPreview extends StatelessWidget {
                   evidence: '9 kez',
                   isSuggested: true,
                   semanticLabel: 'Buzdolabına koy',
-                ),
-                ChoiceChip(label: 'Kiler', semanticLabel: 'Kilere koy'),
-                ChoiceChip(label: 'Diğer', semanticLabel: 'Başka bir konum seç'),
+                onTap: _noop),
+                ChoiceChip(label: 'Kiler', semanticLabel: 'Kilere koy', onTap: _noop),
+                ChoiceChip(label: 'Diğer', semanticLabel: 'Başka bir konum seç', onTap: _noop),
               ],
             ),
             WDiv(
@@ -45,9 +53,9 @@ class ChoiceChipPreview extends StatelessWidget {
                   evidence: 'raf ömrü',
                   isSuggested: true,
                   semanticLabel: 'Son kullanma tarihini beş gün sonrası yap',
-                ),
-                ChoiceChip(label: 'Tarih seç', semanticLabel: 'Takvimden tarih seç'),
-                ChoiceChip(label: 'Bilinmiyor', semanticLabel: 'Son kullanma tarihini boş bırak'),
+                onTap: _noop),
+                ChoiceChip(label: 'Tarih seç', semanticLabel: 'Takvimden tarih seç', onTap: _noop),
+                ChoiceChip(label: 'Bilinmiyor', semanticLabel: 'Son kullanma tarihini boş bırak', onTap: _noop),
               ],
             ),
           ],

@@ -13,6 +13,14 @@ import 'serial_row.dart';
 /// if they do not line up character for character down the left edge, the mono is not
 /// resolving and the component has lost the reason it renders them that way.
 class SerialRowPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the SerialRow preview.
   const SerialRowPreview({super.key});
 
@@ -29,27 +37,27 @@ class SerialRowPreview extends StatelessWidget {
               warrantyLabel: '14 gün',
               warrantyDaysRemaining: 14,
               receivedLabel: '12 Şub alındı · Depo › Raf A',
-            ),
+            onTap: _noop),
             SerialRow(
               serial: 'MK-DHP484-002392',
               warrantyLabel: '2 gün',
               warrantyDaysRemaining: 2,
               receivedLabel: '12 Şub alındı · Depo › Raf A',
-            ),
+            onTap: _noop),
             SerialRow(
               serial: 'MK-DHP484-001044',
               warrantyLabel: 'Garanti bitti',
               warrantyDaysRemaining: -1,
               receivedLabel: '3 Mar 2024 alındı · Depo › Raf A',
-            ),
-            SerialRow(serial: 'ASSET-0091', receivedLabel: 'garanti kaydı yok · Depo › Raf A'),
+            onTap: _noop),
+            SerialRow(serial: 'ASSET-0091', receivedLabel: 'garanti kaydı yok · Depo › Raf A', onTap: _noop),
             SerialRow(
               serial: 'MK-DHP484-000817',
               warrantyLabel: 'Garanti bitti',
               warrantyDaysRemaining: -400,
               receivedLabel: 'satıldı · 8 Tem',
               isGone: true,
-            ),
+            onTap: _noop),
           ],
         ),
       ],

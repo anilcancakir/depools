@@ -14,6 +14,14 @@ import 'filter_chip.dart';
 /// The third group is the long-label case. These live in a horizontally scrolling
 /// row, so a long chip should scroll off rather than wrap or squeeze its neighbours.
 class FilterChipPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the FilterChip preview.
   const FilterChipPreview({super.key});
 
@@ -29,9 +37,9 @@ class FilterChipPreview extends StatelessWidget {
             WDiv(
               className: 'flex flex-row items-center gap-2 w-full overflow-x-auto',
               children: [
-                FilterChip(label: 'Süresi geçenler'),
-                FilterChip(label: 'Yakında bitecek'),
-                FilterChip(label: 'Stok yok'),
+                FilterChip(label: 'Süresi geçenler', onTap: _noop),
+                FilterChip(label: 'Yakında bitecek', onTap: _noop),
+                FilterChip(label: 'Stok yok', onTap: _noop),
               ],
             ),
           ],
@@ -43,9 +51,9 @@ class FilterChipPreview extends StatelessWidget {
             WDiv(
               className: 'flex flex-row items-center gap-2 w-full overflow-x-auto',
               children: [
-                FilterChip(label: 'Süresi geçti', applied: true),
-                FilterChip(label: 'Kiler', applied: true),
-                FilterChip(label: '"süt"', applied: true),
+                FilterChip(label: 'Süresi geçti', applied: true, onTap: _noop),
+                FilterChip(label: 'Kiler', applied: true, onTap: _noop),
+                FilterChip(label: '"süt"', applied: true, onTap: _noop),
               ],
             ),
           ],
@@ -57,8 +65,8 @@ class FilterChipPreview extends StatelessWidget {
             WDiv(
               className: 'flex flex-row items-center gap-2 w-full overflow-x-auto',
               children: [
-                FilterChip(label: 'Depo › Koridor B › Raf 14 › Kutu 3', applied: true),
-                FilterChip(label: 'Bakliyat ve tahıl ürünleri'),
+                FilterChip(label: 'Depo › Koridor B › Raf 14 › Kutu 3', applied: true, onTap: _noop),
+                FilterChip(label: 'Bakliyat ve tahıl ürünleri', onTap: _noop),
               ],
             ),
           ],

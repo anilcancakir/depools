@@ -10,6 +10,14 @@ import 'product_row.dart';
 /// prove it truncates rather than overflowing. If the quantity column does not line
 /// up down the right edge, `Quantity`'s mono is not resolving.
 class ProductRowPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the ProductRow preview.
   const ProductRowPreview({super.key});
 
@@ -29,7 +37,7 @@ class ProductRowPreview extends StatelessWidget {
               unit: 'adet',
               expiryLabel: 'Süresi geçti',
               daysUntilExpiry: -1,
-            ),
+            onTap: _noop),
             ProductRow(
               name: 'Bulgur',
               meta: 'Duru · Çekmece 2',
@@ -38,21 +46,21 @@ class ProductRowPreview extends StatelessWidget {
               unit: 'kg',
               expiryLabel: '2 gün',
               daysUntilExpiry: 2,
-            ),
+            onTap: _noop),
             ProductRow(
               name: 'Ayçiçek Yağı 5 lt',
               meta: 'Yudum · Kiler › Raf 2',
               amount: 2,
               formatted: '2',
               unit: 'adet',
-            ),
+            onTap: _noop),
             ProductRow(
               name: 'Kıyma',
               meta: 'Dana · Derin dondurucu',
               amount: 0,
               formatted: '0',
               unit: 'kg',
-            ),
+            onTap: _noop),
             ProductRow(
               name: 'Zeytinyağlı Yaprak Sarma Konservesi 400 gramlık teneke kutu',
               meta: 'Tariş · Depo › Koridor B › Raf 14 › Kutu 3',
@@ -61,7 +69,7 @@ class ProductRowPreview extends StatelessWidget {
               unit: 'kg',
               expiryLabel: '38 gün',
               daysUntilExpiry: 38,
-            ),
+            onTap: _noop),
           ],
         ),
         WDiv(
@@ -80,7 +88,7 @@ class ProductRowPreview extends StatelessWidget {
               amount: 2,
               formatted: '2',
               unit: 'adet',
-            ),
+            onTap: _noop),
           ],
         ),
       ],

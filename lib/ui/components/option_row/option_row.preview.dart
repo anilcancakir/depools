@@ -13,6 +13,14 @@ import 'option_row.dart';
 /// fill; a group where only the chosen row has a background reads as one highlight among
 /// labels, which is the correction that produced this rule.
 class OptionRowPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the OptionRow preview.
   const OptionRowPreview({super.key});
 
@@ -29,9 +37,9 @@ class OptionRowPreview extends StatelessWidget {
               suggestionReason: 'Önerilen · buraya 9 kez konuldu',
               isSelected: true,
               semanticLabel: 'Mutfak buzdolabı konumunu seç',
-            ),
-            OptionRow(label: 'Kiler › Raf 2', semanticLabel: 'Kiler raf 2 konumunu seç'),
-            OptionRow(label: 'Depo › Raf A', semanticLabel: 'Depo raf A konumunu seç'),
+            onTap: _noop),
+            OptionRow(label: 'Kiler › Raf 2', semanticLabel: 'Kiler raf 2 konumunu seç', onTap: _noop),
+            OptionRow(label: 'Depo › Raf A', semanticLabel: 'Depo raf A konumunu seç', onTap: _noop),
           ],
         ),
         WDiv(
@@ -42,12 +50,12 @@ class OptionRowPreview extends StatelessWidget {
               isSelected: true,
               semanticLabel: 'A4 sekizli yerleşimi seç',
               trailing: Quantity(amount: 3, formatted: '3', unit: 'sayfa', size: QuantitySize.sm),
-            ),
+            onTap: _noop),
             OptionRow(
               label: "A4 · 24'lü · 70×37 mm",
               semanticLabel: 'A4 yirmi dörtlü yerleşimi seç',
               trailing: Quantity(amount: 1, formatted: '1', unit: 'sayfa', size: QuantitySize.sm),
-            ),
+            onTap: _noop),
           ],
         ),
       ],

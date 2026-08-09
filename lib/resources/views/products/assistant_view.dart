@@ -76,6 +76,7 @@ class AssistantView extends StatelessWidget {
   static const IconData _cameraIcon = Icons.photo_camera_outlined;
   static const IconData _micIcon = Icons.mic_none_outlined;
   static const IconData _activityIcon = Icons.history;
+  static const IconData _closeIcon = Icons.close;
 
   /// Whether the conversation has started.
   ///
@@ -84,11 +85,19 @@ class AssistantView extends StatelessWidget {
   /// that with nothing.
   final bool hasTranscript;
 
+  /// Dismisses the assistant when it is presented as an overlay.
+  ///
+  /// **Null means this is the route, non-null means this is the modal.** The same screen serves
+  /// both, and the only thing that differs is the way out: the route pops to wherever the user
+  /// came from, the overlay closes in place over the screen it covered. Rendering a back arrow in
+  /// the overlay would be a lie, because there is nothing behind it in the navigation stack.
+  final VoidCallback? onClose;
+
   /// Creates the [AssistantView] mid-conversation.
-  const AssistantView({super.key}) : hasTranscript = true;
+  const AssistantView({super.key, this.onClose}) : hasTranscript = true;
 
   /// Creates the view before the first message.
-  const AssistantView.fresh({super.key}) : hasTranscript = false;
+  const AssistantView.fresh({super.key, this.onClose}) : hasTranscript = false;
 
   /// **No inner width cap.** `MSPageContainer` already caps every screen in this app at the
   /// same width, and adding a second cap inside it made the header narrower than the transcript
@@ -125,9 +134,10 @@ class AssistantView extends StatelessWidget {
                 // consequence is what gets said.
                 subtitle: Lang.get('screens.assistant.subtitle'),
                 // The way out. A chat screen that takes over the display has to give the user a
-                // way back, and the bottom navigation is not there to do it any more.
-                backLabel: Lang.get('screens.assistant.back'),
-                backFallback: '/',
+                // way back, and the bottom navigation is not there to do it any more. Which way
+                // out depends on how the screen was presented: see [onClose].
+                backLabel: onClose == null ? Lang.get('screens.assistant.back') : null,
+                backFallback: onClose == null ? '/' : null,
                 actions: [
                   MSButton(
                     onPressed: () => ActivityPanel.show(context),
@@ -136,6 +146,17 @@ class AssistantView extends StatelessWidget {
                     semanticLabel: Lang.get('screens.assistant.activity'),
                     child: const WIcon(_activityIcon, className: 'size-5'),
                   ),
+                  // Last, so it is the rightmost control: a full-screen modal closes from the
+                  // top-right on web and on Android, and this overlay covers the whole display
+                  // including the navigation the user would otherwise reach for.
+                  if (onClose != null)
+                    MSButton(
+                      onPressed: onClose,
+                      intent: ButtonIntent.ghost,
+                      className: 'h-11 w-11 px-0 justify-center',
+                      semanticLabel: Lang.get('screens.assistant.close'),
+                      child: const WIcon(_closeIcon, className: 'size-5'),
+                    ),
                 ],
               ),
               _buildStatusRow(),

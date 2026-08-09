@@ -520,7 +520,8 @@
       "composer": "Ne aldınız, ne soracaksınız",
       "send": "Gönder",
       "voice_note": "Sesle yazılanlar kaydedilmeden önce onaylanır",
-      "back": "Geri"
+      "back": "Geri",
+      "close": "Asistanı kapat"
     },
     "product_draft": {
       "title": "Yeni ürün",

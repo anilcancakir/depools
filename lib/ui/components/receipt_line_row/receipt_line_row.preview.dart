@@ -13,6 +13,14 @@ import 'receipt_line_row.dart';
 /// The extracted strings are real Turkish thermal-receipt truncations. "ORG KEM TAV" is
 /// the case the doc names as the hard one, and it is here unresolved on purpose.
 class ReceiptLineRowPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so every `const` in this file survives.
+  ///
+  /// The callbacks are here at all because a control previewed WITHOUT one is a dead
+  /// control: `WAnchor` withholds the pointer cursor when it has no gesture, so the
+  /// catalog showed no hand on hover and it was reported as a missing cursor in code
+  /// that works. Eleven previews had this.
+  static void _noop() {}
+
   /// Creates the ReceiptLineRow preview.
   const ReceiptLineRowPreview({super.key});
 
@@ -32,7 +40,7 @@ class ReceiptLineRowPreview extends StatelessWidget {
               unit: 'adet',
               price: '69,80 TL',
               locationLabel: 'Mutfak › Buzdolabı',
-            ),
+            onTap: _noop),
             ReceiptLineRow(
               extracted: 'DURU BULGUR 1K',
               productName: 'Bulgur',
@@ -41,7 +49,7 @@ class ReceiptLineRowPreview extends StatelessWidget {
               unit: 'kg',
               price: '42,50 TL',
               locationLabel: 'Kiler › Çekmece 2',
-            ),
+            onTap: _noop),
             ReceiptLineRow(
               extracted: 'ORG KEM TAV',
               resolution: LineResolution.unresolved,
@@ -49,7 +57,7 @@ class ReceiptLineRowPreview extends StatelessWidget {
               formatted: '1,20',
               unit: 'kg',
               price: '184,00 TL',
-            ),
+            onTap: _noop),
             ReceiptLineRow(
               extracted: 'ZYT YAG 5LT TARIS',
               productName: 'Tariş Zeytinyağı 5 lt',
@@ -59,7 +67,7 @@ class ReceiptLineRowPreview extends StatelessWidget {
               unit: 'adet',
               price: '1.240,00 TL',
               locationLabel: 'Kiler › Raf 2',
-            ),
+            onTap: _noop),
             ReceiptLineRow(
               extracted: 'POSET',
               resolution: LineResolution.rejected,
@@ -67,7 +75,7 @@ class ReceiptLineRowPreview extends StatelessWidget {
               formatted: '1',
               unit: 'adet',
               price: '0,50 TL',
-            ),
+            onTap: _noop),
           ],
         ),
       ],
