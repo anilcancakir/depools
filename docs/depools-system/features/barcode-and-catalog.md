@@ -14,6 +14,21 @@ Symbologies: EAN-13, EAN-8, UPC-A, UPC-E, Code128, Code39, QR, DataMatrix.
 
 The MVP's scanner never worked. The camera widget was commented out in `barcode_scanner.dart` and only manual entry functioned. Continuous scanning matters here: unpacking a delivery means scanning twenty things in a row, so the scanner stays open and accumulates rather than closing after each hit.
 
+### What the web target does not get, and what that costs the design
+
+Verified against `mobile_scanner` 7.4.0 (pub.dev, August 2026). It covers Android (CameraX + ML Kit), iOS and macOS (AVFoundation + Apple Vision) and web (a selectable ZXing or `BarcodeDetector` backend). Three of its features are Android/iOS/macOS only, and two of those three are load-bearing here:
+
+**`scanWindow` is unsupported on web, so the viewfinder rectangle is an aiming aid and not a gate.** On a phone that rectangle genuinely restricts detection to the region inside it. On web there is no region restriction: the whole camera frame is decoded, and a barcode sitting outside the rectangle still registers. This does not justify a different UI per platform, which the layout rule forbids anyway. It justifies not writing copy that promises otherwise: the frame says where to aim, never "only this area counts". If a shelf holds two barcodes at once, web can pick the wrong one, so the confirmation step in the queue is what protects the user, not the frame.
+
+**`analyzeImage` is unsupported on web, so reading a barcode out of a still photo cannot run on the device there.** That decides the architecture for photo capture rather than merely constraining it: the shelf photo and the receipt photo go to the backend, and the backend is what recognises them. This is the direction `ai-enrichment.md` and `receipt-ingestion.md` already take for the product recognition itself, so the two paths converge instead of splitting, and there is no on-device fallback worth building for one platform.
+
+**Web autofocus is genuinely unreliable**, and it is device and browser dependent rather than something configuration fixes (`mobile_scanner` issue #835, open across several releases). The practical reading: on a desktop with a webcam, scanning is a worse experience than typing, so manual barcode entry stays a first-class control on the scan screen rather than a fallback hidden behind a failure.
+
+Two smaller decisions the web backend forces:
+
+- The recommended backend is the browser's native `BarcodeDetector` with a `zxing-wasm` fallback. Native is absent in Firefox and needs Safari 17+, so in practice a meaningful share of users land on the WASM path.
+- That fallback pulls roughly 2 MB of WebAssembly from the jsDelivr CDN on first use. For a Turkey-first product that is a first-scan stall on a slow connection and a third-party dependency in the critical path. Self-hosting the binary alongside the app is the answer; it is not the default, so it has to be set up deliberately.
+
 ## The resolution cascade
 
 Cheapest and most trustworthy first.

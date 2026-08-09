@@ -143,5 +143,10 @@ the ledger means, and that is a conversion rather than a field edit.
 
 - Which model per entry point. Product recognition weights cost, receipt extraction weights accuracy, and they may not be the same model (O2).
 - Whether tag generation is worth keeping. The MVP had a dedicated agent for it, but tags may be redundant now that a real shared category taxonomy exists. Design should decide whether users actually use tags when categories are good.
-- Whether the shelf photo case is v1 or v2. It needs its own review UI, which is real design work.
 - How many items one shelf photo should attempt. Too many and the review becomes a chore, too few and the feature disappoints.
+
+### Settled since this list was written
+
+**The shelf photo is v1.** The blocker recorded here was that it needs its own review UI and that this is real design work. That work is done: D60 settled the shape (the photograph stays on screen with numbered boxes and the rows carry the same numbers), and `ShelfPhotoView` plus `ShelfCandidateRow` implement it, including the failed-read state. What is left is wiring it to a real endpoint, which is the same work every other screen is waiting on rather than a design question.
+
+**Recognition runs server-side, and that is now forced rather than chosen.** `mobile_scanner` does not support `analyzeImage` on web, so a still photo cannot be decoded on the device there at all. The backend was already going to do the product recognition; this removes the option of a client-side shortcut for the barcode-in-photo case and keeps one path across the three platforms. See `barcode-and-catalog.md`.
