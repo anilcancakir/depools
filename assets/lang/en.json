@@ -448,7 +448,8 @@
       "count_products": ":count products",
       "count_changes": ":count changes",
       "capture_receipt": "Scan receipt",
-      "capture_shelf": "Shelf photo"
+      "capture_shelf": "Shelf photo",
+      "dates_failed": "Could not load dates"
     },
     "product": {
       "action_move": "Move location",
@@ -971,6 +972,10 @@
     "shopping_row": {
       "label": ":name, :amount :unit, :reason",
       "label_checked": ":name, :amount :unit, :reason, in the basket"
+    },
+    "section_card": {
+      "error_message": "This may be a connection problem. The rest of the page still works.",
+      "retry": "Try again"
     }
   }
 }

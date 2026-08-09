@@ -9,6 +9,7 @@ import 'preview/assistant_screen.preview.dart';
 import 'preview/barcode_scan_empty_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
+import 'preview/dashboard_failed_screen.preview.dart';
 import 'preview/dashboard_fresh_screen.preview.dart';
 import 'preview/dashboard_screen.preview.dart';
 import 'preview/dates_empty_screen.preview.dart';
@@ -127,6 +128,11 @@ List<PreviewEntry> previewEntries() {
       label: 'CountRow',
       slug: 'count_row',
       builder: (_) => const CountRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'DashboardFailedScreen',
+      slug: 'dashboard_failed_screen',
+      builder: (_) => const DashboardFailedScreenPreview(),
     ),
     PreviewEntry(
       label: 'DashboardFreshScreen',

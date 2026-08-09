@@ -20,6 +20,9 @@ import 'section_card.dart';
 /// chevron pushes "Tümü" off the row, or the two overlap, the header's trailing
 /// slot is wrong.
 class SectionCardPreview extends StatelessWidget {
+  /// A tear-off rather than a closure, so the const expressions in this file survive.
+  static void _noop() {}
+
   /// Creates the SectionCard preview.
   const SectionCardPreview({super.key});
 
@@ -108,6 +111,21 @@ class SectionCardPreview extends StatelessWidget {
               unit: 'kg',
             ),
           ],
+        ),
+        // The failure state, which is the whole point of the `error` parameter: the section is
+        // replaced in place and the page around it keeps working.
+        SectionCard(
+          label: 'Tarihler',
+          count: '5 parti',
+          error: 'Tarihler yüklenemedi',
+          onRetry: _noop,
+          children: const [],
+        ),
+        // The same failure with nothing to retry, which is what a permanent one looks like.
+        SectionCard(
+          label: 'Alışveriş listesi',
+          error: 'Liste yüklenemedi',
+          children: const [],
         ),
       ],
     );

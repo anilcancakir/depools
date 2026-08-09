@@ -41,11 +41,23 @@ class Callout extends StatelessWidget {
   /// The body message.
   final String message;
 
+  /// An optional action under the message, for example a retry.
+  ///
+  /// **This is what makes the callout usable as a failure state.** The app's answer to a section
+  /// that could not load is to replace that section's body in place and leave the rest of the page
+  /// working, which only helps if the replacement offers a way forward. Without an action the user
+  /// is told what went wrong and left with a dead end and a page reload.
+  ///
+  /// Optional because most callouts are notes rather than failures: the MCP screen's read-only
+  /// scope note has nothing to act on.
+  final Widget? action;
+
   /// Creates a [Callout].
   const Callout({
     super.key,
     required this.title,
     required this.message,
+    this.action,
     this.intent = CalloutIntent.neutral,
   });
 
@@ -56,6 +68,7 @@ class Callout extends StatelessWidget {
       children: [
         WText(title, className: 'text-sm font-semibold text-fg'),
         WText(message, className: 'text-sm text-fg-muted'),
+        ?action,
       ],
     );
   }

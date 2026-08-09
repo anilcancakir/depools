@@ -3,6 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
 import '../section_header/section_header.dart';
+import 'package:magic_starter/magic_starter.dart' show ButtonIntent, ButtonSize, MSButton;
+
+import '../callout/callout.dart';
 import 'section_card.recipe.dart';
 
 /// **SectionCard**
@@ -67,6 +70,23 @@ class SectionCard extends StatefulWidget {
   /// Whether a [collapsible] section starts open.
   final bool initiallyExpanded;
 
+  /// An already-localised message replacing [children] when this section could not load.
+  ///
+  /// ### Why the failure state lives here and not on each screen
+  ///
+  /// Every screen in this app is built out of these cards, and each card usually has its own
+  /// source: the overview reads dates, shortages, the shopping list and recent movements from four
+  /// places. Anılcan's call was that a failure replaces the SECTION and leaves the rest of the page
+  /// working, so a dates request that times out does not take the four counters and the capture
+  /// actions with it.
+  ///
+  /// Putting it on the card rather than on the screens is what makes that uniform: a screen opts in
+  /// with one parameter and cannot invent a different failure shape.
+  final String? error;
+
+  /// Called by the retry action shown with [error]. Null renders the message with no action.
+  final VoidCallback? onRetry;
+
   /// Creates a [SectionCard].
   const SectionCard({
     super.key,
@@ -76,6 +96,8 @@ class SectionCard extends StatefulWidget {
     this.action,
     this.collapsible = false,
     this.initiallyExpanded = true,
+    this.error,
+    this.onRetry,
   });
 
   @override
@@ -95,6 +117,7 @@ class _SectionCardState extends State<SectionCard> {
     // body renders unconditionally there. Reading `_expanded` in that case would
     // let `initiallyExpanded: false` silently hide a section with no way to open it.
     final bool showBody = !widget.collapsible || _expanded;
+    final String? error = widget.error;
 
     final Widget header = SectionHeader(
       label: widget.label,
@@ -115,7 +138,31 @@ class _SectionCardState extends State<SectionCard> {
           WAnchor(onTap: _toggle, semanticLabel: widget.label, child: header)
         else
           header,
-        if (showBody) WDiv(className: slots['body'], children: widget.children),
+        if (showBody)
+          WDiv(
+            className: slots['body'],
+            children: error == null
+                ? widget.children
+                : <Widget>[
+                    // `danger` rather than `neutral`: a section the user cannot see the contents of
+                    // is a gap in what they are being told, and a quiet note reads as decoration
+                    // next to three sections that did load.
+                    Callout(
+                      intent: CalloutIntent.danger,
+                      title: error,
+                      message: Lang.get('components.section_card.error_message'),
+                      action: widget.onRetry == null
+                          ? null
+                          : MSButton(
+                              onPressed: widget.onRetry,
+                              intent: ButtonIntent.secondary,
+                              size: ButtonSize.sm,
+                              className: 'py-3.5 axis-min',
+                              child: WText(Lang.get('components.section_card.retry')),
+                            ),
+                    ),
+                  ],
+          ),
       ],
     );
   }

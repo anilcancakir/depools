@@ -448,7 +448,8 @@
       "count_products": ":count ürün",
       "count_changes": ":count hareket",
       "capture_receipt": "Fiş tara",
-      "capture_shelf": "Raf fotoğrafı"
+      "capture_shelf": "Raf fotoğrafı",
+      "dates_failed": "Tarihler yüklenemedi"
     },
     "product": {
       "action_move": "Konum değiştir",
@@ -971,6 +972,10 @@
     "shopping_row": {
       "label": ":name, :amount :unit, :reason",
       "label_checked": ":name, :amount :unit, :reason, sepette"
+    },
+    "section_card": {
+      "error_message": "Bağlantı sorunu olabilir. Sayfanın kalanı çalışmaya devam ediyor.",
+      "retry": "Tekrar dene"
     }
   }
 }

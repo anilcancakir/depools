@@ -77,11 +77,22 @@ class DashboardView extends StatelessWidget {
   /// only moment they are deciding whether to continue.
   final bool hasStock;
 
+  /// Whether the dates source could not be read.
+  final bool datesFailed;
+
   /// Creates the [DashboardView].
-  const DashboardView({super.key}) : hasStock = true;
+  const DashboardView({super.key}) : hasStock = true, datesFailed = false;
 
   /// Creates the view for a tenant that has not added anything yet.
-  const DashboardView.fresh({super.key}) : hasStock = false;
+  const DashboardView.fresh({super.key}) : hasStock = false, datesFailed = false;
+
+  /// Creates the view with one section's source unavailable, which is its own reviewable state.
+  ///
+  /// **This is the state that proves the failure design.** A failure replaces the SECTION and
+  /// leaves the rest of the page working, and this screen is where that claim is testable: it
+  /// reads from four sources, so a dates request that times out must not take the four counters,
+  /// the capture actions and the shortage list with it.
+  const DashboardView.sectionFailed({super.key}) : hasStock = true, datesFailed = true;
 
   @override
   Widget build(BuildContext context) {
@@ -304,8 +315,14 @@ class DashboardView extends StatelessWidget {
 
     return SectionCard(
       label: Lang.get('screens.dashboard.dates_group'),
-      count: Lang.get('screens.dashboard.count_batches', {'count': rows.length}),
-      action: _seeAll('/tarihler', Lang.get('screens.dashboard.dates_action')),
+      // The count and the "see all" action go with the data: a header claiming five batches above
+      // a card that could not read them is the header-contradicts-its-list defect again.
+      count: datesFailed
+          ? null
+          : Lang.get('screens.dashboard.count_batches', {'count': rows.length}),
+      action: datesFailed ? null : _seeAll('/tarihler', Lang.get('screens.dashboard.dates_action')),
+      error: datesFailed ? Lang.get('screens.dashboard.dates_failed') : null,
+      onRetry: datesFailed ? () {} : null,
       children: [
         for (final DatedLot row in rows.take(_rowCap))
           LotRow(
