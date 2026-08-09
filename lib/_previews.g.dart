@@ -39,6 +39,7 @@ import 'preview/register_screen.preview.dart';
 import 'preview/running_low_empty_screen.preview.dart';
 import 'preview/running_low_screen.preview.dart';
 import 'preview/settings_screen.preview.dart';
+import 'preview/sheets_screen.preview.dart';
 import 'preview/shelf_photo_failed_screen.preview.dart';
 import 'preview/shelf_photo_reading_screen.preview.dart';
 import 'preview/shelf_photo_screen.preview.dart';
@@ -391,6 +392,11 @@ List<PreviewEntry> previewEntries() {
       label: 'SetupStep',
       slug: 'setup_step',
       builder: (_) => const SetupStepPreview(),
+    ),
+    PreviewEntry(
+      label: 'SheetsScreen',
+      slug: 'sheets_screen',
+      builder: (_) => const SheetsScreenPreview(),
     ),
     PreviewEntry(
       label: 'ShelfCandidateRow',
