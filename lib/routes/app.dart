@@ -8,6 +8,10 @@ import '../resources/views/locations/location_index_view.dart';
 import '../resources/views/settings_view.dart';
 import '../resources/views/products/assistant_view.dart';
 import '../resources/views/products/barcode_scan_view.dart';
+import '../resources/views/products/label_print_view.dart';
+import '../resources/views/products/product_draft_view.dart';
+import '../resources/views/products/receipt_review_view.dart';
+import '../resources/views/products/shelf_photo_view.dart';
 import '../resources/views/products/dates_view.dart';
 import '../resources/views/products/product_index_view.dart';
 import '../resources/views/products/product_show_view.dart';
@@ -88,6 +92,20 @@ void registerAppRoutes() {
       // Capture. The scanner is the barcode path; the assistant is the sentence path and is
       // registered separately below, because it takes over the screen.
       MagicRoute.page('/tara', () => const BarcodeScanView()).name('scan');
+
+      // **The four screens D61 would have caught again.** These were built, previewed and
+      // verified, and the running app could reach none of them: no route, and no other screen
+      // linked to them. A screen nobody can navigate to is not shipped, and the point of routing
+      // them during the design phase is that the FLOW becomes walkable rather than the screens
+      // becoming individually viewable.
+      //
+      // Each is reachable from where it belongs rather than from a menu of everything: the draft
+      // from a scan the cascade could not resolve, the receipt and the shelf photo from the
+      // overview's capture actions, the label sheet from the product it labels.
+      MagicRoute.page('/taslak', () => const ProductDraftView()).name('draft');
+      MagicRoute.page('/fis', () => const ReceiptReviewView()).name('receipt');
+      MagicRoute.page('/raf', () => const ShelfPhotoView()).name('shelf-photo');
+      MagicRoute.page('/etiket', () => const LabelPrintView()).name('labels');
 
       // This app's own settings, distinct from the account settings `magic_starter` owns. It
       // holds the two preferences D66 and D67 created and had nowhere to live.

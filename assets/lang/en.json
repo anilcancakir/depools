@@ -446,7 +446,9 @@
       "hidden_more": "+:count :noun",
       "count_batches": ":count batches",
       "count_products": ":count products",
-      "count_changes": ":count changes"
+      "count_changes": ":count changes",
+      "capture_receipt": "Scan receipt",
+      "capture_shelf": "Shelf photo"
     },
     "product": {
       "action_move": "Move location",
@@ -481,7 +483,8 @@
       "activity_empty": "Nothing has happened yet",
       "activity_empty_note": "Record the first stock-in or stock-out with the two buttons below. The history a forecast needs starts here.",
       "stock_out": "Take stock out",
-      "stock_in": "Put stock in"
+      "stock_in": "Put stock in",
+      "action_labels": "Print labels"
     },
     "assistant": {
       "title": "Assistant",

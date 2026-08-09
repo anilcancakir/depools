@@ -61,6 +61,8 @@ class DashboardView extends StatelessWidget {
   static const IconData _iconScan = Icons.qr_code_scanner_outlined;
   static const IconData _iconAssistant = Icons.auto_awesome_outlined;
   static const IconData _iconCount = Icons.checklist_outlined;
+  static const IconData _iconReceipt = Icons.receipt_long_outlined;
+  static const IconData _iconShelf = Icons.photo_camera_outlined;
   static const IconData _iconCalm = Icons.check_circle_outline;
 
   /// How many rows a dashboard card shows before it defers to its own screen.
@@ -232,10 +234,24 @@ class DashboardView extends StatelessWidget {
     return SectionCard(
       label: Lang.get('screens.dashboard.capture_group'),
       children: [
+        // **Two rows, split by whether the camera is the instrument.** Five actions on one row
+        // is a menu rather than a set of choices, and the honest grouping is the one
+        // `product.md` already uses: barcode, receipt and shelf photo are all "point the camera
+        // at the thing", while the assistant and a count are not.
+        //
+        // The receipt and shelf-photo paths were designed and had no way in at all until now,
+        // which is what made two of the four orphan screens unreachable.
         WDiv(
           className: 'flex flex-col md:flex-row gap-2 w-full',
           children: [
             _captureButton(context, Lang.get('screens.dashboard.capture_scan'), _iconScan, '/tara', ButtonIntent.primary),
+            _captureButton(context, Lang.get('screens.dashboard.capture_receipt'), _iconReceipt, '/fis'),
+            _captureButton(context, Lang.get('screens.dashboard.capture_shelf'), _iconShelf, '/raf'),
+          ],
+        ),
+        WDiv(
+          className: 'flex flex-col md:flex-row gap-2 w-full',
+          children: [
             _captureButton(context, Lang.get('screens.dashboard.capture_assistant'), _iconAssistant, '/asistan'),
             _captureButton(context, Lang.get('screens.dashboard.capture_count'), _iconCount, '/sayim'),
           ],

@@ -446,7 +446,9 @@
       "hidden_more": "+:count :noun",
       "count_batches": ":count parti",
       "count_products": ":count ürün",
-      "count_changes": ":count hareket"
+      "count_changes": ":count hareket",
+      "capture_receipt": "Fiş tara",
+      "capture_shelf": "Raf fotoğrafı"
     },
     "product": {
       "action_move": "Konum değiştir",
@@ -481,7 +483,8 @@
       "activity_empty": "Hiç hareket yok",
       "activity_empty_note": "İlk giriş ya da çıkış aşağıdaki iki butonla kaydedilir. Tüketim tahmini için gereken geçmiş buradan başlar.",
       "stock_out": "Stok çıkar",
-      "stock_in": "Stok ekle"
+      "stock_in": "Stok ekle",
+      "action_labels": "Etiket yazdır"
     },
     "assistant": {
       "title": "Asistan",

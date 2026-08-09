@@ -153,6 +153,12 @@ class ProductShowView extends StatelessWidget {
         MSDropdownMenu(
           items: [
             MSDropdownMenuItem(label: Lang.get('screens.product.action_barcode'), onTap: () {}),
+            // The label sheet belongs to the product it labels, not to a global menu, which is
+            // why `LabelPrintView` had no way in until this line existed.
+            MSDropdownMenuItem(
+              label: Lang.get('screens.product.action_labels'),
+              onTap: () => MagicRoute.to('/etiket'),
+            ),
             MSDropdownMenuItem(label: Lang.get('screens.product.action_edit'), onTap: () {}),
             MSDropdownMenuItem(label: Lang.get('screens.product.action_archive'), onTap: () {}),
           ],

@@ -225,7 +225,12 @@ class BarcodeScanView extends StatelessWidget {
             count: scan.count,
             unit: scan.unit,
             onHandFormatted: scan.onHandFormatted,
-            onTap: () {},
+            // Stage 6 of the cascade found nothing anywhere, and typing or photographing the
+            // product is the only way forward. That is exactly what `ProductDraftView` is,
+            // and it had no entry point until now. A settled row goes nowhere yet.
+            onTap: scan.source == ScanSource.unmatched
+                ? () => MagicRoute.to('/taslak')
+                : () {},
           ),
       ],
     );
