@@ -80,6 +80,13 @@ Scraping is retained as a fallback at Anılcan's explicit direction after the le
 
 ### D12. Both interface modes ship, the user picks the front door
 
+> **Superseded by D66.** There is one home, the overview. The preference survives in a smaller form:
+> it picks which capture verb is pinned at the TOP of that home, not which front door opens. The
+> reasoning below about chat being a weak system of record is what D66 kept; the conclusion that it
+> justifies two shells is what D66 rejected, because the 2026 literature is united against hybrid
+> front doors and two shells double the surface to maintain. Kept in place rather than deleted, so
+> the argument that produced it stays readable.
+
 Assistant mode and inventory mode, switchable at any time. Neither is degraded.
 
 Why: the 2025-2026 literature converges hard that chat is a strong capture surface and a weak system of record (no overview, no bulk edit, abandonment after two or three clarifying questions). Making it a preference resolves the tension as a product decision rather than a compromise.

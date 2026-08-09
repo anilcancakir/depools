@@ -10,7 +10,7 @@ Written 2026-08-05 from nine research passes plus a full read of the abandoned M
 |---|---|
 | [product.md](product.md) | Who it is for, what it does, what it deliberately does not do |
 | [market.md](market.md) | Competitors with verified pricing, where the opening is, go to market |
-| [open-decisions.md](open-decisions.md) | 21 decisions with their reasons, 7 questions still open with the assumption we proceed on |
+| [open-decisions.md](open-decisions.md) | every decision with the reason behind it, and the questions still open with the assumption we proceed on. 70 and counting, so the file is append-only and a superseded decision is annotated in place rather than deleted (see D34, which D70 half-corrects) |
 | [data-model.md](data-model.md) | The ledger, lots, tenancy, every table, 7 invariants |
 | [architecture.md](architecture.md) | Repository shape, Flutter and Laravel layers, the gateway pattern |
 | [ai-design.md](ai-design.md) | What the model does and does not do, gateways, approval, cost control |

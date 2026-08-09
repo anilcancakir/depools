@@ -2,9 +2,9 @@
 
 > Summary depth. Deepens after the design mockups settle the interaction decisions.
 
-An assistant that does the work, not one that explains how the user could do it. Optionally the front door of the whole app.
+An assistant that does the work, not one that explains how the user could do it. Reachable from every screen, and opening over the one you are on.
 
-Decisions D12 and D13 in `open-decisions.md`. Tool catalog and approval policy in `ai-design.md`.
+Decisions D13, D66, D67 and D69 in `open-decisions.md`. D12's two-front-doors shape was removed by D66. Tool catalog and approval policy in `ai-design.md`.
 
 ## The canonical interaction
 
@@ -86,27 +86,45 @@ no target level set. A summary inside a transcript scrolls away, and a summary t
 away is not one. The third figure is deliberately the app's own silence made visible: a
 product with no target can never reach the shopping list however low it gets.
 
-**The activity feed is a panel over either shell, not a third screen** (D50). In assistant
-mode the writes are already in the transcript with undo; in inventory mode the same entries
-are on each product's movement list. The panel is the cross-cutting view of "what happened
-while I was not looking", which full-auto makes necessary, and it opens from the header in
-both modes so criterion 7 holds without a mode-specific surface.
+**The activity feed is a panel over the current screen, not a third screen** (D50). Writes made
+in the assistant are already in its transcript with undo, and the same entries are on each
+product's movement list. The panel is the cross-cutting view of "what happened while I was not
+looking", which full-auto makes necessary, and it opens from the header rather than owning a
+route.
 
-### A known gap in the shell
+### The shell gap, and how it was closed
 
-This screen wants a pinned overview and a pinned composer with only the transcript
-scrolling. `MSPageScaffold` scrolls all of its children, so today the composer scrolls away
-on a long transcript. The design is recorded here rather than worked around: a chat surface
-whose input you have to scroll to is a defect, and the fix belongs in `magic_starter`, not
-in a local bypass of the scaffold every other screen goes through.
+This screen wants a pinned overview and a pinned composer with only the transcript scrolling.
+`MSPageScaffold` scrolls all of its children, so the composer used to scroll away on a long
+transcript, and the fix was recorded here as belonging in `magic_starter`.
 
-## Assistant mode versus inventory mode
+It was closed without that change, by taking the screen OUT of the shell (D69). The assistant is
+registered outside `layout.app` and opens as a full-screen overlay, so nothing above it scrolls and
+nothing below it takes space: the transcript is a plain `Expanded` and the composer sits at the
+bottom of the VIEWPORT. That also removed the computed-height hack the screen used to carry, which
+existed only because there was no bounded column to divide inside the shell.
 
-The assistant is available in both modes. What changes is whether it is the home surface (D12).
+The general version of the problem survived and got its own answer. Other screens still need a
+control that does not scroll away, and `ui/layouts/page_chrome.dart` anchors one from outside the
+shell for them (D70). An upstream `footer:` slot on `MSPageScaffold` is still the better home, and
+the call site is deliberately shaped like one so adopting it later is a deletion.
 
-This split exists because the evidence is one-sided: chat is a strong capture surface and a weak system of record. Users cannot get an overview from a transcript, cannot bulk-edit in a text box, and scroll back through history trying to reconstruct what they decided. Meanwhile a form states exactly what is needed, validates on the spot, and finishes in seconds.
+## The assistant is a layer, not a mode
 
-So the assistant never becomes the only way to do anything. Every capability it has also exists as a conventional screen. If something is only reachable through conversation, that is a bug.
+There are no modes. An earlier version of this document described the assistant as optionally the
+home surface, opposite an inventory home, chosen by the user (D12). D66 removed that: there is one
+home, the overview, and what the user picks is which capture verb is pinned at the top of it.
+
+The evidence that drove the old split still holds and now points somewhere else. Chat is a strong
+capture surface and a weak system of record: users cannot get an overview from a transcript, cannot
+bulk-edit in a text box, and scroll back through history trying to reconstruct what they decided.
+Meanwhile a form states exactly what is needed, validates on the spot, and finishes in seconds. The
+conclusion is not two homes, it is that the assistant sits OVER the screens rather than replacing
+them: a floating affordance on every screen, opening as an overlay, closing back onto the exact row
+and scroll position you asked about (D67, D69).
+
+So the assistant never becomes the only way to do anything. Every capability it has also exists as a
+conventional screen. If something is only reachable through conversation, that is a bug.
 
 ## Error and empty states
 
@@ -133,11 +151,12 @@ So the assistant never becomes the only way to do anything. Every capability it 
 4. Every write appears in the activity feed with what changed and which surface caused it.
 5. Every write is undoable.
 6. Under semi-auto, no stock-changing write happens without approval.
-7. Every capability reachable in assistant mode is also reachable in inventory mode.
+7. Every capability reachable through the assistant is also reachable through a conventional screen.
 8. Text from a web search or a product description cannot cause a tool call. Tested with an injection payload.
 
 ## Open
 
 - Turkish quantity and unit parsing accuracy. No benchmark exists for grocery quantity plus unit plus product extraction in Turkish, so this needs a 100 to 200 message evaluation before launch. "Yarım kilo kıyma", "3'lü paket", "sut aldim" without diacritics are the real inputs.
 - Which model for the assistant. It needs the strongest tool-calling available, and cost per turn matters because this is the highest-frequency surface.
-- A pinned composer and overview. `MSPageScaffold` cannot express a partially scrolling page, so this needs a change in `magic_starter` before the assistant screen is shippable.
+- ~~A pinned composer and overview.~~ Closed by D69: the screen moved outside the shell, so it owns
+  a bounded column and the composer sits at the viewport bottom. See "The shell gap" above.

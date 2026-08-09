@@ -32,7 +32,7 @@ Concrete numbers are open (see O6 in `open-decisions.md`) and must be validated 
 | Growth | ~2,500 | generous | 3 years | Multi-location or higher SKU count |
 | Business | unlimited | high, with top-ups | unlimited | Established operations |
 
-Every tier includes: all three capture paths, the full ledger with lots and expiry, location suggestion at all three automation levels, label printing, MCP read access, and both interface modes. Features are not withheld to force upgrades. The tiers differ in volume, not capability.
+Every tier includes: all three capture paths, the full ledger with lots and expiry, location suggestion at all three automation levels, label printing, MCP read access, and the assistant on every screen. Features are not withheld to force upgrades. The tiers differ in volume, not capability.
 
 MCP access is rate-limited per tier rather than paywalled. Of nine vendor MCP servers surveyed, only Notion hard-gates by plan while Atlassian scales rate limits and seven others ship it free with the existing subscription. Rate limiting also has the useful property that heavy use pushes a tenant up a tier naturally.
 

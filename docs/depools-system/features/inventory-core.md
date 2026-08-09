@@ -103,5 +103,6 @@ and 500 ml" is exactly what they are looking at.
 
 ## Open
 
-- Whether stock take (guided physical count) lands in v1 or v2. Currently v2, but if early users ask for it during design it is cheap because the ledger already models the correction.
+Settled since: stock take is v1 and the screen is built (`StockTakeView`). `iterations.md` moved it up because the ledger already carried the `stock_take` reason, so the screen was the only missing part, and a cafe that cannot reconcile a count against the record stops trusting the record.
+
 - Whether a product can have per-location par levels rather than one global par level. Depends on whether early users actually manage the same product differently per location.

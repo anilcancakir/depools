@@ -40,7 +40,7 @@ lib/
 ├── app/
 │   ├── controllers/           reactive state per domain (inventory, capture, assistant, ...)
 │   ├── models/                Magic models: Product, Location, StockLot, StockMovement, Receipt
-│   ├── enums/                 MovementReason, MovementSource, AutomationLevel, InterfaceMode
+│   ├── enums/                 MovementReason, MovementSource, PlacementAutomation, CaptureVerb
 │   ├── services/              client-side logic: unit conversion, FEFO selection preview
 │   ├── providers/             service providers, DI registration
 │   └── support/               helpers, extensions
@@ -49,7 +49,8 @@ lib/
 ├── resources/views/           magic_starter view overrides
 ├── ui/
 │   ├── components/            one directory per component: widget, preview, test
-│   └── layouts/               shells, including the two interface modes
+│   └── layouts/               the app shell's viewport-anchored chrome: the assistant
+│                              launcher and the pinned-footer host
 └── preview/                   component catalog, debug builds only
 ```
 
@@ -61,27 +62,30 @@ lib/
 - **`magic_notifications`** for in-app and push notification delivery, which the expiry and low-stock alerts need.
 - **`fluttersdk_dusk`** and **`fluttersdk_telescope`** for E2E driving and runtime inspection during development.
 
-### The two interface modes
+### One shell, one home, and a pinned capture verb
 
-`InterfaceMode` is a user preference (D12), persisted server-side so it follows the user across devices. It selects which shell the router mounts at the root route:
+**There are no interface modes.** This section used to describe an `InterfaceMode` preference (D12) selecting one of two shells, an assistant home and an inventory home, persisted server-side. D66 removed that shape and `product.md` now states the replacement: one home screen, the overview, because the 2026 literature is united against hybrid front doors and two shells doubles the surface to maintain.
 
-- `assistant`: the conversation is the home surface. Conventional screens reachable in one tap.
-- `inventory`: the stock list is the home surface. The assistant is a persistent sidekick.
+What survives of the preference is smaller and lives in `AppPreferences`: `CaptureVerb` decides which capture surface is pinned at the TOP of the overview (the assistant composer, or search plus the stock list). It is stored in magic's local cache rather than on the account, because there is no preferences endpoint yet and inventing one would mean guessing at a shape the backend has not agreed to (D68).
 
-Both shells compose the same components and call the same controllers. A feature is never implemented twice. If a capability exists in one mode and not the other, that is a bug, not a mode difference.
+The assistant is reachable from every screen through a floating affordance that opens it as a full-screen overlay over the current screen (D67, D69), which is why `ui/layouts/` holds viewport-anchored chrome (`assistant_launcher.dart`, `page_chrome.dart`) rather than two shells.
+
+Every capability still exists as a conventional screen. If something is only reachable through conversation, that is a bug.
 
 ### Platform division of labour
 
-Not a limitation, a design choice grounded in the research: chat and camera suit capture, conventional UI suits review and bulk edit.
+There is no platform split in the FEATURE SET: iOS, Android and web run the same source and every screen exists on all three (`product.md`, `DESIGN.md`). Layout adapts to WIDTH, never to platform.
 
-| | Mobile (iOS, Android) | Web |
+What follows is therefore a table of what the hardware makes CONVENIENT, not of what is available where. A receipt photo is usually taken on a phone because the camera is in your hand, and a bulk edit usually happens in a wide window because the rows fit. Neither is enforced and neither is missing on the other platform.
+
+| | Narrow / phone in hand | Wide / desk |
 |---|---|---|
 | Capture | camera, barcode scan, receipt photo, push-to-talk voice, assistant | assistant, manual entry, file upload |
 | Review | list and detail, single edits | bulk edit, reports, filters |
 | Output | share, notifications | label sheet PDF generation and printing |
 | Admin | account and subscription view | full billing, team management |
 
-`mobile_scanner` handles barcode scanning on all three platforms (it supports web through three selectable backends, unlike the ML Kit package which is Android and iOS only).
+One genuine capability difference, and it is a platform limit rather than a design choice: `mobile_scanner` does not support `analyzeImage` on web, so reading a barcode out of a still photo cannot run on the device there. That is what forces photo recognition server-side. See `features/barcode-and-catalog.md`.
 
 Bluetooth thermal printing cannot work on web at all, which is one of three reasons it sits in v2 (D18).
 
