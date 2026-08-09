@@ -189,7 +189,7 @@ class LocationIndexView extends StatelessWidget {
           ? const <Widget>[]
           : [
               MSButton(
-                onPressed: () {},
+                onPressed: () => MagicRoute.to('/konumlar/yeni'),
                 className: 'min-h-11 min-w-11 justify-center',
                 semanticLabel: Lang.get('screens.locations.add'),
                 child: const WIcon(_addIcon),
@@ -285,7 +285,10 @@ class LocationIndexView extends StatelessWidget {
             productCount: node.productCount,
             itemSummary: node.summary,
             icon: node.icon,
-            onTap: () {},
+            // The tree was browsable and not inspectable: a row said "Kiler, 4 ürün" and had
+            // nowhere to go. `inventory-core.md` lists seeing inside a location as one of the
+            // seven things the user does.
+            onTap: () => MagicRoute.to('/konumlar/${node.path}'),
           ),
         // Ten locations do not need paging, and pretending otherwise would be a footer
         // that never fires. It states the total instead, which is the number worth having
@@ -362,13 +365,13 @@ class LocationIndexView extends StatelessWidget {
           ),
         ),
         MSButton(
-          onPressed: () {},
+          onPressed: () => MagicRoute.to('/konumlar/yeni'),
           fullWidth: true,
           className: 'justify-center',
           child: WText(Lang.get('screens.locations.add')),
         ),
         MSButton(
-          onPressed: () {},
+          onPressed: () => MagicRoute.to('/konumlar/yeni'),
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',

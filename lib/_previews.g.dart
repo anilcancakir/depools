@@ -16,9 +16,11 @@ import 'preview/dates_screen.preview.dart';
 import 'preview/foundations.preview.dart';
 import 'preview/label_print_screen.preview.dart';
 import 'preview/label_print_tight_screen.preview.dart';
+import 'preview/location_form_screen.preview.dart';
 import 'preview/location_index_empty_screen.preview.dart';
 import 'preview/location_index_filtered_screen.preview.dart';
 import 'preview/location_index_screen.preview.dart';
+import 'preview/location_show_screen.preview.dart';
 import 'preview/login_screen.preview.dart';
 import 'preview/product_draft_screen.preview.dart';
 import 'preview/product_draft_settled_screen.preview.dart';
@@ -203,6 +205,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const ListFooterPreview(),
     ),
     PreviewEntry(
+      label: 'LocationFormScreen',
+      slug: 'location_form_screen',
+      builder: (_) => const LocationFormScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'LocationIndexEmptyScreen',
       slug: 'location_index_empty_screen',
       builder: (_) => const LocationIndexEmptyScreenPreview(),
@@ -221,6 +228,11 @@ List<PreviewEntry> previewEntries() {
       label: 'LocationRow',
       slug: 'location_row',
       builder: (_) => const LocationRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'LocationShowScreen',
+      slug: 'location_show_screen',
+      builder: (_) => const LocationShowScreenPreview(),
     ),
     PreviewEntry(
       label: 'LocationStockRow',

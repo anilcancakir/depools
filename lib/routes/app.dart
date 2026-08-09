@@ -4,7 +4,9 @@ import 'package:magic_starter/magic_starter.dart';
 import '../ui/layouts/assistant_launcher.dart';
 import '../ui/layouts/page_chrome.dart';
 import '../resources/views/dashboard_view.dart';
+import '../resources/views/locations/location_form_view.dart';
 import '../resources/views/locations/location_index_view.dart';
+import '../resources/views/locations/location_show_view.dart';
 import '../resources/views/settings_view.dart';
 import '../resources/views/products/assistant_view.dart';
 import '../resources/views/products/barcode_scan_view.dart';
@@ -92,6 +94,9 @@ void registerAppRoutes() {
       MagicRoute.page('/urunler/yeni', () => const ProductFormView()).name('product-create');
       MagicRoute.page('/urunler/:id', () => const ProductShowView()).name('product');
       MagicRoute.page('/konumlar', () => const LocationIndexView()).name('locations');
+      // Literal before the parameter, for the reason `/urunler/yeni` states.
+      MagicRoute.page('/konumlar/yeni', () => const LocationFormView()).name('location-create');
+      MagicRoute.page('/konumlar/:id', () => LocationShowView()).name('location');
       MagicRoute.page('/sayim', () => const StockTakeView()).name('stock-take');
 
       // Capture. The scanner is the barcode path; the assistant is the sentence path and is

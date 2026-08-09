@@ -816,6 +816,35 @@
       "description_placeholder": "Short note",
       "save_and_stock": "Save and add stock",
       "save_only": "Save only"
+    },
+    "location_form": {
+      "title": "New location",
+      "subtitle": "Its name and where it sits",
+      "back": "Locations",
+      "identity_group": "Location",
+      "name": "Name",
+      "name_placeholder": "e.g. Shelf B",
+      "name_pending": "New location",
+      "icon": "Icon",
+      "icon_pick": "Icon number :index",
+      "parent_group": "Where",
+      "parent_none": "Top level",
+      "depth": "depth :depth/:max",
+      "depth_note": "At most :max levels. A location cannot be moved inside itself.",
+      "save": "Save",
+      "template": "Start from a template"
+    },
+    "location": {
+      "subtitle": ":path · :products products",
+      "back": "Locations",
+      "add_child": "Add a location inside",
+      "here_group": "Held here",
+      "product_count": ":count products",
+      "children_group": "Locations inside",
+      "location_count": ":count locations",
+      "empty_title": "Nothing here",
+      "empty_description": "This location holds no products yet. Incoming stock can be placed here.",
+      "stock_in": "Add stock here"
     }
   },
   "components": {

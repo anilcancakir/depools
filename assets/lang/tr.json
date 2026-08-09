@@ -816,6 +816,35 @@
       "description_placeholder": "Kısa not",
       "save_and_stock": "Kaydet ve stok gir",
       "save_only": "Sadece kaydet"
+    },
+    "location_form": {
+      "title": "Yeni konum",
+      "subtitle": "Adı ve nerede durduğu",
+      "back": "Konumlar",
+      "identity_group": "Konum",
+      "name": "Ad",
+      "name_placeholder": "Örn: Raf B",
+      "name_pending": "Yeni konum",
+      "icon": "İkon",
+      "icon_pick": ":index numaralı ikon",
+      "parent_group": "Nerede",
+      "parent_none": "Ana konum",
+      "depth": "derinlik :depth/:max",
+      "depth_note": "En fazla :max seviye. Bir konum kendi altına taşınamaz.",
+      "save": "Kaydet",
+      "template": "Hazır şablondan başlat"
+    },
+    "location": {
+      "subtitle": ":path · :products ürün",
+      "back": "Konumlar",
+      "add_child": "Alt konum ekle",
+      "here_group": "Bu konumda",
+      "product_count": ":count ürün",
+      "children_group": "Alt konumlar",
+      "location_count": ":count konum",
+      "empty_title": "Burası boş",
+      "empty_description": "Bu konumda henüz ürün yok. Yeni gelen stok buraya yerleştirilebilir.",
+      "stock_in": "Buraya stok gir"
     }
   },
   "components": {
