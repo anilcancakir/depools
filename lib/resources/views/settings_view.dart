@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show MSPageScaffold, MSSwitch;
+import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSPageScaffold, MSSwitch;
 
 import '../../app/models/app_preferences.dart';
 import '../../ui/components/option_row/option_row.dart';
@@ -50,6 +50,62 @@ class _SettingsViewState extends State<SettingsView> {
         _buildAssistant(),
         _buildStart(),
         _buildPlacement(),
+        _buildInbox(),
+        _buildLinks(),
+      ],
+    );
+  }
+
+  /// The address receipts can be forwarded to.
+  ///
+  /// **A settings section rather than a screen, because there is nothing to do here but read.**
+  /// `iterations.md` puts a unique inbound address per tenant in v1 and nothing in the app showed
+  /// it, so the feature could ship completely invisible. What a user needs is the string and a way
+  /// to copy it exactly, which is one row.
+  ///
+  /// Mono for the address itself: it has to be typed into a mail client's forwarding rule, and a
+  /// proportional face makes a character-by-character check harder. DESIGN.md routes barcodes and
+  /// quantities the same way.
+  Widget _buildInbox() {
+    return SectionCard(
+      label: Lang.get('screens.settings.inbox_group'),
+      children: [
+        WText(Lang.get('screens.settings.inbox_note'), className: 'text-xs text-fg-muted'),
+        // demo-data-start: the tenant's inbound address, minted by the backend per team
+        WText('fis-8f21c4@in.depools.ai', className: 'text-sm font-mono text-fg'),
+        // demo-data-end
+        MSButton(
+          onPressed: () {},
+          intent: ButtonIntent.secondary,
+          className: 'py-3 axis-min',
+          child: WText(Lang.get('screens.settings.inbox_copy')),
+        ),
+      ],
+    );
+  }
+
+  /// The two surfaces that are their own screens.
+  ///
+  /// Settings is where a user looks for anything they can change, so it is where these are found;
+  /// each is a screen of its own because each carries a list and actions rather than one value.
+  Widget _buildLinks() {
+    return SectionCard(
+      label: Lang.get('screens.settings.more_group'),
+      children: [
+        OptionRow(
+          label: Lang.get('screens.settings.link_plan'),
+          description: Lang.get('screens.settings.link_plan_note'),
+          isSelected: false,
+          semanticLabel: Lang.get('screens.settings.link_plan'),
+          onTap: () => MagicRoute.to('/plan'),
+        ),
+        OptionRow(
+          label: Lang.get('screens.settings.link_mcp'),
+          description: Lang.get('screens.settings.link_mcp_note'),
+          isSelected: false,
+          semanticLabel: Lang.get('screens.settings.link_mcp'),
+          onTap: () => MagicRoute.to('/mcp'),
+        ),
       ],
     );
   }

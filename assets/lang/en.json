@@ -787,7 +787,15 @@
       "mode_manual_note": "You always pick the location yourself; nothing is suggested.",
       "mode_suggested_note": "A location is suggested with its reason, and you accept or change it.",
       "mode_auto_note": "A location is assigned without asking. It can be undone and it is written to the history. If your correction rate rises, this drops back to Suggested on its own.",
-      "placement_note": "Who decides where incoming stock goes."
+      "placement_note": "Who decides where incoming stock goes.",
+      "inbox_group": "Receipts by email",
+      "inbox_copy": "Copy the address",
+      "inbox_note": "Forward your receipts or e-archive invoices to this address and they are read automatically, then put to you for confirmation.",
+      "more_group": "More",
+      "link_plan": "Plan and usage",
+      "link_plan_note": "Products, AI credits and how far back history goes",
+      "link_mcp": "Connect your own assistant",
+      "link_mcp_note": "Open your stock records with read-only access"
     },
     "product_form": {
       "title": "New product",
@@ -857,6 +865,46 @@
       "result": ":quantity :unit is recorded as :total :base",
       "save": "Save",
       "cancel": "Continue in :base"
+    },
+    "plan": {
+      "title": "Plan and usage",
+      "subtitle": "What is metered, and what stops at the limit",
+      "back": "Settings",
+      "current_group": "Current plan",
+      "plan_free": "Free",
+      "renewal": "The free plan does not expire. Upgrade whenever you want to.",
+      "usage_group": "Usage",
+      "meter_products": "Products",
+      "meter_products_value": ":used / :limit products",
+      "meter_products_note": "At the limit no new product can be added. Existing products, stock changes and reports keep working.",
+      "meter_credits": "AI credits",
+      "meter_credits_value": ":used / :limit credits",
+      "meter_credits_note": "When they run out, receipt reading, photo recognition and web search stop. The assistant still answers from computed data, and manual entry is unaffected.",
+      "meter_history": "Activity history",
+      "meter_history_value": ":months month",
+      "meter_history_note": "Changes older than this cannot be queried. They are not deleted: upgrading brings them back.",
+      "seats_group": "People",
+      "seats_unlimited": "Unlimited",
+      "seats_note": "Team members are not metered. Adding someone costs nothing on any plan.",
+      "upgrade": "Upgrade plan",
+      "compare": "Compare plans"
+    },
+    "mcp": {
+      "title": "Connect your own assistant",
+      "subtitle": "Open your stock records to your own AI",
+      "back": "Settings",
+      "scope_title": "Read only",
+      "scope_description": "A connected program can read stock, locations and dates. It cannot add, change or delete anything.",
+      "address_group": "Connection address",
+      "copy": "Copy",
+      "address_note": "This address belongs to your team alone. Do not share it.",
+      "clients_group": "Connected programs",
+      "client_count": ":count programs",
+      "last_used": "Last used: :when",
+      "revoke_one": "Remove the :client connection",
+      "revoke_all": "Remove every connection",
+      "empty_title": "Nothing connected yet",
+      "empty_description": "Add the address to your own assistant and authorise it, and it will be listed here."
     }
   },
   "components": {

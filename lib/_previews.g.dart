@@ -22,6 +22,8 @@ import 'preview/location_index_filtered_screen.preview.dart';
 import 'preview/location_index_screen.preview.dart';
 import 'preview/location_show_screen.preview.dart';
 import 'preview/login_screen.preview.dart';
+import 'preview/mcp_access_screen.preview.dart';
+import 'preview/plan_screen.preview.dart';
 import 'preview/product_draft_screen.preview.dart';
 import 'preview/product_draft_settled_screen.preview.dart';
 import 'preview/product_form_screen.preview.dart';
@@ -65,6 +67,7 @@ import 'ui/components/option_row/option_row.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
 import 'ui/components/quantity_stepper/quantity_stepper.preview.dart';
+import 'ui/components/quota_meter/quota_meter.preview.dart';
 import 'ui/components/receipt_line_row/receipt_line_row.preview.dart';
 import 'ui/components/scan_row/scan_row.preview.dart';
 import 'ui/components/section_card/section_card.preview.dart';
@@ -250,6 +253,11 @@ List<PreviewEntry> previewEntries() {
       builder: (_) => const LotRowPreview(),
     ),
     PreviewEntry(
+      label: 'McpAccessScreen',
+      slug: 'mcp_access_screen',
+      builder: (_) => const McpAccessScreenPreview(),
+    ),
+    PreviewEntry(
       label: 'MovementRow',
       slug: 'movement_row',
       builder: (_) => const MovementRowPreview(),
@@ -258,6 +266,11 @@ List<PreviewEntry> previewEntries() {
       label: 'OptionRow',
       slug: 'option_row',
       builder: (_) => const OptionRowPreview(),
+    ),
+    PreviewEntry(
+      label: 'PlanScreen',
+      slug: 'plan_screen',
+      builder: (_) => const PlanScreenPreview(),
     ),
     PreviewEntry(
       label: 'ProductDraftScreen',
@@ -323,6 +336,11 @@ List<PreviewEntry> previewEntries() {
       label: 'QuantityStepper',
       slug: 'quantity_stepper',
       builder: (_) => const QuantityStepperPreview(),
+    ),
+    PreviewEntry(
+      label: 'QuotaMeter',
+      slug: 'quota_meter',
+      builder: (_) => const QuotaMeterPreview(),
     ),
     PreviewEntry(
       label: 'ReceiptLineRow',

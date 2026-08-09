@@ -7,6 +7,8 @@ import '../resources/views/dashboard_view.dart';
 import '../resources/views/locations/location_form_view.dart';
 import '../resources/views/locations/location_index_view.dart';
 import '../resources/views/locations/location_show_view.dart';
+import '../resources/views/mcp_access_view.dart';
+import '../resources/views/plan_view.dart';
 import '../resources/views/settings_view.dart';
 import '../resources/views/products/assistant_view.dart';
 import '../resources/views/products/barcode_scan_view.dart';
@@ -120,6 +122,12 @@ void registerAppRoutes() {
       // This app's own settings, distinct from the account settings `magic_starter` owns. It
       // holds the two preferences D66 and D67 created and had nowhere to live.
       MagicRoute.page('/ayarlar', () => const SettingsView()).name('settings');
+
+      // The two v1 surfaces that had no screen at all. Both are reached from settings, which is
+      // where a user looks for anything they can change, and both are screens rather than settings
+      // sections because each carries a list and actions rather than one value.
+      MagicRoute.page('/plan', () => const PlanView()).name('plan');
+      MagicRoute.page('/mcp', () => const McpAccessView()).name('mcp');
     },
   );
 
