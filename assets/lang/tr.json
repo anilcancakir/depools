@@ -455,7 +455,6 @@
       "action_move": "Konum değiştir",
       "action_label": "Etiket bas",
       "action_barcode": "Barkod ekle",
-      "action_edit": "Ürünü düzenle",
       "action_archive": "Arşivle",
       "action_more": "Diğer işlemler",
       "barcodes_group": "Barkodlar",
@@ -485,7 +484,11 @@
       "activity_empty_note": "İlk giriş ya da çıkış aşağıdaki iki butonla kaydedilir. Tüketim tahmini için gereken geçmiş buradan başlar.",
       "stock_out": "Stok çıkar",
       "stock_in": "Stok ekle",
-      "action_labels": "Etiket yazdır"
+      "action_labels": "Etiket yazdır",
+      "archive_title": "Ürün arşivlensin mi?",
+      "archive_description": "Ürün listelerden kalkar. Hareket geçmişi ve stok kayıtları silinmez, ürün istendiğinde geri alınabilir.",
+      "archive_confirm": "Arşivle",
+      "details_group": "Detaylar"
     },
     "assistant": {
       "title": "Asistan",
@@ -709,7 +712,11 @@
       "will_write": ":count hareket yazılacak · eşleşen sayımlar hareket üretmez",
       "finish": "Sayımı bitir",
       "save_variances": ":count farkı kaydet",
-      "continue": "Sayımı sürdür"
+      "continue": "Sayımı sürdür",
+      "commit_title": ":count fark kaydedilsin mi?",
+      "commit_description": "Sayılan miktarlarla kayıt arasındaki :count fark, düzeltme hareketi olarak yazılır. Hareket geçmişi silinemez, yalnızca karşı hareketle düzeltilir.",
+      "commit_description_skipped": "Sayılan miktarlarla kayıt arasındaki :count fark yazılır. Sayılmayan :skipped ürüne dokunulmaz, olduğu gibi kalır.",
+      "commit_confirm": "Kaydet"
     },
     "stock_move": {
       "title": "Stok taşı",
@@ -796,7 +803,18 @@
       "link_plan": "Plan ve kullanım",
       "link_plan_note": "Ürün sayısı, AI kredisi ve geçmiş süresi",
       "link_mcp": "Kendi asistanınıza bağlanın",
-      "link_mcp_note": "Stok kayıtlarınızı yalnızca okuma yetkisiyle açın"
+      "link_mcp_note": "Stok kayıtlarınızı yalnızca okuma yetkisiyle açın",
+      "alerts_group": "Bildirimler",
+      "alerts_at": "Her gün :hour:00",
+      "digest_toggle": "Günlük özet bildirimi",
+      "digest_note": "Günde bir kez, tek bildirim: neyin tarihi yaklaşıyor ve ne azaldı. Dokununca genel bakış açılır.",
+      "alerts_what": "Özette neler yer alsın",
+      "alert_dates": "Tarihi yaklaşanlar",
+      "alert_dates_note": "Her zaman açık. Bu uyarı olmadan özetin bir anlamı kalmaz.",
+      "alert_low": "Azalan stok",
+      "alert_low_note": "Hedef seviyenin altına düşen ürünler.",
+      "alert_count": "Sayım hatırlatması",
+      "alert_count_note": "Uzun süre sayılmayan konumlar için ayda bir hatırlatma."
     },
     "product_form": {
       "title": "Yeni ürün",
@@ -855,7 +873,14 @@
       "location_count": ":count konum",
       "empty_title": "Burası boş",
       "empty_description": "Bu konumda henüz ürün yok. Yeni gelen stok buraya yerleştirilebilir.",
-      "stock_in": "Buraya stok gir"
+      "stock_in": "Buraya stok gir",
+      "manage_group": "Konum",
+      "delete": "Konumu sil",
+      "delete_note": "Bu konum boş, silinebilir.",
+      "delete_blocked": "İçinde ürün ya da alt konum olduğu sürece silinemez. Önce içindekileri başka bir konuma taşıyın.",
+      "delete_title": "\":name\" silinsin mi?",
+      "delete_description": "Konum kalıcı olarak kaldırılır. Geçmiş hareketlerde adı görünmeye devam eder.",
+      "delete_confirm": "Sil"
     },
     "unit_definition": {
       "title": "\":unit\" birimini tanımla",
@@ -905,7 +930,10 @@
       "revoke_one": ":client bağlantısını kaldır",
       "revoke_all": "Tüm bağlantıları kaldır",
       "empty_title": "Henüz bağlı program yok",
-      "empty_description": "Adresi kendi asistanınıza ekleyip yetki verdiğinizde burada listelenir."
+      "empty_description": "Adresi kendi asistanınıza ekleyip yetki verdiğinizde burada listelenir.",
+      "revoke_title": "Tüm bağlantılar kaldırılsın mı?",
+      "revoke_description": "Bağlı her program erişimini kaybeder ve yeniden yetkilendirilmesi gerekir. Bu işlem geri alınamaz.",
+      "revoke_confirm": "Hepsini kaldır"
     }
   },
   "components": {

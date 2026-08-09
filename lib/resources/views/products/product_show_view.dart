@@ -8,9 +8,12 @@ import 'package:magic_starter/magic_starter.dart'
         ButtonIntent,
         ButtonSize,
         MSDropdownMenu,
+        ConfirmDialogVariant,
         MSDropdownMenuItem,
+        MagicStarterConfirmDialog,
         MSEmptyState;
 
+import '../../../ui/components/draft_field/draft_field.dart';
 import '../../../ui/components/expiry_badge/expiry_badge.dart';
 import '../../../ui/components/location_stock_row/location_stock_row.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
@@ -20,6 +23,7 @@ import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/serial_row/serial_row.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
+import 'field_editor_sheet.dart';
 import 'product_fixtures.dart';
 import 'stock_in_sheet.dart';
 import 'stock_move_sheet.dart';
@@ -159,8 +163,24 @@ class ProductShowView extends StatelessWidget {
               label: Lang.get('screens.product.action_labels'),
               onTap: () => MagicRoute.to('/etiket'),
             ),
-            MSDropdownMenuItem(label: Lang.get('screens.product.action_edit'), onTap: () {}),
-            MSDropdownMenuItem(label: Lang.get('screens.product.action_archive'), onTap: () {}),
+            // No `Düzenle` entry. Editing is field by field from the rows below, through
+            // `FieldEditorSheet`, which is the pattern `ai-enrichment.md` already describes and the
+            // draft screen already uses. A second whole-record form would be the same job in two
+            // places and the user would have to learn which one lives where.
+            // **Archiving asks first.** It removes a record that carries history and movements
+            // from every list the user knows, and although it is a soft delete the user has no way
+            // to know that. The dialog says what survives, which is the part that makes the answer
+            // easy rather than the part that makes it scary.
+            MSDropdownMenuItem(
+              label: Lang.get('screens.product.action_archive'),
+              onTap: () => MagicStarterConfirmDialog.show(
+                context,
+                title: Lang.get('screens.product.archive_title'),
+                description: Lang.get('screens.product.archive_description'),
+                confirmLabel: Lang.get('screens.product.archive_confirm'),
+                variant: ConfirmDialogVariant.danger,
+              ),
+            ),
           ],
           child: MSButton(
             // Null on purpose, and NOT disabled: MSDropdownMenu owns the gesture and
@@ -176,6 +196,7 @@ class ProductShowView extends StatelessWidget {
       ],
       children: [
         _buildIdentity(),
+        _buildDetails(context),
         _buildBarcodes(),
         _buildStockSummary(),
         _buildForecast(),
@@ -259,6 +280,66 @@ class ProductShowView extends StatelessWidget {
   /// by the stock-in button below, and "Konumlar" does not, because moving stock is
   /// already in the header. Adding an action to each card for symmetry would be
   /// noise competing with the two that mean something.
+  /// The fields a user changes, each opening the same sheet.
+  ///
+  /// ### This is what replaced a `Düzenle` menu entry
+  ///
+  /// The menu offered `Düzenle` and it went nowhere, because the only form in the app creates a
+  /// product rather than editing one. Anılcan's call was field by field: every row here opens
+  /// `FieldEditorSheet`, which is the pattern `ai-enrichment.md` already describes and the draft
+  /// screen already uses.
+  ///
+  /// What that buys is one interaction instead of two. A whole-record form has to carry save,
+  /// cancel and a dirty state, and it would mean editing works one way on a draft and another way
+  /// on a saved product, with the user left to learn which lives where. Changing a brand costs one
+  /// tap and one sheet either way.
+  ///
+  /// `DraftField` rather than a new row type: a tappable label-and-value that opens a sheet is
+  /// exactly what it is, and its provenance marks simply go unused on a saved product.
+  Widget _buildDetails(BuildContext context) {
+    return SectionCard(
+      label: Lang.get('screens.product.details_group'),
+      children: [
+        DraftField(
+          label: Lang.get('screens.product_form.name'),
+          value: _product.name,
+          onTap: () => FieldEditorSheet.show(
+            context,
+            label: Lang.get('screens.product_form.name'),
+            value: _product.name,
+          ),
+        ),
+        DraftField(
+          label: Lang.get('screens.product_form.brand'),
+          value: _product.brand,
+          onTap: () => FieldEditorSheet.show(
+            context,
+            label: Lang.get('screens.product_form.brand'),
+            value: _product.brand,
+          ),
+        ),
+        DraftField(
+          label: Lang.get('screens.product_form.sku'),
+          value: _product.sku,
+          onTap: () => FieldEditorSheet.show(
+            context,
+            label: Lang.get('screens.product_form.sku'),
+            value: _product.sku,
+          ),
+        ),
+        DraftField(
+          label: Lang.get('screens.product_form.category'),
+          value: _product.categoryLabel,
+          onTap: () => FieldEditorSheet.show(
+            context,
+            label: Lang.get('screens.product_form.category'),
+            value: _product.categoryLabel,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBarcodes() {
     return SectionCard(
       label: Lang.get('screens.product.barcodes_group'),

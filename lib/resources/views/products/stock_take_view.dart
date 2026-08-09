@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show MSButton, ButtonIntent;
+import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MagicStarterConfirmDialog;
 
 import '../../../ui/layouts/app_page_scaffold.dart';
 
@@ -95,7 +95,7 @@ class _StockTakeViewState extends State<StockTakeView> {
     return AppPageScaffold(
       title: Lang.get('screens.stock_take.title'),
       subtitle: Lang.get('screens.stock_take.subtitle', {'location': resolveLocationPath(_locationId), 'counted': counted, 'total': lines.length}),
-      footer: _buildCommit(lines, counted, variances),
+      footer: _buildCommit(context, lines, counted, variances),
       children: [_buildLocation(), _buildLines(lines)],
     );
   }
@@ -158,7 +158,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   }
 
   /// What committing will and will not do.
-  Widget _buildCommit(List<CountLine> lines, int counted, List<CountLine> variances) {
+  Widget _buildCommit(BuildContext context, List<CountLine> lines, int counted, List<CountLine> variances) {
     final int skipped = lines.length - counted;
 
     return WDiv(
@@ -178,7 +178,24 @@ class _StockTakeViewState extends State<StockTakeView> {
             className: 'text-xs text-fg-muted',
           ),
         MSButton(
-          onPressed: () {},
+          // **Committing asks first, and the question is the numbers.** This writes correction
+          // movements into an append-only ledger: undoing means writing a counter-movement, so the
+          // mistake stays in the history forever even after it is fixed. The dialog restates what
+          // will be written and, more importantly, what will NOT be: the skipped rows are left
+          // exactly as they were, and that is the part a user cannot see from the list.
+          onPressed: variances.isEmpty
+              ? () {}
+              : () => MagicStarterConfirmDialog.show(
+                  context,
+                  title: Lang.get('screens.stock_take.commit_title', {'count': variances.length}),
+                  description: skipped == 0
+                      ? Lang.get('screens.stock_take.commit_description', {'count': variances.length})
+                      : Lang.get('screens.stock_take.commit_description_skipped', {
+                          'count': variances.length,
+                          'skipped': skipped,
+                        }),
+                  confirmLabel: Lang.get('screens.stock_take.commit_confirm'),
+                ),
           fullWidth: true,
           className: 'justify-center',
           child: WDiv(

@@ -50,8 +50,97 @@ class _SettingsViewState extends State<SettingsView> {
         _buildAssistant(),
         _buildStart(),
         _buildPlacement(),
+        _buildAlerts(),
         _buildInbox(),
         _buildLinks(),
+      ],
+    );
+  }
+
+  /// When and about what the app interrupts the user.
+  ///
+  /// ### One summary, not a stream
+  ///
+  /// Expiry and low-stock alerts are v1 and had no design at all: `magic_notifications` was wired
+  /// and depools' own alert types could be turned on or off nowhere. The shape Anılcan chose is a
+  /// once-a-day summary at an hour the user picks, and the reasoning is about aggregate behaviour
+  /// rather than about any single alert. Per-event notifications are more actionable one at a time
+  /// and unusable at two hundred products: the user mutes the app, and a muted app tells them
+  /// nothing at all.
+  ///
+  /// The hour is a preference because a bakery and a bar do not open at the same time, and a
+  /// summary that arrives after the decision it informs is noise.
+  ///
+  /// The sub-toggles are inside the summary rather than beside it: they choose what the one
+  /// notification talks about, so they are meaningless when it is off and are hidden then.
+  Widget _buildAlerts() {
+    final bool on = _prefs.dailyDigest;
+
+    return SectionCard(
+      label: Lang.get('screens.settings.alerts_group'),
+      count: on
+          ? Lang.get('screens.settings.alerts_at', {'hour': _prefs.digestHour})
+          : Lang.get('screens.settings.assistant_off'),
+      children: [
+        WDiv(
+          className: 'flex flex-row items-start justify-between gap-3 w-full',
+          children: [
+            WDiv(
+              className: 'flex flex-col gap-1 flex-1 min-w-0',
+              children: [
+                WText(
+                  Lang.get('screens.settings.digest_toggle'),
+                  className: 'text-sm font-semibold text-fg',
+                ),
+                WText(
+                  Lang.get('screens.settings.digest_note'),
+                  className: 'text-xs text-fg-muted',
+                ),
+              ],
+            ),
+            WDiv(
+              className: 'shrink-0',
+              child: MSSwitch(
+                value: on,
+                semanticLabel: Lang.get('screens.settings.digest_toggle'),
+                onChanged: (bool next) async {
+                  await _prefs.setDailyDigest(next);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
+          ],
+        ),
+        if (on) ...[
+          WText(Lang.get('screens.settings.alerts_what'), className: 'text-xs text-fg-muted'),
+          OptionRow(
+            label: Lang.get('screens.settings.alert_dates'),
+            description: Lang.get('screens.settings.alert_dates_note'),
+            isSelected: true,
+            semanticLabel: Lang.get('screens.settings.alert_dates'),
+            onTap: () {},
+          ),
+          OptionRow(
+            label: Lang.get('screens.settings.alert_low'),
+            description: Lang.get('screens.settings.alert_low_note'),
+            isSelected: _prefs.lowStockAlert,
+            semanticLabel: Lang.get('screens.settings.alert_low'),
+            onTap: () async {
+              await _prefs.setLowStockAlert(!_prefs.lowStockAlert);
+              if (mounted) setState(() {});
+            },
+          ),
+          OptionRow(
+            label: Lang.get('screens.settings.alert_count'),
+            description: Lang.get('screens.settings.alert_count_note'),
+            isSelected: _prefs.countReminder,
+            semanticLabel: Lang.get('screens.settings.alert_count'),
+            onTap: () async {
+              await _prefs.setCountReminder(!_prefs.countReminder);
+              if (mounted) setState(() {});
+            },
+          ),
+        ],
       ],
     );
   }

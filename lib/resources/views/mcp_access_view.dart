@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSEmptyState;
+import 'package:magic_starter/magic_starter.dart' show ButtonIntent, ConfirmDialogVariant, MSButton, MSEmptyState, MagicStarterConfirmDialog;
 
 import '../../ui/components/callout/callout.dart';
 import '../../ui/components/section_card/section_card.dart';
@@ -51,7 +51,7 @@ class McpAccessView extends StatelessWidget {
       subtitle: Lang.get('screens.mcp.subtitle'),
       backLabel: Lang.get('screens.mcp.back'),
       backFallback: '/ayarlar',
-      footer: _buildFooter(),
+      footer: _buildFooter(context),
       children: [
         _buildScope(),
         _buildAddress(),
@@ -158,9 +158,17 @@ class McpAccessView extends StatelessWidget {
   ///
   /// Destructive intent and pinned, because the moment this is wanted is the moment it must not
   /// require scrolling to find.
-  Widget _buildFooter() {
+  Widget _buildFooter(BuildContext context) {
     return MSButton(
-      onPressed: hasClients ? () {} : null,
+      onPressed: hasClients
+          ? () => MagicStarterConfirmDialog.show(
+              context,
+              title: Lang.get('screens.mcp.revoke_title'),
+              description: Lang.get('screens.mcp.revoke_description'),
+              confirmLabel: Lang.get('screens.mcp.revoke_confirm'),
+              variant: ConfirmDialogVariant.danger,
+            )
+          : null,
       disabled: !hasClients,
       intent: hasClients ? ButtonIntent.destructive : ButtonIntent.secondary,
       fullWidth: true,

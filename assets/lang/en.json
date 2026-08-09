@@ -455,7 +455,6 @@
       "action_move": "Move location",
       "action_label": "Print a label",
       "action_barcode": "Add a barcode",
-      "action_edit": "Edit product",
       "action_archive": "Archive",
       "action_more": "More actions",
       "barcodes_group": "Barcodes",
@@ -485,7 +484,11 @@
       "activity_empty_note": "Record the first stock-in or stock-out with the two buttons below. The history a forecast needs starts here.",
       "stock_out": "Take stock out",
       "stock_in": "Put stock in",
-      "action_labels": "Print labels"
+      "action_labels": "Print labels",
+      "archive_title": "Archive this product?",
+      "archive_description": "It leaves every list. Its movement history and stock records are not deleted, and it can be brought back.",
+      "archive_confirm": "Archive",
+      "details_group": "Details"
     },
     "assistant": {
       "title": "Assistant",
@@ -709,7 +712,11 @@
       "will_write": ":count changes will be written · a matching count writes nothing",
       "finish": "Finish the count",
       "save_variances": "Save :count differences",
-      "continue": "Carry on counting"
+      "continue": "Carry on counting",
+      "commit_title": "Record :count differences?",
+      "commit_description": "The :count differences between what you counted and the record are written as corrections. History cannot be deleted, only corrected with a counter-movement.",
+      "commit_description_skipped": "The :count differences are written. The :skipped products you did not count are left exactly as they are.",
+      "commit_confirm": "Record"
     },
     "stock_move": {
       "title": "Move stock",
@@ -796,7 +803,18 @@
       "link_plan": "Plan and usage",
       "link_plan_note": "Products, AI credits and how far back history goes",
       "link_mcp": "Connect your own assistant",
-      "link_mcp_note": "Open your stock records with read-only access"
+      "link_mcp_note": "Open your stock records with read-only access",
+      "alerts_group": "Notifications",
+      "alerts_at": "Daily at :hour:00",
+      "digest_toggle": "Daily summary",
+      "digest_note": "One notification a day: what is close to its date and what has run low. Tapping it opens the overview.",
+      "alerts_what": "What the summary covers",
+      "alert_dates": "Approaching dates",
+      "alert_dates_note": "Always on. Without it the summary has nothing to say.",
+      "alert_low": "Running low",
+      "alert_low_note": "Products that have fallen below their target level.",
+      "alert_count": "Count reminder",
+      "alert_count_note": "A monthly nudge for locations nobody has counted in a while."
     },
     "product_form": {
       "title": "New product",
@@ -855,7 +873,14 @@
       "location_count": ":count locations",
       "empty_title": "Nothing here",
       "empty_description": "This location holds no products yet. Incoming stock can be placed here.",
-      "stock_in": "Add stock here"
+      "stock_in": "Add stock here",
+      "manage_group": "Location",
+      "delete": "Delete this location",
+      "delete_note": "This location is empty and can be deleted.",
+      "delete_blocked": "It cannot be deleted while it holds products or locations. Move what is inside somewhere else first.",
+      "delete_title": "Delete \":name\"?",
+      "delete_description": "The location is removed for good. Its name still appears in past movements.",
+      "delete_confirm": "Delete"
     },
     "unit_definition": {
       "title": "Define \":unit\"",
@@ -905,7 +930,10 @@
       "revoke_one": "Remove the :client connection",
       "revoke_all": "Remove every connection",
       "empty_title": "Nothing connected yet",
-      "empty_description": "Add the address to your own assistant and authorise it, and it will be listed here."
+      "empty_description": "Add the address to your own assistant and authorise it, and it will be listed here.",
+      "revoke_title": "Remove every connection?",
+      "revoke_description": "Every connected program loses access and has to be authorised again. This cannot be undone.",
+      "revoke_confirm": "Remove all"
     }
   },
   "components": {

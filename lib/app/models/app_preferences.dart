@@ -56,6 +56,10 @@ class AppPreferences extends ChangeNotifier {
   static const String _assistantKey = 'depools.assistant_everywhere';
   static const String _verbKey = 'depools.capture_verb';
   static const String _placementKey = 'depools.placement_automation';
+  static const String _digestKey = 'depools.daily_digest';
+  static const String _digestHourKey = 'depools.daily_digest_hour';
+  static const String _lowStockAlertKey = 'depools.alert_low_stock';
+  static const String _countReminderKey = 'depools.alert_count_reminder';
 
   /// The single instance the shell and the settings screen share.
   static final AppPreferences instance = AppPreferences._();
@@ -65,6 +69,10 @@ class AppPreferences extends ChangeNotifier {
   bool? _assistantEverywhere;
   CaptureVerb? _captureVerb;
   PlacementAutomation? _placementAutomation;
+  bool? _dailyDigest;
+  int? _digestHour;
+  bool? _lowStockAlert;
+  bool? _countReminder;
 
   /// Whether the assistant is reachable from every screen (D67).
   ///
@@ -104,6 +112,67 @@ class AppPreferences extends ChangeNotifier {
     _placementAutomation = value;
     notifyListeners();
     await Cache.put(_placementKey, value.name);
+  }
+
+  /// Whether the once-a-day summary is sent.
+  ///
+  /// ### One notification a day, not one per event
+  ///
+  /// Anılcan's call, and the reasoning is about what survives contact with a real shop. An alert
+  /// the moment each product crosses its threshold is more actionable in isolation and unusable in
+  /// aggregate: a tenant with two hundred products gets a stream, mutes the app, and the feature
+  /// has then made things worse than sending nothing.
+  ///
+  /// A morning summary matches how a cafe actually works (you look before you open) and it is one
+  /// interruption whatever the shop's size. It is also the only shape that serves `product.md`'s
+  /// third success criterion, which is not "the user was told" but "the user came back".
+  ///
+  /// Defaults to ON, because a product whose whole promise is telling you what is about to go wrong
+  /// cannot wait to be asked.
+  bool get dailyDigest => _dailyDigest ??= Cache.get(_digestKey, defaultValue: true) as bool;
+
+  /// The hour the summary is sent, in the tenant's own timezone.
+  ///
+  /// Nine in the morning by default: before a shop opens and after a person is awake. It is a
+  /// preference rather than a constant because a bakery and a bar do not start at the same time,
+  /// and a summary that arrives after the decision it informs is noise.
+  int get digestHour => _digestHour ??= Cache.get(_digestHourKey, defaultValue: 9) as int;
+
+  /// Whether shortages join the summary.
+  bool get lowStockAlert => _lowStockAlert ??= Cache.get(_lowStockAlertKey, defaultValue: true) as bool;
+
+  /// Whether a periodic reminder to count is sent.
+  ///
+  /// Off by default. A count is real work, and prompting for it before the user has decided it is
+  /// part of how they run the place reads as nagging rather than as help.
+  bool get countReminder => _countReminder ??= Cache.get(_countReminderKey, defaultValue: false) as bool;
+
+  /// Turn the daily summary on or off.
+  Future<void> setDailyDigest(bool value) async {
+    _dailyDigest = value;
+    notifyListeners();
+    await Cache.put(_digestKey, value);
+  }
+
+  /// Choose when the summary arrives.
+  Future<void> setDigestHour(int value) async {
+    _digestHour = value;
+    notifyListeners();
+    await Cache.put(_digestHourKey, value);
+  }
+
+  /// Turn shortage lines in the summary on or off.
+  Future<void> setLowStockAlert(bool value) async {
+    _lowStockAlert = value;
+    notifyListeners();
+    await Cache.put(_lowStockAlertKey, value);
+  }
+
+  /// Turn the count reminder on or off.
+  Future<void> setCountReminder(bool value) async {
+    _countReminder = value;
+    notifyListeners();
+    await Cache.put(_countReminderKey, value);
   }
 
   /// Turn the persistent assistant affordance on or off.

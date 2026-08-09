@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSEmptyState;
+import 'package:magic_starter/magic_starter.dart' show ButtonIntent, ConfirmDialogVariant, MSButton, MSEmptyState, MagicStarterConfirmDialog;
 
 import '../../../ui/components/location_row/location_row.dart';
 import '../../../ui/components/product_row/product_row.dart';
@@ -99,6 +99,7 @@ class LocationShowView extends StatelessWidget {
           if (held.isNotEmpty) _buildHeld(held),
           if (children.isNotEmpty) _buildChildren(children),
         ],
+        _buildDelete(context, isEmpty),
       ],
     );
   }
@@ -162,6 +163,54 @@ class LocationShowView extends StatelessWidget {
             title: Lang.get('screens.location.empty_title'),
             description: Lang.get('screens.location.empty_description'),
           ),
+        ),
+      ],
+    );
+  }
+
+  /// Removing the place, which is refused while anything is in it.
+  ///
+  /// ### Why refusal rather than a cascade
+  ///
+  /// Deleting a location that holds stock has no good silent answer. Cascading would destroy stock
+  /// records the ledger is built to never lose; orphaning would leave lots pointing at nothing and
+  /// break invariant 3, which says every movement references a lot belonging to the same location.
+  /// Moving the contents somewhere is a real decision and it is the USER's, not a side effect of
+  /// tapping delete.
+  ///
+  /// So a location that holds anything cannot be deleted, and the screen says what to do instead.
+  /// That is the same shape as rejecting a negative stock movement: the constraint is stated where
+  /// the user is rather than discovered at submit time.
+  ///
+  /// ### Quiet, and at the bottom
+  ///
+  /// This is not the action the screen exists for, so D70's pinning does not apply to it. A
+  /// destructive control next to `Buraya stok gir` would be two competing answers to "what do I do
+  /// on this screen"; at the bottom, in ghost, it is findable and not offered.
+  Widget _buildDelete(BuildContext context, bool isEmpty) {
+    return SectionCard(
+      label: Lang.get('screens.location.manage_group'),
+      children: [
+        WText(
+          isEmpty
+              ? Lang.get('screens.location.delete_note')
+              : Lang.get('screens.location.delete_blocked'),
+          className: 'text-xs text-fg-muted',
+        ),
+        MSButton(
+          onPressed: isEmpty
+              ? () => MagicStarterConfirmDialog.show(
+                  context,
+                  title: Lang.get('screens.location.delete_title', {'name': node.name}),
+                  description: Lang.get('screens.location.delete_description'),
+                  confirmLabel: Lang.get('screens.location.delete_confirm'),
+                  variant: ConfirmDialogVariant.danger,
+                )
+              : null,
+          disabled: !isEmpty,
+          intent: ButtonIntent.ghost,
+          className: 'py-3.5 axis-min',
+          child: WText(Lang.get('screens.location.delete')),
         ),
       ],
     );
