@@ -62,11 +62,47 @@ class AssistantLauncher extends StatefulWidget {
 class _AssistantLauncherState extends State<AssistantLauncher> {
   static const IconData _icon = Icons.auto_awesome_outlined;
 
+  /// Below this many logical pixels of travel, a scroll is a twitch rather than an intent.
+  static const double _threshold = 12;
+
   bool _open = false;
+  bool _visible = true;
+  double _lastOffset = 0;
 
   void _openAssistant() => setState(() => _open = true);
 
   void _close() => setState(() => _open = false);
+
+  /// Hides the button while the user scrolls down, and brings it back on the way up.
+  ///
+  /// **This is what makes the button stop covering things.** It floats over the page, so on a
+  /// phone it sits on top of whatever the last rows happen to be: in one screenshot it landed
+  /// exactly on a `Tüm tarihleri gör` link, which is worse than covering decoration because the
+  /// thing underneath was tappable. The other fix is bottom padding on every page, and this app
+  /// cannot add that from here: the shell owns the scroll.
+  ///
+  /// Hiding on the way down is also Material's own answer (`BottomAppBar.setHideOnScroll`), and
+  /// it reads as intentional rather than as a control that vanished: reading moves down, and the
+  /// gesture that brings it back is the one you already make when you are done reading.
+  ///
+  /// The threshold is what keeps it from flickering. Without it, the one-pixel jitter of a
+  /// momentum scroll settling flips the button on and off.
+  bool _onScroll(ScrollNotification notification) {
+    // Horizontal scrollers (the filter chip rows) bubble up here too and must not move it.
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification is! ScrollUpdateNotification) return false;
+
+    final double offset = notification.metrics.pixels;
+    final double delta = offset - _lastOffset;
+    if (delta.abs() < _threshold) return false;
+    _lastOffset = offset;
+
+    // Never hidden at the very top: a page shorter than the viewport would otherwise be able to
+    // strand the button after an overscroll bounce.
+    final bool next = delta < 0 || offset <= 0;
+    if (next != _visible) setState(() => _visible = next);
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,8 +124,15 @@ class _AssistantLauncherState extends State<AssistantLauncher> {
 
         return Stack(
           children: <Widget>[
-            widget.child,
-            if (!_open) _buildAnchor(context),
+            // The listener wraps the SHELL rather than a page, because the scroll that matters
+            // belongs to the shell: it puts every route inside `flex-1 overflow-y-auto`. Scroll
+            // notifications bubble up the tree, so one listener here covers every screen without
+            // any of them knowing this exists.
+            NotificationListener<ScrollNotification>(
+              onNotification: _onScroll,
+              child: widget.child,
+            ),
+            if (!_open && _visible) _buildAnchor(context),
             if (_open) _buildOverlay(),
           ],
         );
