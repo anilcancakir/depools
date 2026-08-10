@@ -4,6 +4,26 @@ This document is the source of truth for the Depools.ai schema. It defines every
 
 Read `features/inventory-core.md` for the behaviour built on top of this.
 
+> **The schema is now built, and building it corrected this document in nine places.** Each correction
+> is inline below with its decision number, and each came from measurement or from a primary source
+> rather than from a rereading. The ones worth knowing before you read anything else:
+>
+> | This document said | The built schema does | Why |
+> |---|---|---|
+> | `barcodes` unique on `(code, symbology)` | unique on a canonical 14-digit `gtin`, symbology demoted to metadata | GS1's own text: store a GTIN as 14 digits. The pair made one product read three ways into three rows (D85) |
+> | `source` includes `open_food_facts` | it does not, and a CHECK refuses it | ODbL isolation means such a row lives in `off_products` and can never appear there, so the value was unreachable (D87) |
+> | a movement references the receipt | it references the receipt LINE | D51's undo has to reverse one wrong line of twenty-two (D96) |
+> | `product_stock` is "a materialised view or maintained table" | a table maintained by `StockWriter` | Anılcan's call over a trigger, which makes the consistency check mandatory rather than a safety net (D81) |
+> | raw extraction lives on the receipt row | its own table, one row per attempt | fallback means several attempts, and that table is O2's bake-off evidence (D95) |
+> | 7 invariants | 10, and the schema enforces more of them than a test could | D27 and D28 added three |
+>
+> Three tables are also new since this was written: `product_aliases` and `global_product_aliases`
+> (D89, because the promise that confirmations strengthen the cascade had no mechanism) and
+> `ai_credit_grants` (D106, because a credit balance has to be derived for the same reason a stock
+> balance does).
+>
+> The full record is `open-decisions.md`, D72 to D108.
+
 ## The two decisions that shape everything
 
 **1. Stock is a ledger, not a number.**
@@ -161,7 +181,7 @@ The ledger. Append-only. No updates, no deletes. A mistake is corrected by writi
 | `actor_type` | enum | `user`, `assistant`, `mcp_client`, `system` |
 | `actor_id` | uuid, nullable | the user, or null for system |
 | `note` | text, nullable | free text, treated as untrusted input |
-| `reference_type`, `reference_id` | nullable morph | links to the receipt, invoice or shopping list that caused it |
+| `reference_type`, `reference_id` | nullable morph | links to the receipt LINE, invoice or shopping list that caused it. The line rather than the document (D96), so an undo can reverse one wrong line of twenty-two |
 | `idempotency_key` | string(64), nullable, unique per team | protects against double submission |
 | `occurred_at` | timestamp, indexed | when it happened in the real world |
 | `created_at` | timestamp | when we recorded it |
@@ -178,7 +198,7 @@ The ledger. Append-only. No updates, no deletes. A mistake is corrected by writi
 
 `source` values, recording which surface created the movement: `manual`, `receipt`, `invoice`, `barcode`, `photo`, `assistant`, `mcp`, `import`, `shopping_list`.
 
-### product_stock (materialised view or maintained table)
+### product_stock (a table, maintained by `StockWriter`)
 
 Derived current quantity per (product, location). Exists only so list screens and search do not aggregate the ledger on every read.
 
@@ -205,7 +225,7 @@ Three global tables let a barcode scanned by one tenant help the next. They hold
 | `product_category_id` | uuid, nullable | shared taxonomy |
 | `locale` | string(5), indexed | one row per locale |
 | `image_path` | string, nullable | |
-| `source` | enum | `community`, `open_food_facts`, `paid_lookup`, `scraped` |
+| `source` | enum | `community`, `paid_lookup`, `scraped`, `ai_generated`. **Not `open_food_facts`** (D87): ODbL isolation puts those rows in `off_products`, so the value could never be written and an unreachable value in a whitelist is an invitation |
 | `source_ref` | string, nullable | provenance for audit and takedown |
 | `image_phash` | string(32), nullable, indexed | perceptual image hash, image dedup only |
 | `name_hash` | string(32), nullable, indexed | md5 of the normalised name, text cache only |
@@ -220,7 +240,9 @@ Open Food Facts derived rows are held in a **separate table** (`off_products`) r
 
 ### barcodes and product_barcode
 
-`barcodes` is global: `code`, `symbology`, unique on (`code`, `symbology`). `symbology` is not nullable, unlike the MVP where a null and a non-null type produced two rows for the same physical barcode.
+`barcodes` is global, and its identity was corrected while building it (D85). GS1's own recommendation is that a GTIN is always stored as 14 digits, zero-padded, and uniqueness on `(code, symbology)` broke that: one physical product read as UPC-A `012345678905`, as EAN-13 `0012345678905` and from a case label as ITF-14 `10012345678902` became three rows for one yoghurt. The MVP's nullable-symbology bug recorded here was the shallow version of the same problem.
+
+So a GTIN row is keyed on `gtin CHAR(14)` alone and carries no symbology, because the same GTIN is legitimately read as UPC-A on the item and ITF-14 on the case. A non-GTIN row (a Code128 internal label, a QR, a DataMatrix) has no GTIN and is keyed on `(code, symbology)` instead. A CHECK enforces that exactly one regime applies, and each gets its own partial unique index.
 
 `product_barcode` links a tenant's product to a barcode. `global_product_barcode` links a catalog entry to a barcode.
 
@@ -268,3 +290,24 @@ Statements that must hold, each of which deserves a test:
 8. A product has `stock_lots` or `product_serials`, never both. `tracking_mode` decides which, and a product with serials never returns to `lot`.
 9. For a serial-tracked product, quantity equals the count of `product_serials` rows with `released_at IS NULL`, and every movement's `delta` is plus or minus one.
 10. A lot with `opened_at` set resolves its binding date as the earlier of `expires_at` and `opened_at + products.opened_shelf_life_days`.
+
+### What the database enforces, and what still needs a test
+
+Building the schema moved several of these from "deserves a test" to "cannot happen", which is worth
+distinguishing because the two need different work.
+
+**In the database**, as a CHECK or a partial unique index: invariant 7's depth cap; invariant 3 and 4's
+referential half (`restrictOnDelete` on the ledger's product, location and lot, so a force delete cannot
+take history with it); `(team_id, sku)` uniqueness, which this document asked for and which held nowhere
+until PostgreSQL arrived; a barcode's two identity regimes; a receipt's two deduplication regimes; a
+resolved receipt line pointing somewhere; a serial's label printing once; only the first attempt of an AI
+action carrying a charge; and one plan allowance per period.
+
+**Still only a test**, because a CHECK cannot see another table and D84 rules out the trigger that could:
+invariant 1 (the projection equals the ledger's sum, which is why the scheduled consistency check ships
+with the feature rather than after it, per D81), invariant 5 (a transfer's paired rows), invariant 8 (lots
+XOR serials), and the drift guard on `name_normalized` (D88), which catches the one write path a mutator
+cannot cover.
+
+Invariants 8 and 9 were untestable when this was written because `product_serials` did not exist. It does
+now.
