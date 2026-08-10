@@ -48,6 +48,10 @@ final class StockMovement extends Model
         'location_id',
         'stock_lot_id',
         'delta',
+        // What the user actually typed, beside the base-unit `delta` (D90). Without these a delivery
+        // keyed as "2 koli" reads back as "24 adet" on all three surfaces `MovementRow` renders on.
+        'entered_quantity',
+        'entered_unit',
         'reason',
         'source',
         'actor_type',
@@ -61,6 +65,7 @@ final class StockMovement extends Model
     {
         return [
             'delta' => 'decimal:3',
+            'entered_quantity' => 'decimal:3',
             'reason' => MovementReason::class,
             'source' => MovementSource::class,
             'actor_type' => ActorType::class,

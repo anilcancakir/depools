@@ -25,13 +25,42 @@ return new class extends Migration
     {
         Schema::create('stock_movements', function (Blueprint $table): void {
             MigrationHelper::primaryKey($table);
+            // **The tenant cascades and nothing else does** (D80).
+            //
+            // These three shipped as `cascadeOnDelete`, which quietly contradicted invariant 4: a force
+            // delete of a product, a location or a lot took its ledger with it. Enforcing "never
+            // deleted" at the model level while telling the database to cascade leaves every path that
+            // bypasses the model holding the knife, and D19's Filament panel is about to add several.
+            //
+            // `team_id` stays a cascade because that one IS the feature: `legal-and-privacy.md` requires
+            // tenant deletion that actually deletes.
             MigrationHelper::foreignKey($table, 'team_id')->constrained()->cascadeOnDelete();
-            MigrationHelper::foreignKey($table, 'product_id')->constrained()->cascadeOnDelete();
-            MigrationHelper::foreignKey($table, 'location_id')->constrained()->cascadeOnDelete();
-            MigrationHelper::foreignKey($table, 'stock_lot_id')->constrained()->cascadeOnDelete();
+            MigrationHelper::foreignKey($table, 'product_id')->constrained()->restrictOnDelete();
+            MigrationHelper::foreignKey($table, 'location_id')->constrained()->restrictOnDelete();
+
+            // **Nullable, because a serial-tracked product has no lots at all** (D28, invariant 8). Its
+            // quantity is the count of `product_serials` rows still held, so a movement against one
+            // references the unit through the morph below and its `delta` is always plus or minus one.
+            // Shipped as NOT NULL, which would have made the serial path impossible to write.
+            MigrationHelper::foreignKey($table, 'stock_lot_id')->nullable()
+                ->constrained()->restrictOnDelete();
 
             // Positive inbound, negative outbound, in the product's `base_unit`.
             $table->decimal('delta', 12, 3);
+
+            // **What the user actually typed** (D90). `delta` is the base unit and carries all the
+            // arithmetic; these two carry the display.
+            //
+            // Storing `delta` in base units already protects history from SAP's failure, where changing
+            // a conversion factor silently re-derives past quantities. What it does not protect is the
+            // reading: a delivery keyed as "2 koli" shows as "24 adet" forever, and `MovementRow`
+            // renders on three surfaces, so a user who cannot recognise their own entry stops trusting
+            // the one table this product is built on.
+            //
+            // Recorded as text rather than recomputed, so a later factor change cannot alter the
+            // display either.
+            $table->decimal('entered_quantity', 12, 3)->nullable();
+            $table->string('entered_unit', 32)->nullable();
 
             $table->string('reason', 16);
             $table->string('source', 16);

@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D88 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D92 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1458,3 +1458,92 @@ to own, so the check that catches its failure ships with it.
 Rejected: an observer. It handles several fields in one place, and it can be switched off
 (`withoutEvents()`, a seeder), which leaves the column silently empty. A mutator cannot be switched
 off.
+
+### D89. Confirmed receipt aliases are a table, in two layers
+
+`ai-design.md` promised that "every resolution the user confirms strengthens step 1 for next time" and
+named no mechanism. `receipt_lines` holds per-receipt state, so without a table the promise is empty:
+the next receipt runs the whole cascade again and pays for step 3 again.
+
+Measuring the cascade is what made this concrete rather than theoretical. `PNR SUT 1LT` is the case
+trigram cannot solve (D82's measurement: the right product scores 0.233 against a wrong one at 0.333,
+below the 0.3 threshold, so it is not even returned). A confirmed alias turns that from a model call
+into an exact match, permanently, at zero cost.
+
+Two tables:
+
+- `product_aliases(team_id, alias_normalized, product_id, ...)` points at the tenant's own product and
+  works from the second receipt onward.
+- `global_product_aliases(alias_normalized, global_product_id, confirmed_count)` receives only the
+  confirmations that pointed at a SHARED catalog entry, under the same per-tenant opt-in the community
+  catalog uses, and subject to whatever O5's terms settle.
+
+The shared layer is where D11's thesis actually lives. A receipt abbreviation is a property of a
+BRAND and a printer, not of a tenant, so `PNR` means Pınar for everyone in Turkey. That makes it the
+single most shareable thing this product collects, and no global competitor has a reason to collect
+it.
+
+Rejected: tenant-scoped only. It resolves the second receipt for one tenant and leaves every new
+tenant relearning `PNR SUT 1LT` from scratch while paying for step 3, which is handing back the
+advantage D11 exists to build.
+
+### D90. The ledger records the unit the user entered, beside the base quantity
+
+`stock_movements` gains `entered_quantity` and `entered_unit`. `delta` stays in the base unit and all
+balance arithmetic stays on it.
+
+D25 already avoids SAP's failure (a factor change silently re-deriving historical quantities), because
+storing `delta` in base units means history cannot be reinterpreted. What was left unsolved is
+DISPLAY: `inventory-core.md` says display may use whichever unit the user last used, and without a
+record of what was entered, a delivery keyed as "2 koli" shows as "24 adet" forever.
+
+That matters more than it sounds because `MovementRow` renders on three surfaces (a product's history,
+the activity panel, the assistant transcript). A user who does not recognise their own entry stops
+trusting the ledger, and the ledger is the thing this product is built on.
+
+Storing the entered text also means a later factor change cannot corrupt the display either: "2 koli"
+is a recorded fact rather than a division performed at read time.
+
+Cost: two columns, and a test that `entered_quantity × factor` reconciles with `delta` at the moment
+of writing, so a conversion bug is caught where it happens rather than as a balance that drifts.
+
+### D91. Embeddings go through the gateway and do not consume a credit
+
+The embeddings gateway runs redaction and writes its `ai_usage_events` row like every other gateway,
+and it does NOT check the credit balance.
+
+The arithmetic settles it. `gemini-embedding-001` is $0.15 per million input tokens and a product name
+is roughly 20 tokens, so one embedding costs about $0.000003 and embedding a 2,500-SKU tenant's entire
+catalog costs under one cent. Against O2's working assumption of $0.05 to $0.10 per credit, one credit
+is around 20,000 product embeddings. Metering that is accounting for noise.
+
+The stronger reason is behavioural. `monetization.md` promises that at the limit everything existing
+keeps working and only the metered action stops, and D83 already made product creation independent of
+an AI call for exactly that reason. A credit check here would mean a tenant out of credits keeps
+adding products whose embeddings never arrive, so the cascade's second step quietly dies for them and
+receipt resolution degrades at the precise moment they are least able to fix it. The blocked cost
+would be three millionths of a dollar.
+
+Usage is still recorded, so `monetization.md`'s three questions (what does this tenant cost us, is the
+credit price above marginal cost, which feature eats the budget) all stay answerable.
+
+Rejected: skipping the gateway. Redaction lives inside it and product names cross the border, so that
+would leave the one path KVKK most requires auditing unaudited.
+
+### D92. Affinity carries `last_placed_at`, because `updated_at` moves on a decrement too
+
+`location_category_affinity` gets `count`, `updated_at` and a separate `last_placed_at` written only on
+the INCREMENT.
+
+`data-model.md` specified `count` plus `updated_at`, and D9's third fallback is "most recently used
+location". Those two facts together are a bug: a correction decrements the rejected location's count,
+which touches its `updated_at`, so ordering by `updated_at` to find the most recently used location
+points at the place the user just refused. The failure surfaces as a wrong suggestion, which is the
+hardest kind to diagnose because nothing is broken.
+
+One extra column, written in one branch, and the recency signal stays honest.
+
+The floor at zero stays as D9 wrote it. A signed count that goes negative would punish a repeatedly
+rejected location more effectively and would cost the property that makes this model worth having:
+the count IS the explanation shown to the user ("bu çekmecede zaten 3 tane var"), and a negative
+number explains nothing.

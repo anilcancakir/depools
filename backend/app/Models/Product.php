@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
+use App\Models\Concerns\NormalisesName;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,7 @@ final class Product extends Model
     use BelongsToTeam;
     use ConditionallyUsesUuids;
     use HasFactory;
+    use NormalisesName;
     use SoftDeletes;
 
     /** @var list<string> */
