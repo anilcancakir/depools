@@ -287,6 +287,32 @@ each other, so the boundary between the two strokes is never the weak link.
 `bin/verify-design-contrast.py` sweeps the whole luminance range and fails the build below 3:1,
 rather than trusting the arithmetic in this section.
 
+## A measured gap: a control's own boundary in light mode
+
+`MSSwitch` in its off state renders a `#E7E6EC` track with a white thumb. On this palette's white
+card that is **1.21:1** for the control's own edge, and adding the `border` hairline takes it to
+**1.67:1**. WCAG 1.4.11 asks 3:1 for the boundary of a UI component, and unlike `fg-disabled` and
+`border` this one is not exempt: an ENABLED switch is not an inactive component and its edge is not
+a decorative separator.
+
+Dark mode hides it completely, which is why it survived three screens before a light-mode pass
+caught it. Measured with a pixel scan rather than by eye.
+
+The hairline is applied at every call site as the improvement available inside the current token
+set. Closing the rest needs a token this palette does not have: a border at roughly 3:1 against
+both `surface` and `surface-container`, for the edge of an interactive control as opposed to the
+edge of a card. That is a real addition to the token set rather than a bug fix, so it is recorded
+here rather than invented:
+
+| Candidate | Light | Dark | Against white | Against `#1C1C1E` |
+|---|---|---|---|---|
+| `border-color-control` | `#B0B0B5` | `#5A5A5E` | 2.2:1 | 2.4:1 |
+| stronger | `#8E8E93` | `#7C7C80` | 3.1:1 | 3.3:1 |
+
+The second row clears 3:1 on both sides. It is visibly heavier than the card hairline, which is the
+point: a card edge and a control edge are different jobs and this palette currently uses one token
+for both.
+
 ## Verifying a change
 
 1. Edit this file.

@@ -157,9 +157,20 @@ class _ProductFormViewState extends State<ProductFormView> {
                 ),
               ],
             ),
+            // **A hairline, because the fill cannot carry the boundary in both appearances.**
+            // Measured in light mode on a white card: the off track is #E7E6EC and the thumb is
+            // white, so the control's own edge sits at about 1.2:1 against the card and the whole
+            // switch nearly disappears. Dark mode hides this completely, which is why it survived
+            // three screens. WCAG 1.4.11 asks 3:1 for a UI component's boundary.
+            //
+            // The border does not reach 3:1 on its own (`border` is deliberately low contrast and
+            // DESIGN.md records why), but it gives the control an edge that exists in both
+            // appearances rather than one that depends on the fill. The stronger fix is a control
+            // border token, which is a DESIGN.md change and Anılcan's call.
             WDiv(
               className: 'shrink-0',
               child: MSSwitch(
+                className: 'border border-color-border',
                 value: _tracksExpiry,
                 semanticLabel: Lang.get('screens.product_form.tracks_expiry'),
                 onChanged: (bool next) => setState(() => _tracksExpiry = next),
