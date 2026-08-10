@@ -995,3 +995,42 @@ action and the warning does not apply; add a second and it does.
 The same reasoning removed the floating assistant button from on top of that footer. Two viewport-
 anchored controls in the bottom-right is two primary actions, which is what Material objects to, so
 the host measures the footer and lifts the button by its height rather than letting them overlap.
+
+### D71. One render engine, and the hybrid is the Chrome binary path
+
+D18's reversal says the label sheet is rendered on the backend. This decides with what, and the
+constraint that shapes it is that the development machine may have no Docker while the server has it.
+
+**`spatie/browsershot` everywhere.** One Blade template, `->pdf()` for the file and `->screenshot()`
+for the preview. Verified current rather than assumed: 5.4.0 on 2026-05-26, MIT, roughly 38.8 million
+installs. Reversing D18 means adopting the dependency it was written to avoid, so a dead package
+would have made that indefensible.
+
+What differs per environment is the BINARY PATH, not the renderer: Browsershot takes the Chrome and
+Node paths as configuration, so local uses the machine's own Chrome and the server uses the image's.
+The MVP already did this and it is the one piece of its label code worth copying verbatim.
+
+**A driver per environment was considered and rejected.** `spatie/laravel-pdf` would let local run
+Browsershot and the server run Gotenberg, which is genuinely attractive: no Node in the PHP image and
+a simpler Octane memory profile. Both engines even cover both outputs (Gotenberg 8 has
+`/forms/chromium/screenshot/html`, checked). It is still wrong here, because two engines render
+subtly differently and this feature is judged on whether a sticker lands on a die-cut. The thing
+tested locally has to be the thing that prints.
+
+The debt this leaves is stated rather than hidden: Node and Puppeteer must exist on a development
+machine, and Chrome's process lifecycle inside a long-lived Octane worker needs attention.
+
+**Fonts are embedded in the template as base64, and asserted by a test.** Only fonts available to the
+renderer can be used, and a laptop and a container never have the same set. `DESIGN.md` requires
+`latin-ext` for `Ğ ğ İ Ş ş` and records that its absence looks like a fallback glitch rather than a
+missing glyph; on a label that failure is printed onto adhesive paper and stuck to a shelf. Embedding
+makes the bytes identical everywhere and survives a change of engine. The test exists because font
+provisioning fails silently: render a label carrying all five letters, extract the text, assert it
+matches with no tofu. That needs `pdftotext` in CI, which is what makes the guarantee real rather
+than intended.
+
+**Delivery is synchronous, and the preview is cached under a hash of the template plus its data.**
+A sheet is a handful of pages; a queue and a notification for 24 labels is ceremony nobody asked for.
+The cache is what makes a preview affordable, and changing a template or a field produces a new key
+rather than a stale image. The threshold where a job belongs on the queue is real and is not v1's
+problem.

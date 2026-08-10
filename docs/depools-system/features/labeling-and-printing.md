@@ -130,41 +130,91 @@ None. Label generation is local computation.
 - **Millimetre dimensions are the point.** A label sheet that is nearly right is waste, so the
   preview is proportional to the real page rather than a decorative thumbnail.
 
-## Rendering happens on the backend (D18, reversed)
+## Rendering happens on the backend (D18 reversed, D71)
 
-The sheet is an HTML template rendered to PDF by `spatie/laravel-pdf`. The client asks for a sheet,
-gets a file, and shows it; it does not lay labels out.
+One Blade template, rendered by `spatie/browsershot`, producing two artefacts: the PDF that prints
+and a PNG that previews. This is the MVP's shape deliberately, because it is the part of the MVP
+that worked; the parts that did not are named below with what replaces them.
 
-Four things about a Chromium-based renderer are load-bearing here, and each is a real failure mode
-rather than a configuration footnote. Verified against Gotenberg's own conversion documentation,
-which applies equally to the Browsershot and bare-Chrome drivers since all three drive Chromium.
+`spatie/browsershot` is at 5.4.0 (2026-05-26), MIT, roughly 38.8 million installs, and converts the
+same HTML to either output. Verified on Packagist rather than assumed, because reversing D18 means
+adopting the dependency it was written to avoid and a dead package would make that indefensible.
 
-**Exact millimetres need `preferCssPageSize`.** Chromium otherwise uses its own paper size and
-ignores the `@page` rule, so a 38x21 mm label becomes 38x21 mm of a page that is not the page you
-asked for. A sheet that is a fraction off is waste, not a cosmetic problem: the labels miss the
-die-cut. This is the single setting that decides whether the feature works.
+### One engine, and the hybrid is the binary path
 
-**Turkish glyphs need the fonts installed in the render image.** Only fonts present in the container
-are available. `DESIGN.md` is explicit that `Ğ ğ İ Ş ş` live in `latin-ext` and that loading only
-`latin` breaks Turkish text in a way that looks like a fallback glitch rather than a missing glyph.
-On a label that failure is printed onto adhesive paper and stuck to a shelf.
+The development machine may have no Docker and the server has it. That is a real constraint and it
+has an answer that does not fork the renderer: Browsershot takes the Chrome and Node paths as
+configuration, so local uses the machine's own Chrome and the server uses the image's. The MVP
+already did exactly this (`config('app.chrome_path')`), which is the one piece of its label code
+worth copying verbatim.
 
-**Assets must be inlined.** External URLs do not load, so a barcode image and a product photo have
-to be base64 in the HTML. That is a reason to generate the barcode as inline SVG rather than as an
-image the template fetches.
+```
+config/labels.php    chrome_path => env('CHROME_PATH')
+                     node_path   => env('NODE_PATH')
 
-**Chromium prints in `print` media and strips backgrounds.** Anything relying on a background colour
-needs `printBackground` plus `-webkit-print-color-adjust: exact`. For a label this mostly matters for
-a filled status band; black-on-white text is unaffected.
+.env  local          CHROME_PATH=/Applications/Google Chrome.app/.../Google Chrome
+.env  server         CHROME_PATH=/usr/bin/chromium
+```
+
+**A driver per environment was considered and rejected.** `spatie/laravel-pdf` would let local run
+Browsershot and the server run Gotenberg, which is attractive: the PHP image would host no Node and
+Octane's memory profile would be simpler. Both engines even cover both outputs (Gotenberg 8 has
+`/forms/chromium/screenshot/html`, checked). It is still the wrong trade here, because two engines
+render subtly differently and this feature is judged on whether a sticker lands on a die-cut. The
+thing tested locally has to be the thing that prints.
+
+What that leaves us owing: Node and Puppeteer have to exist on a development machine, and Chrome's
+process lifecycle inside a long-lived Octane worker needs attention rather than luck.
+
+### Four Chromium facts that decide whether this works
+
+Each is a failure mode rather than a configuration footnote. Verified against Gotenberg's conversion
+documentation, which applies to any Chromium-driven renderer.
+
+**Exact millimetres.** Chromium ignores the `@page` rule unless told to prefer it, so a 38x21 mm
+label becomes 38x21 mm of a page that is not the page you asked for and the sheet misses the
+die-cut. The MVP sidestepped this by passing `paperSize($width, $height)` with zeroed margins rather
+than relying on CSS, which is the more direct route and the one to keep.
+
+**Turkish glyphs.** Only fonts available to the renderer can be used, and a development machine and
+a container never have the same set. `DESIGN.md` is explicit that `Ğ ğ İ Ş ş` live in `latin-ext` and
+that loading only `latin` fails in a way that looks like a fallback glitch. On a label that failure
+is printed onto adhesive paper.
+
+So the fonts are **embedded in the template as base64 `@font-face`**, not installed in the image:
+the same bytes render everywhere, and the guarantee survives a change of engine. And it is
+**asserted by a test** rather than trusted, because font provisioning fails silently: render a label
+carrying all five letters and assert the extracted text matches with no tofu (`U+25A1`). That needs
+`pdftotext` from poppler-utils in CI, which is the cost of the guarantee being real.
+
+**Assets must be inlined.** External URLs do not load, so a barcode belongs in the HTML as inline
+SVG rather than as an image the template fetches.
+
+**Print media strips backgrounds.** Anything relying on a background colour needs `printBackground`
+and `-webkit-print-color-adjust: exact`. Mostly a filled status band; black-on-white text is
+unaffected.
+
+### Delivery: synchronous file, cached preview
+
+The PDF returns inside the request. On web it opens in a tab, on mobile it goes to the share sheet,
+which is where printing, saving and sending all already live. A sheet is a handful of pages and a
+few seconds; a queue plus a notification for 24 labels is ceremony the user did not ask for.
+
+The preview PNG is cached in storage under a hash of the template plus its data, exactly as the MVP
+did. That is what makes a preview affordable: the same sheet is never rendered twice, and changing a
+template or a field produces a new key rather than a stale image.
+
+The threshold where this stops being right is real and worth naming now: a job large enough to risk
+a request timeout belongs on the queue. It is not v1's problem, and the sync path is what v1 ships.
 
 ### What the app shows in the meantime
 
-The preview is a placeholder image. Drawing an accurate label in Dart would be re-implementing the
-renderer to preview the renderer, which is the duplication that reversing D18 exists to avoid: two
-layouts, drifting. Once the endpoint exists the app shows the server's own render, so the preview and
-the print are the same artefact by construction rather than by care.
+`LabelPreview` draws a placeholder at the page's real proportion. Drawing an accurate sheet in Dart
+would mean re-implementing the renderer in order to preview the renderer, which is the duplication
+that reversing D18 exists to avoid. Once the endpoint exists the app shows the server's own PNG, so
+the preview and the print are the same artefact by construction rather than by care.
 
-This is also why the field chips have no consumer yet. They choose what the TEMPLATE includes, and
+This is also why the field chips have no consumer yet: they choose what the TEMPLATE includes, and
 the template lives on the backend.
 
 ## Open

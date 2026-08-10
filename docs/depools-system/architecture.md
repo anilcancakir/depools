@@ -130,7 +130,7 @@ backend/
 - `laravel/scout` with Meilisearch.
 - `filament/filament` for the operations panel.
 
-`spatie/laravel-pdf` for label sheets, which are rendered from an HTML template on the backend (D18, reversed 2026-08-10). It is driver-based (Browsershot, a bare Chrome binary, Gotenberg, WeasyPrint), so the renderer is configuration rather than a code dependency, which is the same isolation the AI gateways buy. The operational risk D18 originally fled is real; `features/labeling-and-printing.md` names the four specific parts of it and their mitigations.
+`spatie/browsershot` for label sheets, rendered from one Blade template on the backend (D18 reversed, D71). ONE engine everywhere; what differs per environment is the Chrome binary path, not the renderer. `spatie/laravel-pdf`'s driver model was considered and rejected for this: two engines render subtly differently and a label is judged on millimetres, so the thing tested locally has to be the thing that prints. See `features/labeling-and-printing.md`.
 
 ### The gateway pattern
 
