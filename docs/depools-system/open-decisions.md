@@ -715,6 +715,16 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 
 ## Open
 
+> **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
+> were appended below them rather than moved up, which means **D61 through D71 are TAKEN decisions
+> sitting under this heading**. Do not read a `D` number here as an open question.
+>
+> What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
+> price, **O3** whether KVKK cross-border transfer permits the LLM architecture, **O4** whether Turkish
+> senders emit machine-readable order data, **O5** how the community catalog earns contributions,
+> **O6** what the first paid tier costs in TRY, **O7** whether the 2026-07-28 MCP revision lands in v1.
+> Seven, and each carries the assumption we proceed on until it is answered.
+
 ### O1. Which payment provider for Turkey, and how it coexists with Stripe
 
 Stripe is limited for Turkish legal entities. iyzico and PayTR are the candidates. App Store and Play Store in-app purchase is a third rail for mobile subscriptions and Apple's rules may force it.

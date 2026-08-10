@@ -35,24 +35,30 @@ depools/
 
 ## Flutter client
 
+The target shape. Four directories under `app/` do not exist yet, marked below, because the screens
+still render fixtures: they arrive with the controller seam.
+
 ```
 lib/
-├── main.dart
+├── main.dart                  Magic.init, the wind theme, the four token supplements
 ├── app/
-│   ├── controllers/           reactive state per domain (inventory, capture, assistant, ...)
-│   ├── models/                Magic models: Product, Location, StockLot, StockMovement, Receipt
-│   ├── enums/                 MovementReason, MovementSource, PlacementAutomation, CaptureVerb
-│   ├── services/              client-side logic: unit conversion, FEFO selection preview
-│   ├── providers/             service providers, DI registration
-│   └── support/               helpers, extensions
-├── config/                    app, auth, network, routing, view, localization, wind_theme.g.dart
-├── routes/
-├── resources/views/           the app's own screens, plus magic_starter view overrides
+│   ├── commands/              artisan commands, plus the generated _index.g.dart
+│   ├── middleware/            navigation middleware: auth, guest redirect
+│   ├── models/                AppPreferences, ProductFilter, Team, User
+│   ├── providers/             service providers, DI registration, navigation, page geometry
+│   ├── controllers/           NOT YET. Reactive state per domain (inventory, capture, assistant)
+│   ├── enums/                 NOT YET. MovementReason, MovementSource, ...
+│   ├── services/              NOT YET. Unit conversion, FEFO selection preview
+│   └── support/               NOT YET. Helpers, extensions
+├── config/                    app, auth, network, routing, view, localization,
+│                              wind_theme.g.dart, and the four hand-authored token supplements
+├── routes/                    21 routes, Turkish plural paths, literals before parameters
+├── resources/views/           the app's own screens, their fixtures, and magic_starter overrides
 ├── ui/
-│   ├── components/            one directory per component: widget, preview, test
-│   └── layouts/               the app shell's viewport-anchored chrome: the assistant
-│                              launcher and the pinned-footer host
-└── preview/                   component catalog, debug builds only
+│   ├── components/            32 components, one four-file atomic folder each
+│   └── layouts/               viewport-anchored chrome: the assistant launcher and the
+│                              pinned-footer host, mounted OUTSIDE layout.app
+└── preview/                   component and screen catalog, debug builds only
 ```
 
 ### Framework layer
@@ -192,12 +198,16 @@ Commit carries an idempotency key so a double submission, a retried request or a
 
 `DESIGN.md` holds the tokens in YAML frontmatter and the design philosophy in the body. `dart run bin/dispatcher.dart design:sync` generates `lib/config/wind_theme.g.dart`, which is never hand-edited. `bin/design-tokens` fails the build on a hardcoded colour outside `.design-token-allowlist`, and each allowlist entry states its reason.
 
-The design work is the next task after this documentation set, and the feature documents under `features/` are deliberately at summary depth until the mockups settle the interaction decisions.
+`design:sync` emits a FIXED table of 17 aliases and silently drops any other token in the frontmatter, so a family it cannot express lives in a hand-authored supplement merged into the alias map in `lib/main.dart`. There are four: the inventory status vocabulary, paper and ink, the overlay stroke pair, and the control edge. `bin/verify-design-contrast.py` parses all four and checks more pairs than `design:lint` does.
+
+The design work is DONE and the feature documents under `features/` have been grown to match: each now carries a Screens table and a section naming the decisions the mockups produced. `docs/design-culture/` holds external canon only and deliberately states no value of this app's own; `DESIGN.md` and `.claude/rules/design.md` are the authority.
 
 ## Testing
 
 - **Tenant isolation tests come first**, before the feature they protect. Every table carrying `team_id` gets a test proving a second tenant cannot read or write the first tenant's rows.
-- **Ledger invariant tests** for the seven invariants in `data-model.md`.
+- **Ledger invariant tests** for the ten invariants in `data-model.md`. It was seven until D27 and D28
+  added the serial-tracking and opened-lot pair; invariants 8 and 9 are untestable until
+  `product_serials` exists.
 - **Widget tests** per component, alongside the component.
 - **Dusk E2E** for the capture flows, which are the highest-value paths and the ones with the most moving parts.
 - **`bin/check`** runs analyze, test, design tokens and backend tests. Non-zero means not done.

@@ -10,17 +10,24 @@ It closes the loop. A workshop's bin of unmarked brackets cannot be scanned, so 
 
 It is also a paid-tier feature in the category (Sortly gates label creation by tier), which makes it a reasonable thing for a business user to expect.
 
-## v1 scope: A4 sheets, generated client-side
+## v1 scope: A4 sheets, rendered on the backend
 
 Standard label sheets on an ordinary office printer. Multi-up layouts at exact millimetre dimensions.
 
-Generated in Dart with `pdf` plus `barcode_widget`, laid out with precise `PdfPageFormat.mm` dimensions. This is a deliberate change from the MVP, which generated label PDFs server-side with Browsershot and headless Chrome.
+One Blade template rendered by `spatie/browsershot`, producing the PDF that prints and the PNG that previews. The mechanics, the four Chromium facts that decide whether it works, and the one-engine constraint are in "Rendering happens on the backend" below.
 
-Three reasons client-side wins here:
-
-1. **It removes the server Chrome dependency entirely**, which was the MVP's most fragile operational component. Chrome path, Node path and npm path were all environment configuration, and deploys broke on them.
-2. **Fidelity is equal or better.** Vector barcode and text drawing beats rasterising an HTML page.
-3. A label sheet is a deterministic grid with no JavaScript, no webfonts and no dynamic content. It is exactly the case where a headless browser earns nothing.
+> **This section used to argue the opposite, and the argument is kept because its risk is still real.**
+> It proposed generating the sheet in Dart with `pdf` plus `barcode_widget`, for three reasons: it
+> removes the server Chrome dependency, which was the MVP's most fragile operational component and
+> broke deploys on a Chrome, Node or npm path; vector drawing beats rasterising an HTML page; and a
+> label sheet is a deterministic grid with no JavaScript, where a headless browser earns nothing.
+>
+> D18's reversal accepts every one of those costs and rejects the conclusion, because the alternative
+> was not free. Rendering the same sheet twice, once in Dart for the preview and once for the file,
+> means two layouts that drift; the printable artefact is a PDF whatever produces it; and a Dart-drawn
+> grid has to re-implement text fitting, barcode symbology and page geometry that an HTML renderer
+> already does. What the reversal owes in exchange is named rather than waved away: exact millimetres,
+> Turkish glyphs, inlined assets and print backgrounds, each below with its mitigation.
 
 The label size and page catalog is ported from the MVP's `config/labels.php`, which is genuinely good: 17 label sizes, 5 page sizes, and multi-up sheet definitions like `a4_8_up_105x70`.
 
@@ -108,7 +115,11 @@ None. Label generation is local computation.
 
 1. A sheet of 8 labels at 105x70mm prints at correct physical dimensions on a real A4 printer, measured with a ruler.
 2. Generated barcodes scan successfully with our own scanner and with a third-party scanner app.
-3. No server-side Chrome, Node or Browsershot dependency exists anywhere in the label path.
+3. The Chrome and Node paths are configuration rather than literals, so the same code renders against a
+   laptop's own Chrome and a container's. **This criterion was reversed:** it used to forbid a
+   server-side Chrome, Node or Browsershot dependency anywhere in the label path, which D18's reversal
+   adopted deliberately. What replaces the prohibition is the constraint that made it attractive, which
+   is that no environment may need a different renderer.
 4. The flow presents three decisions with no sequential gate: any of them is reachable at any moment, so there is no step to have a back path from. This supersedes the original "three steps, each with a back path" wording; see D42 for why the stronger form is the one to test.
 5. A partially printed batch is resumable.
 6. An internally generated barcode cannot be confused with a manufacturer EAN-13.

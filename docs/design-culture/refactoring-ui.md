@@ -6,6 +6,10 @@ not options to choose.
 
 Source: "Refactoring UI" (Wathan and Schoger) adapted to Flutter/Wind/Magic idioms.
 
+> **This file names craft, never values or components.** For a hex, a radius, a type step or a
+> component name, `DESIGN.md`, `docs/component-registry.md` and `.claude/rules/design.md` are the
+> authority. The examples below use role names and generic widgets on purpose.
+
 ## Hierarchy (the highest-leverage skill)
 
 Not all elements are equal. Give every screen one clear primary action; demote the rest. Build a
@@ -26,15 +30,6 @@ a weak signal.
 ### Applying hierarchy with Wind tokens
 
 ```dart
-// Primary action: high contrast, filled
-Button(variant: ButtonVariant.primary, child: Text('Save changes'))
-
-// Secondary: outlined or ghost
-Button(variant: ButtonVariant.secondary, child: Text('Cancel'))
-
-// Destructive: reserve bg-destructive
-Button(variant: ButtonVariant.destructive, child: Text('Delete account'))
-
 // Primary body text
 WText('Your profile has been updated.', className: 'text-fg text-base')
 
@@ -42,13 +37,22 @@ WText('Your profile has been updated.', className: 'text-fg text-base')
 WText('Changes take effect immediately.', className: 'text-fg-muted text-sm')
 ```
 
+For actions, the hierarchy is one filled primary per view, a quieter secondary, and a link-shaped
+tertiary. The button component and its intent axis come from `docs/component-registry.md` and
+`magic_starter`; reserve the destructive intent for genuinely destructive actions.
+
+**Do not express "unavailable" by disabling a control and leaving it at that.** Measured in this
+theme: a disabled button in the primary intent is visually indistinguishable from a live one, so a
+disabled control invites a fight the user cannot win and gives no feedback when they try. Either
+remove the control or put the blocking reason where it would have been.
+
 ## Anti-AI-slop tells
 
 The following patterns are how generated or rushed UI gives itself away. Avoid all of them.
 
 - **Purple-on-gray everything**: primary color leaked onto every surface. Reserve `bg-primary`
   for the one primary action per view. Everything else is neutral.
-- **All text the same size and weight**: no hierarchy. Use `Typography` variants; vary weight
+- **All text the same size and weight**: no hierarchy. Use the declared type steps, and vary weight
   before varying size.
 - **Cards with too much padding and no content**: a card that is mostly whitespace with one short
   line of text. Cards need meaningful content density.
@@ -62,8 +66,11 @@ The following patterns are how generated or rushed UI gives itself away. Avoid a
   `Semantics(label: ...)` wrapper or a visible label.
 - **Shadows on everything**: depth without meaning. Reserve `shadow-sm` for cards/inputs,
   `shadow-md` for dropdowns, `shadow-lg` for modals. Do not stack.
-- **Flat gray on gray**: a form input on a surface that is the same `bg-surface` color. Use
-  `bg-surface-container-high` for input backgrounds to give the minimal contrast needed.
+- **Flat gray on gray**: a form input indistinguishable from the surface it sits on. It needs its own
+  tone or its own edge. WHICH depends on the palette and is not a free choice: measured here, the
+  input tone on a white card is DARKER than the card, which is the universal look of a disabled
+  control, so an enabled field on a card takes card tone plus a border instead. Elevation direction
+  inverts between appearances, so check both. `.claude/rules/design.md` carries the measurement.
 
 ## Spacing and layout
 
@@ -73,8 +80,8 @@ The following patterns are how generated or rushed UI gives itself away. Avoid a
 - Use the Wind 4px logical scale only: `p-1`(4px) `p-2`(8px) `p-3`(12px) `p-4`(16px)
   `p-6`(24px) `p-8`(32px) `p-12`(48px) `p-16`(64px). If a value is not on the scale, snap to
   the nearest step; never invent an arbitrary offset.
-- Do not fill available width. Constrain text columns via a `ConstrainedBox` with
-  `maxWidth: 600` (equivalent to `max-w-prose`). Use `PageContainer` for page shells. See
+- Do not fill available width. Constrain a text column with a `ConstrainedBox` (`max-w-prose` is the
+  token equivalent). Page-level width is the shell's job and is set once, not per screen; see
   [wind-responsive.md](wind-responsive.md).
 - Dense data UIs (tables, dashboards) use a compressed scale (drop one or two steps), not a
   different arbitrary set.
@@ -101,9 +108,9 @@ WDiv(
 
 ## Typography
 
-- Use `Typography` component variants rather than raw `text-*` sizes. The variants are calibrated
-  to a modular scale from the DESIGN.md font definitions.
-- The DESIGN.md font (Inter by default) is authoritative. Do not add a second typeface per-component.
+- Use the type scale from `DESIGN.md` rather than picking a `text-*` size at the call site.
+- `DESIGN.md`'s font choice is authoritative. Do not add a typeface per component; if the design
+  declares a second family for a specific job (a monospace for figures, say), use it only for that job.
 - Weight: `font-normal` (400) for body, `font-medium` (500) for UI labels, `font-semibold` (600)
   for headings and primary actions. Never below 400 for body or small text.
 - Line-height is inverse to size: body `leading-relaxed` (1.5-1.6), UI components `leading-tight`
@@ -136,47 +143,41 @@ WDiv(
   `bg-surface-container`), a subtle shadow, or extra spacing before reaching for
   `border-color-border`.
 - Add finishing touches:
-  - Accent borders: a colored left strip on cards or alerts (`border-l-2 border-primary`).
-  - Designed empty states: icon + title + one clear CTA. Never ship a bare "No results".
-  - Designed loading states: `Skeleton` component matching the real layout shape. Do not
-    show a spinner where structure is known.
+  - Accent borders: a coloured strip on a card or alert, where the design allows one.
+  - Designed empty states: icon, title, one clear action. Never ship a bare "No results". And
+    distinguish "caught up" from "not started": both render as zero and they are different situations,
+    the second being a first-run user deciding whether the setup is worth their afternoon.
+  - Designed loading states matching the real layout shape. Do not show a spinner where the structure
+    is known, and do not use a generic bar: **the placeholder is the row's own shadow**, the same
+    component with the same geometry, so it cannot drift and the list does not jump when content
+    lands. A stack of equal bars under a list of thumbnails and figures says nothing about what is
+    arriving.
 
-### Empty state example
-
-```dart
-EmptyState(
-  icon: Icons.notifications_none,
-  title: 'No notifications yet',
-  description: 'You will see updates here when activity happens.',
-  action: Button(
-    variant: ButtonVariant.secondary,
-    child: Text('Refresh'),
-    onPressed: controller.refresh,
-  ),
-)
-```
+The empty-state component is in `magic_starter`; `docs/component-registry.md` names it.
 
 ## How to apply in this codebase
 
-- Hierarchy: use `Typography` variants + `font-semibold` and `text-fg` vs `text-fg-muted` for
-  contrast tiers. Reserve `bg-primary` for the single primary action per view; secondary actions
-  use Button `secondary` or `ghost` variant.
+- Hierarchy: the type step from `DESIGN.md`, plus `font-semibold` and `text-fg` against
+  `text-fg-muted` for contrast tiers. Reserve `bg-primary` for the single primary action per view.
 - Spacing: use the 4px Wind scale (`gap-4`/`p-4`/`gap-6`) and keep inside < between < section.
-  Wrap text columns in a `ConstrainedBox`; use `PageContainer` for page shells.
-- Color: consume the 17 semantic tokens from DESIGN.md. On a colored surface use the matching
-  `on-*` token; never use `text-fg-muted` on a filled background.
-- Depth: `rounded-lg` for cards/dialogs, `rounded-md` for buttons. Prefer
-  `border-color-border` only where a contrast shift will not do.
-- Polish: build the mockup with realistic data first. Always design the empty and loading state
-  of any list or async surface.
+  Wrap a text column in a `ConstrainedBox`; leave page width to the shell.
+- Colour: consume the semantic roles. On a coloured surface use the matching `on-*` token; never
+  `text-fg-muted` on a filled background. Never let colour carry meaning alone, and that includes
+  selection state, not only status.
+- Depth: take the radius from `DESIGN.md` and subtract the padding for anything nested. Prefer a
+  surface-contrast shift or spacing before reaching for a border.
+- Polish: build the mockup with realistic data first, at the hardest case rather than the happy one.
+  Always design the empty and loading state of any list or async surface, and see both appearances
+  before calling it done.
 
 ## See also
 
-- [DESIGN.md](../DESIGN.md): token definitions, typography scale, spacing scale
+- [DESIGN.md](../DESIGN.md): this app's own token values, type scale, spacing scale and material rules
+- [.claude/rules/design.md](../../.claude/rules/design.md): the measured anti-patterns, each with what it cost
 - [accessibility-wcag.md](accessibility-wcag.md): contrast requirements
 - [material-design-3.md](material-design-3.md): M3 role-to-token mapping
-- [wind-responsive.md](wind-responsive.md): layout patterns and PageContainer
-- [motion-interaction.md](motion-interaction.md): loading states, skeleton, transition patterns
+- [wind-responsive.md](wind-responsive.md): breakpoints and page geometry
+- [motion-interaction.md](motion-interaction.md): loading states, skeletons, transition patterns
 
 ## Sources
 

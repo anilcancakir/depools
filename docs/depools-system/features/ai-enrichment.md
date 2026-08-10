@@ -77,12 +77,18 @@ land. A list that stops at four looks finished at four.
 that no credit was spent, and both ways forward are offered. The MVP stored the upload before
 validating extraction, so a failure left a file with nothing pointing at it.
 
-**Known weakness, recorded rather than hacked around.** The region outlines use
-`border-color-border`, a deliberately low-contrast hairline that will vanish over a white shelf
-label. The badge carries the annotation for now because it is `bg-primary` and strong.
-`border-bg-primary` was tried and dropped silently, since wind's alias expander matches a whole
-token against a key and there is no such key. The real fix is a fixed high-contrast overlay
-border, listed in DESIGN.md under the tokens this palette still needs.
+**The region outlines are a PAIR of strokes, and that was the fix for a real weakness** (D65). They
+used `border-color-border`, a deliberately low-contrast hairline that vanishes over a white shelf
+label, and `border-bg-primary` could not rescue it: wind's alias expander matches a whole token
+against a key, so that one drops silently.
+
+A single stroke cannot escape the problem, because the right value depends on the photograph. A pair
+can, and the escape is arithmetic: contrast to a light stroke and to a dark one move in opposite
+directions, so the better of the two is worst exactly where they cross. `border-color-overlay-ink`
+outside and `border-color-overlay-paper` inside cross at 3.91:1, which is a floor over every
+background that can ever exist behind them, and `bin/verify-design-contrast.py` sweeps the whole
+luminance range rather than trusting that arithmetic. `ShelfPhotoView` and `BarcodeScanView` both
+use them.
 
 ## Editing a field
 

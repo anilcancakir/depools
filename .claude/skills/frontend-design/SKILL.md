@@ -60,33 +60,30 @@ Defer to `DESIGN.md`'s `spacing` section and the Wind utility scale. The project
 | gutter | 16px | `px-4` | Horizontal content margin (narrow screens) |
 | section | 32px | `py-8` | Stacked section separation |
 
-Do not use arbitrary pixel values (`p-[13px]`); stay on the 4px scale. For semantic spacing tokens, use the alias keys from `depools/DESIGN.md`.
+Do not use arbitrary pixel values (`p-[13px]`); stay on the 4px scale. For semantic spacing tokens, use the alias keys from `DESIGN.md`.
 
 ### Type Scale
 
-Typography is **Inter** (the authoritative font from `DESIGN.md`). Use the `Typography` component or Wind text utilities matching the DESIGN.md scale. All sizes are logical pixels.
+`DESIGN.md`'s `typography` block is the scale. Read the sizes there; the Wind text utility is how you spell one, not where the number comes from.
 
-| DESIGN.md token | Wind approx | Role |
-|----------------|-------------|------|
-| `label-sm` | `text-xs` | Captions, meta, timestamps |
-| `body-md` | `text-sm` | Default body text |
-| `body-lg` | `text-base` | Emphasized body |
-| `title-lg` | `text-lg` | Card/section titles |
-| `headline-md` | `text-xl` | Subheadings |
-| `headline-lg` | `text-2xl` | Screen titles |
-| `display` | `text-3xl` | Hero/display text |
+The steps, by role: `display`, `headline-lg`, `headline-md`, `title-lg`, `body-lg`, `body-md`, `label-md`, `label-sm`, and `metric`.
 
-Line-height and letter-spacing from DESIGN.md apply; they are already encoded in the `Typography` component recipe.
+Two things about this scale that a generic mapping gets wrong:
 
-**Font selection for this project**: Inter is the authoritative app font per `DESIGN.md`. The generic fork's "never Inter/Roboto/system-ui" rule does NOT apply here. DESIGN.md typography is always authoritative over general font guidance.
+- **It follows iOS, not a web ladder.** Body is 17px rather than 16, because that is the iOS default and it is what makes the app feel native. So do not reach for the Wind step whose name sounds closest; check the pixel value.
+- **`title-lg` and `body-lg` are the SAME size and differ only in weight**, which is exactly how iOS separates Headline from Body. A size match alone does not tell you which step you are looking at.
+
+**Two families, with different jobs.** Inter for everything, and `metric` is Geist Mono for quantities, prices and barcodes, so a column of figures lines up by construction. `font-mono` is reached for deliberately on those; everything else inherits Inter. The generic "never Inter" rule does not apply here: `DESIGN.md` records why one neo-grotesque family plus a mono for figures is the right pairing for this product.
 
 ### Shadow and Elevation
 
-Wind does not support CSS `box-shadow` or `filter` utilities (part of the ~72 unsupported CSS families). Express depth through:
+Wind DOES parse `shadow`, `shadow-sm`, `shadow-md`, `shadow-lg`, `shadow-xl`, `shadow-2xl` and `shadow-none` (`shadow_parser.dart`). What it does not support is the CSS `filter` and `backdrop-filter` families.
 
-- Background tonal shifts: `bg-surface` -> `bg-surface-container` -> `bg-surface-container-high`
-- Subtle border lines: `border border-color-border`
-- Use the `WindRecipe` `shadow-sm`/`shadow-md` tokens only if the consumer WindThemeData has them aliased; otherwise rely on tonal backgrounds.
+So the constraint here is a DESIGN choice rather than a parser limit, and `DESIGN.md` states it: express depth through tonal surfaces, and reserve a shadow for something that genuinely floats.
+
+- Tonal shift first: `bg-surface` -> `bg-surface-container` -> `bg-surface-container-high`. **Read the direction off `DESIGN.md`** rather than assuming light-to-lighter; this palette's page is darker than its cards in light mode, and getting the direction backwards is a defect that has already shipped here once.
+- A hairline where a tonal shift will not do: `border border-color-border`.
+- `shadow-sm` for a genuinely floating element, `shadow-md` for a dropdown, `shadow-lg` for a modal. Never stacked, and never on a card that is already distinguished by its fill.
 
 For elevation semantics, see [docs/design-culture/material-design-3.md](../../docs/design-culture/material-design-3.md).
 
@@ -113,14 +110,16 @@ Every element sits at one of three levels:
 
 ### Button Hierarchy
 
-| Level | Wind recipe | Rule |
-|-------|-------------|------|
-| Primary | `Button(intent: ButtonIntent.primary)` | One per section maximum |
-| Secondary | `Button(intent: ButtonIntent.secondary)` | Clear but not competing |
-| Ghost | `Button(intent: ButtonIntent.ghost)` | Discoverable, unobtrusive |
-| Destructive | `Button(intent: ButtonIntent.destructive)` | Only on destructive actions |
+| Level | Intent | Rule |
+|-------|--------|------|
+| Primary | `MSButton(intent: ButtonIntent.primary)` | One per section maximum |
+| Secondary | `MSButton(intent: ButtonIntent.secondary)` | Clear but not competing |
+| Ghost | `MSButton(intent: ButtonIntent.ghost)` | Discoverable, unobtrusive |
+| Destructive | `MSButton(intent: ButtonIntent.destructive)` | Only on destructive actions |
 
-Destructive actions do not have to be big/red/bold on all screens. On regular content pages where delete is secondary, use ghost or secondary styling. Reserve full destructive styling for confirmation dialogs.
+Destructive actions do not have to be big, red and bold on every screen. Where delete is a secondary action on a content page, use ghost or secondary styling and reserve the full destructive treatment for the confirmation.
+
+**Two measured facts about this button that change how you use it.** Its `disabled` state produces no visible change in the primary intent, so a disabled primary button is indistinguishable from a live one: remove the control, or put the blocking reason where it would have been, rather than greying it out. And `min-h-11` is the wrong way to reach a 44pt target on it, because it grows the box without re-centring the label; use padding, and check the arithmetic against the button's own size. `.claude/rules/design.md` carries both.
 
 ---
 
@@ -146,13 +145,17 @@ All color decisions go through semantic alias tokens defined in `DESIGN.md`. Nev
 | `bg-destructive` / `text-on-destructive` | Danger action / on-danger text | |
 | `bg-success` / `bg-warning` | Status tones | |
 
-For arbitrary-hex aliases generated by `design:sync`, Wind expands them as arbitrary-value utilities: `bg-[#7C3AED] dark:bg-[#8B5CF6]`.
+`design:sync` writes each alias as an arbitrary-value pair (`bg-[#RRGGBB] dark:bg-[#RRGGBB]`) into `lib/config/wind_theme.g.dart`. Read the values there or in `DESIGN.md`; never quote one from memory.
+
+Beyond the canonical table, this app hand-authors four token supplements that `design:sync` cannot emit, merged into the alias map in `lib/main.dart`: the inventory status vocabulary, paper and ink, the overlay stroke pair, and the control edge. `DESIGN.md` documents each and why it is a supplement rather than frontmatter.
 
 ### Dark/Light Parity
 
-Every Wind className that carries a color token MUST include its `dark:` counterpart. This is enforced by the alias system: each alias key expands to a light+dark pair (e.g. `bg-surface` -> `bg-white dark:bg-[#030712]`). Never set a background or text color without a `dark:` override.
+The alias system carries the pair: each key already expands to light plus dark, so write the alias alone and never add a `dark:` beside it. Never set a colour without going through an alias.
 
-Use the `/preview` catalog and the `component-visual-reviewer` subagent to verify dark/light parity before shipping.
+**Three token families hold the SAME hex on both sides of `dark:`, on purpose.** Paper and ink render a picture of paper, and the overlay strokes sit over a photograph; neither is a surface the app controls, and a printed sheet is white at two in the morning. So "light and dark differ" is the rule for everything else and NOT a defect signal for those. `DESIGN.md` records it as D44 and D65.
+
+A screen is not verified until it has been seen in light AND dark. The two appearances are not brightness variants of each other: elevation direction inverts, so a pair that is correct in one can be actively wrong in the other. Use the `/preview` catalog and the `component-visual-reviewer` subagent.
 
 ### Accessibility
 
@@ -167,7 +170,7 @@ Never rely on color alone for meaning. Add icons, text, or patterns alongside co
 
 ## TYPOGRAPHY
 
-Inter is the project font (see `DESIGN.md` typography section). Use the `Typography` component for all text rendering rather than raw `WText` with ad-hoc sizes.
+Inter for text and Geist Mono for figures (see `DESIGN.md`'s `typography` block, and the `metric` step). Render with `WText` carrying the Wind size and weight that match a declared step, never an ad-hoc size picked at the call site.
 
 ### Line-Height and Spacing
 
@@ -344,7 +347,7 @@ Lead with code, not explanation.
 
 | Topic | File |
 |-------|------|
-| DESIGN.md (token source) | `depools/DESIGN.md` |
+| DESIGN.md (token source) | `DESIGN.md` |
 | Visual hierarchy | `docs/design-culture/refactoring-ui.md` |
 | Color system + contrast | `docs/design-culture/accessibility-wcag.md` |
 | Mobile patterns + safe areas | `docs/design-culture/wind-responsive.md` |

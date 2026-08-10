@@ -106,7 +106,9 @@ product, so the reason distinguishes them; in a cross-product feed twelve rows r
 One rule: the primary line carries whatever separates this row from its neighbours.
 
 ## What is not designed yet
-- **Undo.** The ledger is append-only, so an undo is a compensating movement rather than a delete. Whether the sheet offers one immediately after a commit, and for how long, is open.
+
+Undo used to head this list, asking whether the sheet offers one immediately after a commit and for how long. Both halves are settled above: it is a compensating movement (D51), and there is **no time window** at all, because validity is a question about ledger state rather than about a clock (D52).
+
 - **Bulk entry.** A receipt scan produces many lines at once and cannot go through a sheet per line. That belongs to `receipt-ingestion.md` and it is why these two sheets stay single-product.
 - **Everything behind a dead action.** Eleven controls across the two screens are still `onPressed: () {}`: barcode scan and product-create in the list header, "Elle gir" in the empty state, and "Konum değiştir" and "Etiket bas" in the detail header. Each is a screen that does not exist yet rather than a bug.
 

@@ -27,7 +27,7 @@ maximum 3 rounds; stop if no improvement across a full round
 
 ## PHASE 1: DESIGN
 
-Read `depools/DESIGN.md` before touching any code.
+Read `DESIGN.md` before touching any code.
 
 Decide:
 1. Which semantic tokens govern this screen (background, text, interactive elements).
@@ -85,7 +85,7 @@ Compose the screen from library components. Rules:
 - Use components from the `lib/ui/components/` library (see `docs/component-registry.md`). Do not write one-off inline widgets when a library component fits.
 - Token discipline: `bg-surface`, `text-fg`, `border-color-border`, etc. Never `Colors.grey.shade200`.
 - Layout: `WDiv` with `flex-col` or `flex-row`; Wind breakpoint prefixes for responsive behavior.
-- Interactive elements: `Button`, `Input`, `Checkbox`, `Switch` from the component library; not raw `WButton`/`WInput` unless the component library explicitly wraps them.
+- Interactive elements come from `magic_starter` (`MSButton`, `MSInput`, `MSCheckbox`, `MSSwitch` and the rest of its 37), not from raw `WButton`/`WInput`. `docs/component-registry.md` lists them and names what this app owns on top. Two traps `.claude/rules/design.md` records: a starter control whose shape is carried by a fill needs an explicit `className` edge, and a raw `WInput` needs an `Overlay` ancestor and throws from the preview harness.
 
 ---
 
@@ -132,10 +132,10 @@ Capture screenshots for both modes:
 Invoke the `component-visual-reviewer` subagent:
 
 ```
-Agent({subagent_type: "ac:component-visual-reviewer"}) with:
+Agent({subagent_type: "component-visual-reviewer"}) with:
   - screenshot_light: /tmp/<screen>-light.jpg
   - screenshot_dark: /tmp/<screen>-dark.jpg
-  - design_md: depools/DESIGN.md
+  - design_md: DESIGN.md
   - component: <ScreenName>
 ```
 
@@ -148,15 +148,17 @@ The reviewer returns:
 
 Address each blocking delta:
 - Token violation: replace the non-token value with the correct semantic alias.
-- Missing dark counterpart: add `dark:` class to the alias (or check that `design:sync` generated the alias correctly).
-- Wrong component: swap to the correct library component.
+- Missing dark counterpart: check that the alias resolved at all. A whole token is matched against a key, so `border-bg-primary` finds nothing and the border silently vanishes; `text-accent` drops the same way because `design:sync` emits only `bg-accent`. Neither produces a warning.
+- Wrong component: swap to the one `docs/component-registry.md` names.
 
 After fixing, regenerate if needed:
 
 ```sh
 dart run bin/dispatcher.dart previews:refresh
-./bin/fsa reload
+./bin/fsa hot-restart
 ```
+
+**`hot-restart`, not `reload`.** On a Chrome web run `./bin/fsa reload` reports success and applies nothing, so the next screenshot shows the old build and the fix looks like it failed.
 
 ### VERIFY
 
@@ -191,14 +193,15 @@ Re-screenshot and re-analyze. Repeat the cycle.
 | `dart run bin/dispatcher.dart design:lint` | DESIGN | Validate DESIGN.md |
 | `./bin/fsa start --device=chrome` | PREVIEW | Boot app for dusk interaction |
 | `./bin/fsa dusk:navigate --route=/preview` | PREVIEW | Open preview catalog |
-| `./bin/fsa dusk:screenshot -o <file>` | SCREENSHOT | Capture current app state |
-| `./bin/fsa reload` | FIX | Hot reload after changes |
+| `./bin/fsa dusk:screenshot -o <file>` | SCREENSHOT | Capture current app state (viewport only; resize tall to see a whole screen) |
+| `./bin/fsa dusk:resize --width=W --height=H` | SCREENSHOT | Needs `--cdp-port` on `start` or it silently does nothing |
+| `./bin/fsa hot-restart` | FIX | Apply changes. `reload` does nothing on a web run |
 
 ---
 
 ## REFERENCES
 
-- `depools/DESIGN.md` token source
+- `DESIGN.md` token source
 - `docs/component-registry.md` component inventory
 - `.claude/skills/frontend-design/SKILL.md` token/color/type/spacing guidance
 - `.claude/skills/make-component/SKILL.md` component scaffold detail

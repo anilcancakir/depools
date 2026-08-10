@@ -11,7 +11,7 @@ Written 2026-08-05 from nine research passes plus a full read of the abandoned M
 | [product.md](product.md) | Who it is for, what it does, what it deliberately does not do |
 | [market.md](market.md) | Competitors with verified pricing, where the opening is, go to market |
 | [open-decisions.md](open-decisions.md) | every decision with the reason behind it, and the questions still open with the assumption we proceed on. 70 and counting, so the file is append-only and a superseded decision is annotated in place rather than deleted (see D34, which D70 half-corrects) |
-| [data-model.md](data-model.md) | The ledger, lots, tenancy, every table, 7 invariants |
+| [data-model.md](data-model.md) | The ledger, lots, tenancy, every table, 10 invariants |
 | [architecture.md](architecture.md) | Repository shape, Flutter and Laravel layers, the gateway pattern |
 | [ai-design.md](ai-design.md) | What the model does and does not do, gateways, approval, cost control |
 | [monetization.md](monetization.md) | The meter, plan shape, behaviour at the limit, payment providers |
@@ -45,8 +45,10 @@ These were written at summary depth on purpose, to be grown once the design mock
 - **Decisions carry their reason.** A decision without a reason gets relitigated in three months.
 - **Open questions carry an assumption.** So an unanswered question still leaves a recorded default rather than a fresh guess at implementation time.
 
-## What comes next
+## Where this stands
 
-1. `DESIGN.md` and the design mockups. This is the next task and it will settle the interaction questions the feature documents leave open.
-2. Grow the feature documents with those decisions.
-3. `/ac:plan` per feature, then `/ac:execute`.
+Done: `DESIGN.md` and the design mockups, which settled the interaction questions these documents left open; the feature documents grown to match, each with a Screens table and a "what the design settled" section; every screen routed inside the shell it will live in.
+
+**The app is still fixture-driven.** 21 routes, 46 screen previews and 32 components render from 11 fixture files, with zero `Http` calls in `lib/`. The backend has 5 of roughly 20 tables and none of `app/Ai/`, `app/Mcp/`, or the Catalog, Capture, Forecasting and Placement services.
+
+So what comes next is the fixture-to-API seam, feature by feature: `/ac:plan`, then `/ac:execute`, then `bin/check` and a dusk walk at both widths.

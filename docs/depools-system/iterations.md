@@ -50,9 +50,14 @@ The v1 test: a cafe owner who has never used inventory software can get their st
 
 ### Labels
 
-- A4 multi-label sheet generation client-side in Dart, at exact millimetre dimensions.
+- A4 multi-label sheets rendered on the BACKEND from one Blade template through `spatie/browsershot`,
+  producing the PDF that prints and the PNG that previews (D18 reversed, D71). One engine everywhere;
+  what differs per environment is the Chrome binary path, not the renderer.
+- Fonts embedded in the template as base64, asserted by a test, because `Ğ ğ İ Ş ş` failing looks like
+  a fallback glitch rather than a missing glyph and on a label it is printed onto adhesive paper.
 - Label size and page catalog ported from the MVP's `config/labels.php`, which is genuinely reusable.
-- Three-step wizard, not eight.
+- One screen with three sections, not a wizard (D42). No sequential gate, so every decision is
+  reachable at every moment and there is no step to be stuck on.
 
 ### MCP
 

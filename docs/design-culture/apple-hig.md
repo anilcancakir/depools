@@ -4,6 +4,12 @@ Read this before building a screen that should feel native on Apple platforms. I
 pick the language, then apply the rules. The guidance below is adapted from HIG principles to
 Flutter/Wind/Magic idioms.
 
+> **This file names roles, never values.** It states what HIG asks for; it does not state what this
+> app's tokens, components or breakpoints are. For a hex, a radius, a type size or a component name,
+> `DESIGN.md` and `docs/component-registry.md` are the authority, and `.claude/rules/design.md`
+> carries how they are applied here. Every value this file used to quote was the starter's and had
+> gone stale.
+
 ## When to choose this language
 
 Choose Apple HIG when:
@@ -26,28 +32,29 @@ Avoid it when:
 
 ## Layout and spacing rules
 
-- Every interactive element needs a minimum 44x44 logical-px hit target. On Flutter this means
-  `InkWell`, `GestureDetector`, or `WButton` with `min-h-11 min-w-11` in the className. Pad
-  invisibly rather than shrink the control.
+- Every interactive element needs a minimum 44x44 logical-px hit target. Pad invisibly rather than
+  shrink the control. HOW to reach 44 depends on the control: `.claude/rules/design.md` records
+  which technique is correct for which one here, and measured that the obvious one is off centre on
+  a button.
 - Use generous whitespace. Wind spacing follows the 4px logical scale; prefer `p-4`/`p-6`/`gap-4`
   and resist `p-2` on content areas.
-- On narrow (mobile) widths use `p-4` (16px) screen-edge margins; on tablet/desktop widths use `p-5`
-  (20px) or the layout shell's `md:px-5`. Do not reuse one margin across all breakpoints.
+- Screen-edge margins widen with the viewport rather than staying constant. Do not reuse one margin
+  across all breakpoints; `DESIGN.md`'s Layout section carries this app's pair.
 - Reflow vertically at narrow widths rather than truncate.
-- Derive nested corner radii concentrically: inner radius = parent radius minus padding. In Wind
-  terms: a card with `rounded-lg` (16px) around content with 12px padding gets `rounded-md` (12px)
-  on a nested control, not an arbitrary value.
+- Derive nested corner radii concentrically: **inner radius = outer radius minus padding.** The
+  arithmetic is subtraction, so a card whose padding equals its own radius gets a much smaller inner
+  radius, not the next step down. `DESIGN.md` works an example on this app's own scale. A flat
+  radius repeated on every layer is the generic-app tell.
 
-In `AppLayout`, the `sm:` and `md:` breakpoint prefixes (`sm:flex-row`, `md:hidden`) handle the
-compact-to-regular reflow. See [wind-responsive.md](wind-responsive.md) for the full breakpoint map.
+See [wind-responsive.md](wind-responsive.md) for the breakpoint map and which prefix the shell
+actually switches on.
 
 ## Typography
 
-- Let type carry hierarchy: bolder, left-aligned section headings. Keep one font family; the
-  DESIGN.md typography font is authoritative (Inter by default in magic_example).
-- Use the Typography component variants rather than arbitrary sizes:
-  `headline-lg` for page titles, `title-lg` for section heads, `body-lg`/`body-md` for content,
-  `label-md`/`label-sm` for interactive labels and captions.
+- Let type carry hierarchy: bolder, left-aligned section headings. **Keep one font family.**
+  `DESIGN.md` decides which, and whether a second family earns an exception for a specific job.
+- Use the type scale rather than arbitrary sizes. The scale, its steps and their names live in
+  `DESIGN.md`; do not invent a size at the call site.
 - Body weight 400, headings and interactive labels weight 600-700. Never below 400 for small text.
 - Left-align body text; never center multi-line prose.
 
@@ -62,17 +69,20 @@ compact-to-regular reflow. See [wind-responsive.md](wind-responsive.md) for the 
   - Secondary text: `text-fg-muted`
   - Hairlines: `border-color-border`
 
-  The 17 semantic alias keys are defined in `DESIGN.md` and applied as wind aliases. Dark-mode
-  pairs are bundled in each token: `bg-surface` resolves to `bg-[#FFFFFF] dark:bg-[#030712]`
-  automatically.
+  Those are ROLE names. Each alias already expands to a light and dark pair, so write the alias on
+  its own and never add a `dark:` beside it. The hex behind each role, and the token families this
+  app adds beyond the canonical set, are in `DESIGN.md`.
 
-- Tint, do not repaint: apply `bg-primary` to primary actions only. Keep chrome neutral
-  (`bg-surface-container`, `text-fg`).
-- In dark mode, elevation goes lighter (surface-container is lighter than surface). Never use
-  pure black; the `surface` dark token is `#030712`, an elevated dark gray.
-- Reserve translucency for the navigation layer only. In Flutter, approximate a glass nav bar
-  with `BackdropFilter` + a semi-transparent surface. Never glass-on-glass, never glass in the
-  content layer.
+- Tint, do not repaint: apply `bg-primary` to primary actions only, one per view. Keep chrome
+  neutral (`bg-surface-container`, `text-fg`).
+- In dark mode, elevation goes lighter: `surface-container` sits above `surface`. **The direction
+  inverts between appearances**, which is why no fill token can mean "pressable" in both and a
+  border has to carry it; `.claude/rules/design.md` records the measurement. Whether this app's
+  darkest surface is pure black or an elevated grey is `DESIGN.md`'s call, not HIG's, and it has
+  reasons either way.
+- Reserve translucency for the navigation layer only, and only if the design uses it at all. A
+  palette built on tonal surfaces does not need glass, and `DESIGN.md` says whether this one wants
+  it. Never glass-on-glass, never glass in the content layer.
 
 ## Motion (Apple-specific feel)
 
@@ -84,18 +94,20 @@ Apple-specific feel:
   triggering button's area, not from a random edge).
 - Use spring-based or ease-out curves; keep micro-interactions under 300ms.
 - Animate state transitions that communicate hierarchy, not frequent interactions.
-- Wrap non-essential animations with `motion-safe:` in Wind className, or guard with
-  `MediaQuery.of(context).disableAnimations` in Flutter widget code.
+- Guard non-essential animation behind `MediaQuery.of(context).disableAnimations`. Do this in Dart:
+  wind has no `motion-safe:` prefix, and an unknown prefix drops the whole class silently
+  (`wind_parser.dart`), so a className that looks like it respects Reduce Motion does nothing at all.
 
 ## Accessibility
 
 - Contrast: 4.5:1 for normal text, 3:1 for large text and UI components, in BOTH light and dark.
-  `design:lint` enforces 4.5:1 on every `on-X`/`X` role pair. See
-  [accessibility-wcag.md](accessibility-wcag.md).
-- Support text scaling: never hardcode font sizes for primary content. The Typography component
-  uses logical px; Flutter's `textScaleFactor` respects the OS setting automatically.
+  `design:lint` checks the `on-X`/`X` role pairs; this app additionally runs
+  `bin/verify-design-contrast.py`, which covers text on every surface and every accent used as
+  text. See [accessibility-wcag.md](accessibility-wcag.md).
+- Support text scaling: never hardcode font sizes for primary content. Flutter's text scale respects
+  the OS setting as long as sizes come from the scale rather than from a literal.
 - Respect Reduce Motion: substitute a crossfade or opacity fade, do not delete animations.
-  Use `MediaQuery.of(context).disableAnimations` or the `motion-safe:` Wind prefix.
+  Use `MediaQuery.of(context).disableAnimations` in Dart.
 - Never use color as the only signal. Pair every color-only state with an icon or text label.
 - Provide `Semantics` labels on icon-only controls:
   ```dart
@@ -111,19 +123,23 @@ dense cramped layouts.
 
 ## How to apply in this codebase
 
-1. Map the type scale to `Typography` component variants; Inter is the default app font.
+1. Take the type scale from `DESIGN.md` and the component from `docs/component-registry.md`. Do not
+   invent either at the call site.
 2. Use semantic tokens exclusively in wind `className`: `bg-surface text-fg`,
    `bg-primary text-on-primary`, `border-color-border`.
-3. Dark mode is automatic: each token carries its `dark:` pair. Verify both themes pass contrast.
-4. Honor 44px targets: Button `md`/`lg` already clear it; keep custom controls at `min-h-11`.
-5. Keep radii concentric: `rounded-lg` (16px) outer card -> `rounded-md` (12px) nested controls.
+3. Dark mode is not optional: each token carries its `dark:` pair, and a screen is not verified
+   until it has been seen in BOTH. The two appearances are not brightness variants of each other.
+4. Honor 44px targets, using the technique `.claude/rules/design.md` names for that control.
+5. Keep radii concentric: subtract the padding from the outer radius. Do not repeat one radius down
+   the layers.
 6. Reserve `bg-destructive` for genuinely destructive actions, matching Apple's reserved-red rule.
 
 ## See also
 
-- [DESIGN.md](../DESIGN.md): the 17 semantic token definitions and color values for this app
-- [wind-responsive.md](wind-responsive.md): breakpoints, PageContainer, safe-area, sidebar vs bottom nav
-- [accessibility-wcag.md](accessibility-wcag.md): contrast requirements and design:lint enforcement
+- [DESIGN.md](../DESIGN.md): this app's own token values, type scale, radii and material rules
+- [.claude/rules/design.md](../../.claude/rules/design.md): how they are applied, and the measured anti-patterns
+- [wind-responsive.md](wind-responsive.md): breakpoints, safe-area, sidebar vs bottom nav
+- [accessibility-wcag.md](accessibility-wcag.md): contrast requirements and what enforces them
 - [motion-interaction.md](motion-interaction.md): easing, duration, and reduced-motion patterns in Flutter
 - [material-design-3.md](material-design-3.md): M3 alternative when Material feel is preferred
 

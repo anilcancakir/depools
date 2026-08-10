@@ -30,12 +30,12 @@ The lifecycle is: **DESIGN -> SCAFFOLD -> PREVIEW -> VERIFY**.
 
 Before scaffolding, decide:
 
-- **Component name** (PascalCase, no prefix): `Button`, `Card`, `Badge`, etc.
+- **Component name** (PascalCase, no prefix). A component belongs in THIS app only when it encodes something a generic library could not: a lot with an expiry, a count line with a variance, a location with a depth. `MSButton`, `MSCard` and `MSBadge` already exist in `magic_starter`; check `docs/component-registry.md` before naming anything.
 - **Variant axes** (intent, size, tone, shape, etc.) and their values.
 - **Slots** (if the component composes named child regions: `trigger`, `panel`, `header`, `footer`).
 - **Token bindings**: which semantic alias keys (`bg-primary`, `text-fg`, `border-color-border`, etc.) map to which visual role.
 
-Consult `depools/DESIGN.md` for the authoritative token set. Consult `docs/component-registry.md` to avoid duplicating an existing component.
+Consult `DESIGN.md` for the authoritative token set. Consult `docs/component-registry.md` to avoid duplicating an existing component.
 
 ---
 
@@ -85,7 +85,7 @@ If the component is not listed, run `previews:refresh` again and hot-reload:
 
 ```sh
 dart run bin/dispatcher.dart previews:refresh
-./bin/fsa reload
+./bin/fsa hot-restart
 ```
 
 ---
@@ -111,10 +111,10 @@ Both files must be non-empty and visually distinct (dark != light).
 Invoke the `component-visual-reviewer` subagent to score the screenshot pair against `DESIGN.md` tokens:
 
 ```
-Agent({subagent_type: "ac:component-visual-reviewer"}) with:
+Agent({subagent_type: "component-visual-reviewer"}) with:
   - screenshot_light: /tmp/<name>-light.jpg
   - screenshot_dark: /tmp/<name>-dark.jpg
-  - design_md: depools/DESIGN.md
+  - design_md: DESIGN.md
   - component: <Name>
 ```
 
@@ -137,7 +137,9 @@ Example WindRecipe shape:
 
 ```dart
 final buttonRecipe = WindRecipe(
-  base: 'inline-flex items-center justify-center font-semibold rounded-md transition-colors',
+  // No `transition-colors`: wind's transition parser accepts only `duration-*` and `ease-*`,
+  // so a named transition family is an unrecognised token and is dropped.
+  base: 'flex flex-row items-center justify-center font-semibold rounded-md',
   variants: {
     'intent': {
       'primary': 'bg-primary text-on-primary',
@@ -185,7 +187,7 @@ Never weaken existing assertions to make them pass.
 
 ## REFERENCES
 
-- `depools/DESIGN.md` token source
+- `DESIGN.md` token source
 - `docs/component-registry.md` component inventory and anti-patterns
 - `.claude/skills/frontend-design/SKILL.md` token/color/type guidance
 - `.claude/skills/design-first-workflow/SKILL.md` end-to-end loop for composing screens
