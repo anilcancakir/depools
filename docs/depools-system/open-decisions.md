@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D79 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D88 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1279,6 +1279,14 @@ Two things follow from choosing the service, and they are obligations rather tha
 
 ### D82. Normalisation folds every diacritic, including ı to i
 
+> **The MECHANISM here was superseded by D84 the same day.** The fold and its reasoning stand
+> unchanged; what changed is where it runs. This decision specified a generated column calling
+> an IMMUTABLE `unaccent` wrapper, and D84 removed database-side computation entirely, so the
+> fold is `Str::lower(Str::ascii($name))` in PHP, written by a mutator and guarded by a test
+> (D88). The `unaccent` extension is no longer installed. The PostgreSQL gotcha described at the
+> end of this decision is therefore no longer live, and is kept because it is the reason the
+> mechanism could not simply be moved.
+
 `name_normalized` is `lower()` plus `unaccent()`: `ı→i`, `ş→s`, `ğ→g`, `ü→u`, `ö→o`, `ç→c`. Indexed
 with `pg_trgm` and used for the resolution cascade's first step.
 
@@ -1322,3 +1330,131 @@ memory.
 Rejected: a separate `embedding_status` enum plus `embedded_at`. It makes a permanent failure legible,
 and `name_embedding IS NULL` already answers most of the same question without a second state machine
 to keep honest.
+
+### D84. No database functions, no stored procedures, no generated columns
+
+Computation lives in Laravel. PostgreSQL stores, indexes and constrains; it does not calculate.
+Anılcan's constraint, and it arrived after a `depools_normalize(text)` wrapper had already shipped,
+so this decision is also the record of removing one.
+
+The reasoning it overrides was real and is worth keeping visible, because it is what the constraint
+trades away. A generated column CANNOT disagree with the column it derives from: `name_normalized`
+computed by the database is correct by construction, whichever code path wrote `name`. A wrapper
+function was the only way to get there, because both generated columns and index expressions require
+IMMUTABLE and `unaccent()` does not promise it.
+
+What the constraint buys is smaller and easier to reason about, and it is not nothing:
+
+- The `unaccent` extension is no longer needed at all. Postgres indexes a value PHP already wrote, so
+  only `vector` and `pg_trgm` remain, and the schema has zero application-owned functions (verified:
+  the 149 functions in `public` are all extension-owned, 118 from vector and 31 from pg_trgm).
+- No IMMUTABLE promise to break. The wrapper's honest cost was that changing the transliteration
+  rules silently invalidates every index built on it, fixable only by REINDEX and warned about by
+  nothing.
+- One language holds the logic, so a normalisation rule is read, tested and changed in one place.
+
+What it costs is drift, and the cost is paid where the value is written rather than argued away here.
+See D88.
+
+Consequence for the rest of the schema, stated once so it is not re-decided per table: a derived
+value is either written by PHP with a guard, or not stored at all and computed at the boundary. There
+is no third option now, and "add a trigger" is not available as a fix later.
+
+### D85. GTIN-14 is the canonical barcode identity; symbology is metadata
+
+`barcodes.gtin` is `CHAR(14)`, left-padded with zeros, and unique. `symbology` records how the code
+was READ and is no longer part of the identity.
+
+The shipped schema had it wrong, and GS1's own text says so: *"GS1 recommends that GTIN is always
+stored as a 14-digit number in the data bases. Shorter formats should be filled in with leading
+zeroes up to 14 characters."* GS1 Canada repeats it. With uniqueness on `(code, symbology)`, one
+physical product read as UPC-A `012345678905`, as EAN-13 `0012345678905` and from a case label as
+ITF-14 `10012345678902` becomes three rows and catalogues the same yoghurt three times.
+`data-model.md` had recorded the shallow version of this bug (the MVP's nullable symbology produced
+two rows); the deep version is that the pair was the identity at all.
+
+`CHAR(14)` and never an integer, because leading zeros are significant: storing `0614141999996` as a
+number drops one and the lookup fails against the padded form a scanner returns.
+
+Fourteen rather than thirteen for a product reason as well as a standards one: D25's `koli` is a real
+purchase unit, so a delivery arrives with ITF-14 case labels, and a 13-digit field cannot hold the
+indicator digit that makes a case code a case code.
+
+**Non-GTIN codes are first-class, not an afterthought.** A Code128 internal label (which
+`labeling-and-printing.md` requires so an internal code can never be mistaken for a manufacturer
+EAN-13), a QR and a DataMatrix have no GTIN. Those rows carry `gtin = NULL` and are identified by
+`(code, symbology)` instead. PostgreSQL's partial unique indexes let both identity regimes live in
+one table cleanly, which is a second thing the SQLite suite could not have expressed (D72).
+
+### D86. Open Food Facts normalises to 13 digits, so the bridge is a PHP value object
+
+OFF's own reference documents rules that CONFLICT with GS1: barcodes of 7 digits or fewer are padded
+to 8, barcodes of 9 to 12 digits are padded to 13, 8-digit codes stay at 8, and EAN-14 is not
+addressed. So OFF's canonical form is 13 (or 8) where ours is 14, and a naive join between
+`off_products` and `barcodes` silently misses.
+
+`off_products` is our table, so it is keyed on GTIN-14 like everything else and every internal join
+stays in one format. The conversion is a PHP value object called only at the OFF boundary, since D84
+rules out doing it in the database.
+
+**OFF's own code is stored as `source_ref`, and that is provenance rather than a derived mirror.**
+`legal-and-privacy.md` already requires per-row provenance so a takedown can be executed precisely,
+and for an OFF row the natural pointer back to the origin IS its OFF code. One column answers both
+needs, and nothing derived is duplicated.
+
+Rejected: a second indexed `off_code` column. It is a stored derived value, so it carries exactly the
+drift risk D88 is about, and here the alternative is free because the conversion is deterministic.
+
+### D87. `product_categories` keeps our own key and Google's as a stable foreign one
+
+`uuid` primary key like every other table, plus `google_id INTEGER NULL UNIQUE` as the external key,
+plus `name_tr` and `name_en`, plus a materialised `path` and `depth`.
+
+The taxonomy file was downloaded and measured rather than assumed: `taxonomy-with-ids.tr-TR.txt`
+returns HTTP 200 at 579 KB, holds **5,596 nodes** in the shape `5608 - Bavullar ve Çantalar >
+Alışveriş Çantaları`, and nests **7 levels** deep. The Turkish translations are real and idiomatic
+(`Bebek Devam Sütleri`, `Anne Sütü Depolama Kapları`), which was the thing most worth checking.
+
+Two facts from the file changed the design. Its first line is
+`# Google_Product_Taxonomy_Version: 2021-09-21`, so the taxonomy has been **frozen since September
+2021**: no churn to absorb, and a seed that will not shift underneath us. And the sources are
+consistent that when Google renames a node the numeric ID keeps resolving while the text path stops,
+so **the ID is the stable key and the path is only a label.**
+
+`google_id` is nullable because two legitimate kinds of row do not have one: a tenant's own category
+(`data-model.md` allows those, carrying a `team_id`) and anything mapped in from OFF.
+
+Rejected: using Google's numeric ID as the primary key. It is the most direct mapping and it would
+make this the only table in the schema not keyed by uuid, and an exception to a uniform rule is
+exactly what gets forgotten. It also cannot key the tenant and OFF rows at all.
+
+Rejected: a separate translations table. Correct normalisation, and v1 has two locales, so it buys a
+join on every category read in exchange for flexibility whose payoff has no date on it.
+
+### D88. `name_normalized` is written by a mutator and guarded by a test
+
+The column is written by an attribute mutator on `name`, so the two values are set in one assignment
+and `create`, `update`, `fill` and `firstOrCreate` are all covered without anyone remembering.
+
+The fold is `Str::lower(Str::ascii($name))`, chosen by measurement rather than by reputation:
+
+| | Result for `Pınar Süt 1 LT — ÇĞİİŞÖÜ çğıişöü` |
+|---|---|
+| `Str::ascii()` | `Pinar Sut 1 LT - CGIISOU cgiisou` — all six Turkish diacritics folded |
+| `Transliterator` (intl) | identical |
+| `iconv('ASCII//TRANSLIT')` | `Pinar S"ut 1 L- c ?GIS^csC?gis_cs` |
+| `mb_strtolower` alone | folds nothing, and turns `İ` into `i` plus a combining dot |
+
+`iconv` is the one worth naming: it is the obvious reach, it is locale-dependent, and it produces
+garbage here. Testing it was the difference between a working cascade and a silently broken one.
+
+**The mutator is not airtight and the gap is named rather than implied.** `Product::query()->update(['name' => ...])`
+bypasses mutators AND observers, so a mass update leaves the normalised value stale and the cascade
+misses a product that looks present. A test recomputes the fold for every row and compares it against
+the stored column, so drift surfaces on the next suite run instead of as a resolution failure months
+later. This is the same shape as D81: the application owns an invariant the database used to be able
+to own, so the check that catches its failure ships with it.
+
+Rejected: an observer. It handles several fields in one place, and it can be switched off
+(`withoutEvents()`, a seeder), which leaves the column silently empty. A mutator cannot be switched
+off.

@@ -59,6 +59,18 @@ A green suite is the floor, not the finish line. Anything a person clicks gets d
 - Flutter: `flutter run -d chrome`, or `./bin/fsa start --cdp-port=<port>` for the dusk-driven web run.
 - Backend: `cd backend && composer dev`.
 
+## Backend conventions
+
+- **No `declare(strict_types=1)`.** Anılcan's call, applied across all 38 files that carried it, so the
+  codebase is uniform rather than half strict. Nothing we relied on is lost: the UUID flip's
+  `?int $actorId` bug still raises a `TypeError`, because a non-numeric string cannot coerce to `int` in
+  either mode. What does change is that a numeric string now coerces at a scalar parameter, so a
+  quantity arriving as `"6"` is accepted as `6.0` instead of rejected.
+- **No database functions, stored procedures or generated columns** (D84). PostgreSQL stores, indexes
+  and constrains; Laravel computes. A CHECK constraint and a partial index are fine, because they
+  constrain rather than derive. A derived value is either written by PHP with a guard and a drift test,
+  or not stored at all and computed at the boundary.
+
 ## Off-limits
 
 - Generated files are regenerated, never edited: `docs/component-registry.md` (`bin/sync-registry`), `lib/config/wind_theme.g.dart` (`design:sync`), `lib/preview/_previews.g.dart` (`previews:refresh`), `lib/app/commands/_index.g.dart` (`commands:refresh`), `.artisan/plugins.json`, and everything `bin/sync-instructions` writes under `.github/`.
