@@ -130,7 +130,7 @@ backend/
 - `laravel/scout` with Meilisearch.
 - `filament/filament` for the operations panel.
 
-Not included, deliberately: `spatie/browsershot`. Label sheets are generated client-side in Dart, which removes the server Chrome dependency that was the MVP's most fragile operational component (D18).
+`spatie/laravel-pdf` for label sheets, which are rendered from an HTML template on the backend (D18, reversed 2026-08-10). It is driver-based (Browsershot, a bare Chrome binary, Gotenberg, WeasyPrint), so the renderer is configuration rather than a code dependency, which is the same isolation the AI gateways buy. The operational risk D18 originally fled is real; `features/labeling-and-printing.md` names the four specific parts of it and their mitigations.
 
 ### The gateway pattern
 

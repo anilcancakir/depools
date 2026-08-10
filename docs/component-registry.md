@@ -37,7 +37,7 @@ location with a depth.
 | `filter_chip/` | `FilterChip` | - | yes | yes | One capsule in the stock list's filter row. Either an offer (a saved filter you |
 | `label_card/` | `LabelCard` | LabelCardSize | yes | yes | One label at a size a person can read: what will be printed on it, and what will not |
 | `label_item_row/` | `LabelItemRow` | LabelCountMode | yes | yes | One product in a print batch: what will be printed, how many, and whether it already |
-| `label_preview/` | `LabelPreview` | - | yes | yes | The sheet as it will come out of the printer: the grid at true proportions, the filled |
+| `label_preview/` | `LabelPreview` | - | yes | yes | The sheet a print will produce, at the page's real proportion. |
 | `list_footer/` | `ListFooter` | ListFooterState | yes | yes | The bottom of a paginated list, in one of three states. |
 | `location_row/` | `LocationRow` | - | yes | yes | One node in the location tree: its own name, what it holds, and how deep it sits. |
 | `location_stock_row/` | `LocationStockRow` | - | yes | yes | How much of one product sits at one location, with the earliest expiry among |

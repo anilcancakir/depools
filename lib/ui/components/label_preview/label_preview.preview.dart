@@ -57,8 +57,6 @@ class LabelPreviewPreview extends StatelessWidget {
           className: 'w-48',
           child: LabelPreview(
             template: _eightUp,
-            filled: 8,
-            barcode: '8690504004073',
             caption: '1 sayfa · 8 / 8 kullanılır',
           ),
         ),
@@ -66,8 +64,6 @@ class LabelPreviewPreview extends StatelessWidget {
           className: 'w-48',
           child: LabelPreview(
             template: _twentyFourUp,
-            filled: 9,
-            barcode: '8690504004073',
             caption: '1 sayfa · 9 / 24 kullanılır',
           ),
         ),
@@ -75,8 +71,6 @@ class LabelPreviewPreview extends StatelessWidget {
           className: 'w-48',
           child: LabelPreview(
             template: _sixtyFiveUp,
-            filled: 9,
-            barcode: '8691234567890',
             caption: '1 sayfa · 9 / 65 kullanılır',
           ),
         ),

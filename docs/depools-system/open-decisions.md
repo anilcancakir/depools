@@ -131,9 +131,24 @@ Corrected 2026-08-06: an earlier version of this decision assigned roles per pla
 
 None of the MVP's UI survives: it was landscape-locked with a fixed 320px sidebar, a desktop table abstraction and an eight-step modal wizard.
 
-### D18. Label printing in v1 is A4 multi-label sheets, generated client-side
+### D18. Label printing in v1 is A4 multi-label sheets, rendered on the backend
 
-Dart `pdf` plus `barcode_widget`, laid out at exact millimetre dimensions. This removes the server Chrome and Browsershot dependency entirely, which was the MVP's most fragile operational component, and a label sheet is a deterministic grid with no JavaScript requirement.
+> **Reversed 2026-08-10 at Anılcan's direction.** The paragraph below argued for generating the
+> sheet client-side in Dart, and the argument was sound about the RISK it named: server Chrome was
+> the MVP's most fragile operational component. It was wrong about the alternative being free.
+> Rendering the same sheet twice, once in Dart for the preview and once for the file, means two
+> layouts that drift; the printable artefact is a PDF whatever produces it; and a Dart-drawn grid
+> has to re-implement text fitting, barcode symbology and page geometry that an HTML renderer
+> already does. So the MVP's shape returns deliberately: an HTML template rendered to PDF on the
+> backend.
+>
+> What that costs is recorded in `features/labeling-and-printing.md` rather than waved away, because
+> the fragility D18 originally fled is real and four specific parts of it are now named with their
+> mitigations: exact millimetres need `preferCssPageSize`, Turkish glyphs need the fonts installed
+> in the render image, assets must be inlined, and Chromium's print media strips backgrounds unless
+> told otherwise.
+
+The original reasoning, kept because the risk it names has not gone away: Dart `pdf` plus `barcode_widget`, laid out at exact millimetre dimensions. This removes the server Chrome and Browsershot dependency entirely, which was the MVP's most fragile operational component, and a label sheet is a deterministic grid with no JavaScript requirement.
 
 Bluetooth thermal printers (Niimbot, TSPL) are a placeholder for later at Anılcan's direction. Two findings to carry into that decision: Niimbot firmware refuses non-genuine label rolls, verified from the maintainer of the leading reverse-engineered client ("Printer does not allow to print on non-rfid labels... This is firmware limitation"), and iOS cannot speak Bluetooth Classic SPP without MFi certification, which no Niimbot unit has. Protocol reference implementations exist under MIT (`niimblue`, `niimbluelib`, `AndBondStyle/niimprint`); `labbots/NiimPrintX` is GPL-3.0 and must not be copied into a proprietary codebase.
 

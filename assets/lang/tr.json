@@ -1015,6 +1015,9 @@
     "section_card": {
       "error_message": "Bağlantı sorunu olabilir. Sayfanın kalanı çalışmaya devam ediyor.",
       "retry": "Tekrar dene"
+    },
+    "label_preview": {
+      "placeholder": "Sunucuda oluşturulur"
     }
   }
 }

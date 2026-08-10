@@ -130,14 +130,44 @@ None. Label generation is local computation.
 - **Millimetre dimensions are the point.** A label sheet that is nearly right is waste, so the
   preview is proportional to the real page rather than a decorative thumbnail.
 
-## Open
+## Rendering happens on the backend (D18, reversed)
 
-- **The field chips have no consumer.** `LabelPrintView` offers `Ürün adı`, `Barkod`, `Konum` and
-  `Ekip adı` as selectable chips, and `LabelPreview` renders the SHEET's fill diagram rather than a
-  label's contents, so nothing on the screen changes when a field is chosen. Making the chips toggle
-  would change the chip and leave the output identical. The question is whether the preview should
-  draw one label's contents at size, which is worth answering before the chips are wired: a sticker
-  that does not fit is the failure this feature is judged on, and the fill diagram cannot show it.
+The sheet is an HTML template rendered to PDF by `spatie/laravel-pdf`. The client asks for a sheet,
+gets a file, and shows it; it does not lay labels out.
+
+Four things about a Chromium-based renderer are load-bearing here, and each is a real failure mode
+rather than a configuration footnote. Verified against Gotenberg's own conversion documentation,
+which applies equally to the Browsershot and bare-Chrome drivers since all three drive Chromium.
+
+**Exact millimetres need `preferCssPageSize`.** Chromium otherwise uses its own paper size and
+ignores the `@page` rule, so a 38x21 mm label becomes 38x21 mm of a page that is not the page you
+asked for. A sheet that is a fraction off is waste, not a cosmetic problem: the labels miss the
+die-cut. This is the single setting that decides whether the feature works.
+
+**Turkish glyphs need the fonts installed in the render image.** Only fonts present in the container
+are available. `DESIGN.md` is explicit that `Ğ ğ İ Ş ş` live in `latin-ext` and that loading only
+`latin` breaks Turkish text in a way that looks like a fallback glitch rather than a missing glyph.
+On a label that failure is printed onto adhesive paper and stuck to a shelf.
+
+**Assets must be inlined.** External URLs do not load, so a barcode image and a product photo have
+to be base64 in the HTML. That is a reason to generate the barcode as inline SVG rather than as an
+image the template fetches.
+
+**Chromium prints in `print` media and strips backgrounds.** Anything relying on a background colour
+needs `printBackground` plus `-webkit-print-color-adjust: exact`. For a label this mostly matters for
+a filled status band; black-on-white text is unaffected.
+
+### What the app shows in the meantime
+
+The preview is a placeholder image. Drawing an accurate label in Dart would be re-implementing the
+renderer to preview the renderer, which is the duplication that reversing D18 exists to avoid: two
+layouts, drifting. Once the endpoint exists the app shows the server's own render, so the preview and
+the print are the same artefact by construction rather than by care.
+
+This is also why the field chips have no consumer yet. They choose what the TEMPLATE includes, and
+the template lives on the backend.
+
+## Open
 
 - Which sheet templates Turkish stationery shops actually sell. The MVP's catalog is generic and may not match locally available label sheets, which would make the feature useless in practice. Worth checking before finalising the list.
 - Whether QR codes should be offered alongside linear barcodes. QR holds more and scans faster on phones, but linear barcodes work with cheap handheld scanners a shop may already own.

@@ -94,9 +94,6 @@ class LabelPrintView extends StatelessWidget {
         children: [
           LabelPreview(
             template: _template,
-            filled: lastSheetFill(_template),
-            barcode: '8690504004073',
-            // The last sheet is the one drawn, because it is the one with the waste on it.
             caption: sheetsFor(_template) == 1
                 ? Lang.get('screens.labels.preview_one_sheet', {'used': lastSheetFill(_template), 'total': _template.perSheet})
                 : Lang.get('screens.labels.preview_sheets', {

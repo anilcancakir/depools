@@ -1015,6 +1015,9 @@
     "section_card": {
       "error_message": "This may be a connection problem. The rest of the page still works.",
       "retry": "Try again"
+    },
+    "label_preview": {
+      "placeholder": "Rendered on the server"
     }
   }
 }
