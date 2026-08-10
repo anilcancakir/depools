@@ -32,7 +32,11 @@ The override file is why a green local run can be a red CI: with it, this app bu
 
 - Flutter >=3.27.0, Dart >=3.6.0.
 - `magic` (framework: IoC container, ORM, auth, routing over `go_router`), `magic_starter` (auth, profile, teams, notifications, 13 opt-in features), `fluttersdk_wind` (utility-first styling through `className`), `magic_devtools` (dev-only preview catalog and dusk integration).
-- A Laravel backend under `backend/` as the API counterpart.
+- A Laravel 13 backend under `backend/` as the API counterpart, on **PostgreSQL with pgvector and
+  pg_trgm**, and **UUIDv7 primary keys** on every table. Tests run on PostgreSQL too, not SQLite
+  (D72): the schema uses native `uuid`, vector columns and partial unique indexes, and a suite on
+  SQLite would certify a schema it never built. `laravel/scout` with Meilisearch owns user-facing
+  search; Postgres owns the receipt-resolution cascade (D74).
 
 ## One task, one worktree, one PR
 

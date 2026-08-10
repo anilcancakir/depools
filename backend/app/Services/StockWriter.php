@@ -45,7 +45,7 @@ final class StockWriter
         MovementSource $source = MovementSource::Manual,
         ?string $expiresAt = null,
         ?string $lotCode = null,
-        ?int $actorId = null,
+        ?string $actorId = null,
         ?string $idempotencyKey = null,
     ): StockMovement {
         if ($quantity <= 0) {
@@ -100,7 +100,7 @@ final class StockWriter
         float $quantity,
         MovementReason $reason = MovementReason::Consumption,
         MovementSource $source = MovementSource::Manual,
-        ?int $actorId = null,
+        ?string $actorId = null,
     ): Collection {
         if ($quantity <= 0) {
             throw new RuntimeException('An outbound movement must take out a positive quantity.');
@@ -173,7 +173,7 @@ final class StockWriter
         Location $to,
         float $quantity,
         MovementSource $source = MovementSource::Manual,
-        ?int $actorId = null,
+        ?string $actorId = null,
     ): array {
         if ($from->is($to)) {
             throw new RuntimeException('A transfer needs two different locations.');
@@ -259,7 +259,7 @@ final class StockWriter
         float $delta,
         MovementReason $reason,
         MovementSource $source,
-        ?int $actorId,
+        ?string $actorId,
         ?string $idempotencyKey = null,
         ?StockLot $reference = null,
     ): StockMovement {

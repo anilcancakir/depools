@@ -37,7 +37,11 @@ final class LocationController extends Controller
             'name' => ['required', 'string', 'max:255'],
             // `exists` runs through the scoped model, so a parent belonging to another tenant fails
             // validation as "does not exist", which is the same answer the read path gives.
-            'parent_id' => ['nullable', 'integer'],
+            // A uuid, not an integer (D73). The VERSION is the generator's business rather than the
+            // API's: validating `uuid:7` here would reject an id this app itself issued if the
+            // generator ever changed, and the mixed-version risk D73 names is prevented at
+            // generation, not at the boundary.
+            'parent_id' => ['nullable', 'uuid'],
         ]);
 
         $parent = $data['parent_id'] ?? null;

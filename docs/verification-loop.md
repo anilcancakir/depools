@@ -56,7 +56,13 @@ cd backend && php artisan serve --port=8000
 ./bin/fsa start --device=chrome --cdp-port=9223
 ```
 
-Two boot failures read as "the app is broken" rather than as a missing service:
+Three boot failures read as "the app is broken" rather than as a missing service:
+
+- **PostgreSQL**, which the backend now requires for dev AND tests (D72). A stopped server fails
+  every request and the whole backend suite with `Connection refused`, which reads like a broken
+  build. `brew services start postgresql@17`. The databases are `depools` and `depools_testing`, and
+  the instance needs `vector`, `pg_trgm` and `unaccent` available (`brew install pgvector` covers the
+  first).
 
 - **Redis**, when the backend's cache or rate limiter is configured for it. Every
   API call 500s on `Connection refused`, login included. `redis-server --port 6379`

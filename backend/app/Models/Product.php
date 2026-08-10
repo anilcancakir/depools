@@ -92,6 +92,17 @@ final class Product extends Model
      */
     public function quantityFromLedger(): string
     {
-        return (string) $this->movements()->sum('delta');
+        // Fixed to the schema's own scale, and that is a correctness fix rather than cosmetics.
+        //
+        // `sum()` returns whatever the driver hands back: PostgreSQL sums `numeric(12,3)` into an
+        // exact `numeric` and PDO gives the string `'11.000'`, while SQLite gave `11`. So this
+        // method's return value used to depend on the database, and invariant 1's test was pinning
+        // one driver's formatting rather than the invariant.
+        //
+        // `bcadd` rather than `number_format`, because the latter routes an exact decimal through a
+        // float on its way to a string, which is the one thing a quantity must not do. Three places
+        // matches `decimal(12,3)` and matches `stock_lots.remaining_quantity`'s own cast, so the two
+        // numbers an audit compares by hand are formatted alike.
+        return bcadd((string) $this->movements()->sum('delta'), '0', 3);
     }
 }

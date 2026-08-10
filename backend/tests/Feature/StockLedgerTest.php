@@ -130,7 +130,13 @@ final class StockLedgerTest extends TestCase
         $second = $this->lot(5);
         $this->move($second, 5, MovementReason::Purchase);
 
-        $this->assertSame('11', $this->product->quantityFromLedger());
+        // `'11.000'`, not `'11'`, and the change is the test getting stricter rather than looser.
+        // It used to pass because SQLite handed back `11` while PostgreSQL sums `numeric(12,3)` into
+        // `'11.000'`, so the assertion was pinning one driver's formatting instead of the invariant.
+        // `quantityFromLedger()` now returns the schema's own scale on every driver, which also makes
+        // it match `remaining_quantity` above: the two numbers an audit reconciles by hand are
+        // formatted alike.
+        $this->assertSame('11.000', $this->product->quantityFromLedger());
     }
 
     public function test_invariant_3_waste_is_never_folded_into_consumption(): void

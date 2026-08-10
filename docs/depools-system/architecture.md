@@ -124,6 +124,28 @@ backend/
 └── tests/
 ```
 
+### Database
+
+**PostgreSQL, everywhere including the test suite** (D72), with three extensions and one function:
+
+| | Why |
+|---|---|
+| `vector` (pgvector) | the embedding column the resolution cascade's second step searches (D75), `vector(1536)` |
+| `pg_trgm` | what actually matches a truncated receipt line, since `PNR SUT 1LT` is a bag of character triples rather than a prefix or a stem |
+| `unaccent` | the diacritic fold (D82) |
+| `depools_normalize(text)` | `lower()` plus `unaccent()`, wrapped and declared IMMUTABLE because generated columns and index expressions require it and `unaccent()` is not |
+
+No `tsvector` anywhere: stemmed full-text belongs to Meilisearch (D74). Worth knowing rather than
+rediscovering, since it was researched wrong once: PostgreSQL DOES ship `pg_catalog.turkish` and
+`turkish_stem`, so the split is a choice about typo tolerance rather than a workaround.
+
+**Primary keys are UUIDv7** (D73), through `magic-starter.use_uuids` plus a generator override in
+`AppServiceProvider`. On PostgreSQL a `uuid` column is the native 16-byte type. Three gaps in the
+starter's seam were found by turning it on and are fixed in place, each with a comment at the site:
+Laravel's own `create_users_table` hardcodes integers, a fluent uuid primary key is emitted AFTER the
+foreign keys so a self-referencing table needs its constraint added in a second statement, and
+`MigrationHelper` covers `morphs()` but not `nullableMorphs()`.
+
 ### Dependencies
 
 - `fluttersdk/magic-starter-laravel` for the identity and team API surface.

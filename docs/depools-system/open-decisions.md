@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D71 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D79 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1044,3 +1044,281 @@ A sheet is a handful of pages; a queue and a notification for 24 labels is cerem
 The cache is what makes a preview affordable, and changing a template or a field produces a new key
 rather than a stale image. The threshold where a job belongs on the queue is real and is not v1's
 problem.
+
+### D72. PostgreSQL everywhere, including the test suite
+
+Dev, CI and production run PostgreSQL. Tests move off SQLite `:memory:`.
+
+The reason is measured rather than stylistic. `products`' own migration already records the cost of
+the split: *"Partial uniqueness (only where `sku` is not null) is not portable to sqlite, which the
+test suite runs on, so the pairing is indexed here"*. So `(team_id, sku)` uniqueness is enforced
+NOWHERE today, and the test that would have caught that ran green on a database which cannot express
+the constraint.
+
+The schema this documentation set specifies leans much harder on Postgres than one partial index:
+native `uuid`, `jsonb`, `pg_trgm`, pgvector, exclusion constraints. Every one of those is a place
+where a SQLite-green suite would be certifying a schema it never built.
+
+A second, independent argument surfaced while measuring the UUID flip. `User` uses
+`ConditionallyUsesUuids` while Laravel's own `create_users_table` hardcodes `$table->id()`, so with
+uuids enabled the model inserts a string into a bigint column. PostgreSQL rejects that outright;
+SQLite is dynamically typed and would have stored it. The failure mode SQLite hides is exactly the
+class this schema is full of.
+
+Cost, accepted: the suite is slower than in-memory, CI gains a Postgres service container, and the
+image has to be `pgvector/pgvector` so the vector columns are testable rather than skipped.
+
+### D73. UUIDv7 primary keys, overriding the starter's ordered UUID
+
+`magic-starter.use_uuids = true`, and `ConditionallyUsesUuids`' generator is overridden from
+`Str::orderedUuid()` to `Str::uuid7()`. The same correction goes upstream as a PR rather than living
+here forever.
+
+Both are time-ordered, so B-tree locality is not the differentiator; the format is. `orderedUuid()`
+is a COMB: a v4 built through `TimestampFirstCombCodec`, sortable but declaring version 4. `uuid7()`
+is RFC 9562, which Postgres 18 generates natively, every tool recognises, and Laravel 13's own
+`HasUuids` already returns. Leaving the starter's generator in place would mean any package reaching
+for `HasUuids` writes a second, different UUID flavour into the same schema.
+
+PostgreSQL is what makes the choice cheap: verified in `PostgresGrammar::typeUuid()`, a `uuid` column
+is the native 16-byte type, where MySQL would emit `char(36)`. That saving repeats on every foreign
+key in a schema where almost every table carries two or three.
+
+Rejected: a bigint key with a separate uuid public id. It is the smaller index and the faster join,
+and it is wrong here for a security reason rather than a performance one. Ids travel through MCP tool
+arguments and assistant tool calls, and `data-model.md`'s rule that a cross-tenant read returns 404
+rather than 403 exists precisely so identifiers cannot be enumerated. Two identifiers per row means
+the enumerable one eventually leaks into a place that assumed the other.
+
+Known cost, bounded: Laravel's `create_users_table` hardcodes integers in two places (`users.id` via
+`$table->id()`, and `sessions.user_id` via `foreignId`), so it has to be made uuid-aware. The
+starter's own 13 migrations already route through `MigrationHelper` and need nothing.
+
+### D74. Meilisearch owns user-facing search; PostgreSQL owns the resolution cascade
+
+Two searches that look alike and are not. What a user types into `/ara` wants typo tolerance,
+instant results and ranking across products AND locations: that is Meilisearch's job, through
+`laravel/scout`. What the receipt pipeline does to `PNR SUT 1LT` is a resolution cascade whose first
+two steps are an exact-and-normalised match against the tenant's own products and then embedding
+similarity: that is Postgres' job, in the same transaction as the write.
+
+Consequence for the schema, and it is a subtraction: **no `tsvector` column anywhere.** Stemmed
+full-text belongs to Meilisearch; Postgres carries a normalised-name column with a `pg_trgm` index
+(trigram is what actually matches a truncated receipt line) plus the vector column from D75.
+
+Worth recording because it corrects a research error made while deciding this. PostgreSQL DOES ship
+Turkish full-text search: `pg_catalog.turkish` and `turkish_stem` are both in the PG 18 catalogue, so
+the argument that Turkish forces an external engine is false. Meilisearch is chosen on typo tolerance
+and instant ranking, which are real, not on a stemmer gap that does not exist.
+
+Rejected: routing the cascade through Meilisearch too. It would make receipt ingestion depend on a
+service outside the transaction, so Meilisearch being down would stop capture rather than degrade
+search.
+
+### D75. pgvector is self-hosted, embeddings come from OpenRouter, one column per table
+
+The vector STORE is ours: pgvector in our own Postgres. The vectors are PRODUCED by
+`google/gemini-embedding-001` through OpenRouter at 1536 dimensions, which `laravel/ai`'s
+`OpenRouterProvider` already carries as its embeddings default.
+
+`vector(1536)` costs `4 * 1536 + 8` = 6,152 bytes per row and sits comfortably under pgvector's
+2,000-dimension HNSW ceiling. `halfvec` would halve that and remains available if index size ever
+becomes the binding constraint.
+
+**The column type fixes the dimension, so this decision is expensive to reverse**: moving to a
+1024-dimension model later means a new column and re-embedding the whole catalog. That is the reason
+it is taken before the first migration rather than during.
+
+The column lives on each table that can be searched: `products`, `global_products`, `off_products`,
+each with its own HNSW index. This matches the cascade's own shape, which queries the cheapest and
+most trustworthy source first and stops on a hit, so separate queries are the design rather than a
+compromise.
+
+Rejected: one shared `embeddings` table with a morph. It buys a single index and one query, and it
+costs the thing this schema is most careful about: tenant-owned and global rows would share a table
+with a nullable `team_id`, so half the rows would legitimately have no tenant and every query would
+carry the burden of proving it filtered correctly. Filtered vector search also loses recall in
+pgvector, which `hnsw.iterative_scan` mitigates and does not remove.
+
+Consequence for KVKK: product names cross the border to reach the embedding model, so the gateway's
+redaction step applies to the embeddings path exactly as it does to the vision paths. A fully
+self-hosted embedding model through `laravel/ai`'s `openai-compatible` driver remains the escape
+hatch if counsel's answer to O3 requires it, and the dimension would have to be matched.
+
+### D76. OpenRouter is one provider among several, not the only path
+
+The AI provider is OpenRouter, and the design must not assume it. A category's model list is an
+ordered list of `(provider, model)` pairs rather than bare model identifiers, so a second provider
+can be added to a category without reshaping anything.
+
+This is Anılcan's call and it earns its cost. `laravel/ai` ships first-class support for OpenRouter
+alongside OpenAI, Anthropic, Gemini, Azure, Bedrock, Groq, xAI, DeepSeek, Mistral and Ollama, plus an
+`openai-compatible` driver for anything else, and its native failover is expressed as a list of
+PROVIDERS. Storing bare model strings would throw that away and would tie every category to one
+vendor's outage.
+
+The categories are already written: `ai-design.md`'s five gateways, each with a stated weighting
+(receipt extraction weights accuracy, product recognition weights cost, text normalisation wants
+small and fast, placement explanation defaults to a template rather than a model at all, the
+assistant wants the strongest tool-calling), plus a sixth the document did not name because it had no
+gateway: embeddings.
+
+### D77. Model fallback is layered, because two different things fail
+
+Three model-level fallback mechanisms exist and they are not interchangeable, so two of them are used
+at once for different failures.
+
+**OpenRouter's `models` array handles infrastructure.** Verified from its own documentation: an
+ordered array in the request body, falling back on context-length errors, moderation flags,
+rate-limiting and downtime, resolved inside one HTTP call. Two details matter downstream: the request
+is priced at the model that actually served it, and that model is returned in the response's `model`
+attribute, so usage accounting must read the response rather than the request.
+
+**Our gateway handles semantics.** `ai-design.md` already specifies a fallback trigger OpenRouter
+cannot see: a malformed structured response is retried once with a stricter instruction, then falls
+back to the manual path. A model returning HTTP 200 with JSON that fails our schema is a successful
+request as far as OpenRouter is concerned. So the gateway loops the category's `(provider, model)`
+list itself, which is also what lets it write one usage row per attempt and cross a provider boundary
+rather than only a model one.
+
+Rejected: OpenRouter presets (`@preset/slug`). Storing the chain server-side at OpenRouter is
+operationally attractive because a model swaps without a deploy, and it moves the configuration out
+of git, which is exactly what `ai-design.md`'s "model identifiers are configuration, never literals"
+rule exists to keep auditable.
+
+### D78. `ai_usage_events` records one row per attempt, grouped by action
+
+Fallback makes this a real schema question rather than a naming one: one logical AI action can now
+produce two or three model calls, and OpenRouter bills whichever answered.
+
+So each model call is a row carrying its provider, its model, its token counts, its computed cost and
+its outcome, plus a shared action identifier and an attempt ordinal. Credit is deducted per ACTION;
+cost is accounted per ATTEMPT.
+
+`monetization.md` demands three answers (what does this tenant cost us, is the credit price above our
+marginal cost, which feature is consuming the budget), and a first model that quietly fails and hands
+off to a second is invisible to all three unless the attempt is the row. A failed attempt can also
+still be billed, since a context-length rejection consumes tokens.
+
+Rejected: a separate `ai_actions` table. It is the cleaner normalisation and it is two tables where
+one carries both questions today; `monetization.md`'s own record of the MVP rewriting its plan schema
+five times argues for the smaller shape until the second table has a question of its own.
+
+### D79. `stock_movements` is not partitioned yet, and is shaped so that it can be
+
+Retention is a pricing axis (D4) and `monetization.md` promises that history beyond the window
+becomes unqueryable rather than deleted, which is exactly what detaching a partition does. So
+partitioning is the eventual answer and it is not the v1 answer.
+
+What decides the timing is a constraint quoted from the PostgreSQL 18 documentation: *"the
+constraint's columns must include all of the partition key columns"*. Partitioning by `occurred_at`
+therefore forces the primary key to `(id, occurred_at)`, which Eloquent's single-key model does not
+express, so `find()` and every relation would need hand-holding from day one on a table with no
+scale problem yet.
+
+The table is instead designed so the migration stays cheap: `occurred_at` is NOT NULL and is never
+updated (which the append-only ledger already guarantees rather than merely promises), and every
+index leads with `team_id` and `occurred_at`.
+
+Cost stated rather than hidden: converting later is a table rewrite, and by then the table will hold
+the rows that made it necessary.
+
+Rejected: hash partitioning on `team_id`. Pruning would work on every query since every query is
+already tenant-filtered, and it would push tenant isolation down to storage, both real. It does not
+help the thing that actually needs solving, because retention is a time axis, and it costs the same
+composite primary key.
+
+### D80. The ledger's foreign keys restrict; only the tenant cascades
+
+`stock_movements.product_id`, `.location_id` and `.stock_lot_id` are `restrictOnDelete`. `team_id`
+stays `cascadeOnDelete`.
+
+The migrations shipped all three as `cascadeOnDelete`, which quietly contradicted invariant 4
+("`stock_movements` rows are never updated or deleted"). Enforcing that at the model level while
+instructing the database to cascade leaves every path that bypasses the model holding the knife: a
+force delete, a cascade arriving from somewhere else, a bulk action in the Filament panel D19 brings,
+a `DELETE` in tinker. A property an append-only ledger only has by convention is not a property.
+
+`products` and `locations` already soft-delete, and soft delete has nothing to do with a foreign key,
+which is why this needed fixing separately: the constraint governs the force path, and the force path
+is the one that loses history.
+
+The tenant cascade is deliberate and stays. `legal-and-privacy.md` requires account and tenant
+deletion that actually deletes, so a team's rows going with it is the feature.
+
+Consequence, accepted: deletion order now matters and runs innermost-first, and the account-deletion
+path needs a test that proves it completes rather than tripping over its own restrictions.
+
+Rejected: nulling the foreign key and denormalising a name snapshot onto each movement. It keeps the
+ledger readable after a product is gone, which is what an audit log wants, and it gives invariant 1
+("for every (product, location), the materialised balance equals the sum of ledger deltas") nothing to
+mean on the rows whose product is null.
+
+### D81. `product_stock` is maintained by the application, not by a trigger
+
+`app/Services/StockWriter` writes the movement and updates `product_stock` and
+`stock_lots.remaining_quantity` inside one transaction. Anılcan's call, against the recommendation
+here, and the cost is what has to be paid rather than argued away.
+
+What the alternative offered: a database trigger makes invariant 1 structurally true, because no path
+can append a movement without moving the projection, whichever surface wrote it. What it costs is that
+the arithmetic lives in SQL, invisible to Eloquent and to a PHP test, and a model that has just
+written a row reads a stale projection until it refreshes.
+
+Two things follow from choosing the service, and they are obligations rather than notes:
+
+1. **Every write path goes through `StockWriter`, without exception.** The service is now the
+   invariant, so a movement inserted anywhere else silently desynchronises the balance. That includes
+   seeders, factories, the MCP write tools in v2, the assistant's tools, and anything Filament grows.
+   A test asserting no other code path inserts into `stock_movements` is worth more here than it would
+   be with a trigger.
+2. **The scheduled consistency check is mandatory, not a safety net.** `data-model.md` already
+   describes it ("compares it against the ledger and reports drift; the ledger always wins"), and with
+   the trigger it would have been belt-and-braces. Here it is the only thing that catches the failure
+   this design permits, so it ships with the feature rather than after it.
+
+### D82. Normalisation folds every diacritic, including ı to i
+
+`name_normalized` is `lower()` plus `unaccent()`: `ı→i`, `ş→s`, `ğ→g`, `ü→u`, `ö→o`, `ç→c`. Indexed
+with `pg_trgm` and used for the resolution cascade's first step.
+
+Turkish makes this a genuine tension rather than a default. The i/ı distinction is real and semantic,
+and folding it means `kirmizi` and `kırmızı` become the same key. That is accepted because this column
+is a MATCHING key and never a displayed value: `name` keeps the original, and the failure this trades
+away is worse. A user without a Turkish keyboard, a user in a hurry, and a thermal receipt that prints
+no diacritics at all are the three inputs the cascade most has to work on, and a conservative fold
+loses all three.
+
+Rejected: no fold at all, leaning on trigram similarity. It removes the `unaccent` dependency and it
+fails hardest exactly where it matters, because `süt` against `sut` is one character in a
+three-character word and trigram similarity is weakest on short strings. The most common products have
+the shortest names.
+
+The PostgreSQL gotcha and its standard answer: `unaccent()` is not marked IMMUTABLE (its dictionary can
+be changed), while both generated columns and index expressions require IMMUTABLE. The community
+answer, which is what this uses, is a thin wrapper function declared IMMUTABLE. It is a promise to
+Postgres that the dictionary will not change under it, so changing the `unaccent` rules means
+reindexing, and that is worth a comment at the definition site.
+
+### D83. The embedding is written on a queue, and the column is nullable
+
+`products.name_embedding` is nullable. A Horizon job fills it after the row is saved.
+
+`product.md`'s first success criterion is ten items into stock in under five minutes without reading
+anything, and making every product save wait on an outbound HTTP call collides with it directly. The
+cascade is already layered, so a product with no embedding is still found by step one (the normalised
+match) and simply does not take part in step two.
+
+The stronger reason is monetization: `monetization.md` promises that at the limit every AI path
+degrades to its manual equivalent. A NOT NULL embedding column makes product creation itself depend on
+an AI call, so a tenant out of credits could not add a product at all, which is the dead-end 403 D4
+exists to prevent.
+
+Consequence, and it needs somewhere to be visible: "a product without an embedding" is a legitimate
+temporary state, so a stalled queue is invisible unless something measures it. `name_embedding IS NULL`
+older than a threshold is the query, and it belongs on the Filament panel rather than in someone's
+memory.
+
+Rejected: a separate `embedding_status` enum plus `embedded_at`. It makes a permanent failure legible,
+and `name_embedding IS NULL` already answers most of the same question without a second state machine
+to keep honest.

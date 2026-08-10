@@ -30,13 +30,18 @@ return new class extends Migration
             MigrationHelper::primaryKey($table);
             MigrationHelper::foreignKey($table, 'team_id')->constrained()->cascadeOnDelete();
 
-            // Self-reference. `nullOnDelete` rather than cascade: deleting a shelf must not take
-            // the boxes on it out of the database, it should lift them to the parent's level where
-            // a human can see them. A cascade here would silently destroy stock history's anchors.
-            MigrationHelper::foreignKey($table, 'parent_location_id')
-                ->nullable()
-                ->constrained('locations')
-                ->nullOnDelete();
+            // Declared here, CONSTRAINED BELOW, and the split is not stylistic.
+            //
+            // With uuids enabled, `MigrationHelper::primaryKey()` emits `uuid('id')->primary()`,
+            // and Laravel adds a fluent index as a separate command APPENDED AFTER the commands
+            // already collected. So the statement order becomes CREATE TABLE, then ADD FOREIGN KEY,
+            // then ADD PRIMARY KEY, and a self-referencing key added inside this closure fails with
+            // "there is no unique constraint matching given keys for referenced table locations".
+            //
+            // The integer path hides it: `$table->id()` puts the primary key inside CREATE TABLE, so
+            // the constraint exists by the time the foreign key is added. This is the starter's uuid
+            // path meeting its first self-referencing table.
+            MigrationHelper::foreignKey($table, 'parent_location_id')->nullable();
 
             $table->string('name');
             $table->string('path')->index();
@@ -49,6 +54,20 @@ return new class extends Migration
             // two lookups. `name` is separately indexed because search hits it directly.
             $table->index(['team_id', 'path']);
             $table->index(['team_id', 'name']);
+        });
+
+        // The self-reference, now that `locations.id` carries its primary key.
+        //
+        // `nullOnDelete` rather than cascade: deleting a shelf must not take the boxes on it out of
+        // the database, it should lift them to the parent's level where a human can see them. A
+        // cascade here would silently destroy the anchors stock history points at.
+        Schema::table('locations', function (Blueprint $table): void {
+            $table->foreign('parent_location_id')
+                ->references('id')
+                ->on('locations')
+                ->nullOnDelete();
+
+            $table->index('parent_location_id');
         });
     }
 

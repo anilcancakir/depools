@@ -41,7 +41,18 @@ return new class extends Migration
             MigrationHelper::foreignKey($table, 'actor_id')->nullable()->constrained('users')->nullOnDelete();
 
             $table->text('note')->nullable();
-            $table->nullableMorphs('reference');
+
+            // Written out rather than routed through `MigrationHelper`, because the helper covers
+            // `morphs()` and not `nullableMorphs()`, and `data-model.md` needs this one nullable: a
+            // movement usually has no receipt, invoice or shopping list behind it.
+            //
+            // Getting this wrong is silent until it is not. A hardcoded `nullableMorphs()` leaves
+            // `reference_id` a bigint, every movement without a reference inserts happily, and the
+            // first transfer (the one path that DOES set a reference, because invariant 5 pairs the
+            // two rows through it) fails on `invalid input syntax for type bigint`.
+            MigrationHelper::usesUuids()
+                ? $table->nullableUuidMorphs('reference')
+                : $table->nullableMorphs('reference');
 
             // Unique PER TEAM rather than globally: two tenants submitting the same client-side key
             // is a coincidence, not a duplicate, and a global unique index would let one tenant

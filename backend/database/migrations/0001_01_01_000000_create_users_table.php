@@ -1,9 +1,28 @@
 <?php
 
+use FlutterSdk\MagicStarter\Support\MigrationHelper;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Laravel's own users migration, made uuid-aware.
+ *
+ * ### Why this file is edited at all
+ *
+ * Every other migration here routes its keys through `MigrationHelper`, so flipping
+ * `magic-starter.use_uuids` switches them together. This one is Laravel's default and the starter
+ * never published over it, so it hardcoded integers in two places: `users.id` via `$table->id()`,
+ * and `sessions.user_id` via `foreignId()`.
+ *
+ * That made the flip a silent trap rather than a config change. `User` uses
+ * `ConditionallyUsesUuids`, so with uuids enabled the model generates a uuid string and inserts it
+ * into a bigint column. PostgreSQL rejects that outright. SQLite, which the suite used to run on,
+ * is dynamically typed and would have stored it, which is the second and independent argument
+ * behind D72.
+ *
+ * `password_reset_tokens` is keyed on the email address and needs nothing.
+ */
 return new class extends Migration
 {
     /**
@@ -12,7 +31,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id();
+            MigrationHelper::primaryKey($table);
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
@@ -29,7 +48,10 @@ return new class extends Migration
 
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
+            // Deliberately NOT `->constrained()`: Laravel ships this column unconstrained because a
+            // session may outlive the row it points at, and adding a foreign key here would make
+            // pruning order matter for no gain. The type still has to match `users.id`.
+            MigrationHelper::foreignKey($table, 'user_id')->nullable()->index();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
             $table->longText('payload');

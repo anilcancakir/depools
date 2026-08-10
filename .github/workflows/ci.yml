@@ -68,12 +68,33 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # The image is `pgvector/pgvector`, not plain `postgres`, and that is the point of
+    # D72: a suite that skipped the vector columns would be certifying a schema it
+    # never built. `POSTGRES_DB` creates the database phpunit.xml names, so no extra
+    # step has to remember to.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: depools_testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_sqlite, sqlite3, bcmath, intl, zip, gd
+          # `bcmath` is load-bearing rather than incidental: quantities are exact
+          # decimals and `Product::quantityFromLedger()` formats them with `bcadd`
+          # so the ledger's own sum never travels through a float.
+          extensions: pdo_pgsql, pgsql, bcmath, intl, zip, gd
           coverage: none
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress

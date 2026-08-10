@@ -58,7 +58,7 @@ final class StockWriterTest extends TestCase
     {
         $this->writer->receive($this->product, $this->kitchen, 6, expiresAt: '2026-09-01');
 
-        $this->assertSame('6', $this->product->quantityFromLedger());
+        $this->assertSame('6.000', $this->product->quantityFromLedger());
         $this->assertSame('6.000', $this->product->lots()->first()->remaining_quantity);
         $this->assertSame('6.000', ProductStock::first()->quantity);
     }
@@ -148,7 +148,7 @@ final class StockWriterTest extends TestCase
         $this->writer->receive($this->product, $this->store, 10, expiresAt: '2026-09-01');
         $this->writer->transfer($this->product, $this->store, $this->kitchen, 4);
 
-        $this->assertSame('10', $this->product->quantityFromLedger());
+        $this->assertSame('10.000', $this->product->quantityFromLedger());
 
         $byLocation = ProductStock::pluck('quantity', 'location_id');
         $this->assertSame('6.000', $byLocation[$this->store->getKey()]);
