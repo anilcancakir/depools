@@ -159,6 +159,15 @@ class LabelPrintView extends StatelessWidget {
                 // the tenant's choice. A default that switched everything on would put a
                 // team name on a 21 mm sticker and call it a fit problem.
                 applied: field == Lang.get('screens.labels.field_name') || field == Lang.get('screens.labels.field_barcode') || field == Lang.get('screens.labels.field_location'),
+                // **Open: these chips look selectable and are not, and making them toggle is not
+                // the whole fix.** `LabelPreview` renders the SHEET's fill diagram rather than a
+                // label's contents, so nothing on this screen consumes a field selection: wiring
+                // the toggle would change the chip and leave the output identical, which is a
+                // second kind of lie rather than the end of the first.
+                //
+                // The real question is whether the preview should draw a label's contents, and
+                // that is a design decision rather than a missing callback. Recorded rather than
+                // guessed at.
                 onTap: () {},
               ),
           ],

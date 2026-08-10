@@ -132,6 +132,13 @@ None. Label generation is local computation.
 
 ## Open
 
+- **The field chips have no consumer.** `LabelPrintView` offers `Ürün adı`, `Barkod`, `Konum` and
+  `Ekip adı` as selectable chips, and `LabelPreview` renders the SHEET's fill diagram rather than a
+  label's contents, so nothing on the screen changes when a field is chosen. Making the chips toggle
+  would change the chip and leave the output identical. The question is whether the preview should
+  draw one label's contents at size, which is worth answering before the chips are wired: a sticker
+  that does not fit is the failure this feature is judged on, and the fill diagram cannot show it.
+
 - Which sheet templates Turkish stationery shops actually sell. The MVP's catalog is generic and may not match locally available label sheets, which would make the feature useless in practice. Worth checking before finalising the list.
 - Whether QR codes should be offered alongside linear barcodes. QR holds more and scans faster on phones, but linear barcodes work with cheap handheld scanners a shop may already own.
 - Whether labels should encode a URL that opens the product in the app, which would make a label useful to someone without the app installed.

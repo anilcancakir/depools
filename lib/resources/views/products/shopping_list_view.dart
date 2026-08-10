@@ -162,7 +162,11 @@ class ShoppingListView extends StatelessWidget {
         if (hasLines && checkedLines.isNotEmpty) ...[
           WText(Lang.get('screens.shopping.receipt_hint'), className: 'text-xs text-fg-muted'),
           MSButton(
-            onPressed: () {},
+            // The receipt review screen exists and this is its natural entry: the user has just
+            // come back from the shop with the things on this list, which is exactly when a
+            // receipt is in their hand. It was the last dead link between two screens that both
+            // already existed.
+            onPressed: () => MagicRoute.to('/fis'),
             fullWidth: true,
             className: 'justify-center',
             child: WDiv(
