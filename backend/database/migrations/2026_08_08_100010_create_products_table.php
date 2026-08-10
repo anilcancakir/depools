@@ -65,9 +65,10 @@ return new class extends Migration
             $table->decimal('content_amount', 12, 3)->nullable();
             $table->string('content_unit', 16)->nullable();
 
-            // D28. Effectively immutable in the `serial` direction: a product with serials cannot
-            // return to lots, because the serials have no fungible quantity to collapse into. That
-            // is enforced at validation rather than by the column, so the column stays a plain enum.
+            // D28. The VOCABULARY is closed by a CHECK below, like every other vocabulary column in
+            // this schema. What a CHECK cannot see is the TRANSITION: a product with serials cannot
+            // return to lots, because the serials have no fungible quantity to collapse into, and
+            // that comparison needs another table. It lives on the model instead (invariant 8).
             $table->string('tracking_mode', 8)->default('lot');
 
             $table->decimal('par_level', 12, 3)->nullable();
@@ -81,11 +82,30 @@ return new class extends Migration
         });
 
         $this->addPostgresOnlyIndexes();
+        $this->addConstraints();
     }
 
     public function down(): void
     {
         Schema::dropIfExists('products');
+    }
+
+    /**
+     * The half of invariant 8 a CHECK can actually reach.
+     *
+     * A closed vocabulary constrains rather than derives, so D84 permits it, and its absence here was
+     * an inconsistency rather than a decision: `receipts.kind`, `stock_movements.reason`,
+     * `shopping_list_items.reason` and six others all close their vocabulary this way. A typo landing
+     * `'serials'` in this column would have made a product neither lot-tracked nor serial-tracked, and
+     * every reader branching on the value would have taken the `lot` path by default.
+     */
+    private function addConstraints(): void
+    {
+        DB::statement("
+            ALTER TABLE products
+            ADD CONSTRAINT products_tracking_mode_is_known
+            CHECK (tracking_mode IN ('lot', 'serial'))
+        ");
     }
 
     /**

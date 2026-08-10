@@ -50,6 +50,18 @@ final class StockWriter
             throw new RuntimeException('An inbound movement must bring in a positive quantity.');
         }
 
+        // Invariant 8, refused at the one path that would violate it. A serial-tracked product's
+        // quantity is the count of its `product_serials` rows, so a lot created here would be a
+        // second, disagreeing answer to "how many": the projection would sum the lot while the
+        // product's own definition of quantity counted serials, and neither would be wrong on its
+        // own terms. The nightly sweep reports this shape; this is what stops it being written.
+        if ($product->tracking_mode === 'serial') {
+            throw new RuntimeException(
+                'A serial-tracked product does not receive into a lot: register the individual '
+                .'units instead, because its quantity is the count of them.',
+            );
+        }
+
         return DB::transaction(function () use (
             $product, $location, $quantity, $source, $expiresAt, $lotCode, $actorId, $idempotencyKey
         ): StockMovement {

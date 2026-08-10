@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use RuntimeException;
 
 /**
  * A thing the tenant holds. Carries no quantity.
@@ -54,6 +55,50 @@ final class Product extends Model
     }
 
     /**
+     * Invariant 8's transition half, which no CHECK can reach because it needs another table.
+     *
+     * ### The rule is asymmetric, and the asymmetry is the whole content of it
+     *
+     * **`serial -> lot` is refused as soon as one serial row exists**, which is permanent in
+     * practice: a released serial is KEPT rather than deleted, so the first serial a product ever
+     * held closes that direction for good. There is nothing to collapse those rows into. A serial is
+     * one physical drill with its own warranty and its own history, and a fungible quantity of four
+     * cannot say which four.
+     *
+     * **`lot -> serial` is refused only while a lot still HOLDS something.** An emptied lot is
+     * history in a mechanism the product no longer uses, and history is not a reason to block a
+     * correction: a user who set a power tool up as lot-tracked, received it, sold it, and then
+     * realised each unit needs its own serial should be able to fix the product rather than abandon
+     * it and start a second one. Refusing here would also spend a unique-SKU slot, which is what D4
+     * meters.
+     *
+     * The exception is deliberate rather than a validation rule, because `update`, `fill` and a
+     * Filament action all reach the model and only one of them would reach a request validator.
+     */
+    protected static function booted(): void
+    {
+        self::updating(static function (self $product): void {
+            if (! $product->isDirty('tracking_mode')) {
+                return;
+            }
+
+            if ($product->tracking_mode === 'lot' && $product->serials()->exists()) {
+                throw new RuntimeException(
+                    'A product that has held serials cannot return to lot tracking: an individually '
+                    .'identified unit has no fungible quantity to collapse into.',
+                );
+            }
+
+            if ($product->tracking_mode === 'serial' && $product->lots()->where('remaining_quantity', '>', 0)->exists()) {
+                throw new RuntimeException(
+                    'A product cannot switch to serial tracking while its lots still hold stock: '
+                    .'consume or transfer the remaining quantity out first.',
+                );
+            }
+        });
+    }
+
+    /**
      * Every batch of this product, including closed ones.
      *
      * Closed lots stay because they are the evidence behind the consumption history; hiding them
@@ -62,6 +107,17 @@ final class Product extends Model
     public function lots(): HasMany
     {
         return $this->hasMany(StockLot::class);
+    }
+
+    /**
+     * Every individually identified unit, including released ones.
+     *
+     * Empty for a lot-tracked product, and holding the product's entire quantity for a serial-tracked
+     * one (invariant 9). The two are never both populated with stock, which is invariant 8.
+     */
+    public function serials(): HasMany
+    {
+        return $this->hasMany(ProductSerial::class);
     }
 
     /**
