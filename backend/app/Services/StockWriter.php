@@ -65,8 +65,7 @@ final class StockWriter
         return DB::transaction(function () use (
             $product, $location, $quantity, $source, $expiresAt, $lotCode, $actorId, $idempotencyKey
         ): StockMovement {
-            $lot = StockLot::create([
-                'product_id' => $product->getKey(),
+            $lot = $this->newLot($product, [
                 'location_id' => $location->getKey(),
                 'initial_quantity' => $quantity,
                 'expires_at' => $expiresAt,
@@ -204,8 +203,7 @@ final class StockWriter
             // The destination lot inherits the source's dates. A carton does not become fresher by
             // being carried to another shelf, and losing the date here is how a transfer would
             // quietly drop a product out of the expiry list.
-            $destinationLot = StockLot::create([
-                'product_id' => $product->getKey(),
+            $destinationLot = $this->newLot($product, [
                 'location_id' => $to->getKey(),
                 'initial_quantity' => 0,
                 'expires_at' => $sourceLot->expires_at,
@@ -262,6 +260,31 @@ final class StockWriter
     }
 
     /**
+     * A lot whose tenant comes from its product rather than from the auth context.
+     *
+     * Invariant 3 requires a lot to belong to the same team as its product, and taking `team_id` from
+     * the product is the only way to make that true by construction. `BelongsToTeam`'s creating hook
+     * would otherwise fill it from `TeamScope::currentTeamId()`, which is the same value on a request
+     * path and NULL everywhere else: a queued receipt parse or an import failed on a not-null
+     * violation naming a column, rather than working.
+     *
+     * `team_id` stays out of `$fillable` on purpose, so this is an explicit assignment and not a key a
+     * controller could pass through from `$request->validated()`. That is the one tenancy rule
+     * `data-model.md` marks non-negotiable, and the product was itself resolved through the scope, so
+     * reading the tenant off it is the auth context arriving transitively rather than a bypass.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function newLot(Product $product, array $attributes): StockLot
+    {
+        $lot = new StockLot($attributes + ['product_id' => $product->getKey()]);
+        $lot->setAttribute('team_id', $product->team_id);
+        $lot->save();
+
+        return $lot;
+    }
+
+    /**
      * Append one row to the ledger.
      */
     private function append(
@@ -285,6 +308,9 @@ final class StockWriter
             'idempotency_key' => $idempotencyKey,
             'occurred_at' => now(),
         ]);
+
+        // Same reasoning as [newLot]: the movement's tenant is the lot's, which is the product's.
+        $movement->setAttribute('team_id', $lot->team_id);
 
         if ($reference !== null) {
             $movement->reference()->associate($reference);

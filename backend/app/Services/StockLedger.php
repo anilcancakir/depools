@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\Scopes\TeamScope;
 use App\Models\StockLot;
 use Illuminate\Support\Collection;
 
@@ -13,6 +14,24 @@ use Illuminate\Support\Collection;
  * Nothing here writes a movement. Consumption is a separate concern that will call [fefoLots] to
  * decide WHERE to take from and then append to the ledger itself, so this class stays safe to call
  * from a read path.
+ *
+ * ### Every query here states that it crosses the tenancy scope, and that is a fix rather than a hole
+ *
+ * `BelongsToTeam` fails closed: with no authenticated user `TeamScope` matches nothing, and its own
+ * docblock names the case this class is ("a queue worker rebuilding a materialised total, say") and
+ * says the caller must state the crossing explicitly with a test behind it.
+ *
+ * Measured before it was changed: [rebuildProductStock] called with no authenticated user found no
+ * lots, computed a quantity of zero, took the delete branch, deleted nothing (that query is scoped
+ * too) and returned as though it had rebuilt the pair. **A repair that silently does nothing** is
+ * precisely the failure D81 accepted responsibility for, so the nightly sweep could not have used it.
+ *
+ * The rule that makes the crossing safe rather than convenient: **every method here is keyed on an
+ * explicit `Product` and location.** Whoever resolved that product already crossed the boundary,
+ * through a scoped query or deliberately without one, so re-applying the scope inside adds no
+ * safety and only breaks non-request callers. A method taking a tenant-less filter would still need
+ * the scope, and there is none here. `grep withoutGlobalScope` lists every crossing in the app, which
+ * is the audit this shape is chosen to keep possible.
  */
 final class StockLedger
 {
@@ -43,6 +62,7 @@ final class StockLedger
     {
         /** @var Collection<int, StockLot> $lots */
         $lots = StockLot::query()
+            ->withoutGlobalScope(TeamScope::class)
             ->where('product_id', $product->getKey())
             ->where('location_id', $locationId)
             ->whereNull('closed_at')
@@ -93,6 +113,7 @@ final class StockLedger
     public function rebuildProductStock(Product $product, int|string $locationId): ?ProductStock
     {
         $lots = StockLot::query()
+            ->withoutGlobalScope(TeamScope::class)
             ->where('product_id', $product->getKey())
             ->where('location_id', $locationId)
             ->get();
@@ -103,6 +124,7 @@ final class StockLedger
 
         if ($open->isEmpty() && $quantity <= 0) {
             ProductStock::query()
+                ->withoutGlobalScope(TeamScope::class)
                 ->where('product_id', $product->getKey())
                 ->where('location_id', $locationId)
                 ->delete();
@@ -119,18 +141,33 @@ final class StockLedger
             ->sort()
             ->first();
 
-        return ProductStock::updateOrCreate(
-            [
-                'team_id' => $product->team_id,
+        // Scope-free for the reason above, and here it also prevents a SECOND failure: with the scope
+        // active the lookup half matches nothing, so `updateOrCreate` would insert instead of update
+        // and collide with the `(team_id, product_id, location_id)` unique index.
+        //
+        // Keyed on `(product_id, location_id)` without the team, which is not a loosening: a product
+        // belongs to exactly one team, so the pair is already unique, and including the team could
+        // only ever make the lookup MISS a row it should have updated.
+        $stock = ProductStock::query()
+            ->withoutGlobalScope(TeamScope::class)
+            ->firstOrNew([
                 'product_id' => $product->getKey(),
                 'location_id' => $locationId,
-            ],
-            [
-                'quantity' => $quantity,
-                'earliest_expires_at' => $earliest,
-                'lots_count' => $open->count(),
-                'updated_at' => now(),
-            ],
-        );
+            ]);
+
+        // Explicit, for the reason `StockWriter::newLot` records at length: `team_id` is deliberately
+        // absent from `$fillable` so a controller cannot pass one through from a request, which also
+        // means `updateOrCreate` silently DROPPED it here and the row's tenant came from the auth
+        // context rather than from the product it belongs to. Identical on a request path, null on
+        // every other, so the write failed on a not-null violation naming a column.
+        $stock->setAttribute('team_id', $product->team_id);
+
+        $stock->fill([
+            'quantity' => $quantity,
+            'earliest_expires_at' => $earliest,
+            'lots_count' => $open->count(),
+        ])->save();
+
+        return $stock;
     }
 }

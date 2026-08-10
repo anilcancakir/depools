@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
+use App\Models\Scopes\TeamScope;
 use Carbon\CarbonInterface;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -122,7 +123,12 @@ final class StockLot extends Model
      */
     public function recalculateFromLedger(): void
     {
-        $remaining = (float) $this->initial_quantity + (float) $this->movements()->sum('delta');
+        // Scope-free, because this lot IS the tenancy boundary: it was resolved by a caller that
+        // already crossed it, and with `TeamScope` applied a queue worker or the nightly sweep would
+        // sum an empty set and clamp a real lot to zero. `StockLedger`'s docblock carries the rule and
+        // the measurement behind it.
+        $remaining = (float) $this->initial_quantity
+            + (float) $this->movements()->withoutGlobalScope(TeamScope::class)->sum('delta');
 
         // Clamped at zero rather than allowed negative. A ledger that drove a lot below zero is a
         // bug in whatever wrote it, and storing the negative would spread that bug into every

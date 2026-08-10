@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
 use App\Models\Concerns\NormalisesName;
+use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -82,14 +83,18 @@ final class Product extends Model
                 return;
             }
 
-            if ($product->tracking_mode === 'lot' && $product->serials()->exists()) {
+            // Both checks are scope-free for the same reason the derivations below are: the product is
+            // the boundary. Under `TeamScope` a console or queue path would see no serials and no
+            // lots, and the guard would permit exactly the transition it exists to refuse.
+            if ($product->tracking_mode === 'lot' && $product->serials()->withoutGlobalScope(TeamScope::class)->exists()) {
                 throw new RuntimeException(
                     'A product that has held serials cannot return to lot tracking: an individually '
                     .'identified unit has no fungible quantity to collapse into.',
                 );
             }
 
-            if ($product->tracking_mode === 'serial' && $product->lots()->where('remaining_quantity', '>', 0)->exists()) {
+            if ($product->tracking_mode === 'serial'
+                && $product->lots()->withoutGlobalScope(TeamScope::class)->where('remaining_quantity', '>', 0)->exists()) {
                 throw new RuntimeException(
                     'A product cannot switch to serial tracking while its lots still hold stock: '
                     .'consume or transfer the remaining quantity out first.',
@@ -159,6 +164,13 @@ final class Product extends Model
         // float on its way to a string, which is the one thing a quantity must not do. Three places
         // matches `decimal(12,3)` and matches `stock_lots.remaining_quantity`'s own cast, so the two
         // numbers an audit compares by hand are formatted alike.
-        return bcadd((string) $this->movements()->sum('delta'), '0', 3);
+        // Scope-free for the reason `StockLedger`'s docblock records: this product is the tenancy
+        // boundary, and under `TeamScope` the nightly sweep would compare a real projection against
+        // a sum over nothing and report every row in the database as drifted.
+        return bcadd(
+            (string) $this->movements()->withoutGlobalScope(TeamScope::class)->sum('delta'),
+            '0',
+            3,
+        );
     }
 }

@@ -6,6 +6,7 @@ use App\Enums\ActorType;
 use App\Enums\MovementReason;
 use App\Enums\MovementSource;
 use App\Models\Concerns\BelongsToTeam;
+use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,10 +19,12 @@ use RuntimeException;
  *
  * ### Append-only is enforced here, and the reason it is not a database trigger
  *
- * Invariant 4 says these rows are never updated or deleted. A trigger would be stronger, but it is
- * not portable across the engines this runs on (the suite is sqlite, production is not), and a rule
- * that lives only in a migration is a rule no reader of the model can see. So the model throws, and
- * a test asserts that it throws, which is the combination the doc asks for.
+ * Invariant 4 says these rows are never updated or deleted. A trigger would be stronger and D84 rules
+ * one out: PostgreSQL stores, indexes and constrains, and it does not compute. The reason recorded
+ * here used to be portability, "the suite is sqlite, production is not", which stopped being true
+ * when D72 moved the suite onto PostgreSQL. So the model throws, a test asserts that it throws, and
+ * the referential half (`restrictOnDelete` on product, location and lot) is in the migration, which
+ * together is what the doc asks for.
  *
  * A mistake is corrected by APPENDING a compensating movement with `reason = correction`. That is
  * not a workaround for the missing update; it is the point. The wrong number and its correction are
@@ -94,8 +97,13 @@ final class StockMovement extends Model
 
         // The lot's materialised total is refreshed from the ledger rather than incremented, so a
         // double-fired event or a retried job converges instead of drifting.
+        //
+        // The relation is loaded scope-free deliberately. `TeamScope` would resolve `lot` to null in
+        // any context without an authenticated user, so a movement written by a queue worker or a
+        // seeder would leave its lot's total stale and report success. That is the exact drift D81
+        // holds this application responsible for, arriving through the hook meant to prevent it.
         self::created(static function (self $movement): void {
-            $movement->lot?->recalculateFromLedger();
+            $movement->lot()->withoutGlobalScope(TeamScope::class)->first()?->recalculateFromLedger();
         });
     }
 
