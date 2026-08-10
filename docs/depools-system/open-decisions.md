@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D97 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D104 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1647,3 +1647,132 @@ applied to an inbound line).
 
 Recorded rather than left implicit because the obvious shortcut, mapping at parse time and keeping only
 the result, makes an unmapped code indistinguishable from a piece.
+
+### D98. A shopping line stores the reason CODE and its frozen inputs, never a rendered sentence
+
+`shopping_list_items` carries `reason` as a closed vocabulary (`running_out`, `roughly_due`,
+`below_target`, `expiring`, `manual`) plus the inputs the sentence is built from: the days figure, the
+amount on hand, the target, the movement count. The sentence itself is rendered per locale at read time.
+
+The mockup stores a pre-localised string (`2 günlük kaldı`), and a fixture is allowed to; a schema is
+not. `iterations.md` requires complete Turkish AND English for v1, and a Turkish sentence in the
+database makes the English interface untranslatable: the job that generated the list would have picked a
+language, and a user switching locale would find their history in the old one.
+
+**The inputs are frozen and the output is live, which is the part worth stating.** D47 makes the list a
+document rather than a view of stock: ticking a line is not a movement, so the list is deliberately
+independent of the ledger. A user walking a shop must not have a line change under them because someone
+else recorded a sale. Recomputing the numbers on every read would do exactly that.
+
+D46 is what makes the vocabulary closed rather than free text: the reason's SHAPE is the uncertainty
+display, so ten or more movements earns a number, two to nine earns a bucket and never a number at any
+precision, and zero or one earns a bare ratio with no time in it. A stored phrase could violate that
+silently; a code plus a tier cannot.
+
+### D99. One rolling list per tenant, and a receipt clears the ticked lines rather than closing it
+
+A single open list. Ticked lines sink into their own group (D47), a receipt clears them, and the list
+carries on.
+
+A user holds one mental "things to get" rather than a document per trip, and creating a per-trip object
+would put a piece of bookkeeping in front of them that this product exists to remove. Generated lines
+also refresh continuously, so a closed list goes stale the moment it closes.
+
+Rejected: many lists, closed by a receipt. It answers "what did I buy last month", and the ledger
+already answers that better and with reasons attached.
+
+**`shopping_lists` survives as a 1:1 row rather than being folded away**, which is worth recording
+because the obvious simplification is tempting. With one list per tenant the table holds almost nothing,
+but "when were the generated lines last refreshed" is real state and it has to live somewhere. The
+alternative is a column on `teams`, and `teams` belongs to `magic-starter`: putting our domain state in
+the starter's table is a layer violation that costs more than a thin table does.
+
+### D100. A shopping line always has a name and only sometimes has a product
+
+`product_id` is nullable and `name` is always present. **A manual line does NOT create a product.**
+
+The mockup already made the product call and said why: "the user typed it, and it may not be in the
+catalogue at all. A list that only holds known products is a list people keep on paper instead."
+
+The schema consequence is a pricing one and it is the reason this is a decision rather than a detail.
+Creating a product consumes D4's unique-SKU meter, so typing `bulaşık deterjanı` on a shopping list
+would move a free-tier tenant toward their 100-SKU limit for something they never intend to hold in
+stock. That is precisely the dead end D4 exists to prevent, arriving through a side door.
+
+A line can be linked to a product later, and that happens when the user touches the line rather than as
+a background job matching on names. An automatic match would be the same class of silent guess D31 and
+D29 both refuse.
+
+Rejected: two tables, one for product lines and one for text lines. The schema would state what each row
+is, and the screen would then read one list from two tables and sort it in PHP.
+
+### D101. Saved-filter criteria are one `jsonb` column, and a dead reference is dropped on read
+
+`saved_filters(team_id, created_by, name, criteria jsonb)`. A location or category that no longer exists
+is silently dropped when the filter is read, and the chip row shows what remains.
+
+`jsonb` because the axis set is not final: `filtering-and-saved-views.md` lists eight axes and records
+that a tracking-mode axis is still open, so a column per axis means a migration per axis and an ambiguous
+retroactive meaning for filters saved before it existed.
+
+Dropping a dead reference rather than failing follows from what a saved filter IS. `filtering-and-saved-views.md`
+is explicit that it stores criteria and never results, precisely so tomorrow's newly expiring product
+appears in it; a filter that broke because a shelf was renamed would fail the same promise from the other
+direction.
+
+**But it is dropped VISIBLY.** That document's central fear is an invisible active filter: applied
+criteria that are not shown leave the user reading a shortened list, concluding the product is not there,
+and leaving. So the chip row renders what survived, and a filter that lost an axis looks different from
+one that never had it.
+
+Rejected: a pivot table with real foreign keys, so a delete cascades and a dead reference cannot exist.
+It puts integrity in the schema and splits the criteria set across two places, so two of the eight axes
+live somewhere different from the other six.
+
+### D102. A print-batch line is either a product with copies or one serial, and the database says which
+
+One table with two regimes and a CHECK, the same shape `barcodes` and `receipts` use.
+
+D45 already settled the behaviour: a lot-tracked product's label identifies the PRODUCT, so twelve
+stickers are twelve copies of one design and the count is free; a serial-tracked product's labels are all
+different, one per unit, so its count IS the number of selected serials and a stepper there would be
+offering to edit how many units exist.
+
+Putting that in the schema rather than only in the UI matters because D45's consequence is that the
+stepper is ABSENT rather than disabled, and an absent control is easy to reintroduce by accident. A row
+carrying a serial and a copy count of three is a state the design forbids, so the database forbids it.
+
+Rejected: a polymorphic `labelable`. It is more flexible and it cannot express that the copy count is
+meaningful for one type and nonsense for the other, so D45's rule would live only in application code.
+There is also no third labelable type yet, which makes the flexibility speculative.
+
+### D103. The render cache is a storage path derived from the hash, not a table
+
+`labels/{hash}.png`, checked with `Storage::exists`. No `label_renders` table.
+
+D71 already defines the key: the preview is cached under a hash of the template plus its data, so
+changing a template or a field produces a new key rather than a stale image. Once the hash IS the
+identity, a table adds nothing except a second source of truth, and the failure mode is specific: a file
+swept from storage leaves a row saying the cache is warm, so the next request serves a path to nothing.
+
+It also stays in proportion. D71's own reasoning against a queue was that a sheet is a handful of pages
+and ceremony nobody asked for is worse than a few seconds; a cache-accounting table is that same
+ceremony in a different place.
+
+Rejected: columns on `print_batches`. The preview exists BEFORE a batch does, because the user watches it
+change while choosing a template, which is the comparison D42 put the whole screen together to support.
+
+### D104. A reprinted label is counted, not just re-dated
+
+`print_batch_items` carries `printed_at` and `print_count`.
+
+`labeling-and-printing.md` needs the printed state so a jammed print can resume from a range, and
+`printed_at IS NULL` answers that on its own. The count is there for a different question: a label printed
+twice is two stickers and a second sheet of paper.
+
+That is worth two columns because D43 takes paper seriously as the consumable, to the point of drawing the
+empty cells so a user can see how much a template wastes. A schema that cannot say why three sheets were
+consumed undercuts the screen that was built to make that visible.
+
+Rejected: a `print_runs` table with the exact range per run. It is the complete history and no screen or
+report in v1 asks for it.
