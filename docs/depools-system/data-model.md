@@ -22,7 +22,7 @@ Read `features/inventory-core.md` for the behaviour built on top of this.
 > `ai_credit_grants` (D106, because a credit balance has to be derived for the same reason a stock
 > balance does).
 >
-> The full record is `open-decisions.md`, D72 to D108.
+> The full record is `open-decisions.md`, D72 to D111.
 
 ## The two decisions that shape everything
 
@@ -303,11 +303,24 @@ until PostgreSQL arrived; a barcode's two identity regimes; a receipt's two dedu
 resolved receipt line pointing somewhere; a serial's label printing once; only the first attempt of an AI
 action carrying a charge; and one plan allowance per period.
 
-**Still only a test**, because a CHECK cannot see another table and D84 rules out the trigger that could:
-invariant 1 (the projection equals the ledger's sum, which is why the scheduled consistency check ships
-with the feature rather than after it, per D81), invariant 5 (a transfer's paired rows), invariant 8 (lots
-XOR serials), and the drift guard on `name_normalized` (D88), which catches the one write path a mutator
-cannot cover.
+**In the application**, because a CHECK cannot see another table and D84 rules out the trigger that
+could. Each of these now has a named mechanism rather than an intention:
+
+| Rule | What holds it |
+|---|---|
+| invariant 1, projection equals the ledger | `StockConsistency`'s three projection checks, run nightly by `depools:check-consistency` (D81's second obligation, D110) |
+| invariant 2, a lot's total | the same sweep, including `lot_overdrawn`, which compares against the UNCLAMPED sum because `recalculateFromLedger` stores `max($sum, 0)` and a lot the ledger drove negative otherwise sits at zero looking correct |
+| invariant 4, append-only | the model throws on update and delete; `restrictOnDelete` is the referential half |
+| invariant 5, a transfer's paired rows | `StockWriterTest::test_invariant_5_a_transfer_is_two_equal_and_opposite_movements` |
+| invariant 8, lots XOR serials | three mechanisms, one per failure mode: a vocabulary CHECK, a model transition guard, and `StockWriter::receive` refusing a serial-tracked product (D109) |
+| invariant 9, a serial's quantity and unit deltas | `serial_quantity_drift` and `serial_unit_delta` in the sweep |
+| D88, the normalisation fold | `name_normalized_drift` in the sweep, plus `NameNormalizationTest` pinning the fold itself |
+| D81's FIRST obligation, that only `StockWriter` writes | `LedgerWritersTest`, which pins the set of files that can REACH each derived table |
+
+Six of the nine sweep checks are repairable, because their invariant names an authority: the ledger. The
+other three are questions about a shelf rather than about arithmetic, so `repair()` refuses them out
+loud. The scheduled run never repairs anything at all (D110): drift is the evidence that a writer
+bypassed the service, and a nightly repair would tidy that evidence away every night.
 
 Invariants 8 and 9 were untestable when this was written because `product_serials` did not exist. It does
-now.
+now, and so does `ProductSerial`.

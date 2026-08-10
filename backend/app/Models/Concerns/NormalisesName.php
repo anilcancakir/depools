@@ -23,8 +23,17 @@ use Illuminate\Support\Str;
  *
  * `Model::query()->update(['name' => ...])` bypasses mutators AND observers. So a mass update leaves
  * `name_normalized` stale, the row still looks present, and the cascade quietly stops finding it.
- * `NameNormalizationTest` recomputes the fold for every row and compares it against the stored column,
- * so drift surfaces on the next suite run. That test is part of this design rather than an extra.
+ *
+ * Two things close that gap, and neither is the one this docblock used to claim. It said
+ * "`NameNormalizationTest` recomputes the fold for every row ... so drift surfaces on the next suite
+ * run", which a test cannot do: every test refreshes the database, so there are no rows left to sweep.
+ * What actually holds it:
+ *
+ * - `StockConsistency`'s `name_normalized_drift` check recomputes the fold for every row in all three
+ *   tables and reports disagreement. It runs nightly, on real data, which is where drift can exist.
+ * - `Tests\Unit\NameNormalizationTest` pins the fold ITSELF, so the measured claims below stay true.
+ *   A silent change to `Str::ascii`'s behaviour would otherwise present as a cascade that stopped
+ *   finding things rather than as a failure.
  *
  * This is the same shape as D81: the application owns an invariant the database could have owned, so
  * the check that catches its failure ships with it.

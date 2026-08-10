@@ -70,6 +70,17 @@ A green suite is the floor, not the finish line. Anything a person clicks gets d
   and constrains; Laravel computes. A CHECK constraint and a partial index are fine, because they
   constrain rather than derive. A derived value is either written by PHP with a guard and a drift test,
   or not stored at all and computed at the boundary.
+- **`StockWriter` is the only thing that writes stock, and `depools:check-consistency` is what proves
+  it.** The projection is maintained by the application rather than by a trigger (D81), so four
+  invariants hold by promise: the sweep is the mechanism that catches a broken promise, and
+  `LedgerWritersTest` fails when a new file gains the ability to reach a ledger table. The scheduled run
+  reports and never repairs (D110), because drift is the evidence that something bypassed the service.
+  `--fix` is a manual action, and it repairs lots before projections since a projection is derived from
+  its lots.
+- **A derivation that runs outside a request states its tenancy crossing** with
+  `withoutGlobalScope(TeamScope::class)`, keyed on the product or lot it was given (D111). `TeamScope`
+  fails closed, so without it a queued or scheduled rebuild silently does nothing. `grep
+  withoutGlobalScope` is the audit.
 
 ## Off-limits
 

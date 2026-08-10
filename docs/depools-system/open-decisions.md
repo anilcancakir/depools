@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D108 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D111 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1871,3 +1871,100 @@ indirect again in exactly the way this decision exists to avoid.
 Rejected: a column on `teams`. It loses which tier was trialled, and `teams` belongs to
 `magic-starter`, so putting our domain state there is the layer violation D99 already refused for the
 shopping list.
+
+### D109. Invariant 8 splits into three halves, and the transition rule is asymmetric
+
+`tracking_mode`'s VOCABULARY is a CHECK, the TRANSITION between modes is a model guard, and the WRITE
+that could create the contradiction is refused by `StockWriter`. Three mechanisms because the invariant
+has three failure modes and no single mechanism reaches all of them.
+
+The vocabulary CHECK was simply missing: `tracking_mode` was the one vocabulary column in the schema
+with nothing behind it while nine others were closed. A closed set of values constrains rather than
+derives, so D84 permits it. `'serials'` is the plausible typo and it would have made a product neither
+lot- nor serial-tracked, which every reader branching on the value resolves to `lot` by default: the
+product looks fine and counts wrongly.
+
+**The transition rule is asymmetric, and the asymmetry is its whole content.** D28 said only that a
+product with serials cannot return to lots, and it was silent on the other direction, so the choice was
+between a strict reading and a narrow one:
+
+- `serial -> lot` is refused as soon as one serial row exists. That is permanent in practice, because a
+  released serial is KEPT as evidence rather than deleted, so the first serial a product ever holds
+  closes the direction for good. There is nothing to collapse those rows into: a serial is one physical
+  drill with its own warranty, and a fungible quantity of four cannot say which four.
+- `lot -> serial` is refused only while a lot still HOLDS something. An emptied lot is history in a
+  mechanism the product no longer uses, and history is not a reason to block a correction.
+
+Rejected: refusing both directions whenever any row exists in the opposite mechanism. It is closest to
+invariant 8's literal wording ("never both"), and its consequence is that after the first receipt a
+lot-tracked product can NEVER become serial-tracked, because a closed lot is still a row and rows are
+never deleted. A user who set a power tool up as lot-tracked would have to abandon the product and open
+a second one, which spends a unique-SKU slot, and D4 meters exactly that.
+
+Rejected: no guard at all, letting the nightly sweep report a product holding stock in both. It is the
+least code and it makes D28's rule enforced nowhere: the user switches, the existing serials' quantity
+loses its meaning, and nobody learns until 03:17.
+
+Measured while writing it: `forceFill` does NOT bypass the guard. It bypasses `$fillable` and nothing
+else, so `updating` still fires. Producing the forbidden state takes a writer that leaves Eloquent
+entirely, which is the same class of bypass D88 names for `name_normalized` and D81 for the projection.
+
+### D110. The scheduled consistency check reports and never repairs
+
+`depools:check-consistency` runs nightly and exits non-zero on drift. `--fix` exists and is a manual
+action, never on the schedule.
+
+D81 accepted an application-maintained projection over a trigger and named the price: drift "is evidence
+of a writer that bypassed this class, not of an arithmetic error inside it". A nightly `--fix` would
+sweep that evidence up every night, so the bypassing writer would be permanently invisible while
+permanently present, and the projection would go on being wrong between every write and 03:17.
+
+The cost is real and is accepted: a drifted balance stays wrong on screen until someone reads the
+failure. That is the trade this decision makes, because the alternative hides the bug rather than the
+symptom.
+
+Rejected: auto-repairing invariants 1 and 2 while reporting the rest. It makes the user-visible number
+correct soonest, which is the strongest argument for it, and it is precisely the version that makes the
+bypassing writer undiscoverable.
+
+Six of the nine checks are repairable, because their invariant names an authority: the ledger. Three are
+not, and that is a property of the check rather than of the row. A product holding both a lot with stock
+and a held serial has two quantities and nothing in the data says which one is the shelf; a lot the
+ledger drove below zero is missing stock that left somehow. Both are questions about a shelf, so
+`repair()` throws rather than skipping them, because a loop that quietly passed over them would report
+"all repaired" while leaving the findings that need a person.
+
+**The order of the checks is the repair order, and that was found by failing rather than by reasoning.**
+A projection is derived from its lots, so repairing it first rebuilds it from lot totals that are
+themselves still wrong. `--fix` reported success and then failed its own re-sweep, which is why the
+command re-sweeps at all.
+
+### D111. A ledger derivation crosses the tenancy scope explicitly, keyed on the model it was given
+
+Every query that rebuilds a derived total runs with `withoutGlobalScope(TeamScope::class)`. Not a
+loosening: `BelongsToTeam`'s own docblock names this case ("a queue worker rebuilding a materialised
+total, say") and asks the caller to state the crossing with a test behind it.
+
+Nothing had stated it, and the consequence was measured rather than predicted. `rebuildProductStock`
+with no authenticated user found no lots, computed zero, took the delete branch, deleted nothing (that
+query was scoped too) and returned as though it had rebuilt the pair. **A repair that silently does
+nothing** would have made the check in D110 useless: it would report drift, "fix" it, and report the
+same drift again the next night, forever. `recalculateFromLedger` would have clamped a real lot to zero
+and closed it; `quantityFromLedger` returned `'0.000'` for every product, so the sweep's own comparison
+would have called the whole database drifted.
+
+The rule that makes the crossing safe rather than convenient: **every one of these methods is keyed on
+an explicit product or lot**, and whoever resolved that model already crossed the boundary, through a
+scoped query or deliberately without one. Re-applying the scope inside adds no safety. A method taking a
+tenant-less filter would still need it, and there is none. `grep withoutGlobalScope` lists every crossing
+in the application, which is the audit this shape exists to keep possible.
+
+Two writes were failing on a not-null violation naming a column, and the fix is a correctness
+improvement rather than a workaround: a lot's and a movement's `team_id` now come from the PRODUCT, which
+is what invariant 3 requires anyway. `team_id` stays out of `$fillable`, so these are explicit
+assignments and not a key a controller could pass through from `$request->validated()`, which is the one
+tenancy rule `data-model.md` marks non-negotiable.
+
+That uncovered a live silent bug: `product_stock`'s `updateOrCreate` had been passing `team_id` inside
+the attributes array, where mass assignment dropped it, so the column was filled by the auth context on
+every write rather than by the product. `'updated_at' => now()` was dropped the same way.
