@@ -22,7 +22,7 @@ Read `features/inventory-core.md` for the behaviour built on top of this.
 > `ai_credit_grants` (D106, because a credit balance has to be derived for the same reason a stock
 > balance does).
 >
-> The full record is `open-decisions.md`, D72 to D111.
+> The full record is `open-decisions.md`, D72 to D112.
 
 ## The two decisions that shape everything
 
@@ -80,7 +80,9 @@ Unique: (`team_id`, `sku`) where `sku` is not null.
 
 `content_amount` and `content_unit` are the ONE declaration D25 allows on the product itself, and they are what the partial-quantity display renders ("2 adet + 500 ml"). They do not replace `product_units`: that table holds purchase-side conversions (a `koli` of 12), while these describe what a single base unit is made of. Turkish labelling law states the same pair on the pack, per-unit net content plus pack count, so the fields mirror what the box already carries.
 
-`tracking_mode` is effectively immutable in the `serial` direction: a product with serials cannot go back to lots, because the serials have no fungible quantity to collapse into. Enforced at validation, not by the column.
+`tracking_mode` is effectively immutable in the `serial` direction: a product with serials cannot go back to lots, because the serials have no fungible quantity to collapse into.
+
+**Enforced in three places, one per failure mode (D109), and "at validation" was never one of them.** The vocabulary is a CHECK, because a closed set of values constrains rather than derives. The transition is a model guard, because it compares against another table: `serial -> lot` is refused as soon as one serial row exists, which is permanent because a released serial is kept as evidence, while `lot -> serial` is refused only while a lot still holds stock, so an emptied lot does not block a correction. The write that could create the contradiction is refused by `StockWriter::receive`.
 
 ### product_units
 
@@ -107,7 +109,7 @@ A user-named hierarchy. Depth is arbitrary but bounded.
 | `parent_location_id` | uuid, fk locations, nullable, indexed | self-reference |
 | `name` | string(255), indexed | user's own words, e.g. `Mutfak Dolabı`, `Çekmece 2` |
 | `path` | string, indexed | materialised ancestor path, maintained on write |
-| `depth` | smallint | enforced maximum of 6 |
+| `depth` | smallint | maximum of 6, enforced by `Location::refreshHierarchy` and NOT by a CHECK (D112) |
 | `icon_id` | uuid, fk icons, nullable | |
 | `created_at`, `updated_at`, `deleted_at` | timestamps | |
 
@@ -296,12 +298,19 @@ Statements that must hold, each of which deserves a test:
 Building the schema moved several of these from "deserves a test" to "cannot happen", which is worth
 distinguishing because the two need different work.
 
-**In the database**, as a CHECK or a partial unique index: invariant 7's depth cap; invariant 3 and 4's
-referential half (`restrictOnDelete` on the ledger's product, location and lot, so a force delete cannot
-take history with it); `(team_id, sku)` uniqueness, which this document asked for and which held nowhere
-until PostgreSQL arrived; a barcode's two identity regimes; a receipt's two deduplication regimes; a
-resolved receipt line pointing somewhere; a serial's label printing once; only the first attempt of an AI
-action carrying a charge; and one plan allowance per period.
+**In the database**, as a CHECK or a partial unique index: invariant 3 and 4's referential half
+(`restrictOnDelete` on the ledger's product, location and lot, so a force delete cannot take history with
+it); `(team_id, sku)` uniqueness, which this document asked for and which held nowhere until PostgreSQL
+arrived; a barcode's two identity regimes; a receipt's two deduplication regimes; a resolved receipt line
+pointing somewhere; a serial's label printing once; a closed `tracking_mode` vocabulary; only the first
+attempt of an AI action carrying a charge; and one plan allowance per period.
+
+**Invariant 7 is NOT in the database, and this sentence used to say it was.** The depth CHECK that exists
+is on `product_categories`, a different table; `locations` carries no CHECK at all. The cap and the cycle
+guard both live in `Location::refreshHierarchy`, which is where the cycle half has to live anyway because
+it compares rows. Auditing that claim found four silent failures in the guard, all fixed, all covered by
+`LocationHierarchyTest` (D112). A single-column `depth <= 6` CHECK is still available and would be belt
+and braces; it is not what was holding the invariant up.
 
 **In the application**, because a CHECK cannot see another table and D84 rules out the trigger that
 could. Each of these now has a named mechanism rather than an intention:

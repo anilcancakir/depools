@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
+use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -51,13 +53,50 @@ final class Location extends Model
     ];
 
     /**
-     * Keep `path` and `depth` true on every write.
+     * Keep `path` and `depth` true on every write, for this row AND everything under it.
+     *
+     * The cascade is triggered by `path` having actually changed rather than by a save happening, which
+     * is what makes it both cheap and complete: a no-op rename rewrites nothing, and a real one
+     * propagates all the way down because each child's own save changes ITS path and fires its own
+     * cascade. Bounded by [MAX_DEPTH] by construction.
+     *
+     * Before this, only the saved row was re-pathed. Renaming `Mutfak` left every shelf inside it
+     * reading `/Mutfak/Buzdolabı/`, so the breadcrumb on screen showed the old room name forever:
+     * `getFullPathAttribute` reads `path`, which is the whole point of storing it, and nothing rewrote
+     * it. `inventory-core.md` makes renaming a documented flow ("the user renames it later"), so this
+     * was a bug waiting on the `update` endpoint rather than a hypothetical.
      */
     protected static function booted(): void
     {
         self::saving(static function (self $location): void {
             $location->refreshHierarchy();
         });
+
+        self::saved(static function (self $location): void {
+            if (! $location->wasChanged('path')) {
+                return;
+            }
+
+            foreach ($location->children()->withoutGlobalScope(TeamScope::class)->get() as $child) {
+                $child->save();
+            }
+        });
+    }
+
+    /**
+     * Wrapped in a transaction so a subtree is re-pathed completely or not at all.
+     *
+     * The cascade in [booted] runs inside `parent::save()`, so a descendant that would exceed
+     * [MAX_DEPTH] throws from its own check and rolls this move back with it. Without the wrapper the
+     * move would already be committed and the tree would be left half re-pathed, which is worse than
+     * refusing: a partially rewritten `path` column is indistinguishable from a correct one.
+     *
+     * That is also what closes the graft hole. Checking the cap only on the row being moved lets a
+     * legal-looking move push its subtree past 6, because nobody touched the descendants directly.
+     */
+    public function save(array $options = []): bool
+    {
+        return DB::transaction(fn (): bool => parent::save($options));
     }
 
     /**
@@ -89,18 +128,44 @@ final class Location extends Model
     /**
      * Recompute `path` and `depth` from the parent, rejecting a cycle and an over-deep tree.
      *
-     * @throws RuntimeException when the parent is this location or one of its descendants, or when
-     *                          the resulting depth would exceed [MAX_DEPTH].
+     * ### The parent is resolved without the tenancy scope, and a missing one is refused
+     *
+     * Both halves were bugs, and both were silent. `TeamScope` fails closed, so outside a request
+     * `self::find()` returned null for a perfectly real parent and the code took its "this is a root"
+     * branch: measured, a console rename turned a depth-2 shelf into `depth = 0`, `path = /Üst Raf 2/`,
+     * while `parent_location_id` stayed set. The row then claimed to be a root AND to have a parent,
+     * and every screen reads `path`. Same class as D111, in a second place, except this one wrote wrong
+     * data rather than doing nothing.
+     *
+     * A dangling parent is now REFUSED rather than rooted. The scope-free lookup still excludes a
+     * soft-deleted parent, deliberately: keeping `/DeletedRoom/Shelf/` in a breadcrumb is worse than
+     * failing. What the policy for a deleted room SHOULD be is undecided (no `destroy` endpoint exists
+     * and no feature doc says whether it cascades, reparents or is refused), so this fails loudly and
+     * leaves the decision to whoever builds delete, instead of having it made by a fallback branch. A
+     * save that RESOLVES the dangling parent still works, so a row is never trapped.
+     *
+     * @throws RuntimeException when the parent is this location or one of its descendants, when the
+     *                          resulting depth would exceed [MAX_DEPTH], or when a named parent cannot
+     *                          be found.
      */
     public function refreshHierarchy(): void
     {
-        $parent = $this->parent_location_id === null ? null : self::find($this->parent_location_id);
-
-        if ($parent === null) {
+        if ($this->parent_location_id === null) {
             $this->path = '/'.$this->name.'/';
             $this->depth = 0;
 
             return;
+        }
+
+        $parent = self::query()
+            ->withoutGlobalScope(TeamScope::class)
+            ->find($this->parent_location_id);
+
+        if ($parent === null) {
+            throw new RuntimeException(
+                'This location names a parent that no longer exists. Move it somewhere that does, or '
+                .'clear its parent, rather than leaving it pointing at nothing.',
+            );
         }
 
         // A cycle is a prefix relationship: the candidate parent's path already contains this
@@ -136,6 +201,12 @@ final class Location extends Model
      * `path` holds names, which a user may repeat (`Raf A` under two different rooms), so it cannot
      * answer an identity question. This walks keys, and it is bounded by [MAX_DEPTH] by
      * construction, so the unbounded traversal the MVP had is not reachable here.
+     *
+     * Scope-free for the reason [refreshHierarchy] records, and here the consequence was that the cycle
+     * guard did not work at all outside a request: the walk stopped at the first level it could not
+     * resolve, found no cycle, and a root placed inside its own grandchild was ACCEPTED. Measured. That
+     * is precisely the MVP failure this whole design exists to prevent, "one location made its own
+     * ancestor hung the query", reachable again through a scope rather than through a missing check.
      */
     public function ancestorKeyPath(): string
     {
@@ -144,7 +215,10 @@ final class Location extends Model
 
         for ($level = 0; $level <= self::MAX_DEPTH && $node !== null; $level++) {
             $keys[] = $node->getKey();
-            $node = $node->parent_location_id === null ? null : self::find($node->parent_location_id);
+
+            $node = $node->parent_location_id === null
+                ? null
+                : self::query()->withoutGlobalScope(TeamScope::class)->find($node->parent_location_id);
         }
 
         return '/'.implode('/', $keys).'/';

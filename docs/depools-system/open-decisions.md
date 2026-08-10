@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D111 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D112 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1968,3 +1968,56 @@ tenancy rule `data-model.md` marks non-negotiable.
 That uncovered a live silent bug: `product_stock`'s `updateOrCreate` had been passing `team_id` inside
 the attributes array, where mass assignment dropped it, so the column was filled by the auth context on
 every write rather than by the product. `'updated_at' => now()` was dropped the same way.
+
+### D112. A location's hierarchy is maintained for the whole subtree, and a dangling parent is refused
+
+`Location::refreshHierarchy` resolves the parent scope-free, refuses a parent it cannot find, and a save
+that changes `path` cascades to every descendant inside one transaction.
+
+This decision exists because `data-model.md` claimed invariant 7's depth cap was enforced "in the
+database". It is not: the depth CHECK that exists is on `product_categories`, and `locations` carries no
+CHECK at all. Auditing that one wrong sentence found four failures, every one of them silent, and three
+of them writing WRONG data rather than doing nothing. All four were measured before they were fixed.
+
+1. **A save with no authenticated user rooted the row.** `TeamScope` fails closed, so `self::find()`
+   returned null for a real parent and the code took its "this is a root" branch: a depth-2 shelf became
+   `depth = 0`, `path = /Üst Raf 2/`, while `parent_location_id` stayed set. The row then claimed to be a
+   root AND to have a parent. Same class as D111, in a second place, except the ledger version silently
+   did nothing and this one silently lied.
+2. **The cycle guard did not work outside a request at all.** `ancestorKeyPath` walked the chain with the
+   same scoped `find`, so the walk stopped at the first level it could not resolve and found no cycle. A
+   root placed inside its own grandchild was ACCEPTED, which is exactly the MVP failure the whole
+   path/depth design exists to prevent ("one location made its own ancestor hung the query"), reachable
+   again through a scope rather than through a missing check.
+3. **A rename re-pathed only the renamed row.** Renaming `Mutfak` left every shelf inside it reading
+   `/Mutfak/Buzdolabı/`, so the breadcrumb showed the old room name forever: `getFullPathAttribute` reads
+   `path`, which is the entire point of storing it, and nothing rewrote it. `inventory-core.md` makes
+   renaming a documented flow ("the user renames it later"), so this was waiting on the `update` endpoint
+   rather than hypothetical.
+4. **The depth cap could be evaded by moving a subtree.** The moved row landed at a legal depth while its
+   descendants were pushed past 6, because nobody touched them directly.
+
+The cascade is triggered by `path` having CHANGED rather than by a save happening, which makes it both
+complete and cheap: each child's save changes its own path and fires its own cascade, so propagation is
+automatic and bounded by `MAX_DEPTH`, while a no-op rename rewrites nothing.
+
+`save()` is wrapped in a transaction, and that is what closes 4 rather than a separate pre-check. A
+descendant's own cap check throws after this row's update is already written, so the wrapper turns a
+half-re-pathed subtree into a refused move. A partially rewritten `path` column is indistinguishable from
+a correct one, which makes the partial case worse than the refusal.
+
+**A dangling parent is refused rather than rooted, and the refusal is deliberately a non-decision.** The
+scope-free lookup still excludes a soft-deleted parent, because keeping `/DeletedRoom/Shelf/` in a
+breadcrumb is worse than failing. What SHOULD happen when a room is deleted is undecided: no `destroy`
+endpoint exists and no feature doc says whether it cascades to its shelves, reparents them, or is
+refused. So the model fails loudly and leaves that to whoever builds delete, instead of having it decided
+accidentally by a fallback branch. A save that resolves the dangling parent still works, so no row is
+trapped.
+
+Rejected: a pre-flight subtree-height check instead of the transaction. It computes the same answer and
+leaves the atomicity problem unsolved, because a cascade can still fail halfway for a reason the
+pre-check did not model.
+
+Rejected: adding `depth <= 6` as a CHECK and calling the invariant enforced. It is still worth having as
+belt and braces, and it would not have caught any of the four, because every one of them produced a depth
+inside the legal range.
