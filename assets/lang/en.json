@@ -415,7 +415,7 @@
       "step_locations_action": "Add a location",
       "step_products": "Add your first products",
       "step_products_note": "Scan a barcode, take a photo, or tell the assistant.",
-      "step_products_action": "Add a product",
+      "step_products_action": "Scan a barcode",
       "step_targets": "Set target levels",
       "step_targets_note": "A product with no target never appears in Running low, however low it gets.",
       "step_targets_action": "Go to products",

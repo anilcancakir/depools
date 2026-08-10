@@ -173,6 +173,16 @@ class DashboardView extends StatelessWidget {
               marker: '2',
               title: Lang.get('screens.dashboard.step_products'),
               description: Lang.get('screens.dashboard.step_products_note'),
+              // **The label names where it goes.** It read "Ürün ekle" and opened the barcode
+              // scanner, which promises a product form and delivers a camera; now that
+              // `/urunler/yeni` exists that promise has somewhere real to point, which made the
+              // mismatch worse rather than better.
+              //
+              // The destination stays the scanner because `inventory-core.md` is explicit that a
+              // first-run surface offers the FASTEST capture paths rather than a create button,
+              // and the step's own description already opens with "Barkodu okutun". The other two
+              // paths it names stay reachable: the assistant floats on every screen and the stock
+              // list's empty state offers the receipt and the photo.
               actionLabel: Lang.get('screens.dashboard.step_products_action'),
               onAction: () => MagicRoute.to('/tara'),
             ),
