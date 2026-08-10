@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D92 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D97 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1547,3 +1547,103 @@ The floor at zero stays as D9 wrote it. A signed count that goes negative would 
 rejected location more effectively and would cost the property that makes this model worth having:
 the count IS the explanation shown to the user ("bu çekmecede zaten 3 tane var"), and a negative
 number explains nothing.
+
+### D93. A structured invoice is deduplicated on its ETTN; a photograph on a composite
+
+Two regimes in one table, like `barcodes`, with a CHECK deciding which applies.
+
+`receipt-ingestion.md` proposed detecting a duplicate "by image hash and by invoice number". The
+research found a better key. GİB's own UBL-TR technical guide defines `cbc:UUID` as the **ETTN**, the
+Evrensel Tekil Tanımlama Numarası, "the number that ensures the universal uniqueness" of the document,
+in GUID format and required by UBL-TR 1.2.1 to be RFC 4122 version 4. That is an exact key rather than
+a probabilistic match.
+
+`cbc:ID`, which is what a person calls the invoice number, is only unique PER ISSUER. Two suppliers
+using the same number is ordinary, so it cannot be a key on its own, and using it as one when the ETTN
+is right there would be choosing the weaker instrument.
+
+A photograph has no ETTN, so it keeps the composite: the image hash plus the extracted invoice number,
+date and total. Each regime gets its own partial unique index.
+
+**Unique per TENANT rather than globally.** Two tenants cannot legitimately receive the same invoice
+from the same supplier, so global uniqueness sounds right and is a footgun: it lets one tenant block
+another's upload by getting there first, which is the same reasoning that made
+`stock_movements.idempotency_key` per-team.
+
+### D94. The document is kept for a short window and then deleted; we are not the archive
+
+The XML and the receipt photograph are held until the confirmation completes plus a buffer, then
+deleted. The extracted structure and the ledger remain.
+
+The research corrected an assumption worth naming, because it points the other way from what a reader
+would guess. VUK m.253 requires five years and TTK m.82 requires ten, and a Turkish legal analysis
+concludes VUK is the more specific law, that five years is a floor rather than a ceiling, and that
+applying ten is prudent. **All of that binds the taxpayer who issued or received the invoice, which is
+our USER and not us.** `legal-and-privacy.md` already states our position: the documents belong to the
+user, who is a party to them, and we process them on the user's instruction to extract what they
+bought. So our obligation is KVKK's minimisation, not VUK's retention.
+
+Holding it briefly is still worth it, because re-parsing is a real need rather than a hypothetical: a
+bug is fixed, a model improves, or a user disputes a line. Asking them to forward the document again is
+a bad answer to all three.
+
+Holding it indefinitely would make us an archive we never agreed to be, over data that is personal (a
+buyer's name, VKN or TCKN, an address). `product.md` is also explicit that this is not an accounting
+product: it reads an invoice to learn what was bought and stops there.
+
+The window is configuration rather than a literal, and it starts at confirmation rather than at upload,
+because an abandoned receipt is exactly the one a user comes back to.
+
+### D95. Raw extraction is its own table, one row per attempt
+
+`receipt_extractions(receipt_id, attempt, provider, model, raw_payload jsonb, outcome)` rather than a
+single `jsonb` column on `receipts`.
+
+Same reasoning as D78, and it arrives from the same place: D77's layered fallback means one receipt can
+produce several model calls, and `ai-design.md` already specifies that a malformed structured response
+is retried once with a stricter instruction. A single column means the second attempt overwrites the
+first, so "the first model failed schema validation and the second passed" is lost.
+
+That fact is not trivia. O2 schedules a bake-off on 100 real Turkish receipts to choose the vision
+model, and **this table is the bake-off's data.** Deciding the model from production evidence rather
+than from a one-off spreadsheet requires that the evidence be recorded as it happens.
+
+Rejected: accumulating attempts in a jsonb array. It keeps the history and makes "how often did this
+model fail validation" a jsonb aggregation that is awkward to index, and it cannot carry a foreign key
+to the matching `ai_usage_events` row, because an array element cannot be referenced.
+
+### D96. A movement references the receipt LINE, not the receipt
+
+`stock_movements.reference_type` / `reference_id` point at `receipt_lines`.
+
+`data-model.md` said the document, which is one join fewer and loses the thing D51 needs. Undo appends a
+compensating movement, and a user who spots one wrong line on a 22-line receipt wants that line undone,
+not the whole shop. At document granularity they would have to find the movement among 22 by hand.
+
+The line is already a first-class object rather than a detail: `receipt-ingestion.md` requires per-line
+confirmation and per-line resolution state so a partially confirmed receipt can be resumed. Pointing at
+it costs nothing conceptual.
+
+The document-level question ("what did this receipt produce") is still one join through
+`receipt_lines.receipt_id`.
+
+Rejected: pointing at the line AND denormalising `receipt_id` onto the movement. It makes the
+document-level query join-free and puts a second source of truth into an append-only ledger, which is
+the one table where a column that can disagree with another is least acceptable.
+
+### D97. UN/ECE unit codes are mapped in PHP, and the raw code is kept on the line
+
+UBL-TR carries quantities as `<cbc:InvoicedQuantity unitCode="C62">`, which is UN/ECE Recommendation 20:
+`C62` for a piece, `KGM` for a kilogram, `LTR` for a litre. Our products use `adet`, `kg`, `lt`.
+
+The mapping is a PHP map rather than a table, because D84 puts computation in Laravel and because these
+codes are an international standard rather than tenant data: nobody adds a row to it, and a table would
+be a seeded lookup that can drift from the code that reads it.
+
+`receipt_lines` stores the RAW code alongside the resolved unit. An unrecognised code is then a visible
+state rather than a silent default to `adet`, which matters because guessing the unit is the one error
+that changes what every quantity in the ledger means (D32's reasoning about an inferred `base_unit`,
+applied to an inbound line).
+
+Recorded rather than left implicit because the obvious shortcut, mapping at parse time and keeping only
+the result, makes an unmapped code indistinguishable from a piece.
