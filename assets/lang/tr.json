@@ -854,7 +854,7 @@
       "identity_group": "Konum",
       "name": "Ad",
       "name_placeholder": "Örn: Raf B",
-      "name_pending": "Yeni konum",
+      "name_pending": "adı yazın",
       "icon": "İkon",
       "icon_pick": ":index numaralı ikon",
       "parent_group": "Nerede",

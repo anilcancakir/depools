@@ -84,6 +84,11 @@ class _LocationFormViewState extends State<LocationFormView> {
       locationTree.where((LocationNode n) => n.depth + 2 <= _maxDepth).toList();
 
   /// The path this location will have, shown while it is still being decided.
+  ///
+  /// **The empty-name placeholder is an instruction, not a name.** It read "Yeni konum", which is
+  /// the page title verbatim, so with nothing typed the line repeated the heading instead of
+  /// previewing anything. "Depo › adı yazın" reads as a slot waiting to be filled, which is what
+  /// it is.
   String get _preview {
     final String own = _name.trim().isEmpty ? Lang.get('screens.location_form.name_pending') : _name.trim();
     return _parentPath == null ? own : '$_parentPath › $own';

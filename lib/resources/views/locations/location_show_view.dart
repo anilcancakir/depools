@@ -210,7 +210,16 @@ class LocationShowView extends StatelessWidget {
           disabled: !isEmpty,
           intent: ButtonIntent.ghost,
           className: 'py-3.5 axis-min',
-          child: WText(Lang.get('screens.location.delete')),
+          // **The label carries the disabled state, because the ghost intent does not.** Rendered
+          // disabled, a ghost button is indistinguishable from a live one: black text on a card.
+          // Sitting directly under a sentence that says the location cannot be deleted, that is a
+          // control which looks tappable, is not, and contradicts the line above it. A light-mode
+          // pass caught it; dark mode read the same way and hid nothing, this one was simply never
+          // looked at until now.
+          child: WText(
+            Lang.get('screens.location.delete'),
+            className: isEmpty ? 'text-sm font-medium text-fg' : 'text-sm font-medium text-fg-disabled',
+          ),
         ),
       ],
     );

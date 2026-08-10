@@ -854,7 +854,7 @@
       "identity_group": "Location",
       "name": "Name",
       "name_placeholder": "e.g. Shelf B",
-      "name_pending": "New location",
+      "name_pending": "name it",
       "icon": "Icon",
       "icon_pick": "Icon number :index",
       "parent_group": "Where",
