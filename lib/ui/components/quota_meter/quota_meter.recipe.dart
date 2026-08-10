@@ -41,8 +41,16 @@ WindSlotRecipe quotaMeterRecipe() {
         // Calm keeps the brand fill: a meter with room is not a status, and tinting it would put a
         // fourth colour meaning on a screen that already has three.
         'calm': {'fill': 'h-2 rounded-full bg-primary'},
-        'near': {'fill': 'h-2 rounded-full bg-warning', 'note': 'text-xs text-low-stock'},
-        'full': {'fill': 'h-2 rounded-full bg-destructive', 'note': 'text-xs text-expired'},
+        // **The tone lives on the BAR and nowhere else.** Tinting the note as well painted a
+        // whole paragraph orange, which a light-mode pass made obvious and which contradicts what
+        // this screen is for: `monetization.md` promises that at the limit everything existing
+        // keeps working, so the notes say what STOPS rather than what breaks. A sentence in
+        // warning colour reads as the second of those.
+        //
+        // The bar already carries the reading, the fraction is stated as text beside the label,
+        // and the note is the same explanatory register as every other note in the app.
+        'near': {'fill': 'h-2 rounded-full bg-warning'},
+        'full': {'fill': 'h-2 rounded-full bg-destructive'},
       },
     },
     defaultVariants: {'tone': 'calm'},

@@ -56,11 +56,7 @@ class PlanView extends StatelessWidget {
       backLabel: Lang.get('screens.plan.back'),
       backFallback: '/ayarlar',
       footer: _buildFooter(),
-      children: [
-        _buildCurrent(),
-        _buildMeters(),
-        _buildSeats(),
-      ],
+      children: [_buildCurrent(), _buildMeters(), _buildSeats()],
     );
   }
 
@@ -70,7 +66,10 @@ class PlanView extends StatelessWidget {
       label: Lang.get('screens.plan.current_group'),
       count: Lang.get('screens.plan.plan_free'),
       children: [
-        WText(Lang.get('screens.plan.renewal'), className: 'text-sm text-fg-muted'),
+        WText(
+          Lang.get('screens.plan.renewal'),
+          className: 'text-sm text-fg-muted',
+        ),
       ],
     );
   }
@@ -80,30 +79,48 @@ class PlanView extends StatelessWidget {
     return SectionCard(
       label: Lang.get('screens.plan.usage_group'),
       children: [
-        QuotaMeter(
-          label: Lang.get('screens.plan.meter_products'),
-          used: _products,
-          limit: 50,
-          value: Lang.get('screens.plan.meter_products_value', {'used': _products, 'limit': 50}),
-          note: Lang.get('screens.plan.meter_products_note'),
-        ),
-        QuotaMeter(
-          label: Lang.get('screens.plan.meter_credits'),
-          used: 86,
-          limit: 100,
-          value: Lang.get('screens.plan.meter_credits_value', {'used': 86, 'limit': 100}),
-          note: Lang.get('screens.plan.meter_credits_note'),
-        ),
-        // **No bar, and that was a correction.** Retention was first rendered as `1 / 1`, which
-        // filled the track and turned it red: the screen told a tenant on the free plan that they
-        // had hit a limit they had not touched. Retention is not a quantity being consumed, it is
-        // a WINDOW LENGTH that is the same on day one as on day three hundred. A meter with
-        // nothing to fill draws no track, which is the same rule the unlimited case uses.
-        QuotaMeter(
-          label: Lang.get('screens.plan.meter_history'),
-          used: 0,
-          value: Lang.get('screens.plan.meter_history_value', {'months': 1}),
-          note: Lang.get('screens.plan.meter_history_note'),
+        // **One box with a bigger gap, because three meters were reading as one block.** A meter's
+        // own parts sit 6px apart and the card's body separates its children by about the same, so
+        // a note ran straight into the next label with nothing between them. `gap-5` makes the
+        // separation between meters larger than the separation inside one, which is the whole
+        // grouping rule DESIGN.md states: more space between groups than within them.
+        WDiv(
+          className: 'flex flex-col gap-5 w-full',
+          children: [
+            QuotaMeter(
+              label: Lang.get('screens.plan.meter_products'),
+              used: _products,
+              limit: 50,
+              value: Lang.get('screens.plan.meter_products_value', {
+                'used': _products,
+                'limit': 50,
+              }),
+              note: Lang.get('screens.plan.meter_products_note'),
+            ),
+            QuotaMeter(
+              label: Lang.get('screens.plan.meter_credits'),
+              used: 86,
+              limit: 100,
+              value: Lang.get('screens.plan.meter_credits_value', {
+                'used': 86,
+                'limit': 100,
+              }),
+              note: Lang.get('screens.plan.meter_credits_note'),
+            ),
+            // **No bar, and that was a correction.** Retention was first rendered as `1 / 1`, which
+            // filled the track and turned it red: the screen told a tenant on the free plan that they
+            // had hit a limit they had not touched. Retention is not a quantity being consumed, it is
+            // a WINDOW LENGTH that is the same on day one as on day three hundred. A meter with
+            // nothing to fill draws no track, which is the same rule the unlimited case uses.
+            QuotaMeter(
+              label: Lang.get('screens.plan.meter_history'),
+              used: 0,
+              value: Lang.get('screens.plan.meter_history_value', {
+                'months': 1,
+              }),
+              note: Lang.get('screens.plan.meter_history_note'),
+            ),
+          ],
         ),
       ],
     );
@@ -119,7 +136,10 @@ class PlanView extends StatelessWidget {
       label: Lang.get('screens.plan.seats_group'),
       count: Lang.get('screens.plan.seats_unlimited'),
       children: [
-        WText(Lang.get('screens.plan.seats_note'), className: 'text-sm text-fg-muted'),
+        WText(
+          Lang.get('screens.plan.seats_note'),
+          className: 'text-sm text-fg-muted',
+        ),
       ],
     );
   }
