@@ -104,14 +104,14 @@ class _SettingsViewState extends State<SettingsView> {
             // switch nearly disappears. Dark mode hides this completely, which is why it survived
             // three screens. WCAG 1.4.11 asks 3:1 for a UI component's boundary.
             //
-            // The border does not reach 3:1 on its own (`border` is deliberately low contrast and
-            // DESIGN.md records why), but it gives the control an edge that exists in both
-            // appearances rather than one that depends on the fill. The stronger fix is a control
-            // border token, which is a DESIGN.md change and Anılcan's call.
+            // `border-color-control`, not `border-color-border`: the card hairline is deliberately
+            // low contrast and clears nothing, and DESIGN.md records why that is right for a card
+            // edge. A control edge is a different job, so it got its own token
+            // (`lib/config/depools_control_tokens.dart`), measured at 3.13:1 on a card.
             WDiv(
               className: 'shrink-0',
               child: MSSwitch(
-                className: 'border border-color-border',
+                className: 'border border-color-control',
                 value: on,
                 semanticLabel: Lang.get('screens.settings.digest_toggle'),
                 onChanged: (bool next) async {
@@ -286,7 +286,7 @@ class _SettingsViewState extends State<SettingsView> {
             WDiv(
               className: 'shrink-0',
               child: MSSwitch(
-                className: 'border border-color-border',
+                className: 'border border-color-control',
                 value: on,
                 semanticLabel: Lang.get('screens.settings.assistant_toggle'),
                 onChanged: (bool next) async {

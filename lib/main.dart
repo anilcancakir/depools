@@ -11,6 +11,7 @@ import 'config/logging.dart';
 import 'config/broadcasting.dart';
 import 'config/deeplink.dart';
 import 'config/wind_theme.g.dart';
+import 'config/depools_control_tokens.dart';
 import 'config/depools_overlay_tokens.dart';
 import 'config/depools_paper_tokens.dart';
 import 'config/depools_status_tokens.dart';
@@ -75,6 +76,8 @@ void main() async {
       ...depoolsStatusAliases,
       ...depoolsPaperAliases,
       ...depoolsOverlayAliases,
+      // The control edge, which `design:sync`'s fixed alias table cannot emit.
+      ...depoolsControlAliases,
     },
     fontFamilies: const {'sans': 'Inter', 'mono': 'Geist Mono'},
   );

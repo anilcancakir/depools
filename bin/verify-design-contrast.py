@@ -80,6 +80,13 @@ PAIRS = [
 STATUS_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_status_tokens.dart'
 PAPER_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_paper_tokens.dart'
 OVERLAY_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_overlay_tokens.dart'
+CONTROL_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_control_tokens.dart'
+
+# WCAG 1.4.11 asks 3:1 of a UI component's boundary. A switch has no text or icon to identify it,
+# so unlike a labelled button its edge is the only thing that can carry that. The page-surface row
+# is expected to fall short and is recorded as such: every switch in this app sits on a card, and
+# this table is what would say so if one ever stopped doing that.
+CONTROL_FLOOR = 3.0
 
 # WCAG 1.4.11 asks 3:1 of a UI-component boundary. An overlay stroke's background is a
 # photograph, so it has to clear that against EVERY possible background rather than against a
@@ -118,6 +125,17 @@ def parse_paper() -> dict[str, str]:
                              f'got {light} and {dark}')
         values[key] = light
     return values
+
+
+def parse_control() -> tuple[str, str]:
+    """Read the control-edge supplement and return its (light, dark) pair."""
+    pattern = re.compile(
+        r"^\s*'border-color-control':\s*'border-\[(#[0-9A-Fa-f]{6})\]\s+"
+        r"dark:border-\[(#[0-9A-Fa-f]{6})\]'")
+    for line in CONTROL_TOKENS.read_text().splitlines():
+        if m := pattern.match(line):
+            return m.group(1), m.group(2)
+    raise SystemExit('border-color-control not found in the control supplement')
 
 
 def parse_status() -> dict[str, dict[str, tuple[str, str]]]:
@@ -270,6 +288,28 @@ def main() -> int:
     print(f'{"ink " + ink + " + paper " + paper_stroke:<44}{worst:>8.2f}{mark:>4}'
           f'{worst:>8.2f}{mark:>4}{OVERLAY_FLOOR:>6}')
     print(f'  the better of the two strokes, at its worst background (L={worst_at:.3f})')
+
+    print()
+    print(f'CONTROL EDGE: a switch has no text to identify it, so its boundary carries 1.4.11 '
+          f'(parsed from {CONTROL_TOKENS.name})')
+    print('-' * 78)
+    c_light, c_dark = parse_control()
+    for surface, label in (('surface-container', 'on a card'), ('surface', 'on the page')):
+        rl = contrast(c_light, colors[surface]['light'])
+        rd = contrast(c_dark, colors[surface]['dark'])
+        ok_l = rl >= CONTROL_FLOOR
+        ok_d = rd >= CONTROL_FLOOR
+        # The page row is expected to fall short and is not a failure: no switch in this app sits
+        # on the page surface. It is printed so that stops being an assumption.
+        gate = surface == 'surface-container'
+        if gate and not (ok_l and ok_d):
+            failures.append(
+                f'border-color-control {label}: {rl:.2f} light / {rd:.2f} dark < {CONTROL_FLOOR}')
+        m_l = '   OK' if ok_l else ('  FAIL' if gate else '  note')
+        m_d = '   OK' if ok_d else ('  FAIL' if gate else '  note')
+        print(f'{"border-color-control " + label:<44}{rl:>8.2f}{m_l:>4}{rd:>8.2f}{m_d:>4}'
+              f'{CONTROL_FLOOR:>6}')
+    print('  the page row is a note: every switch in this app sits on a card')
 
     print()
     if failures:

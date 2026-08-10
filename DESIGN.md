@@ -287,31 +287,38 @@ each other, so the boundary between the two strokes is never the weak link.
 `bin/verify-design-contrast.py` sweeps the whole luminance range and fails the build below 3:1,
 rather than trusting the arithmetic in this section.
 
-## A measured gap: a control's own boundary in light mode
+## The control edge is its own token
 
-`MSSwitch` in its off state renders a `#E7E6EC` track with a white thumb. On this palette's white
-card that is **1.21:1** for the control's own edge, and adding the `border` hairline takes it to
-**1.67:1**. WCAG 1.4.11 asks 3:1 for the boundary of a UI component, and unlike `fg-disabled` and
-`border` this one is not exempt: an ENABLED switch is not an inactive component and its edge is not
-a decorative separator.
+`MSSwitch` off renders a `#E7E6EC` track with a white thumb. On this palette's white card the
+control's own edge measured **1.21:1**, and the `border` hairline only took it to 1.67:1. WCAG 1.4.11
+asks 3:1 of a UI component's boundary and a switch cannot fall back on anything else: W3C's own
+Understanding text exempts a control that has "visible content (such as text or a sufficiently
+contrasting icon)", which is why `MSButton`'s secondary fill at 1.31:1 is fine and a switch is not.
+Its track and thumb ARE the whole control.
 
-Dark mode hides it completely, which is why it survived three screens before a light-mode pass
-caught it. Measured with a pixel scan rather than by eye.
+Dark mode hid this completely, which is why it survived three screens until a light-mode pass.
 
-The hairline is applied at every call site as the improvement available inside the current token
-set. Closing the rest needs a token this palette does not have: a border at roughly 3:1 against
-both `surface` and `surface-container`, for the edge of an interactive control as opposed to the
-edge of a card. That is a real addition to the token set rather than a bug fix, so it is recorded
-here rather than invented:
+So `border-color-control` exists, and it is deliberately heavier than the card hairline, because a
+card edge and a control edge are two different jobs that this palette was doing with one token:
 
-| Candidate | Light | Dark | Against white | Against `#1C1C1E` |
-|---|---|---|---|---|
-| `border-color-control` | `#B0B0B5` | `#5A5A5E` | 2.2:1 | 2.4:1 |
-| stronger | `#8E8E93` | `#7C7C80` | 3.1:1 | 3.3:1 |
+| | Value | vs `surface-container` | vs `surface` |
+|---|---|---|---|
+| light | `#8E8E93` | 3.26:1 | 2.92:1 |
+| dark | `#7C7C80` | 4.09:1 | 5.05:1 |
 
-The second row clears 3:1 on both sides. It is visibly heavier than the card hairline, which is the
-point: a card edge and a control edge are different jobs and this palette currently uses one token
-for both.
+Apple's increased-contrast `systemGray`, so the "every value here is Apple's own" property holds.
+
+**The page-surface column falls short in light, at 2.92:1, and that is accepted with a reason.**
+Every switch in this app sits on a card; a bare toggle on the page surface is not a pattern the
+design uses. `bin/verify-design-contrast.py` prints that row as a note rather than dropping it, so
+if a switch ever does land on the page the number is on screen instead of being rediscovered by eye.
+
+**It is a hand-authored supplement, not a frontmatter token.** `design:sync` emits a FIXED table of
+17 aliases and silently drops anything else: adding `border-strong` to the frontmatter produced no
+alias at all, only a `design:lint` warning that it was unused. Same silent drop this file already
+records for `text-accent`. Extending that table is a change to `magic`'s own command, so the token
+lives in `lib/config/depools_control_tokens.dart` and is merged in `main.dart` alongside the status,
+paper and overlay supplements.
 
 ## Verifying a change
 
