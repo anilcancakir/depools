@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D104 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D108 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -1776,3 +1776,98 @@ consumed undercuts the screen that was built to make that visible.
 
 Rejected: a `print_runs` table with the exact range per run. It is the complete history and no screen or
 report in v1 asks for it.
+
+### D105. A webhook is recorded and then reconciled from the provider, never trusted as state
+
+`payment_events` holds one row per received notification, unique on `(provider, external_event_id)`. The
+row records that something happened and enqueues a reconcile; the subscription's state is then written
+from the provider's own API rather than from the payload.
+
+Google's documentation forces this and is explicit about both halves: Pub/Sub push delivery is
+**at-least-once**, so handlers must deduplicate before processing, and the RTDN payload carries only a
+`purchaseToken` and a notification type while the source of truth is `purchases.subscriptionsv2.get`. A
+handler that wrote state from that payload would be writing from a message that does not contain the
+state.
+
+It is the right shape for the other two as well, for a reason that applies to every provider: **webhooks
+can arrive out of order**, so an older payload can overwrite a newer state. Re-fetching makes the last
+write the current truth rather than the last-delivered one.
+
+The three providers supply three different dedup keys, and the schema has to carry that rather than
+pretend otherwise:
+
+| Provider | Key | Where it comes from |
+|---|---|---|
+| Apple | `notificationUUID` | in the notification; Apple's docs say to use it to ignore duplicates |
+| Stripe | `event.id` | in the event |
+| Google | Pub/Sub `messageId` | the TRANSPORT, not the payload |
+| iyzico | none | composed from `paymentId` plus the status, and therefore synthetic |
+
+iyzico's own documentation says "the majority of iyzico services have been designed non-idempotent", and
+it offers `paymentId`, `token` and a merchant-generated `conversationId`. So its `external_event_id` is
+ours rather than theirs, and the column comments say so, because a synthetic key that looks provider-given
+is the kind of thing that gets trusted later.
+
+This is also the fix for the failure `monetization.md` records as the worst in the MVP: a
+`StripePaymentService::webhook()` method that was written and never routed, so renewals, cancellations,
+failed payments and chargebacks never reached the system and subscriptions died silently when `ends_at`
+passed.
+
+### D106. Credits are a grants table minus usage, not a counter
+
+`ai_credit_grants` records every credit that arrives (the plan's monthly allowance, a top-up, a goodwill
+adjustment) and `ai_usage_events` already records every credit spent. The balance is the difference and is
+never stored.
+
+This is D3's decision applied to a second quantity, for the same reason: a number that is written rather
+than derived cannot be audited, and `monetization.md` demands three answers that only separate grants and
+consumption can give (what does this tenant cost us, is the credit price above our marginal cost, which
+feature is eating the budget).
+
+A counter also cannot express what the plan shape already promises. `monetization.md` gives the Business
+tier "high, with top-ups", so grants exist outside the monthly allowance, and a top-up must survive the
+monthly reset. A single `credits_remaining` column has nowhere to keep that distinction, and it is the
+exact mirror of the MVP's mistake of storing token counts and never aggregating them.
+
+Cost, accepted: the balance is a query rather than a read, so the gateway's pre-call check costs a sum over
+two tables. Both are indexed on `(team_id, period)` and the period is bounded, so the sum is over a small
+set rather than all history.
+
+### D107. A price row is provider, currency and interval; platform is not a dimension
+
+`plan_prices(plan_id, provider, currency, interval, amount, provider_product_id)`.
+
+Platform is absent because store IAP is already its own provider: `app_store` and `play_store` are
+providers alongside `iyzico` and `stripe`, so a platform column would be a tautology in three of the four
+values and meaningful only in a hypothetical.
+
+**And the MVP's data error gets a guard.** Its seed set Starter's TRY web price to 9.99 against Plus at
+399.99, which would have sold a subscription for roughly a quarter of a dollar. That cannot be a CHECK,
+because it compares rows: a price is implausible only relative to the same tier's other currencies. So it
+is a validation rule with a test, and the test is the part that matters, because the failure is silent and
+commercial rather than technical.
+
+Rejected: one price with provider identifiers in a `jsonb` map. Apple's price tiers come from its own list
+and need not line up with a TRY figure we chose, so "the same price everywhere" breaks at the first store
+submission.
+
+### D108. Trial eligibility is a row, not an inference from a nullable timestamp
+
+`trial_grants`, one row per team, carrying which tier was trialled, when it started and ended, and who
+claimed it. Eligibility is an `EXISTS` query.
+
+`monetization.md` names the MVP's bug precisely: eligibility was inferred from `trial_ends_at IS NOT NULL`,
+so a team that trialled Starter in 2025 could never trial anything again. The lesson is not about trials,
+it is that **state read as a side effect of another column drifts from what it was supposed to mean.**
+
+A unique index on `team_id` puts "once per team" in the schema rather than in a service, and the support
+operation D19's panel will eventually need ("give them another trial") becomes inserting or deleting a
+row rather than editing a timestamp that also drives billing.
+
+Rejected: a `kind` on the subscription row. A trial IS a subscription, so it is the tidier model, and the
+eligibility query then depends on subscription rows never being archived or cleaned, which makes the check
+indirect again in exactly the way this decision exists to avoid.
+
+Rejected: a column on `teams`. It loses which tier was trialled, and `teams` belongs to
+`magic-starter`, so putting our domain state there is the layer violation D99 already refused for the
+shopping list.
