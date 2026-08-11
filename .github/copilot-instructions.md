@@ -79,14 +79,18 @@ Running it: `flutter run -d chrome`, or `./bin/fsa start --cdp-port=<port>` for 
 
 | File | Role |
 |---|---|
-| `AGENTS.md` | canonical, hand-edited. Read natively by Codex, opencode, and Copilot's agent surface |
+| `AGENTS.md` | canonical, hand-edited. Read natively by Codex, opencode, and by Copilot code review |
 | `CLAUDE.md` | symlink to this file, because Claude Code reads `CLAUDE.md` and not `AGENTS.md` |
-| `.github/copilot-instructions.md` | generated copy, for Copilot's repo-wide instructions and its PR review bot |
+| `.github/copilot-instructions.md` | generated copy, for Copilot in the IDE. Code review reads `AGENTS.md` directly, so for that surface this file is a duplicate, kept because the IDE surface is not documented to read `AGENTS.md` |
 | `.claude/rules/*.md` | path-scoped, loaded when you touch a matching file: `flutter-app.md` and `design.md` over `lib/` and `test/`, `backend.md` over `backend/`, `ledger.md` over the stock write paths |
-| `.github/instructions/*.instructions.md` | generated from those rules, so Copilot's PR review applies the same rules |
+| `.github/instructions/*.instructions.md` | generated from those rules, so Copilot's PR review applies the same rules. `applyTo` is required: Copilot ignores a file in that directory without it |
+| `.github/instructions/review.instructions.md` | the ONE hand-authored file there, passed through by `bin/sync-instructions` rather than generated. The always-on review floor: the four properties as checks, plus the settled decisions a reviewer should stop raising. `excludeAgent` keeps it away from the coding agent |
+| `.github/skills/code-review/SKILL.md` | the review depth, pulled in by Copilot code review when it judges it relevant: the review order, wrong-and-right pairs per layer, and what a finished vertical includes. The directory name is `code-review` because GitHub's guidance is that a review-focused name is what makes the skill reliably read |
 | `docs/verification-loop.md` | how a change is proven: static, visual, and dusk E2E |
 | `docs/depools-system/` | the specification: positioning, schema, AI design, monetization, legal, the iteration plan, one document per feature |
 | `docs/design-culture/` | external canon only (Apple HIG, Material 3, Refactoring UI, WCAG 2.2). Read it for why a rule exists; it deliberately names no token, component or breakpoint of this app |
 
-Skills under `.claude/skills/` and the `component-visual-reviewer` agent carry the design-first loop. After editing this file or any rule, run `bin/sync-instructions`; CI fails when the mirrors are stale.
+Skills under `.claude/skills/` and the `component-visual-reviewer` agent carry the design-first loop. Note that `.claude/skills/` is also one of the directories Copilot discovers skills in, so those three are visible to it as well as to Claude; they are authoring skills and a reviewer selecting one is noise rather than harm, and there is no documented way to hide a skill from one agent the way `excludeAgent` hides an instruction file.
+
+After editing this file or any rule, run `bin/sync-instructions`; CI fails when the mirrors are stale.
 
