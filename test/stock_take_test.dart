@@ -26,6 +26,27 @@ void main() {
       expect(skipped.variance, isNull, reason: 'an uncounted line has no difference to write');
     });
 
+    test('agreement is the same width here as it is on the server', () {
+      // `StockWriter::COUNT_EPSILON` is 0.0005. This side was 0.0001, so a difference between the two
+      // thresholds read as a variance on the sheet, got submitted, and came back `matched`: the footer
+      // promised a movement nobody was going to write.
+      expect(CountLine.matchEpsilon, 0.0005);
+
+      final CountLine product = fridgeCount.first;
+
+      // Inside the window on both sides now, where it used to differ.
+      expect(
+        CountLine(product: product.product, expected: 2, countedWhole: 2.0003).isMatched,
+        isTrue,
+      );
+
+      // And a difference the column CAN hold is still a difference.
+      expect(
+        CountLine(product: product.product, expected: 2, countedWhole: 2.001).isMatched,
+        isFalse,
+      );
+    });
+
     test('a remainder with no whole count is still a count', () {
       // Somebody counting an opened half-carton and no sealed ones fills only the second field. This
       // read `countedWhole != null`, so the row was treated as untouched: left out of the summary,

@@ -146,8 +146,24 @@ class CountLine {
   /// Counted minus expected. Null while uncounted, because there is no difference to state.
   num? get variance => countedTotal == null ? null : countedTotal! - expected;
 
+  /// How close counts as agreement, in base units.
+  ///
+  /// **The same number the server uses**, `StockWriter::COUNT_EPSILON`, and it is half of the
+  /// smallest step `decimal(_, 3)` can hold: every difference the column can represent is written and
+  /// the float residue of summing decimal strings is not.
+  ///
+  /// This was 0.0001, five times stricter than the server. A difference between the two thresholds
+  /// then showed on the sheet as a variance, got submitted, and came back `matched`, so the footer
+  /// promised a movement that was never going to be written. Nothing was lost (the toast reports what
+  /// actually landed), but the two have no reason to disagree, and the client being stricter is the
+  /// direction that manufactures phantom work.
+  ///
+  /// Duplicated rather than shared because Dart cannot read a PHP constant. The link is this comment,
+  /// so a change to either side has somewhere to look.
+  static const num matchEpsilon = 0.0005;
+
   /// Whether the count agreed with the system.
-  bool get isMatched => variance != null && variance!.abs() < 0.0001;
+  bool get isMatched => variance != null && variance!.abs() < matchEpsilon;
 
   /// Whether the content unit is genuinely FINER than the base unit.
   ///

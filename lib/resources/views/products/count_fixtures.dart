@@ -1,7 +1,7 @@
 import 'count_line.dart';
 import 'product_fixtures.dart';
 
-// Demo rows only. The count's domain types moved to `app/models/count_line.dart`, because
+// Demo rows only. The count's domain types are in `count_line.dart` beside this file, because
 // `no_hardcoded_copy_test` skips any path containing `fixtures` and those types carry production,
 // user-visible copy: that exemption is how `CountLine.verdict` shipped as hardcoded Turkish with a
 // green suite. What is left here is what the exemption is FOR, rows standing in for a user's own
