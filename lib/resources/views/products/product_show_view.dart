@@ -168,7 +168,11 @@ class _ProductShowViewState extends State<ProductShowView> {
     super.didUpdateWidget(oldWidget);
 
     final String? id = widget.id;
-    if (id == null || id == oldWidget.id) return;
+    // The same refusal `initState` makes, and for the same reason: a supplied item is the caller
+    // saying "draw this", so the controller stays untouched and no request is issued. The previews
+    // pass no id at all, so they were already covered; this keeps the two paths from diverging if a
+    // caller ever passes both.
+    if (widget.item != null || id == null || id == oldWidget.id) return;
 
     _controller ??= ProductDetailController.instance..addListener(_onControllerChanged);
     _controller!.load(id);

@@ -57,7 +57,7 @@ class ProductDetailController extends MagicController
     final dynamic productResponse = responses[1];
 
     if (!locationResponse.successful || !productResponse.successful) {
-      setError(Lang.get('screens.products.detail_failed'));
+      if (_loadedId == id) setError(Lang.get('screens.products.detail_failed'));
 
       return;
     }
@@ -65,7 +65,7 @@ class ProductDetailController extends MagicController
     final dynamic data = productResponse['data'];
 
     if (data is! Map) {
-      setError(Lang.get('screens.products.detail_failed'));
+      if (_loadedId == id) setError(Lang.get('screens.products.detail_failed'));
 
       return;
     }
@@ -76,6 +76,12 @@ class ProductDetailController extends MagicController
           if (row is Map<dynamic, dynamic>)
             row['id'] as String: (row['full_path'] as String?) ?? row['name'] as String,
     };
+
+    // The LATEST request wins. Navigating product to product starts a second load before the
+    // first returns, and responses do not have to come back in order: the earlier one landing last
+    // would write the previous product into `rxState` while `_loadedId` already named the new one,
+    // so the guard at the top would never refetch it and the screen would sit on the wrong product.
+    if (_loadedId != id) return;
 
     setSuccess(
       ProductListItem.fromApi(
