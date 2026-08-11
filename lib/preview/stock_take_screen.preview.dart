@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../resources/views/products/count_fixtures.dart';
 import '../resources/views/products/stock_take_view.dart';
+
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
 

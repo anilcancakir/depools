@@ -10,6 +10,7 @@ use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -359,6 +360,36 @@ final class InventoryApiTest extends TestCase
         $this->assertSame(1, StockMovement::where('reason', MovementReason::StockTake)->count());
         $this->assertSame('3.000', $product->fresh()->quantityFromLedger());
         $this->assertSame('0.000', $unrecorded->fresh()->quantityFromLedger());
+    }
+
+    public function test_a_count_resolves_its_products_in_one_query(): void
+    {
+        [, $location, $first] = $this->tenant('Birinci');
+        $second = Product::create(['name' => 'Kaşar', 'base_unit' => 'adet']);
+        $third = Product::create(['name' => 'Yoğurt', 'base_unit' => 'adet']);
+
+        DB::enableQueryLog();
+
+        $this->postJson('/api/v1/stock/count', [
+            'location_id' => $location->getKey(),
+            'lines' => [
+                ['product_id' => $first->getKey(), 'counted_quantity' => 0],
+                ['product_id' => $second->getKey(), 'counted_quantity' => 0],
+                ['product_id' => $third->getKey(), 'counted_quantity' => 0],
+            ],
+        ])->assertOk();
+
+        $lookups = collect(DB::getQueryLog())
+            ->filter(static fn (array $entry): bool => str_contains($entry['query'], 'from "products"'))
+            ->count();
+
+        DB::disableQueryLog();
+
+        // ONE, not one per line. A shelf is counted forty rows at a time, so resolving inside the loop
+        // was forty round trips for a set the query builder can fetch at once. Pinned as a number
+        // rather than left to review, because an N+1 reintroduced later reads exactly like the version
+        // that was correct.
+        $this->assertSame(1, $lookups, 'the products should be resolved in a single query');
     }
 
     public function test_a_count_naming_another_tenants_product_is_404_and_writes_nothing(): void

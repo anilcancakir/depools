@@ -1,4 +1,5 @@
 import 'package:depools/resources/views/products/count_fixtures.dart';
+import 'package:depools/resources/views/products/count_line.dart';
 import 'package:depools/resources/views/products/product_fixtures.dart';
 import 'package:flutter_test/flutter_test.dart';
 

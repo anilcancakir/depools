@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Product;
 use App\Services\StockWriter;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -160,12 +161,21 @@ final class StockController extends Controller
         $location = Location::query()->findOrFail($data['location_id']);
 
         // Every product resolved BEFORE the transaction opens, so an id belonging to another tenant is
-        // a 404 that wrote nothing rather than a rollback halfway down a shelf. Scoped, so it is the
-        // same 404 a read gets.
-        $products = [];
+        // a 404 that wrote nothing rather than a rollback halfway down a shelf.
+        //
+        // ONE query rather than one per line, which matters at the size a count actually is: a forty-row
+        // shelf was forty `findOrFail` round trips. The scope still applies, so a foreign id is simply
+        // absent from the result, and the loop below turns that absence into the same
+        // `ModelNotFoundException` the per-line `findOrFail` raised. That is tenancy rule 2 and it has
+        // to stay a 404: a 403 would confirm the identifier is real, which is how an attacker holding a
+        // range of ids maps another tenant's catalog without reading a row.
+        $ids = array_column($data['lines'], 'product_id');
+        $products = Product::query()->whereIn('id', $ids)->get()->keyBy('id');
 
-        foreach ($data['lines'] as $line) {
-            $products[$line['product_id']] = Product::query()->findOrFail($line['product_id']);
+        foreach ($ids as $id) {
+            if (! $products->has($id)) {
+                throw (new ModelNotFoundException)->setModel(Product::class, [$id]);
+            }
         }
 
         $actorId = $request->user()->getKey();

@@ -10,6 +10,7 @@ import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/count_row/count_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'count_fixtures.dart';
+import 'count_line.dart';
 import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
 

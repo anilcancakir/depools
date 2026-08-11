@@ -41,6 +41,19 @@ void main() {
   test('no user-visible copy is hardcoded in a view or a component', () {
     final List<String> offenders = <String>[];
 
+    // **`lib/app` is NOT in this list and that is a known hole, not an oversight.** A controller or a
+    // domain model there can hold user-visible copy and never be looked at. Measured by adding it
+    // temporarily: `product_filter.dart` returns five hardcoded Turkish filter labels today, so an
+    // English interface shows Turkish in its filter control, and `app_service_provider.dart` names
+    // `Türkçe`, which is correctly NOT translated because a language endonym never is.
+    //
+    // Closing it means localising those labels and giving the endonym an allowance, which is a change
+    // to an unrelated model and belongs on its own. Recorded here so the next person finds the
+    // measurement rather than the surprise.
+    //
+    // Worth knowing before widening it: the check below tests for TURKISH CHARACTERS, not for copy.
+    // `Stok yok`, `Az kalan` and `Stokta` are hardcoded Turkish in that same file and no version of
+    // this scan will ever flag them, because they are spelled in ASCII.
     for (final String base in <String>['lib/resources/views', 'lib/ui/components']) {
       for (final FileSystemEntity entity in Directory(base).listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;

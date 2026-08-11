@@ -1,6 +1,6 @@
 import 'package:magic/magic.dart';
 
-import '../../resources/views/products/count_fixtures.dart';
+import '../../resources/views/products/count_line.dart';
 import '../../resources/views/products/product_filter_sheet.dart';
 import '../../resources/views/products/product_fixtures.dart';
 
