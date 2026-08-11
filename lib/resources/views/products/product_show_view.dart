@@ -322,9 +322,16 @@ class _ProductShowViewState extends State<ProductShowView> {
     final ProductDetailController? controller = _controller;
     if (controller == null) return null;
 
+    // `label` is the SHORT name and `path` is the full hierarchy, which is `FilterOption`'s own
+    // contract: a picker row shows the path, a sentence shows the label. Both were the path here, so
+    // the move sheet's confirmation read the long form in the one place the short form is for.
     return <FilterOption>[
       for (final MapEntry<String, String> entry in controller.locationPaths.entries)
-        FilterOption(id: entry.key, label: entry.value, path: entry.value),
+        FilterOption(
+          id: entry.key,
+          label: controller.locationNames[entry.key] ?? entry.value,
+          path: entry.value,
+        ),
     ];
   }
 

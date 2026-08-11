@@ -22,13 +22,20 @@ class ProductDetailController extends MagicController
   String? _loadedId;
 
   Map<String, String> _locationPaths = const <String, String>{};
+  Map<String, String> _locationNames = const <String, String>{};
 
   /// Location id to its full hierarchy path, for the per-location sections.
   ///
-  /// The PATH rather than the short name, because a detail screen has the width for "Kitchen ›
-  /// Fridge" and that is the question it answers: where exactly. A chip in a filter row wants the
-  /// short name and gets it from the list controller instead.
+  /// The PATH answers "where exactly", which is what a detail screen has the width for.
   Map<String, String> get locationPaths => _locationPaths;
+
+  /// Location id to its short name, for a sentence rather than a row.
+  ///
+  /// Both are kept because `FilterOption` distinguishes them and the sheets rely on that: a picker
+  /// row wants "Kitchen › Fridge" and a sentence wants "Fridge". Filling the short one with the path
+  /// made the move sheet's confirmation read "Afterwards Kitchen › Fridge and Kitchen are both
+  /// updated", the long form in the one place the short form exists for.
+  Map<String, String> get locationNames => _locationNames;
 
   /// The id currently held, or null before the first load.
   String? get loadedId => _loadedId;
@@ -113,9 +120,12 @@ class ProductDetailController extends MagicController
       // throws away the only useful part of a refusal.
       final dynamic message = response['message'];
 
+      // Generic on purpose. This method serves receive, consume and transfer, so naming one of
+      // them made a failed MOVE say "Could not add the stock". The server's own sentence is
+      // preferred above; this is only the case where it sent none.
       return message is String && message.isNotEmpty
           ? message
-          : Lang.get('screens.stock_in.failed');
+          : Lang.get('screens.product.write_failed');
     }
 
     await load(productId, force: true);
@@ -160,11 +170,20 @@ class ProductDetailController extends MagicController
       return;
     }
 
-    _locationPaths = <String, String>{
+    final List<Map<String, dynamic>> locationRows = <Map<String, dynamic>>[
       if (locationResponse['data'] is List<dynamic>)
         for (final dynamic row in locationResponse['data'] as List<dynamic>)
-          if (row is Map<dynamic, dynamic>)
-            row['id'] as String: (row['full_path'] as String?) ?? row['name'] as String,
+          if (row is Map<dynamic, dynamic>) Map<String, dynamic>.from(row),
+    ];
+
+    _locationPaths = <String, String>{
+      for (final Map<String, dynamic> row in locationRows)
+        row['id'] as String: (row['full_path'] as String?) ?? row['name'] as String,
+    };
+
+    _locationNames = <String, String>{
+      for (final Map<String, dynamic> row in locationRows)
+        row['id'] as String: row['name'] as String,
     };
 
     // The LATEST request wins. Navigating product to product starts a second load before the

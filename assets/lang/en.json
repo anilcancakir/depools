@@ -494,7 +494,8 @@
       "stat_waste_window": "in the last 30 days",
       "stock_in": "Put stock in",
       "stock_out": "Take stock out",
-      "total_stock": "Total stock"
+      "total_stock": "Total stock",
+      "write_failed": "The change could not be saved"
     },
     "assistant": {
       "title": "Assistant",

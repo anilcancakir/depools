@@ -494,7 +494,8 @@
       "stat_waste_window": "son 30 günde",
       "stock_in": "Stok ekle",
       "stock_out": "Stok çıkar",
-      "total_stock": "Toplam stok"
+      "total_stock": "Toplam stok",
+      "write_failed": "Değişiklik kaydedilemedi"
     },
     "assistant": {
       "title": "Asistan",
