@@ -138,7 +138,9 @@ class _SearchViewState extends State<SearchView> {
             expiryLabel: item.expiryLabel,
             daysUntilExpiry: item.daysUntilExpiry,
             parLevel: item.parLevel,
-            onTap: () => MagicRoute.to('/urunler/${Uri.encodeComponent(item.name)}'),
+            // The server id when there is one. Every tap on a product now reaches an endpoint, so a
+            // route carrying a NAME 404s; the fallback keeps the fixture-only previews navigating.
+            onTap: () => MagicRoute.to('/urunler/${item.id ?? Uri.encodeComponent(item.name)}'),
           ),
       ],
     );

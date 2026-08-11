@@ -80,7 +80,12 @@ class SerialFixture {
 
     return SerialFixture(
       serial: json['serial'] as String,
-      locationId: json['location_id'] as String,
+      // Nullable on the wire, because a released unit's location is set to null rather than the row
+      // being deleted: `nullOnDelete`, so removing a shelf cannot remove the record that a drill
+      // existed. An empty string keeps it out of every `serialsAt` bucket, which is right for a unit
+      // that is no longer anywhere, and a cast to `String` here would have thrown on the first
+      // product with history.
+      locationId: json['location_id'] as String? ?? '',
       warrantyDaysRemaining: days,
       warrantyLabel: days == null ? null : ProductListItem.expiryLabelFor(days),
       receivedLabel:

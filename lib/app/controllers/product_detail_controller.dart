@@ -48,7 +48,9 @@ class ProductDetailController extends MagicController
     // sections would be headed by a uuid.
     final List<dynamic> responses = await Future.wait(<Future<dynamic>>[
       Http.get('/locations'),
-      Http.get('/products/$id'),
+      // Encoded, even though an id is a uuid today. It arrives from a route parameter, so the one
+      // thing that must not depend on trust is whether it can break out of the path.
+      Http.get('/products/${Uri.encodeComponent(id)}'),
     ]);
 
     final dynamic locationResponse = responses[0];

@@ -157,6 +157,23 @@ class _ProductShowViewState extends State<ProductShowView> {
     _controller!.load(id);
   }
 
+  /// Reloads when the ROUTE changes under a reused State.
+  ///
+  /// Flutter matches by widget type, so navigating from one product to another can hand this same
+  /// State a new `id` without calling `initState` again. Without this the screen keeps drawing the
+  /// previous product, which is the worst shape of stale: everything renders, nothing errors, and
+  /// the numbers belong to something else.
+  @override
+  void didUpdateWidget(ProductShowView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final String? id = widget.id;
+    if (id == null || id == oldWidget.id) return;
+
+    _controller ??= ProductDetailController.instance..addListener(_onControllerChanged);
+    _controller!.load(id);
+  }
+
   @override
   void dispose() {
     _controller?.removeListener(_onControllerChanged);
