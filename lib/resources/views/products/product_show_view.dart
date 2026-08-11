@@ -237,10 +237,20 @@ class _ProductShowViewState extends State<ProductShowView> {
       return;
     }
 
+    final num? quantity = _inBaseUnits(draft.amount, draft.unit, product);
+    if (quantity == null) {
+      MagicFeedback.error(
+        Lang.get('screens.stock_out.title'),
+        Lang.get('screens.stock_out.unit_unknown'),
+      );
+
+      return;
+    }
+
     final String? failure = await controller.consume(
       productId: productId,
       locationId: locationId,
-      quantity: draft.amount,
+      quantity: quantity,
       reason: reason,
     );
 
@@ -267,14 +277,44 @@ class _ProductShowViewState extends State<ProductShowView> {
     final String? productId = product.id;
     if (productId == null) return;
 
+    final num? quantity = _inBaseUnits(draft.amount, draft.unit, product);
+    if (quantity == null) {
+      MagicFeedback.error(
+        Lang.get('screens.stock_move.title'),
+        Lang.get('screens.stock_out.unit_unknown'),
+      );
+
+      return;
+    }
+
     final String? failure = await controller.transfer(
       productId: productId,
       fromLocationId: draft.fromLocationId,
       toLocationId: draft.toLocationId,
-      quantity: draft.amount,
+      quantity: quantity,
     );
 
     _report(failure, Lang.get('screens.stock_move.title'), Lang.get('screens.stock_move.done'));
+  }
+
+  /// A sheet's amount, converted into the BASE unit the endpoints take.
+  ///
+  /// Both sheets can hand back a figure in the product's CONTENT unit rather than its base unit: the
+  /// out sheet's half-and-all options on an open lot are "250 ml" and "500 ml" of a one-litre
+  /// carton, and the move sheet offers the open remainder the same way. `quantity` on
+  /// `/stock/consume` and `/stock/transfer` is in base units, so passing the raw figure through
+  /// would have consumed five hundred LITRES where the user asked for five hundred millilitres.
+  ///
+  /// Returns null when the unit is neither, which cannot happen today and is refused rather than
+  /// guessed at: a wrong number on an append-only ledger is worse than a refused write, because the
+  /// write cannot be taken back without a compensating movement that also has to be right.
+  num? _inBaseUnits(num amount, String unit, ProductListItem product) {
+    if (unit == product.unit) return amount;
+
+    final num? content = product.contentAmount;
+    if (unit == product.contentUnit && content != null && content > 0) return amount / content;
+
+    return null;
   }
 
   /// The tenant's locations as filter options, or null in the preview.

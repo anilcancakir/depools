@@ -593,7 +593,8 @@
       "suggested_soonest": "Suggested · soonest date",
       "suggested_warranty": "Suggested · warranty ends soonest",
       "title": "Take stock out",
-      "unit_group": "Which unit"
+      "unit_group": "Which unit",
+      "unit_unknown": "That amount could not be converted to the product’s unit"
     },
     "stock_in": {
       "amount_group": "How much",

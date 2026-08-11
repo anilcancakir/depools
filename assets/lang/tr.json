@@ -593,7 +593,8 @@
       "suggested_soonest": "Önerilen · en yakın tarih",
       "suggested_warranty": "Önerilen · garantisi en yakın",
       "title": "Stok çıkar",
-      "unit_group": "Hangi ünite"
+      "unit_group": "Hangi ünite",
+      "unit_unknown": "Bu miktar ürünün birimine çevrilemedi"
     },
     "stock_in": {
       "amount_group": "Ne kadar",
