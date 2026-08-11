@@ -8,15 +8,19 @@ name: CI
 # them at local trees during development is absent here on purpose: CI resolving
 # the PUBLISHED versions is what catches a dependency on unreleased sibling code.
 
+# `master`, not `main`. This repository's default branch is `master`, and while these
+# filters said `main` the workflow matched nothing: zero runs ever, on 146 commits.
+# A branch filter that names a branch which does not exist fails silently, so the
+# gate reads as configured and green while never having executed once.
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
   push:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Only for pull requests: cancelling a main run would leave that commit with no
+  # Only for pull requests: cancelling a master run would leave that commit with no
   # green record at all.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
