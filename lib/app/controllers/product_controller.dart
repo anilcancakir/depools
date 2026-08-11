@@ -1,5 +1,6 @@
 import 'package:magic/magic.dart';
 
+import '../../resources/views/products/count_line.dart';
 import '../../resources/views/products/product_filter_sheet.dart';
 import '../../resources/views/products/product_fixtures.dart';
 
@@ -99,6 +100,97 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
 
     setSuccess(rows);
   }
+
+  /// Commits a physical count of one location, then reloads what it changed (D59).
+  ///
+  /// ### Why the count commit lives on the list controller
+  ///
+  /// Because this is the cache it invalidates. The count screen reads its lines and its expected
+  /// figures from exactly these rows, and a commit changes the balance behind them, so the write and
+  /// the data it falsifies belong to one owner. `ProductDetailController` holds `receive`, `consume`
+  /// and `transfer` for the same reason.
+  ///
+  /// ### The counts are keyed by product id, not by name
+  ///
+  /// Two products can share a name, and with real data one of them did: keying the typed figures by
+  /// name would let a count of one write itself onto the other.
+  ///
+  /// A per-line refusal is not a failure. The endpoint commits every writable line and names the
+  /// rest, so this returns the whole answer and lets the screen decide what is still unfinished.
+  Future<CountCommit> commitCount(String locationId, Map<String, num> counted) async {
+    final dynamic response = await Http.post(
+      '/stock/count',
+      data: <String, dynamic>{
+        'location_id': locationId,
+        'lines': <Map<String, dynamic>>[
+          for (final MapEntry<String, num> entry in counted.entries)
+            <String, dynamic>{'product_id': entry.key, 'counted_quantity': entry.value},
+        ],
+      },
+    );
+
+    if (!response.successful) {
+      final dynamic message = response['message'];
+
+      return CountCommit.failed(
+        message is String && message.isNotEmpty
+            ? message
+            : Lang.get('screens.stock_take.commit_failed'),
+      );
+    }
+
+    final dynamic data = response['data'];
+    final List<CountResult> lines = <CountResult>[];
+
+    for (final Map<String, dynamic> row in _rows(data is Map<dynamic, dynamic> ? data['lines'] : null)) {
+      final CountOutcome? outcome = _outcome(row['outcome'] as String?);
+
+      // An outcome this build does not know means the server answered in a vocabulary added after it.
+      // Failing the whole commit is the honest reading: mapping the unknown onto `matched` would tell
+      // the user a row is finished, and onto `needsDate` would send them to fix a row that was fine.
+      if (outcome == null) {
+        return CountCommit.failed(Lang.get('screens.stock_take.commit_failed'));
+      }
+
+      lines.add(
+        CountResult(
+          productId: row['product_id'] as String,
+          outcome: outcome,
+          // `decimal(_, 3)` travels as the string `'-1.000'`, not as a number, so reading it
+          // directly would compare a String against a num and silently fail every threshold.
+          delta: ProductListItem.toNumOrNull(row['delta']) ?? 0,
+        ),
+      );
+    }
+
+    // **A 200 that does not answer every line is a failure, not an empty success.** Without this a
+    // response whose `data.lines` was missing or short parsed into an empty list, which has no
+    // unfinished rows, so the screen showed a success toast and navigated away from a shelf it had
+    // not actually committed. On a ledger that is the worst shape of bug available: the user believes
+    // the count landed and nothing says otherwise.
+    //
+    // Compared by SET rather than by count, so a response echoing one product twice and omitting
+    // another cannot pass by arithmetic.
+    final Set<String> answered = lines.map((r) => r.productId).toSet();
+
+    if (answered.length != counted.length || !answered.containsAll(counted.keys)) {
+      return CountCommit.failed(Lang.get('screens.stock_take.commit_failed'));
+    }
+
+    // Every balance this count touched is now stale in the shared cache, including for the stock list
+    // the user goes back to.
+    await load();
+
+    return CountCommit.landed(lines);
+  }
+
+  static CountOutcome? _outcome(String? raw) => switch (raw) {
+    'written' => CountOutcome.written,
+    'matched' => CountOutcome.matched,
+    'needs_date' => CountOutcome.needsDate,
+    'serial_tracked' => CountOutcome.serialTracked,
+    _ => null,
+  };
 
   List<FilterOption> _toFilterOptions(Object? data) => <FilterOption>[
     for (final Map<String, dynamic> row in _rows(data))

@@ -126,6 +126,34 @@ keeps laying out at the old width, and everything renders doubled and clipped.
   so the path always starts at the login screen again.
 - **`gh pr checks --watch` can hang after every check has passed.** A plain
   `gh pr checks <n>` answers immediately with the same table.
+- **A dusk action reports that it DISPATCHED, not that the widget received.**
+  `dusk:fill` printed a green tick four times onto a field covered by the pinned
+  footer, because the row is in the semantics tree and dusk's six actionability
+  checks do not include occlusion by another `Stack` layer (Playwright's
+  receives-events check is the equivalent). A control that never responds to two
+  different input paths is the tell: try the stepper as well as the field, and if
+  neither lands, look at a screenshot before debugging the widget.
+- **`dusk:scroll --dy` needs a ref that IS a scrollable.** Given a textbox ref it
+  answers "Scrolled eN" and moves nothing. `--intoView` is the flag that works;
+  reach for it first. Then re-snap: refs belong to the snapshot that produced them,
+  so acting on a pre-scroll ref fails in a way that looks identical.
+- **A bottom spacer only changes scroll EXTENT, so a screenshot cannot see it.**
+  Two captures across a hot restart were byte-identical and the natural conclusion
+  ("the capture is stale") was wrong: a viewport scrolled to the top genuinely is
+  unchanged. Navigating elsewhere proved the tool fine. Before calling an
+  instrument broken, ask whether the change under test could appear in what it
+  measures; to check a reservation, scroll the LAST row into view and look at that.
+- **`dusk:fill --text=''` does not fire the field's `onChanged`.** Its clear step
+  sets the text rather than editing it, so a "user cleared the field" path cannot be
+  exercised that way and the row keeps its old state, which reads as a bug in the
+  widget. A real backspace does fire it (`WInput` forwards straight to Flutter's
+  `TextField`). To test the empty branch, type a value the parser REJECTS but the
+  keyboard accepts (`.` or `-`): that fires `onChanged` with something unparseable
+  and takes the same path.
+- **A screen's `dusk:exceptions` was never clean on the eight screens with a
+  footer**, so the check that catches a real render fault had two entries in it by
+  default. If a baseline is noisy, fix the noise rather than learning to read past
+  it: an instrument with a permanent false positive stops being consulted.
 
 ## What counts as evidence
 

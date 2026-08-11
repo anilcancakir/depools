@@ -1,5 +1,4 @@
 import 'package:flutter/widgets.dart';
-import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSPageScaffold;
 
 import 'page_chrome.dart';
@@ -92,7 +91,30 @@ class _AppPageScaffoldState extends State<AppPageScaffold> {
   @override
   void dispose() {
     // Leaving a footer behind would draw the previous page's action over the next one.
-    _slot?.value = null;
+    //
+    // **Cleared after the frame rather than inside dispose, for the reason [_publish] records at the
+    // other end.** Writing to the notifier here marks the host dirty while the tree is LOCKED, and
+    // Flutter throws `setState() or markNeedsBuild() called when widget tree was locked`, naming
+    // `PageChrome` and its `ValueListenableBuilder`. It fired on every navigation away from any of
+    // the eight screens with a footer, and it was measured rather than assumed: reverting both layout
+    // files to their previous state reproduced the identical pair, so it predates this change.
+    //
+    // Nothing visibly broke, which is why it survived. What it cost is the instrument: a screen's
+    // `dusk:exceptions` was never clean, so the check that is supposed to catch a real render fault
+    // had two entries in it by default.
+    //
+    // Guarded on the slot still holding OUR footer, because the ordering between an old page's
+    // dispose and a new page's publish is not guaranteed either way. Clearing unconditionally would
+    // erase the arriving page's footer when it published first.
+    final ValueNotifier<Widget?>? slot = _slot;
+    final Widget? mine = widget.footer;
+
+    if (slot != null && mine != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (slot.value == mine) slot.value = null;
+      });
+    }
+
     super.dispose();
   }
 
@@ -123,8 +145,25 @@ class _AppPageScaffoldState extends State<AppPageScaffold> {
       children: <Widget>[
         ...widget.children,
         // Room for the pinned footer to sit over, so the last section is not permanently hidden
-        // under it. Without this the footer covers the bottom of the list instead of clearing it.
-        if (_pinned) const WSpacer(className: 'h-20'),
+        // under it.
+        //
+        // **Measured, not a constant, and the constant was a real defect rather than a tidiness
+        // point.** This was `h-20` (80 logical px) while `PageChromeHost` measures the actual footer
+        // and folds it into `MediaQuery.padding.bottom` for this subtree, and that file's own
+        // docblock says outright that a guessed constant "is wrong by construction: this footer is
+        // two lines of summary plus two buttons on one screen and a single button on another".
+        //
+        // The count screen is where it showed: a summary line, a will-write line and a full-width
+        // button clear 80px comfortably, so the LAST row of the count sheet sat permanently under
+        // the footer. Unreachable, not merely ugly: a tap at that row's field lands on the footer,
+        // so the row could not be counted at all and dusk reported every fill as a success.
+        //
+        // The number comes from `PageChrome` rather than from `MediaQuery.padding`, and that is the
+        // second half of the same defect: the host DOES fold the measured height into the padding,
+        // which is what lifts the assistant launcher, but that MediaQuery never reaches a page.
+        // Measured here, `MediaQuery.paddingOf(context).bottom` reads 0 while the footer stands over
+        // a hundred pixels tall, so reserving from it reserved nothing.
+        if (_pinned) SizedBox(height: PageChrome.footerInsetOf(context)),
         // No host (the preview catalog): render it where it used to live rather than dropping it.
         if (!_pinned && widget.footer != null) widget.footer!,
       ],

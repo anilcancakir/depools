@@ -264,6 +264,19 @@ class ProductListItem {
   /// The ids of every location holding stock of this product.
   final Set<String> locationIds;
 
+  /// How much sits at each location, in base units, keyed by location id.
+  ///
+  /// **This is the projection, and that is why it exists separately from [amountAt].** That method
+  /// derives a per-location figure by summing LOTS, which the list endpoint deliberately does not
+  /// send: batches for fifty rows would be the whole ledger on the wire for a screen that draws one
+  /// number. `product_stock` answers exactly this question with one row per pair, and the payload has
+  /// carried it all along under `locations`.
+  ///
+  /// Empty for a fixture and for a serial-tracked product, which has no `product_stock` rows at all
+  /// because its quantity is the count of its units. Both cases fall back to [amountAt], so a reader
+  /// has to keep that fallback rather than treating an absent key as zero.
+  final Map<String, num> locationAmounts;
+
   /// The already-joined location text for the row's meta line.
   final String locationSummary;
 
@@ -420,6 +433,28 @@ class ProductListItem {
       for (final Map<String, dynamic> row in stock) row['location_id'] as String,
     };
 
+    // The per-location quantity the payload was already sending and this mapping used to drop, taking
+    // only the id from each row. The count screen needs the number itself: what the record claims is
+    // on ONE shelf is the whole thing a count is checking.
+    // **A row whose quantity does not parse is OMITTED, not recorded as zero.** `?? 0` here made an
+    // absent or malformed figure indistinguishable from a real zero, and the difference decides
+    // something: `expectedAt` short-circuits on a present key, so a defaulted 0 would suppress the
+    // lot fallback and tell the count screen the shelf is empty. The user would then be shown a
+    // surplus for stock that was on the record all along.
+    //
+    // Unreachable through this server, which sends a NOT NULL decimal for every row, and the guard
+    // costs nothing: an omitted key is exactly the "no projection travelled" case the fallback exists
+    // for.
+    final Map<String, num> locationAmounts = <String, num>{};
+
+    for (final Map<String, dynamic> row in stock) {
+      final num? quantity = toNumOrNull(row['quantity']);
+
+      if (quantity == null) continue;
+
+      locationAmounts[row['location_id'] as String] = quantity;
+    }
+
     // Parsed once. Two calls were two expressions that could drift apart, and a row whose total
     // disagreed with its own printed figure is the exact defect the lots comment above records.
     final num quantity = toNumOrNull(json['quantity']) ?? 0;
@@ -465,6 +500,7 @@ class ProductListItem {
       daysUntilExpiry: days,
       expiryLabel: days == null ? null : expiryLabelFor(days),
       locationIds: locationIds,
+      locationAmounts: locationAmounts,
       locationSummary: locationIds
           .map((String id) => locationLabels[id])
           .whereType<String>()
@@ -487,6 +523,7 @@ class ProductListItem {
     required this.unit,
     this.brand,
     this.locationIds = const {},
+    this.locationAmounts = const {},
     this.locationSummary = '',
     this.categoryId,
     this.tags = const {},

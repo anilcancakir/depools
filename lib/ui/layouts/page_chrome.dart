@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' show Material, MaterialType;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
+import 'package:magic_starter/magic_starter.dart' show MagicStarter;
 
 /// Carries the pinned footer a page wants, from inside the shell's scroll to outside it.
 ///
@@ -21,9 +22,28 @@ import 'package:magic/magic.dart';
 /// same shape (`footer:`), so adopting the upstream version later deletes this file and changes
 /// nothing else.
 class PageChrome extends InheritedNotifier<ValueNotifier<Widget?>> {
+  /// How much vertical room the pinned footer occupies at the bottom of the viewport, in logical
+  /// pixels: its measured height plus the inset it is anchored at. Zero when nothing is pinned.
+  ///
+  /// **Published here because the host's `MediaQuery` does not reach the page.** [PageChromeHost]
+  /// folds the measured height into `MediaQuery.padding.bottom` for its subtree, and that is what
+  /// lifts the assistant launcher. A page cannot use it: measured on the count screen,
+  /// `MediaQuery.paddingOf` inside [AppPageScaffold] reads 0 while the footer stands well over a
+  /// hundred pixels tall, so the space a page reserved from it was nothing at all and the last row
+  /// of the count sheet sat under the footer. Unreachable rather than merely hidden, because a tap
+  /// at that row lands on the footer instead.
+  ///
+  /// It carries the anchor inset as well as the height, so a page clears the same total the footer
+  /// actually occupies and neither side has to know the other's arithmetic.
+  final double footerInset;
+
   /// Creates a [PageChrome] carrying [notifier] to its subtree.
-  const PageChrome({super.key, required ValueNotifier<Widget?> notifier, required super.child})
-    : super(notifier: notifier);
+  const PageChrome({
+    super.key,
+    required ValueNotifier<Widget?> notifier,
+    required this.footerInset,
+    required super.child,
+  }) : super(notifier: notifier);
 
   /// The nearest chrome slot, or null outside a [PageChromeHost].
   ///
@@ -31,6 +51,17 @@ class PageChrome extends InheritedNotifier<ValueNotifier<Widget?>> {
   /// no shell around them, and a screen that cannot pin its footer there should still build.
   static ValueNotifier<Widget?>? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PageChrome>()?.notifier;
+
+  /// How much room to leave at the end of a page's content so the pinned footer clears it.
+  ///
+  /// Zero outside a host, which is right: with no host the footer renders as the last section and
+  /// occupies real space rather than floating over anything.
+  static double footerInsetOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PageChrome>()?.footerInset ?? 0;
+
+  @override
+  bool updateShouldNotify(covariant PageChrome oldWidget) =>
+      super.updateShouldNotify(oldWidget) || oldWidget.footerInset != footerInset;
 }
 
 /// Draws the current page's pinned footer over the app shell.
@@ -52,6 +83,35 @@ class PageChromeHost extends StatefulWidget {
 }
 
 class _PageChromeHostState extends State<PageChromeHost> {
+  /// How far above the bottom edge the footer is anchored, clearing the navigation bar.
+  ///
+  /// **60, and the 2 logical pixels of overlap are the point.** The shell's bottom navigation has
+  /// no fixed height: it is its item content plus the device's safe area, measured at 62 logical px
+  /// on a 390px viewport. Sitting at 64 left a 2px strip between the footer and the nav, and the
+  /// scrolling list showed through it, which reads as a rendering glitch rather than as chrome.
+  ///
+  /// Overlapping is the safe direction of the two. The footer's own hairline lands on the nav's
+  /// hairline, which is invisible because both are `bg-surface` with the same border token; a gap is
+  /// never invisible.
+  ///
+  /// Named rather than written twice, because the page's reserved space is derived from it: the two
+  /// sitting in different files as the same literal is how they would drift apart.
+  static const double _navClearance = 60;
+
+  /// How far above the bottom edge the footer sits, which is zero without a bottom navigation.
+  ///
+  /// **The clearance used to be unconditional, and above `lg` there is nothing to clear.** The shell
+  /// puts navigation in the left sidebar at desktop width and renders no bottom bar at all
+  /// (`magic_starter_app_layout.dart` gates it on the same `wScreenIs(context, 'lg')`), so 60 pixels
+  /// were being reserved for a widget that was not there. It left a strip under the footer with the
+  /// scrolling list visible through it: measured on the shopping list, a basket row rendered BELOW
+  /// the footer's own fill, which reads as a rendering fault rather than as chrome.
+  ///
+  /// Read through wind's own predicate rather than a width literal, because the shell decides with
+  /// that predicate. A number here would be the same decision written twice.
+  double _clearance(BuildContext context) =>
+      wScreenIs(context, 'lg') ? 0 : _navClearance + MediaQuery.paddingOf(context).bottom;
+
   final ValueNotifier<Widget?> _footer = ValueNotifier<Widget?>(null);
   final GlobalKey _footerKey = GlobalKey();
 
@@ -85,6 +145,10 @@ class _PageChromeHostState extends State<PageChromeHost> {
   Widget build(BuildContext context) {
     return PageChrome(
       notifier: _footer,
+      // Zero until the footer has been measured, and zero again once it is gone, so a page with no
+      // footer reserves nothing. The one frame between publishing a footer and measuring it reserves
+      // nothing either, which is invisible.
+      footerInset: _footerHeight == 0 ? 0 : _footerHeight + _clearance(context),
       child: ValueListenableBuilder<Widget?>(
         valueListenable: _footer,
         builder: (BuildContext context, Widget? footer, Widget? _) {
@@ -113,20 +177,19 @@ class _PageChromeHostState extends State<PageChromeHost> {
                 child: widget.child,
               ),
               Positioned(
-                left: 0,
+                // **The footer belongs to the PAGE, so on desktop it starts where the page does.**
+                // Anchored at 0 it spanned the whole window, and once it sat flush to the bottom edge
+                // it covered the sidebar's account block, which is a tappable control. The number is
+                // the shell's own `sidebarWidth` rather than a literal, so the two cannot drift; below
+                // `lg` there is no sidebar and the footer spans the full width, which is right.
+                left: wScreenIs(context, 'lg')
+                    ? MagicStarter.manager.layoutTheme.sidebarWidth
+                    : 0,
                 right: 0,
-                // **60, and the 2 logical pixels of overlap are the point.** The shell's bottom
-                // navigation has no fixed height: it is its item content plus the device's safe
-                // area, measured at 62 logical px on a 390px viewport. Sitting at 64 left a 2px
-                // strip between the footer and the nav, and the scrolling list showed through it,
-                // which reads as a rendering glitch rather than as chrome.
-                //
-                // Overlapping is the safe direction of the two. The footer's own hairline lands on
-                // the nav's hairline, which is invisible because both are `bg-surface` with the
-                // same border token; a gap is never invisible. The safe-area term is still added
-                // because the nav grows by it, so the pair tracks together on a device with a home
-                // indicator.
-                bottom: MediaQuery.paddingOf(context).bottom + 60,
+                // See [_clearance]: the navigation is a bottom bar only below `lg`, and its own height
+                // grows by the device's safe area, so the pair tracks together on a phone with a home
+                // indicator and collapses to nothing on a desktop window.
+                bottom: _clearance(context),
                 // The `Material` is the same one the assistant overlay needed, for the same
                 // reason: this draws OUTSIDE `layout.app`, which is what was providing the
                 // ancestor every `Text` under a `MaterialApp` resolves its style from. Without

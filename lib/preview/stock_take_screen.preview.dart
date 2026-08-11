@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/products/count_fixtures.dart';
 import '../resources/views/products/stock_take_view.dart';
+
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
 
@@ -27,5 +29,8 @@ class StockTakeScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const StockTakeView();
+  /// The fixture lines are passed in rather than read from a controller, which is what keeps the
+  /// catalog renderable with no backend and no authenticated tenant behind it. The wired screen
+  /// takes the same shape from `ProductController` instead.
+  static Widget _build(BuildContext context) => StockTakeView(lines: fridgeCount);
 }

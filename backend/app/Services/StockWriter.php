@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ActorType;
+use App\Enums\CountOutcome;
 use App\Enums\MovementReason;
 use App\Enums\MovementSource;
 use App\Models\Location;
@@ -27,6 +28,14 @@ use RuntimeException;
  */
 final class StockWriter
 {
+    /**
+     * The width of "the count agreed", in base units.
+     *
+     * Half of `decimal(_, 3)`'s smallest step, so every difference the column can actually hold is
+     * written and nothing else is. See [count].
+     */
+    private const COUNT_EPSILON = 0.0005;
+
     public function __construct(private readonly StockLedger $ledger) {}
 
     /**
@@ -132,28 +141,120 @@ final class StockWriter
                 );
             }
 
-            $remaining = $quantity;
-            $written = collect();
-
-            foreach ($lots as $lot) {
-                if ($remaining <= 0) {
-                    break;
-                }
-
-                $take = min($remaining, (float) $lot->remaining_quantity);
-
-                $this->markOpenedIfPartial($lot, $take);
-
-                $written->push(
-                    $this->append($lot, -$take, $reason, $source, $actorId),
-                );
-
-                $remaining -= $take;
-            }
+            $written = $this->takeOut($lots, $quantity, $reason, $source, $actorId);
 
             $this->ledger->rebuildProductStock($product, $location->getKey());
 
             return $written;
+        });
+    }
+
+    /**
+     * Reconcile what is physically on a shelf against what the record says (D59).
+     *
+     * ### A count states an absolute, and the ledger stores deltas
+     *
+     * So this is the one write path that computes its own quantity. The caller passes what was
+     * counted; the difference against the lots at that location is what gets appended, with reason
+     * [MovementReason::StockTake] and never [MovementReason::Correction]: `data-model.md` separates a
+     * counted correction from a fixed typo, and folding them loses the ability to tell shrinkage from
+     * a data-entry mistake.
+     *
+     * **`stock_take` can only be produced here.** [consume] refuses that reason outright, which is
+     * what keeps the vocabulary meaningful: a `stock_take` row in the ledger implies a count actually
+     * happened, so the shrinkage figure is not diluted by a client that picked the label by hand.
+     *
+     * ### Re-committing the same count is a no-op, with no idempotency key
+     *
+     * Because the quantity is derived rather than given, a retried submit recomputes the delta
+     * against the balance the first one produced and finds zero. [receive] needs a key because
+     * "bring in 6" means 6 more every time it is asked; "there are 6 on the shelf" is the same fact
+     * however often it is stated.
+     *
+     * ### A match writes nothing
+     *
+     * Counting and finding agreement is not a movement, and a zero-delta row would not be harmless:
+     * `movements_count` decides whether a product has enough history to be forecast, so counts would
+     * promote products into the forecast tier on the strength of having been looked at.
+     *
+     * ### Where a surplus goes, and when it cannot go anywhere
+     *
+     * Finding MORE than the record is inbound stock, and inbound stock needs a lot, and a lot carries
+     * a date the count screen never asked for. The surplus therefore joins the earliest-expiring
+     * SEALED lot at that location and inherits its date, on the same reasoning [transfer] inherits
+     * the source lot's: the units in front of the counter came from the deliveries already on record,
+     * and choosing the earliest of them errs toward warning early rather than late.
+     *
+     * When there is no sealed lot to inherit from (the balance was zero, or only an opened lot
+     * remains) there is no neighbour to reason from, and this returns [CountOutcome::NeedsDate]
+     * instead of inventing an expiry. Stock entry owns that row, because it asks for the date with a
+     * visible basis and lets the user change it in one tap.
+     *
+     * **A fractional surplus marks that lot opened**, which is [markOpenedIfPartial]'s inference read
+     * in the other direction: a count of "1 carton and 500 ml" can only mean a unit is open. The cost
+     * is that the sealed units sharing the lot inherit the shorter opened clock, so they warn earlier
+     * than their printed date deserves. That is the safe direction of being wrong, and it is the only
+     * one available without splitting the surplus across two lots.
+     */
+    public function count(
+        Product $product,
+        Location $location,
+        float $counted,
+        MovementSource $source = MovementSource::Manual,
+        ?string $actorId = null,
+    ): StockCountResult {
+        if ($counted < 0) {
+            throw new RuntimeException('A count states what is on the shelf, so an empty shelf is zero, never less.');
+        }
+
+        // Refused before anything is read, so the delta stays honestly absent rather than being
+        // computed from lots this product does not use. A serial-tracked quantity IS the number of
+        // `product_serials` rows (invariant 8), so summing its lots would answer zero for a shelf
+        // holding two drills and report a surplus of the whole count.
+        if ($product->tracking_mode === 'serial') {
+            return StockCountResult::deferred(CountOutcome::SerialTracked, 0.0);
+        }
+
+        return DB::transaction(function () use ($product, $location, $counted, $source, $actorId): StockCountResult {
+            $lots = $this->ledger->fefoLots($product, $location->getKey());
+            $onHand = (float) $lots->sum(static fn (StockLot $lot): float => (float) $lot->remaining_quantity);
+            $delta = $counted - $onHand;
+
+            // Half of the smallest difference `decimal(_, 3)` can hold, so a real 0.001 is written and
+            // the float residue of summing decimal strings is not. A literal `=== 0.0` here would
+            // append phantom movements of 1e-15 for shelves that agreed perfectly.
+            if (abs($delta) < self::COUNT_EPSILON) {
+                return StockCountResult::matched();
+            }
+
+            if ($delta < 0) {
+                // No availability check: the shortfall is `counted - onHand` with `counted` at least
+                // zero, so it can never exceed what the lots hold. That is a property of deriving the
+                // quantity rather than accepting one, and it is why a count cannot fail the way
+                // [consume] can.
+                $written = $this->takeOut($lots, -$delta, MovementReason::StockTake, $source, $actorId);
+
+                $this->ledger->rebuildProductStock($product, $location->getKey());
+
+                return StockCountResult::written($written, $delta);
+            }
+
+            // `fefoLots` orders open lots before sealed ones and sorts each tier by binding date, so
+            // the first sealed lot in that order is the earliest-expiring one. For a sealed lot the
+            // binding date IS `expires_at`, because the opened clock needs an `opened_at` to run from.
+            $sealed = $lots->first(static fn (StockLot $lot): bool => $lot->opened_at === null);
+
+            if ($sealed === null) {
+                return StockCountResult::deferred(CountOutcome::NeedsDate, $delta);
+            }
+
+            $this->markOpenedIfPartial($sealed, $delta);
+
+            $movement = $this->append($sealed, $delta, MovementReason::StockTake, $source, $actorId);
+
+            $this->ledger->rebuildProductStock($product, $location->getKey());
+
+            return StockCountResult::written(collect([$movement]), $delta);
         });
     }
 
@@ -239,12 +340,55 @@ final class StockWriter
     }
 
     /**
-     * Set `opened_at` when a sealed lot is broken into, without the user declaring it (D27).
+     * Take a quantity out along the FEFO order, splitting across lots when one is not enough.
+     *
+     * Shared by [consume] and [count] rather than duplicated, because the two differ only in the
+     * reason they write and in where the quantity came from. The caller checks availability: [consume]
+     * has to refuse a request for more than exists, and [count] cannot produce one.
+     *
+     * @param  Collection<int, StockLot>  $lots  in FEFO order
+     * @return Collection<int, StockMovement> one per lot touched
+     */
+    private function takeOut(
+        Collection $lots,
+        float $quantity,
+        MovementReason $reason,
+        MovementSource $source,
+        ?string $actorId,
+    ): Collection {
+        $remaining = $quantity;
+        $written = collect();
+
+        foreach ($lots as $lot) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $take = min($remaining, (float) $lot->remaining_quantity);
+
+            $this->markOpenedIfPartial($lot, $take);
+
+            $written->push(
+                $this->append($lot, -$take, $reason, $source, $actorId),
+            );
+
+            $remaining -= $take;
+        }
+
+        return $written;
+    }
+
+    /**
+     * Set `opened_at` when a lot holds a broken unit, without the user declaring it (D27).
      *
      * A consumption that is not a whole number of base units can only have come from opening one:
      * half a carton is not a carton. The user never says "I am opening this", the same way D30
      * keeps the app from asking questions it can infer, so the flag is a consequence of what they
      * recorded rather than a separate step.
+     *
+     * [count] reads the same evidence in the other direction: a shelf counted as "1 carton and 500
+     * ml" holds an open unit whether or not the record knew about it, so a fractional surplus marks
+     * the lot it lands in.
      */
     private function markOpenedIfPartial(StockLot $lot, float $take): void
     {
