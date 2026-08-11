@@ -58,8 +58,18 @@ final class ProductController extends Controller
 
     public function show(string $id): ProductResource
     {
-        return new ProductResource(
-            Product::query()->with(['stock', 'tags'])->findOrFail($id),
-        );
+        $product = Product::query()
+            ->with(['stock', 'tags', 'lots', 'serials'])
+            ->withCount('movements')
+            ->findOrFail($id);
+
+        // Hand each lot the product it already came from. `StockLot::bindingDate()` needs
+        // `opened_shelf_life_days` to work out an opened lot's deadline, and without this it would
+        // lazy-load the same product once per lot: a carton of milk with four lots is four identical
+        // queries for a value already in memory. Eager-loading `lots.product` would fetch it once
+        // instead of four times and still fetch a row we are holding.
+        $product->lots->each(static fn ($lot) => $lot->setRelation('product', $product));
+
+        return new ProductResource($product);
     }
 }

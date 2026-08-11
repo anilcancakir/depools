@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\MovementReason;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\User;
@@ -144,6 +145,64 @@ final class InventoryApiTest extends TestCase
         // BINDING date per location rather than the printed one.
         $this->assertSame('4.000', $row['quantity']);
         $this->assertSame('2026-09-01', $row['locations'][0]['earliest_expires_at']);
+    }
+
+    public function test_the_detail_endpoint_serves_the_lots_behind_the_total(): void
+    {
+        [, $location, $product] = $this->tenant('Birinci');
+        $product->fill(['tracks_expiry' => true, 'opened_shelf_life_days' => 3])->save();
+
+        // Two lots with different printed dates, which is the reason expiry belongs to a lot.
+        foreach (['2026-09-20', '2026-09-10'] as $date) {
+            $this->postJson('/api/v1/stock/receive', [
+                'product_id' => $product->getKey(),
+                'location_id' => $location->getKey(),
+                'quantity' => 2,
+                'expires_at' => $date,
+            ])->assertCreated();
+        }
+
+        $data = $this->getJson('/api/v1/products/'.$product->getKey())->assertOk()->json('data');
+
+        $this->assertCount(2, $data['lots'], 'The detail screen draws the batches, not the total');
+
+        // Both dates on the wire, not one. The printed date and the date that GOVERNS are different
+        // facts once a lot is opened, and the screen shows which applies; here nothing is opened, so
+        // they agree, and that agreement is what the opened case has to diverge from.
+        $earlier = collect($data['lots'])->firstWhere('expires_at', '2026-09-10');
+        $this->assertSame('2026-09-10', $earlier['binding_expires_at']);
+        $this->assertSame('2.000', $earlier['remaining_quantity']);
+        $this->assertFalse($earlier['is_depleted']);
+
+        // The list payload must NOT carry them. A fifty-row list has no room to draw a lot and every
+        // row would be shipping its whole ledger.
+        $row = $this->getJson('/api/v1/products')->assertOk()->json('data.0');
+        $this->assertArrayNotHasKey('lots', $row);
+        $this->assertArrayNotHasKey('serials', $row);
+    }
+
+    public function test_a_serial_tracked_product_serves_units_rather_than_lots(): void
+    {
+        [, $location, $product] = $this->tenant('Birinci');
+        $product->fill(['tracking_mode' => 'serial'])->save();
+
+        // Created directly, because there is no write path for a serial yet and the read side is
+        // what this pins. `StockWriter::receive` refuses a serial product on purpose.
+        ProductSerial::create([
+            'product_id' => $product->getKey(),
+            'location_id' => $location->getKey(),
+            'serial' => 'MK-DHP484-002391',
+            'warranty_ends_at' => '2027-02-12',
+            'acquired_at' => '2026-02-12',
+        ]);
+
+        $data = $this->getJson('/api/v1/products/'.$product->getKey())->assertOk()->json('data');
+
+        $this->assertSame([], $data['lots'], 'Invariant 8: a serial-tracked product has no lots');
+        $this->assertSame('MK-DHP484-002391', $data['serials'][0]['serial']);
+        // A warranty rather than an expiry, and the client reuses the expiry machinery for it.
+        $this->assertSame('2027-02-12', $data['serials'][0]['warranty_ends_at']);
+        $this->assertNull($data['serials'][0]['released_at'], 'A unit still on hand has not left');
     }
 
     public function test_the_endpoint_serves_the_tags_the_screen_renders(): void

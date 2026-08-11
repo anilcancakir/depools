@@ -56,6 +56,12 @@ final class ProductResource extends JsonResource
             // the wire for a value that is already unique per tenant by its fold.
             'tags' => $this->whenLoaded('tags', fn (): array => $this->tags->pluck('name')->all()),
             'locations' => LocationStockResource::collection($this->whenLoaded('stock')),
+            // Gated, and the gate is the point rather than a micro-optimisation. A list row renders
+            // one number and one badge, so it reads the projection; the detail screen exists to show
+            // the batches BEHIND that number. Sending lots to a fifty-row list would be the whole
+            // ledger on the wire for a screen that cannot draw it.
+            'lots' => StockLotResource::collection($this->whenLoaded('lots')),
+            'serials' => ProductSerialResource::collection($this->whenLoaded('serials')),
         ];
     }
 }
