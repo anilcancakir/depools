@@ -1,0 +1,18 @@
+# Gitignored files copied into every worktree Claude Code creates, for `--worktree`,
+# for `EnterWorktree`, and for a subagent with `isolation: worktree`.
+#
+# A worktree is a fresh checkout, so none of these are present in it, and each one
+# fails in its own confusing way when absent: without pubspec_overrides.yaml the
+# siblings resolve from pub.dev instead of the local working trees, a missing
+# backend/.env aborts artisan before it says why, and a missing .artisan/plugins.json
+# drops every plugin command.
+#
+# `.gitignore` syntax, and only files that match AND are gitignored are copied, so a
+# tracked file can never be duplicated by this list.
+#
+# NOT processed when a WorktreeCreate hook replaces the default git logic; such a hook
+# has to copy these itself. This project has no such hook, deliberately.
+
+pubspec_overrides.yaml
+backend/.env
+.artisan/plugins.json

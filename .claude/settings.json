@@ -1,5 +1,8 @@
 {
   "enabledPlugins": {
     "fluttersdk@fluttersdk-marketplace": true
+  },
+  "worktree": {
+    "baseRef": "head"
   }
 }

@@ -45,8 +45,15 @@ app.*.map.json
 /android/app/release
 .artisan/
 
-# Local sibling-package path wiring (dev only)
+# Local sibling-package path wiring (dev only). Absolute paths on purpose: this file
+# is machine-local by definition, and a relative `../magic` does not resolve from a
+# worktree under .claude/worktrees/. Measured: a verbatim copy there fails version
+# solving; with absolute paths `flutter pub get` and `flutter analyze` both pass.
+# `.worktreeinclude` copies it into every worktree Claude creates.
 pubspec_overrides.yaml
+
+# Worktrees Claude Code creates for parallel sessions and isolated subagents.
+.claude/worktrees/
 
 # Secrets (never commit; .env.example is the template)
 
