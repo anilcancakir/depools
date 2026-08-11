@@ -100,6 +100,52 @@ final class InventoryApiTest extends TestCase
             ->assertJsonPath('data.locations.0.earliest_expires_at', '2026-09-01');
     }
 
+    public function test_the_list_carries_every_field_a_product_row_derives_from(): void
+    {
+        [, $location, $product] = $this->tenant('Birinci');
+
+        $product->fill([
+            'description' => 'Tam yağlı, pastörize',
+            'default_shelf_life_days' => 7,
+            'opened_shelf_life_days' => 3,
+            'par_level' => 6,
+            'reorder_point' => 2,
+        ])->save();
+
+        $this->postJson('/api/v1/stock/receive', [
+            'product_id' => $product->getKey(),
+            'location_id' => $location->getKey(),
+            'quantity' => 4,
+            'expires_at' => '2026-09-01',
+        ])->assertCreated();
+
+        $row = $this->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        // Each of these decides something the row RENDERS, which is why they are asserted together
+        // rather than one per test: the warning window is derived per product from the shelf life, so
+        // a payload missing it gives every product the neutral seven days and a five-day carton then
+        // never warns in time. The opened life is the second clock (D27), the thresholds are what
+        // "below par" and "reorder" compare against, and the movement count is the only thing that
+        // decides whether a rate may be claimed at all.
+        $this->assertSame('Tam yağlı, pastörize', $row['description']);
+        $this->assertSame(7, $row['default_shelf_life_days']);
+        $this->assertSame(3, $row['opened_shelf_life_days']);
+        $this->assertSame('6.000', $row['par_level']);
+        $this->assertSame('2.000', $row['reorder_point']);
+        $this->assertSame('lot', $row['tracking_mode']);
+        $this->assertArrayHasKey('product_category_id', $row);
+
+        // One inbound movement, so `forecasting.md`'s lowest tier: the client may show the user's own
+        // target and no time claim. A list that could not see this would have to speak cautiously
+        // about everything or confidently about nothing.
+        $this->assertSame(1, $row['movements_count']);
+
+        // Derived, and already correct before this change: the quantity from the projection and the
+        // BINDING date per location rather than the printed one.
+        $this->assertSame('4.000', $row['quantity']);
+        $this->assertSame('2026-09-01', $row['locations'][0]['earliest_expires_at']);
+    }
+
     public function test_the_endpoint_serves_the_tags_the_screen_renders(): void
     {
         [, , $product] = $this->tenant('Birinci');

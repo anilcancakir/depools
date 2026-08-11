@@ -22,13 +22,27 @@ final class ProductResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'brand' => $this->brand,
+            'description' => $this->description,
             'sku' => $this->sku,
             'base_unit' => $this->base_unit,
             'tracks_expiry' => (bool) $this->tracks_expiry,
             'content_amount' => $this->content_amount,
             'content_unit' => $this->content_unit,
             'par_level' => $this->par_level,
+            'reorder_point' => $this->reorder_point,
             'tracking_mode' => $this->tracking_mode,
+            'product_category_id' => $this->product_category_id,
+            // The warning window is derived from the shelf life PER PRODUCT rather than being one
+            // global number, so the client needs the shelf life itself: seven days always warns about
+            // a five-day carton and never warns about a tin. `opened_shelf_life_days` travels with it
+            // because an opened unit runs on that clock instead (D27).
+            'default_shelf_life_days' => $this->default_shelf_life_days,
+            'opened_shelf_life_days' => $this->opened_shelf_life_days,
+            // How much history exists, which is the only thing that decides what may be CLAIMED about
+            // this product: `forecasting.md` gates a rate on roughly ten movements, and below that the
+            // client shows context or nothing rather than a number. Gated on the caller having asked,
+            // so a detail request does not pay for a count it will not render.
+            'movements_count' => $this->whenCounted('movements'),
             // Formatted to the column's own precision rather than cast from the summed float.
             // `product_stock.quantity` is `decimal:3`, so a per-location row arrives as `6.000`
             // while the raw sum arrives as `6`, and a client rendering both would show one
