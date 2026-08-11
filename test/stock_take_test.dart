@@ -26,6 +26,38 @@ void main() {
       expect(skipped.variance, isNull, reason: 'an uncounted line has no difference to write');
     });
 
+    test('a projection that did not travel falls back to the lots', () {
+      final ProductListItem milk = productFixtures.firstWhere(
+        (p) => p.name == 'Pınar Süt Tam Yağlı 1 lt',
+      );
+
+      // A location row carrying no usable quantity is OMITTED from the map rather than stored as 0.
+      // The two are different facts and only one of them is a shelf: a defaulted zero would
+      // short-circuit `expectedAt` and report an empty shelf for stock the record holds.
+      final ProductListItem parsed = ProductListItem.fromApi(
+        <String, dynamic>{
+          'id': 'p1',
+          'name': milk.name,
+          'base_unit': 'adet',
+          'quantity': '4.000',
+          'locations': <Map<String, dynamic>>[
+            <String, dynamic>{'location_id': 'loc-a', 'quantity': '3.000'},
+            <String, dynamic>{'location_id': 'loc-b', 'quantity': null},
+          ],
+        },
+        locationLabels: const <String, String>{},
+      );
+
+      expect(parsed.locationAmounts['loc-a'], 3);
+      expect(parsed.locationAmounts.containsKey('loc-b'), isFalse);
+
+      // `loc-b` therefore reaches the fallback rather than reporting a counted-empty shelf. With no
+      // lots on this payload that is the product's whole balance, which is the documented limit of
+      // the fallback and the reason the first test in this group exists.
+      expect(expectedAt(parsed, 'loc-a'), 3);
+      expect(expectedAt(parsed, 'loc-b'), 4);
+    });
+
     test('agreement is the same width here as it is on the server', () {
       // `StockWriter::COUNT_EPSILON` is 0.0005. This side was 0.0001, so a difference between the two
       // thresholds read as a variance on the sheet, got submitted, and came back `matched`: the footer

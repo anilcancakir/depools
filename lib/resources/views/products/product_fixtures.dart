@@ -436,10 +436,24 @@ class ProductListItem {
     // The per-location quantity the payload was already sending and this mapping used to drop, taking
     // only the id from each row. The count screen needs the number itself: what the record claims is
     // on ONE shelf is the whole thing a count is checking.
-    final Map<String, num> locationAmounts = <String, num>{
-      for (final Map<String, dynamic> row in stock)
-        row['location_id'] as String: toNumOrNull(row['quantity']) ?? 0,
-    };
+    // **A row whose quantity does not parse is OMITTED, not recorded as zero.** `?? 0` here made an
+    // absent or malformed figure indistinguishable from a real zero, and the difference decides
+    // something: `expectedAt` short-circuits on a present key, so a defaulted 0 would suppress the
+    // lot fallback and tell the count screen the shelf is empty. The user would then be shown a
+    // surplus for stock that was on the record all along.
+    //
+    // Unreachable through this server, which sends a NOT NULL decimal for every row, and the guard
+    // costs nothing: an omitted key is exactly the "no projection travelled" case the fallback exists
+    // for.
+    final Map<String, num> locationAmounts = <String, num>{};
+
+    for (final Map<String, dynamic> row in stock) {
+      final num? quantity = toNumOrNull(row['quantity']);
+
+      if (quantity == null) continue;
+
+      locationAmounts[row['location_id'] as String] = quantity;
+    }
 
     // Parsed once. Two calls were two expressions that could drift apart, and a row whose total
     // disagreed with its own printed figure is the exact defect the lots comment above records.
