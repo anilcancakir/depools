@@ -77,44 +77,52 @@ Verify before acting on a finding. Two of two were correct on the first real PR,
 Every line below was executed in this repository and did what it says. The comments are the four traps that cost time, so read them rather than rediscovering them.
 
 ```sh
-# 1. Worktree. Resolve the root FIRST: `git worktree add .claude/worktrees/x` from a subdirectory
-#    creates it under THAT directory, and the stray path then blocks the next attempt.
-R=$(git rev-parse --show-toplevel)
-git -C "$R" worktree add "$R/.claude/worktrees/<slug>" -b feature/<slug>
-cd "$R/.claude/worktrees/<slug>"
+# Set these two once. Everything below reuses them.
+R=$(git rev-parse --show-toplevel); S=<slug>; B=feature/$S
+W=$R/.claude/worktrees/$S; P=repos/anilcancakir/depools/pulls
 
-# 2. A backend branch needs vendor, and bin/check does NOT install it. bin/check DOES copy
-#    backend/.env, .artisan/plugins.json and backend/public/build from the main worktree.
+# 1. Worktree. Resolve the root FIRST: `git worktree add .claude/worktrees/x` from a subdirectory
+#    creates it UNDER that subdirectory, and the stray path then refuses the next attempt.
+git -C "$R" worktree add "$W" -b "$B" && cd "$W"
+
+# 2. Only for a branch touching backend/: vendor is gitignored and bin/check does NOT install it.
+#    bin/check DOES copy backend/.env, .artisan/plugins.json and backend/public/build on first run.
 (cd backend && composer install --no-interaction --quiet)
 
-# 3. Gate, then open the PR. `bin/check backend`, `bin/check flutter` or `--fast` to scope it.
-bin/check
-git push -u origin feature/<slug>
-gh pr create --base master --head feature/<slug> --title "..." --body "..."
+# 3. Gate, then open the PR. Scope it with `bin/check backend|flutter` or `--fast` while iterating,
+#    full before pushing. Run bin/sync-instructions too if a rule changed.
+bin/check && git push -u origin "$B"
+N=$(gh pr create --base master --head "$B" --title "..." --body "..." | grep -o '[0-9]*$')
 
-# 4. Checks first, then the review. Capture the count before requesting, so the wait also works on a
-#    re-review, where a review already exists and a test for "any review" returns instantly.
-gh pr checks <n> --watch --fail-fast
-P=repos/anilcancakir/depools/pulls/<n>
-gh api $P/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-before=$(gh api $P/reviews --jq 'length')
-until [ "$(gh api $P/reviews --jq 'length')" -gt "$before" ]; do sleep 15; done
-gh api $P/reviews --jq '.[-1].body'
-gh api $P/comments --jq '.[] | "\(.path):\(.line // .original_line)  \(.body)"'
+# 4. Wait for the check run to EXIST before watching it: `gh pr checks` exits straight away with
+#    "no checks reported" when the run has not registered yet, which reads exactly like a green PR.
+until [ "$(gh api "repos/anilcancakir/depools/commits/$(git rev-parse HEAD)/check-runs" \
+  --jq .total_count)" -gt 0 ]; do sleep 5; done
+gh pr checks "$N" --watch --fail-fast
 
-# 5. Fix, push, run step 4 again, then resolve each thread. Resolution is what the ruleset checks and
-#    it exists only in GraphQL; the REST API cannot do it.
-gh api graphql -f query='{repository(owner:"anilcancakir",name:"depools"){pullRequest(number:<n>){
+# 5. Then the review. Capture the count BEFORE requesting: on a re-review one already exists, so a
+#    wait for "any review" returns instantly and you read the previous one.
+had=$(gh api "$P/$N/reviews" --jq length)
+gh api "$P/$N/requested_reviewers" --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+until [ "$(gh api "$P/$N/reviews" --jq length)" -gt "$had" ]; do sleep 15; done
+gh api "$P/$N/reviews" --jq '.[-1].body'          # summary, plus SUPPRESSED comments worth reading
+gh api "$P/$N/comments" --jq '.[] | "\(.path):\(.line // .original_line)  \(.body)"'
+
+# 6. Fix what is real, answer what is not, push, and run 4 and 5 again. Then resolve every thread:
+#    resolution is what the ruleset checks, and it exists only in GraphQL.
+gh api graphql -f query='{repository(owner:"anilcancakir",name:"depools"){pullRequest(number:'"$N"'){
   mergeable reviewThreads(first:20){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}'
 gh api graphql -F id=<threadId> \
   -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}'
 
-# 6. Merge, then clean up by hand. `--delete-branch` FAILS while a worktree still holds the branch,
-#    and it fails after the merge has already happened, which reads like the merge broke.
-gh pr merge <n> --squash
-git -C "$R" worktree remove "$R/.claude/worktrees/<slug>"
-git -C "$R" branch -D feature/<slug>
-git -C "$R" fetch -q origin && git -C "$R" merge --ff-only origin/master
+# 7. Merge and clean up all four places. `gh pr merge --delete-branch` FAILS while a worktree holds
+#    the branch, and it fails AFTER the merge went through, so the remote branch survives and reads
+#    like the merge broke. Doing it by hand is what stops orphan branches accumulating.
+gh pr merge "$N" --squash
+git -C "$R" worktree remove "$W"
+git -C "$R" branch -D "$B"
+git push origin --delete "$B"
+git -C "$R" fetch -q --prune origin && git -C "$R" merge --ff-only origin/master
 ```
 
 `pubspec.lock` will be dirty after any local `flutter pub get`, because the overrides put sibling paths in it. Leave it unstaged; `bin/check` fails when a lock carrying a local path is committed.

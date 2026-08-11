@@ -80,7 +80,10 @@ class DatabaseSeeder extends Seeder
         // Not fillable on User, and the scope reads exactly this column.
         $user->forceFill(['current_team_id' => $team->getKey()])->save();
 
-        Auth::login($user->refresh());
+        // `setUser`, not `login`. Both make `TeamScope::currentTeamId()` resolve, which is all this
+        // needs, but `login` goes through the session guard and writes session state that a console
+        // run has no use for.
+        Auth::setUser($user->refresh());
 
         $this->call(DemoInventorySeeder::class);
 

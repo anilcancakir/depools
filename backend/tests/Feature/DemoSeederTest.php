@@ -6,6 +6,7 @@ use App\Enums\MovementReason;
 use App\Models\Product;
 use App\Models\StockLot;
 use App\Models\StockMovement;
+use App\Services\ConsistencyFinding;
 use App\Services\StockConsistency;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -40,13 +41,16 @@ final class DemoSeederTest extends TestCase
 
     public function test_the_seeded_inventory_agrees_with_the_ledger(): void
     {
-        $findings = app(StockConsistency::class)->sweep();
+        // Compared as the LIST of descriptions rather than as a count with a message built beside it.
+        // Two reasons: the descriptions cost nothing to produce when the sweep is clean, which is the
+        // case that runs on every green build, and when it is not clean PHPUnit diffs them instead of
+        // printing one concatenated line.
+        $findings = app(StockConsistency::class)
+            ->sweep()
+            ->map(static fn (ConsistencyFinding $finding): string => $finding->describe())
+            ->all();
 
-        $this->assertTrue(
-            $findings->isEmpty(),
-            'The demo fixture drifted from the ledger: '
-            .$findings->map(static fn ($finding): string => $finding->describe())->implode('; '),
-        );
+        $this->assertSame([], $findings, 'The demo fixture drifted from the ledger');
     }
 
     public function test_it_covers_every_stock_state_a_screen_has_to_render(): void
@@ -54,12 +58,11 @@ final class DemoSeederTest extends TestCase
         $this->assertNotNull($this->productNamed('Whole Milk 1 L'), 'in-stock needs a row');
 
         $tablets = $this->productNamed('Dishwasher Tablets');
-        $this->assertSame(
-            '6.000',
-            $tablets->quantityFromLedger(),
-            'low-stock needs a product below its reorder point and above zero',
-        );
-        $this->assertTrue((float) $tablets->quantityFromLedger() < (float) $tablets->reorder_point);
+        // Once. `quantityFromLedger` is a scope-free aggregate over the movements, so asking twice is
+        // two queries for one number.
+        $onHand = $tablets->quantityFromLedger();
+        $this->assertSame('6.000', $onHand, 'low-stock needs a product below its reorder point and above zero');
+        $this->assertTrue((float) $onHand < (float) $tablets->reorder_point);
 
         $this->assertSame(
             '0.000',
