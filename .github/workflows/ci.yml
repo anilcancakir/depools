@@ -43,6 +43,12 @@ jobs:
       - name: .github mirrors are current
         run: bin/sync-instructions --check
 
+      # The sibling packages are not in this checkout, so this verifies the COPIES against the hash
+      # each one recorded. That catches an edit made here and cannot catch upstream drift; the
+      # drift check is the same command run locally, where the siblings exist.
+      - name: Package skill copies are unedited
+        run: bin/sync-skills --check
+
   flutter:
     name: Flutter (analyze + test)
     runs-on: ubuntu-latest
