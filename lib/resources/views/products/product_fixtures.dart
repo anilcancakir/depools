@@ -461,13 +461,25 @@ class ProductListItem {
     return '1 $unit açık';
   }
 
-  /// Turkish decimal formatting for a content figure.
+  /// Decimal formatting for a content figure, in the ACTIVE locale.
   ///
   /// Whole values lose the decimals: "500 ml", not "500,00 ml". A remainder is read
   /// at a glance and the trailing zeros are noise at that size.
+  ///
+  /// The separator used to be a hardcoded comma, which was right while the interface was
+  /// Turkish and became "0,80" on an English screen once the default locale moved to `en`
+  /// (D116). Read from `Lang.current` rather than passed in, because every caller is a row
+  /// being built for whatever locale is on screen right now, and threading a parameter through
+  /// them all would only move the same decision further away from the digits.
+  ///
+  /// `intl` is deliberately not pulled in for this. One separator is the whole difference at
+  /// these sizes, and a package plus its locale data is a large answer to a small question.
   static String _format(num value) {
     if (value == value.roundToDouble()) return value.round().toString();
-    return value.toStringAsFixed(2).replaceAll('.', ',');
+
+    final String fixed = value.toStringAsFixed(2);
+
+    return Lang.current.languageCode == 'en' ? fixed : fixed.replaceAll('.', ',');
   }
 
   /// A decimal that PostgreSQL sends as a string, or null.

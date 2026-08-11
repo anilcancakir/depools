@@ -78,9 +78,14 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
       for (final FilterOption option in _locations) option.id: option.label,
     };
 
+    // ONE reference date for the page. `fromApi` defaults it to `DateTime.now()`, so mapping
+    // eleven rows across midnight would compute two different todays and the expiry counts would
+    // disagree by a day within one list.
+    final DateTime today = DateTime.now();
+
     final List<ProductListItem> rows = <ProductListItem>[
       for (final Map<String, dynamic> row in _rows(productResponse['data']))
-        ProductListItem.fromApi(row, locationLabels: labels),
+        ProductListItem.fromApi(row, locationLabels: labels, today: today),
     ];
 
     // `setEmpty` rather than a success with no rows, because the view shows a different screen
