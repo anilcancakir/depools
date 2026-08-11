@@ -42,18 +42,21 @@ Read their source freely. Changing one is a PR in that repository under its own 
 
 ## One task, one worktree, one PR
 
-Several agents work this repo at the same time, so isolation is the default and `master` is never written directly.
+Several agents work this repo at the same time, so isolation is the default and `master` is never written directly. That is enforced rather than asked: a repository ruleset refuses a direct push, a force-push and a deletion on `master`, with no bypass for anyone, the repository owner included. The bypass list is empty on purpose, because an agent runs with the owner's credentials, so a bypass for the owner is a bypass for every agent.
+
+The branch is `master` and not `main`, deliberately, matching `magic` and `uptizm`. Renaming it means updating `.github/workflows/ci.yml` in the same commit: a branch filter naming a branch that does not exist matches nothing and GitHub does not warn, which is how this repo reached 146 commits with zero CI runs.
 
 - Every task starts in its own worktree: `EnterWorktree`, or `git worktree add .claude/worktrees/<slug> -b feature/<slug>` by hand. Branches are `feature/<slug>` or `fix/<slug>`.
 - A worktree is a fresh checkout, so three gitignored files it needs are absent: `pubspec_overrides.yaml`, `backend/.env`, `.artisan/plugins.json`. `.worktreeinclude` copies all three when Claude Code creates the worktree, and `bin/check` copies the last two plus `backend/public/build` on first run. Never hand-author them. Run `(cd backend && composer install)` yourself when the branch touches `composer.lock`.
 - The nested layout works here because `pubspec_overrides.yaml` holds ABSOLUTE paths. A relative `../magic` resolves to nothing from `.claude/worktrees/<slug>`, and version solving then fails with an error that blames the wrong thing.
-- Land the work as a PR. A suite that only ran on one machine is not evidence.
+- Land the work as a PR, and let CI be the evidence rather than a local run. Four checks have to pass before a merge, and a review thread has to be resolved: `Flutter (analyze + test)`, `Backend (pint + tests)`, `Design tokens`, `Instruction mirrors`.
+- Also branch from `master` for the trivial case the worktree rule exempts, because a direct push is refused either way.
 
 ## Verifying a change
 
 `bin/check` is the gate, seven jobs fanned across cores: `flutter analyze`, `flutter test`, `pint --test`, the PHP suite, the design-token scan, the hosted-only lockfile and the component registry. `--fast` runs only the static passes; `flutter` or `backend` scopes it to one half.
 
-One gate is NOT in `bin/check`: the `.github/` instruction mirrors are checked by CI (`bin/sync-instructions --check`), so a stale mirror passes locally and fails there. Run `bin/sync-instructions` after editing this file or any rule.
+One gate is NOT in `bin/check`: the `.github/` instruction mirrors are checked by CI (`bin/sync-instructions --check`), so a stale mirror passes locally and blocks the merge there, since it is one of the four required checks. Run `bin/sync-instructions` after editing this file or any rule.
 
 A green suite is the floor. Anything a person clicks gets driven for real with `fluttersdk_dusk` against a running Chrome, at desktop AND at mobile width, because the shell swaps widget trees at `lg` (1024px) and each side can break alone. An endpoint gets a real request. `docs/verification-loop.md` is the procedure and carries the measurement traps that produce confident wrong answers.
 
