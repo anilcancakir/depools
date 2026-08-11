@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MovementReason;
 use App\Models\Product;
 use App\Models\StockLot;
 use App\Models\StockMovement;
@@ -83,7 +84,9 @@ final class DemoSeederTest extends TestCase
         );
 
         $this->assertTrue(
-            StockMovement::query()->where('reason', 'waste')->exists(),
+            // The enum rather than its backing string: `reason` is cast to it, so a renamed case
+            // breaks this line instead of silently matching nothing.
+            StockMovement::query()->where('reason', MovementReason::Waste)->exists(),
             'wasted needs a movement whose reason names it',
         );
     }

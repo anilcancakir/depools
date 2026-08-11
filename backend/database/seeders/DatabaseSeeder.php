@@ -59,15 +59,18 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        $user = User::query()->firstOrCreate(
-            ['email' => self::EMAIL],
-            [
-                'name' => 'Depools Demo',
-                'password' => self::PASSWORD,
-                'locale' => 'en',
-                'timezone' => 'UTC',
-            ],
-        );
+        // `firstOrNew` and then fill on every run, NOT `firstOrCreate`. That one applies its second
+        // argument only when it creates, so an account left over from an earlier run would keep
+        // whatever password it had while this file went on promising a known one. A demo credential
+        // that is right on a fresh database and wrong on yours is worse than no promise at all.
+        $user = User::query()->firstOrNew(['email' => self::EMAIL]);
+
+        $user->fill([
+            'name' => 'Depools Demo',
+            'password' => self::PASSWORD,
+            'locale' => 'en',
+            'timezone' => 'UTC',
+        ])->save();
 
         $team = Team::query()->firstOrCreate(
             ['user_id' => $user->getKey(), 'name' => 'Demo Kitchen'],

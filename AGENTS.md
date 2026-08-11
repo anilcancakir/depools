@@ -59,6 +59,16 @@ The branch is `master` and not `main`, deliberately, matching `magic` and `uptiz
 - Land the work as a PR, and let CI be the evidence rather than a local run. Four checks have to pass before a merge, and a review thread has to be resolved: `Flutter (analyze + test)`, `Backend (pint + tests)`, `Design tokens`, `Instruction mirrors`.
 - Also branch from `master` for the trivial case the worktree rule exempts, because a direct push is refused either way.
 
+**A green suite is not a finished PR. Wait for the review agent before merging.** Copilot code review reads `AGENTS.md`, the path-scoped instructions and `.github/skills/code-review/SKILL.md` from the HEAD branch, and on the first PR here that carried real code it found two defects worth fixing while every check was green. So the loop is: open the PR, wait for the review, verify each comment against the code, fix what is real and answer what is not, push, and re-request.
+
+Three mechanics that decide whether that loop actually runs:
+
+- **Request it explicitly rather than waiting.** The `master` ruleset carries `copilot_code_review`, and it has not fired on its own for every PR here. One line, and it costs nothing when a review is already on the way: `gh api repos/anilcancakir/depools/pulls/<n>/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'`.
+- **Re-request after pushing a fix.** A re-review on push is a separate setting and is off, so a pushed fix is reviewed only if you ask again.
+- **Its verdict never blocks and never approves.** Copilot always leaves a Comment review, so the merge is held by the thread-resolution rule instead: an unresolved inline comment blocks, an addressed one does not. That is also why a comment you disagree with still needs an answer in the thread rather than silence.
+
+Verify before acting on a finding. Two of two were correct on the first real PR, but the reasoning behind one of them named a cast that had to be checked before the fix was right, and a review that is wrong about the code is still confident.
+
 ## Verifying a change
 
 `bin/check` is the gate, seven jobs fanned across cores: `flutter analyze`, `flutter test`, `pint --test`, the PHP suite, the design-token scan, the hosted-only lockfile and the component registry. `--fast` runs only the static passes; `flutter` or `backend` scopes it to one half.
