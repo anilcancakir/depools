@@ -5,11 +5,11 @@ namespace Database\Seeders;
 use App\Enums\MovementReason;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\Scopes\TeamScope;
 use App\Services\StockWriter;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 use RuntimeException;
 
 /**
@@ -44,10 +44,15 @@ class DemoInventorySeeder extends Seeder
             throw new RuntimeException('The demo seeder only runs in local or testing.');
         }
 
-        if (Auth::id() === null) {
+        // The team, not the user. `TeamScope::currentTeamId()` reads `current_team_id` off the
+        // authenticated user, so a logged-in user who has none resolves to null just like no user at
+        // all, and the rows are stamped null either way. Guarding on `Auth::id()` would have looked
+        // like a guard and let that case through.
+        if (TeamScope::currentTeamId() === null) {
             throw new RuntimeException(
-                'No authenticated user, so every row would be stamped with a null team_id and then be '
-                .'invisible. Run `db:seed` and let DatabaseSeeder authenticate the demo user first.',
+                'No current team resolved, so every row would be stamped with a null team_id and then '
+                .'be invisible to every read. Run `db:seed` and let DatabaseSeeder authenticate the '
+                .'demo user and set its current team first.',
             );
         }
 
