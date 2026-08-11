@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:magic/magic.dart';
 
 /// The stock-state axis: how much is on hand relative to the target level.
 enum StockStateFilter {
@@ -365,23 +366,30 @@ class SavedProductFilter {
   /// They overlap the list's own "Dikkat gerekiyor" section deliberately: that
   /// section is the always-visible summary of the same conditions, and these are
   /// the drill-in that shows one of them complete rather than truncated.
-  static const List<SavedProductFilter> builtIns = <SavedProductFilter>[
+  /// A getter rather than a `const` list, and the reason is a defect this shape caused.
+  ///
+  /// The names were const Turkish literals, which was invisible while the whole interface was
+  /// Turkish and became three Turkish chips on an English screen the moment the default locale
+  /// moved to `en` (D116). `Lang.get` cannot be called from a const expression, so the list is
+  /// built per read, which also means a language change takes effect without a restart. Three
+  /// objects per read is nothing next to the row list this filters.
+  static List<SavedProductFilter> get builtIns => <SavedProductFilter>[
     SavedProductFilter(
       id: 'builtin:expired',
-      name: 'Süresi geçenler',
-      filter: ProductFilter(expiry: ExpiryFilter.expired),
+      name: Lang.get('screens.products.saved.expired'),
+      filter: const ProductFilter(expiry: ExpiryFilter.expired),
       isBuiltIn: true,
     ),
     SavedProductFilter(
       id: 'builtin:expiring',
-      name: 'Yakında bitecek',
-      filter: ProductFilter(expiry: ExpiryFilter.expiringSoon),
+      name: Lang.get('screens.products.saved.expiring'),
+      filter: const ProductFilter(expiry: ExpiryFilter.expiringSoon),
       isBuiltIn: true,
     ),
     SavedProductFilter(
       id: 'builtin:out-of-stock',
-      name: 'Stok yok',
-      filter: ProductFilter(stockState: StockStateFilter.outOfStock),
+      name: Lang.get('screens.products.saved.out_of_stock'),
+      filter: const ProductFilter(stockState: StockStateFilter.outOfStock),
       isBuiltIn: true,
     ),
   ];

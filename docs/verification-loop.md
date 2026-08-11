@@ -111,6 +111,21 @@ keeps laying out at the old width, and everything renders doubled and clipped.
 - "The bottom-most content node" matches an aggregate parent whose box spans the
   whole page, so an overlap check reads true on every page including unchanged
   ones. Look at the screenshot.
+- **A sibling project's dev server answers on `localhost:8000`.** `API_URL` names
+  that port, and `uptizm/backend` was already listening on it, so the app spent
+  twenty minutes talking to the wrong API. It presented as **"Invalid
+  credentials"** on the login screen, which reads as a bad password rather than a
+  wrong backend. `lsof -nP -iTCP:8000 -sTCP:LISTEN` names the process, and its
+  `cwd` names the project. Run this repo's API on a free port and override
+  `API_URL` for the run rather than editing the tracked `.env` and committing it,
+  which is the mistake that produced this note.
+- **A `[ref=eN]` belongs to the snapshot that produced it.** After a hot restart
+  the tree is rebuilt and the refs move, so replaying a login with the previous
+  snapshot's refs types into nothing and the "successful" taps go nowhere. Re-snap
+  and read the refs out of that output. On web a restart also drops the session,
+  so the path always starts at the login screen again.
+- **`gh pr checks --watch` can hang after every check has passed.** A plain
+  `gh pr checks <n>` answers immediately with the same table.
 
 ## What counts as evidence
 

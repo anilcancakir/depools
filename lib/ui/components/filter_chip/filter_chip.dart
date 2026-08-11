@@ -53,7 +53,13 @@ class FilterChip extends StatelessWidget {
       // The × is decoration to a screen reader, so the action has to be spelled out
       // here. Without this the chip announces only "Kiler", which does not say
       // whether tapping it adds or removes that location.
-      semanticLabel: applied ? Lang.get('components.filter_chip.remove', {'label': label}) : '$label filtresini uygula',
+      // Both branches through the catalogue. The unapplied one was `'$label filtresini uygula'`,
+      // which broke two rules on one line: a hardcoded Turkish string, and concatenation instead of
+      // a `:placeholder`, so `localization_test` could not have checked it either. It surfaced as
+      // "Expired filtresini uygula" on an English screen once the chips themselves were localised.
+      semanticLabel: applied
+          ? Lang.get('components.filter_chip.remove', {'label': label})
+          : Lang.get('components.filter_chip.apply', {'label': label}),
       child: WDiv(
         className: slots['root'],
         children: [

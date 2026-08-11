@@ -20,7 +20,14 @@ final class ProductController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return ProductResource::collection(
-            Product::query()->with(['stock', 'tags'])->orderBy('name')->get(),
+            Product::query()
+                ->with(['stock', 'tags'])
+                // One aggregate for the whole page rather than a query per row. The count decides
+                // which certainty tier the client is allowed to speak in, so a list without it can
+                // only render the most cautious one for everything.
+                ->withCount('movements')
+                ->orderBy('name')
+                ->get(),
         );
     }
 

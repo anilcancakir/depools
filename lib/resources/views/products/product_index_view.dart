@@ -8,8 +8,10 @@ import 'package:magic_starter/magic_starter.dart'
         MSButton,
         MSEmptyState,
         MSInput,
-        MSPageScaffold;
+        MSPageScaffold,
+        MagicStarter;
 
+import '../../../app/controllers/product_controller.dart';
 import '../../../app/models/product_filter.dart';
 import '../../../ui/components/filter_bar/filter_bar.dart';
 import '../../../ui/components/list_footer/list_footer.dart';
@@ -55,9 +57,9 @@ import 'product_fixtures.dart';
 /// list with no indication of why: the user concludes the product is not there and
 /// leaves. Any review of this screen checks that first.
 ///
-/// Rendered from [productFixtures] rather than a controller, but filtered for real
-/// against them, so the sheet's count and the list cannot disagree. Wiring a
-/// `ProductController` replaces where the rows come from and nothing else.
+/// Rendered from [ProductController], and filtered client-side against the loaded rows, so
+/// the sheet's count and the list cannot disagree. The preview catalog passes
+/// [ProductIndexView.items] instead, which is the same contract from a different source.
 class ProductIndexView extends StatefulWidget {
   /// Whether the tenant has no products at all yet.
   final bool isEmpty;
@@ -73,17 +75,33 @@ class ProductIndexView extends StatefulWidget {
   /// same filtered list.
   final bool isLoadingMore;
 
-  /// Creates the [ProductIndexView].
-  const ProductIndexView({super.key}) : isEmpty = false, isLoadingMore = false;
+  /// Rows supplied by the caller, which is how the preview catalog stays offline.
+  ///
+  /// Null means "read [ProductController]", which is what the route does. The preview passes
+  /// [productFixtures] instead, and that is not a second fixture in a wired screen: it is the
+  /// same contract filled from a different source, and it is the only way the catalog can
+  /// render this screen without a backend and an authenticated tenant behind it.
+  ///
+  /// The state class only touches the controller when this is null, so a preview never
+  /// instantiates it and never issues a request.
+  final List<ProductListItem>? items;
+
+  /// Creates the [ProductIndexView], reading from [ProductController].
+  const ProductIndexView({super.key, this.items}) : isEmpty = false, isLoadingMore = false;
 
   /// Creates the view for a tenant with no products yet.
-  const ProductIndexView.empty({super.key}) : isEmpty = true, isLoadingMore = false;
+  const ProductIndexView.empty({super.key})
+    : items = const <ProductListItem>[],
+      isEmpty = true,
+      isLoadingMore = false;
 
   /// Creates the view with a page in flight, which is its own reviewable state.
   ///
   /// A paginated list spends real time here on a slow connection, and a footer that looks
   /// like the end of the data is how a user stops scrolling with rows left unseen.
-  const ProductIndexView.loadingMore({super.key}) : isEmpty = false, isLoadingMore = true;
+  const ProductIndexView.loadingMore({super.key, this.items})
+    : isEmpty = false,
+      isLoadingMore = true;
 
   @override
   State<ProductIndexView> createState() => _ProductIndexViewState();
@@ -113,18 +131,80 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     ..._userSaved,
   ];
 
-  List<ProductListItem> get _visible =>
-      productFixtures.where((item) => item.matches(_filter)).toList();
+  /// Null in the preview, where [ProductIndexView.items] supplies the rows instead.
+  ///
+  /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
+  /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a
+  /// request from the catalog the moment this screen was previewed.
+  ProductController? _controller;
 
-  int _countMatches(ProductFilter draft) =>
-      productFixtures.where((item) => item.matches(draft)).length;
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.items == null) {
+      final ProductController controller = ProductController.instance
+        ..addListener(_onControllerChanged);
+
+      // **`onInit` has to be called here, and nothing else calls it.** `Magic.findOrPut` only
+      // registers the instance, and the only caller of `onInit` in the framework is `MagicView`,
+      // which this screen is not. So a controller reached through `.instance` from a plain
+      // `StatefulWidget` never initialises: the screen showed "No products yet" against a tenant
+      // holding eleven, with no request in the server log at all, which is `flutter-app.md`'s
+      // "onInit alone never fires for a non-backing controller" reproduced exactly.
+      //
+      // Guarded on `initialized` rather than called unconditionally, because the controller is
+      // keyed by type and outlives this screen: a second visit would otherwise refetch on every
+      // navigation. `onInit` itself sets that flag, so this is the same once-only contract a
+      // `MagicView` would give it.
+      if (!controller.initialized) controller.onInit();
+
+      _controller = controller;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Every row the screen knows about, before the filter.
+  List<ProductListItem> get _all =>
+      widget.items ?? _controller?.items ?? const <ProductListItem>[];
+
+  List<ProductListItem> get _visible => _all.where((item) => item.matches(_filter)).toList();
+
+  int _countMatches(ProductFilter draft) => _all.where((item) => item.matches(draft)).length;
+
+  /// The locations the filter sheet offers.
+  ///
+  /// From the controller when there is one, because a chip for a location this tenant does not
+  /// have is a filter that can only ever match nothing.
+  List<FilterOption> get _locationOptions => _controller?.locations ?? locationOptions;
+
+  /// Whether this tenant genuinely has nothing yet, as opposed to a filter matching nothing.
+  bool get _isEmptyCatalogue => widget.isEmpty || (_controller?.isEmpty ?? false);
+
+  /// The signed-in tenant's own name, for the subtitle.
+  ///
+  /// This was the literal `'Mutfak Deposu'`, which was invisible while the screen ran on
+  /// fixtures and becomes a lie the moment it runs on real data: it would name someone else's
+  /// team on every screen. Falls back to the product name rather than to an empty string,
+  /// because a subtitle reading "· 11 products" with nothing in front of it looks broken.
+  String get _teamName =>
+      MagicStarter.teamResolver?.currentTeam()?.name ?? Lang.get('app.name');
 
   Future<void> _openSheet() async {
     final ProductFilter? applied = await ProductFilterSheet.show(
       context,
       initial: _filter,
       countMatches: _countMatches,
-      locations: locationOptions,
+      locations: _locationOptions,
       categories: categoryOptions,
       tags: tagOptions,
     );
@@ -174,7 +254,13 @@ class _ProductIndexViewState extends State<ProductIndexView> {
 
     return MSPageScaffold(
       title: Lang.get('screens.products.title'),
-      subtitle: widget.isEmpty ? null : Lang.get('screens.products.subtitle', {'team': 'Mutfak Deposu', 'count': productFixtures.length}),
+      // Null while the first page is in flight, not just when the catalogue is empty. The count
+      // is genuinely unknown then, and rendering `_all.length` reads as "0 products" next to a
+      // real team name: the same false state the list body needed its own loading branch for, on
+      // the one line that sits above it.
+      subtitle: _isEmptyCatalogue || (_controller?.isLoading ?? false)
+          ? null
+          : Lang.get('screens.products.subtitle', {'team': _teamName, 'count': _all.length}),
       actions: [
         // The same entry point the assistant shell has (D50). In this mode it is the only
         // place a full-auto write becomes visible, because there is no transcript.
@@ -200,7 +286,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
         ),
       ],
       children: [
-        if (!widget.isEmpty) ...[
+        if (!_isEmptyCatalogue) ...[
           _buildSearch(),
           FilterBar(
             filter: _filter,
@@ -211,7 +297,16 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             onSave: _save,
           ),
         ],
-        if (widget.isEmpty)
+        // The order of these five is load-bearing. Loading has to come before the two empty
+        // states, because both of them are FALSE while the first request is in flight and the
+        // list is empty for a third reason: without this branch the screen tells a user with
+        // eleven products that their filter matched nothing, which is exactly the lie this
+        // screen's own documentation says any review checks for first.
+        if (_controller?.isLoading ?? false)
+          ..._buildSkeletons()
+        else if (_controller?.isError ?? false)
+          _buildLoadFailed()
+        else if (_isEmptyCatalogue)
           _buildEmpty()
         else if (visible.isEmpty)
           _buildNoMatches()
@@ -374,6 +469,30 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     );
   }
 
+  /// The first load, drawn as the rows that are coming rather than as a spinner.
+  ///
+  /// `ProductRow.skeleton()` is the row's own shadow, so the list does not jump when content
+  /// lands and the placeholder cannot drift from the thing it stands in for. Five, because that
+  /// is roughly a phone viewport: enough to read as a list, few enough not to imply a count.
+  List<Widget> _buildSkeletons() => <Widget>[
+    SectionCard(
+      label: Lang.get('screens.products.all'),
+      children: <Widget>[for (int i = 0; i < 5; i++) const ProductRow.skeleton()],
+    ),
+  ];
+
+  /// The request failed, which is neither an empty catalogue nor an empty filter.
+  ///
+  /// `SectionCard` already carries an `error` plus `onRetry` pair, so this is a call rather than
+  /// a hand-rolled panel: one more empty-state layout would be a second answer to a question the
+  /// component library had already answered, and it would drift.
+  Widget _buildLoadFailed() => SectionCard(
+    label: Lang.get('screens.products.all'),
+    error: _controller?.rxStatus.message ?? Lang.get('screens.products.load_failed'),
+    onRetry: () => _controller?.load(),
+    children: const <Widget>[],
+  );
+
   /// A filter that matched nothing, which is a different state from an empty catalogue.
   ///
   /// The distinction is the whole point: "Henüz ürün yok" tells a user to start
@@ -390,7 +509,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             icon: _filterIcon,
             title: Lang.get('screens.products.filtered_empty'),
             description:
-                Lang.get('screens.products.filtered_description', {'count': productFixtures.length}),
+                Lang.get('screens.products.filtered_description', {'count': _all.length}),
           ),
         ),
         MSButton(
@@ -455,7 +574,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             // worth having at the bottom of this particular list.
             ListFooter(
               state: widget.isLoadingMore ? ListFooterState.loadingMore : ListFooterState.end,
-              totalLabel: Lang.get('screens.products.all_of_them', {'count': productFixtures.length}),
+              totalLabel: Lang.get('screens.products.all_of_them', {'count': _all.length}),
               // The row draws its own placeholder, so the two cannot drift.
               skeleton: const ProductRow.skeleton(),
             ),

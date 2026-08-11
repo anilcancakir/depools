@@ -630,7 +630,13 @@
       "all_group": "All products",
       "product_count": ":count products",
       "all_of_them": "all :count of them",
-      "all": "All"
+      "all": "All",
+      "load_failed": "Could not load products",
+      "saved": {
+        "expired": "Expired",
+        "expiring": "Expiring soon",
+        "out_of_stock": "Out of stock"
+      }
     },
     "scan": {
       "title": "Scan a barcode",
@@ -960,6 +966,7 @@
       "clear": "Clear"
     },
     "filter_chip": {
+      "apply": "Apply the :label filter",
       "remove": "Remove the :label filter"
     },
     "label_card": {
@@ -1019,6 +1026,11 @@
     },
     "label_preview": {
       "placeholder": "Rendered on the server"
+    },
+    "expiry_badge": {
+      "days": ":days days",
+      "expired": "Expired",
+      "today": "Today"
     }
   }
 }

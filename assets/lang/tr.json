@@ -630,7 +630,13 @@
       "all_group": "Tüm ürünler",
       "product_count": ":count ürün",
       "all_of_them": ":count ürünün hepsi",
-      "all": "Tümü"
+      "all": "Tümü",
+      "load_failed": "Ürünler yüklenemedi",
+      "saved": {
+        "expired": "Süresi geçenler",
+        "expiring": "Yakında bitecek",
+        "out_of_stock": "Stok yok"
+      }
     },
     "scan": {
       "title": "Barkod tara",
@@ -960,6 +966,7 @@
       "clear": "Temizle"
     },
     "filter_chip": {
+      "apply": ":label filtresini uygula",
       "remove": ":label filtresini kaldır"
     },
     "label_card": {
@@ -1019,6 +1026,11 @@
     },
     "label_preview": {
       "placeholder": "Sunucuda oluşturulur"
+    },
+    "expiry_badge": {
+      "days": ":days gün",
+      "expired": "Süresi geçti",
+      "today": "Bugün"
     }
   }
 }
