@@ -18,7 +18,7 @@ Nine or more products shipped photo-to-item AI or AI chat during 2025 and 2026, 
 | [HomeZada](https://www.homezada.com/homeowners/pricing) | Free tier, Premium 99 USD/year or 15.95 USD/month, Deluxe 189 USD/year | AI chat and photo credits metered at every tier, 300 extra credits for 25 USD | The clearest precedent for AI-credit metering |
 | [Memento Database](https://mementodatabase.com/pricing.html) | Free, Pro 8 USD/month, Business 14 USD/user/month | AI assistant, credit-metered (200 free, 2,000 Pro) | Strongest traction in the cohort: 4.43 rating over 26K Play ratings, 1M+ downloads |
 | Manifest, Bevel, MovingBox, Vorby, Scanlily, ShelfLily | Free tiers common, Pro pricing varies | Photo, video or receipt to inventory | All AI-native 2025-2026 entrants. Individual claims not independently verified |
-| [Dib](https://dib.io/) | Reported 120 USD/year, UNVERIFIED | Reported "chat with your home" | Site returns HTTP 451, blocked from Turkey under US export and OFAC rules, so it could not be verified and is not a competitor in our market |
+| [Dib](https://dib.io/) | Reported 120 USD/year, UNVERIFIED | Reported "chat with your home" | Site returns HTTP 451, blocked from Turkey under US export and OFAC rules, so it could not be verified FROM HERE. Under D116 it is a competitor in the primary market and the verification is still owed; the earlier note that it is not a competitor was reasoning from the old market order |
 | [Encircle](https://www.getencircle.com/) | Quote-based, roughly 270 to 650 USD/month | None found | B2B restoration and insurance adjusting, not a consumer product |
 
 Read this as: photo-to-item recognition and chat-over-your-items are table stakes on the household side, not differentiators, and the price ceiling is roughly 20 USD per year.
@@ -83,7 +83,7 @@ Traction in the household cohort is modest across the board: the strongest is Me
 
 - **App store search**: the head term "inventory" is high difficulty with 250+ competing apps. Long-tail terms ("inventory management", "inventory manager", "inventory control") sit at far lower difficulty and are the realistic entry point ([ASOTools](https://asotools.io/app-store-keywords/inventory)).
 - **Content**: the household space is saturated with "best home inventory app" listicles that themselves function as the discovery layer, ranking above the apps' own sites. The realistic play is being listed favourably rather than outranking them.
-- **Turkish channels**: no Turkish product was found doing consumption forecasting for a household or small business, and the Turkish stock-tracking tools that exist (Jet Stok, BirFatura, Tezgah) integrate at the marketplace-API or e-invoice-integrator level. This is an unserved local segment with no incumbent to displace.
+- **Turkish channels**: no Turkish product was found doing consumption forecasting for a household or small business, and the Turkish stock-tracking tools that exist (Jet Stok, BirFatura, Tezgah) integrate at the marketplace-API or e-invoice-integrator level. This is an unserved local segment with no incumbent to displace. Under D116 it is a second market rather than the first, so read this as a channel that stays available and cheap to enter, not as the entry point.
 - **Reddit and community**: could not be verified in this research pass. Repeated `site:reddit.com` queries returned unrelated results. If community sentiment becomes load-bearing for copy, it needs a dedicated pass with direct Reddit access.
 
 ## Trust as a differentiator
@@ -92,4 +92,4 @@ No competitor surveyed publishes an explicit "we do not train on your photos or 
 
 Self-hosting exists as a niche selling point ([HomeBox](https://homebox.software/en/) markets "no cloud sync, no third-party access, no telemetry") and no mainstream competitor offers it. Not a v1 concern, but worth knowing the position is open.
 
-KVKK obligations are covered in `legal-and-privacy.md`. They are a compliance surface, not a marketing feature, with one exception: the separate-consent requirement forces a clearer disclosure than most competitors offer, and that clarity can be presented as a strength rather than a legal chore.
+GDPR obligations, with KVKK as the local overlay, are covered in `legal-and-privacy.md`. They are a compliance surface, not a marketing feature, with one exception: KVKK's separate-consent requirement is the strictest of the two and forces a clearer disclosure than most competitors offer, so building for it produces a clarity that can be presented as a strength rather than a legal chore. That holds in the primary market too, where nobody is asking for it.

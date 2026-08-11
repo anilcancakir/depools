@@ -15,7 +15,7 @@ Written 2026-08-05 from nine research passes plus a full read of the abandoned M
 | [architecture.md](architecture.md) | Repository shape, Flutter and Laravel layers, the gateway pattern |
 | [ai-design.md](ai-design.md) | What the model does and does not do, gateways, approval, cost control |
 | [monetization.md](monetization.md) | The meter, plan shape, behaviour at the limit, payment providers |
-| [legal-and-privacy.md](legal-and-privacy.md) | KVKK and GDPR obligations, data source licensing, the scraping risk record |
+| [legal-and-privacy.md](legal-and-privacy.md) | GDPR obligations with KVKK as the local overlay, data source licensing, the scraping risk record |
 | [iterations.md](iterations.md) | v1, v2, v3, and what is explicitly not planned |
 
 ## Features

@@ -18,17 +18,25 @@ import 'package:magic/magic.dart';
 /// `auth.login_title` on the login screen. `assets/lang/tr.json` therefore covers all 273 leaves of
 /// `en.json`, and the generator asserted that count in both directions before writing the file.
 ///
-/// ### `auto_detect_locale` stays off
+/// ### The default is `en` (D116)
 ///
-/// Depools is Turkey-first and its content, its number formatting and its receipt vocabulary are
-/// Turkish. Following the device locale would hand a Turkish user's English-set phone an English
-/// interface over a Turkish product, which is the worse of the two mismatches. `en` stays in
-/// `supported_locales` so the in-app language picker still offers it, and so the fallback below has
-/// somewhere to land if `tr.json` ever fails to load.
+/// The primary market is outside Turkey, so `en` is the default here, which also makes the three
+/// halves agree: `backend/config/app.php` and `magic_starter` both already defaulted to `en` while
+/// this file defaulted to `tr`. Turkish stays a COMPLETE translation rather than a partial one, for
+/// the reason in the section above, and the in-app picker offers both.
+///
+/// ### `auto_detect_locale` stays off, and it is now a question rather than an answer
+///
+/// It was off because the product was Turkey-first, and following the device locale would have handed
+/// a Turkish user's English-set phone an English interface over a Turkish product. D116 removes that
+/// argument: with an international market and an `en` default, device detection would mostly help.
+/// Leaving it off is deliberate rather than settled, because a device set to a locale we do not ship
+/// (`de_DE`, `fr_FR`) has no tested path here, and the translator replacing rather than merging its
+/// sentence map is exactly the mechanism that turns an untested path into raw keys on screen.
 Map<String, dynamic> get localizationConfig => {
   'localization': {
     'path': 'lang',
-    'locale': env('APP_LOCALE', 'tr'),
+    'locale': env('APP_LOCALE', 'en'),
     'fallback_locale': 'en',
     'supported_locales': ['tr', 'en'],
     'auto_detect_locale': false,

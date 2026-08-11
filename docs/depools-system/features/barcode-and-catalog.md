@@ -25,7 +25,7 @@ Verified against `mobile_scanner` 7.4.0 (pub.dev, August 2026). It covers Androi
 Two smaller decisions the web backend forces:
 
 - The recommended backend is the browser's native `BarcodeDetector` with a `zxing-wasm` fallback. Native is absent in Firefox and needs Safari 17+, so in practice a meaningful share of users land on the WASM path.
-- That fallback pulls roughly 2 MB of WebAssembly from the jsDelivr CDN on first use. For a Turkey-first product that is a first-scan stall on a slow connection and a third-party dependency in the critical path. Self-hosting the binary alongside the app is the answer; it is not the default, so it has to be set up deliberately.
+- That fallback pulls roughly 2 MB of WebAssembly from the jsDelivr CDN on first use: a first-scan stall on a slow connection and a third-party dependency in the critical path, on any market. Self-hosting the binary alongside the app is the answer; it is not the default, so it has to be set up deliberately.
 
 ## The resolution cascade
 

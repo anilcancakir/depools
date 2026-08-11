@@ -122,7 +122,7 @@ Numbers 3 and 5 are the real ones. The first two measure onboarding; the last th
 - `ai-design.md`: agents, tools, approval gates, model choice, cost model.
 - `monetization.md`: plans, meters, quota enforcement, payment providers.
 - `architecture.md`: Flutter and Laravel layers, the fluttersdk packages, gateway interfaces.
-- `legal-and-privacy.md`: KVKK and GDPR obligations, data source licensing, the scraping risk record.
+- `legal-and-privacy.md`: GDPR obligations with KVKK as the local overlay, data source licensing, the scraping risk record.
 - `iterations.md`: what is in v1, what waits for v2.
 - `open-decisions.md`: decisions taken with their reasons, and questions still open.
 - `features/`: one document per feature, each with its input and output contract, flow, error states, quota effects and acceptance criteria.

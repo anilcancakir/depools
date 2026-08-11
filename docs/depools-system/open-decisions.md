@@ -36,6 +36,14 @@ The Turkish product-data gap is a moat that compounds with our own users' contri
 
 Cost: Stripe is limited for Turkish legal entities, so a local provider (iyzico or PayTR) is needed. Turkish price sensitivity caps ARPU.
 
+> **Half of this is superseded by D116 (2026-08-11): the market order is reversed.** The two Turkish
+> capabilities named above stay, and stay in v1, because the reason for them was never the market: a
+> receipt pipeline that reads Turkish fiscal receipts and e-Fatura is hard for a global competitor to
+> copy whoever it is sold to. What is reversed is "Turkey first". The cost sentence inverts with it:
+> Turkish price sensitivity no longer caps ARPU for the primary market, and Stripe stops being blocked
+> by the entity question, so the local provider becomes a second rail rather than the only one. O1 and
+> O6 are the two open questions this moves; both are re-scoped in place.
+
 ### D6. `laravel/ai`, latest version pinned exactly, behind our own gateway interfaces
 
 Chosen over `neuron-ai`. Its source tree ships `Approvals` (human-in-the-loop for write tools), `Store` and `Storage` (conversation persistence the MVP hand-rolled), `Streaming` (absent from the MVP), plus `Embeddings` and `Reranking`. Those are precisely the MVP's gaps.
@@ -720,7 +728,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
-> price, **O3** whether KVKK cross-border transfer permits the LLM architecture, **O4** whether Turkish
+> price, **O3** whether cross-border transfer permits the LLM architecture, **O4** whether Turkish
 > senders emit machine-readable order data, **O5** how the community catalog earns contributions,
 > **O6** what the first paid tier costs in TRY, **O7** whether the 2026-07-28 MCP revision lands in v1.
 > Seven, and each carries the assumption we proceed on until it is answered.
@@ -737,11 +745,15 @@ Per-image cost spans an order of magnitude: Gemini Flash class around 0.003 to 0
 
 Assumption until answered: run a bake-off on 100 real Turkish receipts before choosing, price an AI credit at 0.05 to 0.10 USD per receipt to hold margin at the expensive end, and make the model a gateway configuration value so it can change without touching callers.
 
-### O3. Whether KVKK cross-border transfer permits our LLM architecture as designed
+### O3. Whether cross-border transfer permits our LLM architecture as designed
 
-Sending any personal data to a non-Turkish LLM is a cross-border transfer under KVKK Article 9 and needs a Kurul-approved standard contract or another lawful basis. The Kurul's decision 2026/347 of 2026-02-18 additionally requires the aydınlatma metni and the açık rıza metni to be separate documents; a single bundled acceptance checkbox is no longer valid.
+Two regimes ask the same question of the same architecture, and D116 puts them in this order.
 
-This touches every AI feature, not only email: product photos, receipts, product names and assistant messages all cross the border.
+**GDPR Chapter V (Articles 44 to 49) is the primary one.** Sending personal data to a model provider outside the EEA needs an Article 46 mechanism, in practice standard contractual clauses plus a transfer impact assessment, on top of the Article 28 processing agreement every provider needs anyway. The open part is whether the chosen provider's own SCCs and residency options are enough on their own or whether a TIA turns up a gap.
+
+**KVKK Article 9 is the local overlay**, and it is stricter: a Kurul-approved standard contract or another lawful basis, and the Kurul's decision 2026/347 of 2026-02-18 requires the aydınlatma metni and the açık rıza metni to be separate documents, so a single bundled acceptance checkbox is not valid. Building for the stricter one satisfies both.
+
+This touches every AI feature, not only email: product photos, receipts, product names and assistant messages all cross a border.
 
 Assumption until legal counsel answers: build the consent flow as two separate documents from the start, record consent per purpose with a timestamp and version, add a redaction step before any content reaches a model, and treat data residency as a real weight in provider selection rather than a tiebreaker. See `legal-and-privacy.md`.
 
@@ -2187,3 +2199,34 @@ an EMPTY table always shows a Seq Scan, whatever indexes exist, because scanning
 A report built on that evidence claimed four tables lacked indexes they may or may not need. The existence
 question is answered from `pg_index`, and the usage question needs either rows or
 `SET enable_seqscan = off`.
+
+### D116. The primary market is outside Turkey, and Turkey is a supported market rather than the first one
+
+D5 had it the other way round and the documents followed: KVKK appeared sixteen times across five
+documents against GDPR's four, the legal document led with a KVKK section that opened "Depools.ai is
+Turkey-first", and the Flutter client defaulted `APP_LOCALE` to `tr` while the backend and `magic_starter`
+both defaulted to `en`. Anılcan's call: the product is aimed at the market OUTSIDE Turkey, so the
+framing was wrong rather than merely differently weighted.
+
+**What this reverses.** The default locale is `en` on all three halves, which also removes the
+inconsistency the three defaults already had. `legal-and-privacy.md` is GDPR-primary with KVKK as the
+local overlay for Turkish tenants, and where the two differ the stricter one is built, so the controls
+themselves do not change. O3 becomes a GDPR Chapter V question with the KVKK Article 9 problem nested
+inside it. O1 (payment provider) and O6 (first paid tier price) widen: a card rail for the primary
+market is the first question and the Turkish provider is the second, not the reverse.
+
+**What it does not reverse, and this is the part worth being precise about.** The Turkish receipt
+capability stays, in full, in v1: both the fiscal-receipt photo path and the e-Fatura path. The reason
+for that work was never the market, it was that a pipeline understanding real Turkish receipts is hard
+for a competitor to copy whoever it is sold to, and the same code is the proof the general pipeline
+works on the hardest input available to us. Turkish stays a complete translation rather than a partial
+one, because the translator does not merge the fallback and a partial locale renders raw keys. The
+community catalog and the product-data moat are unaffected: the gap D5 identified is real, it is simply
+not the reason to sell there first.
+
+**Cost, stated plainly.** The Turkish-data moat was D5's central argument for the market order, and
+giving up the market order gives up the compounding advantage of starting where the data gap is
+widest. Against that: the receipt pipeline keeps the capability, ARPU is no longer capped by Turkish
+price sensitivity, and Stripe stops being blocked by the entity question. Measured before deciding:
+only four migrations and twenty-three lines of schema are Turkey-specific, so the code barely cared and
+the documents were carrying the whole assumption.

@@ -4,9 +4,21 @@ Obligations, data-source licensing, and the risks accepted on purpose. This docu
 
 Nothing here is legal advice. It records what the sources actually say, quoted, so counsel can be asked a precise question rather than a vague one.
 
-## KVKK: the constraint that shapes the architecture
+## The regime the architecture is built for
 
-Depools.ai is Turkey-first and processes photographs of homes and businesses, receipts, and free-text messages. Two Turkish requirements shape the build.
+Depools.ai processes photographs of homes and businesses, receipts, and free-text messages, and the primary market is outside Turkey (D116). So **GDPR is the regime the build targets, with KVKK as the local overlay wherever a Turkish tenant exists.** On any point where the two differ, the stricter requirement wins, because one architecture has to satisfy both and maintaining two is how a gap opens.
+
+### GDPR
+
+The lawful basis is contract performance (Article 6(1)(b)) or legitimate interest (Article 6(1)(f)) rather than consent, because consent must be freely given and a user who needs the feature is not free to refuse it.
+
+Any model provider is a processor and needs an Article 28 data processing agreement covering scope, sub-processors, retention and breach notification. A provider outside the EEA additionally needs an Article 46 transfer mechanism (standard contractual clauses) plus a transfer impact assessment, under the Chapter V regime of Articles 44 to 49. That is the same shape as the KVKK Article 9 problem below, which is why one set of controls answers both.
+
+Article 22 is worth stating explicitly for an AI product: nothing the model produces is applied without a person confirming it, so no feature is solely-automated decision-making with legal effect. That is a property of the approval step in `ai-design.md`, not a claim on top of it.
+
+## KVKK: the local overlay for Turkish tenants
+
+Two Turkish requirements shape the build beyond what GDPR already asks.
 
 ### Cross-border transfer applies to every AI call
 
@@ -20,7 +32,7 @@ This is not confined to the email feature. Every one of these crosses the border
 - An assistant message, which is whatever the user chose to type.
 - An email body forwarded for parsing.
 
-Architectural consequences, all v1:
+Architectural consequences, all v1. They are written against KVKK because it is the stricter of the two, and they satisfy the GDPR Chapter V position above at the same time:
 
 1. **A redaction step runs before any content reaches a model.** Strip and mask what does not need to leave: card fragments, national identifiers, phone numbers, email addresses, and free-text fields the feature does not require.
 2. **Model provider selection weighs data residency**, rather than treating it as a tiebreaker.
@@ -42,12 +54,6 @@ KVKK's own generative-AI guidance published in November 2025 confirms this is an
 ### One obligation that is not a feature
 
 KVKK requires every data controller to maintain a Kişisel Veri İşleme Envanteri. That is an obligation on the company, not something to build into the product. Noted so it is not confused with a feature request.
-
-## GDPR
-
-If the product serves EU users, the lawful basis is contract performance (Article 6(1)(b)) or legitimate interest (Article 6(1)(f)) rather than consent, because consent must be freely given and a user who needs the feature is not free to refuse it.
-
-Any model provider is a processor and needs an Article 28 data processing agreement covering scope, sub-processors, retention and breach notification. A provider outside the EU additionally needs standard contractual clauses and a transfer impact assessment.
 
 ## Product data source licensing
 
