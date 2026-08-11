@@ -2128,7 +2128,15 @@ A third audit pass rendered the mockups in Chrome instead of grepping them. The 
 verified token discipline statically and reported the design surface clean, which was true of what they
 checked. Looking found four things, and the first two were on screen in the first screenshot.
 
-**Turkish uppercase is wrong on every section header, and the fix belongs in Wind.** The `uppercase`
+> **REVERSED the same day, by Anılcan: the dotted capital `İ` is not a requirement.** `SÜRESI GEÇMIŞ`
+> instead of `SÜRESİ GEÇMİŞ` is acceptable, so there is no Wind PR, no entry in `DESIGN.md`'s avoid-list,
+> and no reason to prefer a sentence-case label over an `uppercase` one. The measurement below is kept
+> because it is accurate and because a future reader wondering why headings look like that deserves the
+> answer, but nothing follows from it. It is also the smaller half of what made me raise it: I framed the
+> product as Turkey-first, and the actual aim is the market OUTSIDE Turkey (D116), which lowers the stakes
+> further.
+
+**Turkish uppercase, measured but NOT acted on.** The `uppercase`
 token calls Dart's `String.toUpperCase()`
 (`fluttersdk_wind-0.0.4/lib/src/parsers/text_transform_parser.dart:19`), which is locale-INSENSITIVE and
 maps `i` to `I` rather than to `İ`. Measured rather than reasoned:
@@ -2141,23 +2149,9 @@ maps `i` to `I` rather than to `İ`. Measured rather than reasoned:
 | `geniş` | `GENIŞ` | `GENİŞ` |
 | `açık` | `AÇIK` | `AÇIK` (no `i`, so correct by accident) |
 
-It affects `section_header`, `stat_card`, `draft_field` and `lot_row`, which is every grouped-list heading
-in the app, plus this project's own preview harness label. On a Turkey-first product it is wrong on nearly
-every screen. The same parser's `capitalize` carries a second form of it: `substring(1).toLowerCase()`
-turns `İ` into `i` plus a combining dot.
-
-**A PR to Wind, not a workaround here.** Anılcan's call, and the reason is layer: a locale-aware
-`_upper()` fixes every consumer of the package at once and costs this project no code. The price is that
-the bug stays on screen until the PR lands and a version bumps, and `DESIGN.md`'s avoid-list now carries
-it so nobody adds a new `uppercase` label in the meantime.
-
-Rejected: moving the uppercase form into the Turkish locale file. It works immediately and depends on no
-other repo, and it puts presentation into copy, forces the English locale to carry its own uppercase
-strings, and comes back silently the first time someone writes `uppercase` again.
-
-Rejected: dropping uppercase headings entirely. `apple-hig.md` says an iOS grouped-list header is
-uppercase, so this would be a deliberate divergence, and it is the option to fall back on if the Wind PR
-stalls.
+It affects `section_header`, `stat_card`, `draft_field` and `lot_row`, plus this project's own preview
+harness label. The same parser's `capitalize` carries a second form of it: `substring(1).toLowerCase()`
+turns `İ` into `i` plus a combining dot. **Both are accepted as they are.** Use `uppercase` freely.
 
 **`DESIGN.md`'s "Never truncate to fit" gains a stated exception.** A product name in a list row
 ellipsises at 390px, which the rule forbade absolutely. The rule now forbids truncating a control, a
