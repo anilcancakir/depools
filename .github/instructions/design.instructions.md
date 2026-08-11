@@ -4,256 +4,102 @@ applyTo: "lib/**"
 
 <!-- GENERATED from .claude/rules/design.md by bin/sync-instructions. Edit that file, not this one. -->
 
-# Design Rules (UI surface)
+<!-- Trimmed on 2026-08-11 from 258 lines: the copy and i18n sections moved to flutter-app.md, the alias table collapsed, and every anti-pattern row tightened to the fact plus the fix. It still runs past the 40-to-80-line sweet spot, and the anti-pattern table is why: each row is one defect that reached a screenshot, several of them twice. Cutting a row does not save tokens, it re-buys the debugging cycle. -->
 
-These rules apply whenever you touch any file under `lib/`. They complement `.github/copilot-instructions.md` with the implementation-level specifics.
+# Design rules (UI surface)
 
-## Atomic Component Folder Contract
+Applies to `lib/`. `DESIGN.md` owns the token VALUES, `docs/component-registry.md` owns what exists, and `.github/instructions/flutter-app.instructions.md` owns the copy. This file is the component contract and the defects that keep recurring.
 
-Every component in the `magic_starter` generic library lives in a 4-file atomic folder:
+## Atomic component folder contract
 
 ```
 lib/ui/components/<name>/
   <name>.dart           # class <Name> extends StatelessWidget, @immutable
   <name>.recipe.dart    # WindRecipe or WindSlotRecipe
-  <name>.preview.dart   # ONE preview widget rendering all variant x state combos
-  index.dart            # exports <name>.dart + <name>.recipe.dart (NOT preview)
+  <name>.preview.dart   # ONE preview widget rendering every variant x state
+  index.dart            # exports <name>.dart + <name>.recipe.dart, NOT the preview
 ```
 
-- Folder and file names are `lower_snake_case` (dotted suffixes `.recipe.dart`/`.preview.dart` are valid).
-- Component class name is unprefixed `UpperCamelCase` (`card.dart` -> `class Card`).
-- `index.dart` exports the component class, variant enums, and the recipe. Never export the preview file (it is dev-only).
-- `previews:refresh` discovers components by scanning `*.preview.dart` files. One preview class per file, no exceptions.
+Folder and file names are `lower_snake_case`; the class is unprefixed `UpperCamelCase`. `previews:refresh` finds components by scanning `*.preview.dart`, one preview class per file. Scaffold with `dart run bin/dispatcher.dart make:component <Name> [--variants=intent,size] [--slots]`.
 
-To scaffold: `dart run bin/dispatcher.dart make:component <Name> [--variants=intent,size] [--slots]`
+## WindRecipe
 
-## WindRecipe Usage
+All variant logic lives in a `WindRecipe`, or a `WindSlotRecipe` for slot-based components. Emission order is always `base ++ variant (definition order) ++ compound ++ caller`: never sort, never deduplicate. Variant values are strings matching the map keys, and `null` clears a default. The caller's `className` appends last, so it can override variant output at the same granularity. Import `WindRecipe` from `package:magic/magic.dart`, which re-exports the wind barrel; a direct `package:fluttersdk_wind/...` import trips `depend_on_referenced_packages`.
 
-All variant logic lives in a `WindRecipe` (or `WindSlotRecipe` for slot-based components):
+## Token-only rule
 
-```dart
-final myRecipe = WindRecipe(
-  base: 'flex items-center gap-2',
-  variants: {
-    'intent': {
-      'primary': 'bg-primary text-on-primary',
-      'secondary': 'bg-surface-container text-fg border border-color-border',
-      'ghost': 'text-fg',
-    },
-    'size': {
-      'sm': 'px-3 py-1.5 text-xs',
-      'md': 'px-4 py-2 text-sm',
-      'lg': 'px-5 py-2.5 text-base',
-    },
-  },
-  defaultVariants: {'intent': 'primary', 'size': 'md'},
-);
-```
+Every colour goes through a semantic alias key. No raw hex, no `Color(0xFF...)`, no `Colors.*` in component or view code, and `bin/design-tokens` fails the build on one outside `.design-token-allowlist`.
 
-- Emission order is always: `base ++ variant (definition order) ++ compound ++ caller`. Never sort or deduplicate.
-- Pass variant values as strings matching the map keys. Pass `null` to clear a default.
-- The caller `className` argument appends last; it can override variant output at the same granularity.
-- Import `WindRecipe` via `package:magic/magic.dart` inside `magic_starter` files (it re-exports the wind barrel). Direct `package:fluttersdk_wind/...` imports trip `depend_on_referenced_packages`.
+`design:sync` emits a FIXED table of 17 aliases and silently drops anything else: `bg-surface`, `bg-surface-container`, `bg-surface-container-high`, `text-fg`, `text-fg-muted`, `text-fg-disabled`, `bg-primary`, `text-on-primary`, `bg-primary-container`, `bg-accent`, `border-color-border`, `border-color-border-subtle`, `bg-destructive`, `text-on-destructive`, `bg-destructive-container`, `bg-success`, `bg-warning`. The status, paper, overlay and control families are hand-authored supplements under `lib/config/depools_*_tokens.dart`, merged into the alias map in `lib/main.dart`.
 
-## Token-Only Rule
+Each alias already expands to a `'<light> dark:<dark>'` pair, so write `bg-surface` alone; adding `dark:bg-surface` is nonsense. Two silent drops to know about, both documented in `DESIGN.md`: `text-accent` does not exist (only `bg-accent` is emitted, so tinted text uses a status family such as `text-ai`), and `border-<bg-token>` finds nothing, so `border-bg-primary` makes the border vanish with no warning.
 
-All colors go through semantic alias keys defined in `DESIGN.md`. Never use raw hex, `Color(0xFF...)`, or `Colors.*` in component or view code.
-
-The 17 semantic alias keys:
-
-| Key | Role |
-|-----|------|
-| `bg-surface` | Page background |
-| `bg-surface-container` | Card, panel background |
-| `bg-surface-container-high` | Input background, nested panels |
-| `text-fg` | Primary text |
-| `text-fg-muted` | Secondary text |
-| `text-fg-disabled` | Disabled/meta text |
-| `bg-primary` | Brand action background |
-| `text-on-primary` | Text on brand action surface |
-| `bg-primary-container` | Tinted brand surface |
-| `bg-accent` | Secondary accent |
-| `border-color-border` | Dividers, card borders |
-| `border-color-border-subtle` | Hairline borders |
-| `bg-destructive` | Danger action background |
-| `text-on-destructive` | Text on danger surface |
-| `bg-destructive-container` | Tinted danger surface |
-| `bg-success` | Success tone |
-| `bg-warning` | Warning tone |
-
-Each alias already expands to a `'<light> dark:<dark>'` pair, so write `bg-surface` on its own; adding `dark:bg-surface` is nonsense. An explicit `dark:` is only ever needed for a raw arbitrary value, which the rule above already bans.
-
-To add or change a semantic token: edit `DESIGN.md` and run `dart run bin/dispatcher.dart design:sync`.
+To add or change a token: edit `DESIGN.md`, then `dart run bin/dispatcher.dart design:sync`.
 
 ## Both appearances, every time
 
-**A screen is not verified until it has been seen in light AND dark.** This is already in
-the `design-first-workflow` skill and it was skipped for seven consecutive screens in one
-session; every one of them was reviewed in dark mode only, and the light-mode defect that
-came out of it (an interactive fill reading as disabled) had shipped across six of them
-before Anılcan spotted it in a single glance.
-
-The reason it needs to be a hard gate rather than a good habit: the two appearances are not
-brightness variants of each other. Elevation direction inverts, so a token pair that is
-correct in one can be actively wrong in the other, and no amount of care in dark mode will
-surface it.
+**A screen is not verified until it has been seen in light AND dark.** The two appearances are not brightness variants of each other: elevation direction inverts, so a token pair that is correct in one can be actively wrong in the other, and no amount of care in dark mode surfaces it. This was skipped for seven consecutive screens in one session, and the light-mode defect that came out of it (an interactive fill reading as disabled) had shipped across six of them.
 
 ```sh
-# Toggle from the catalog header, then confirm the mode actually changed before trusting
-# the screenshot: the tap sometimes does not land.
+# Confirm the mode actually changed before trusting the screenshot: the tap sometimes does not land.
 ./bin/fsa dusk:snap | grep 'Toggle theme'
 ./bin/fsa dusk:tap --ref=eN
 ./bin/fsa dusk:screenshot -o /tmp/light.jpg
 python3 -c "from PIL import Image; px=Image.open('/tmp/light.jpg').convert('RGB').getpixel((1200,300)); print('DARK' if sum(px)<200 else 'LIGHT')"
 ```
 
-## Preview-Required Rule
+## Preview-required
 
-No component ships without a preview widget.
+No component ships without a preview covering every variant and state. After adding or changing one, run `previews:refresh`, navigate with `./bin/fsa dusk:navigate --route=/preview`, take light and dark screenshots, and run the `component-visual-reviewer` agent before calling it ship-ready.
 
-- The preview file (`<name>.preview.dart`) must render every variant x state combination so the catalog shows the full range.
-- After adding or modifying a preview, regenerate the catalog: `dart run bin/dispatcher.dart previews:refresh`
-- Verify dark/light parity by navigating to `/preview` in debug mode: `./bin/fsa dusk:navigate --route=/preview`
-- Take light and dark screenshots and run the `component-visual-reviewer` agent (a Claude Code agent definition; Copilot has no equivalent, so apply those criteria by hand) before marking a component ship-ready.
+## Material import discipline
 
-## Material Import Discipline
+A component sharing a name with a Material widget (`Card`, `Switch`, `Badge`, `Tooltip`, `Checkbox`) imports `package:flutter/widgets.dart`, plus `package:flutter/material.dart' show Icons` only when icons are needed. Never a bare `material.dart` import. Build on Wind W-widgets inside component bodies.
 
-Component files that share a name with a Material widget (`Card`, `Switch`, `Badge`, `Tooltip`, `Checkbox`, etc.) must import Flutter as:
+## Anti-patterns
 
-```dart
-import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Icons;  // only if icons are needed
-```
-
-Never `import 'package:flutter/material.dart'` without `show`. Build exclusively on Wind W-widgets inside component bodies.
-
-## Turkish UI copy
-
-The app's copy drifted conversational and Anılcan called it: "Bu ne? dokunup eşleştir" for a line that could not be resolved, "modelden gelmedi, sen yaz" for an empty field, "kendi kodun, istersen yaz" for an optional one. Each reads like a person talking over your shoulder rather than a product telling you where things stand.
-
-Three rules, and they are enough:
-
-**Buttons are imperative.** `Kaydet`, `Çıkar`, `Ekle`, `Vazgeç`, `Filtreyi temizle`. This is the one place a command belongs, because the user is about to issue one.
-
-**States are nominal.** `Eşleştirilemedi`, not "Bu ne? dokunup eşleştir". `Belirlenemedi`, not "modelden gelmedi, sen yaz". `İsteğe bağlı`, not "kendi kodun, istersen yaz". `Takip edilmiyor`, `Atlandı`, `Yeni ürün`, `Kalan: 2 adet`. A state describes the world; it does not ask for anything.
-
-**Never the familiar singular.** No `sen yaz`, `istersen`, `tararsan`, `dokun`, `belirle`. Where an instruction is genuinely unavoidable, use the formal plural (`kaldırın`, `temizleyin`, `dokunun`) and keep it in a description or a semantic label, never in a field's own value.
-
-Two consequences worth stating:
-
-- **Do not tell the user to tap.** The row is tappable; saying `dokunup eşleştir` explains a touchscreen. Affordance carries the action, the label carries the state. `semanticLabel` is the exception, because a screen reader has no affordance to feel.
-- **`otomatik`, not `tahmin`.** An inferred value was derived from the name, the barcode or the category. "Guess" understates the mechanism and invites less trust than it deserves.
-
-## Copy lives in the catalogues, not in Dart
-
-Every user-visible string resolves through `Lang.get`. `iterations.md` requires complete Turkish AND
-English for v1 and says the MVP's 25 percent coverage will not repeat; a literal in a widget is that
-coverage gap being created one line at a time.
-
-**Key shape: `screens.<screen>.<key>` and `components.<component>.<key>.`** A bottom sheet or a
-panel is a screen too and lives under `screens.*`, because splitting sheets into their own root buys
-one more thing to remember and nothing else.
-
-**Components own their own default copy** (`components.list_footer.end`, `components.filter_chip.remove`).
-Their parameters stay "already-localised" text from the caller; the keys are only for what the
-component itself decides to say when the caller says nothing.
-
-**Fixtures are NOT translated.** `productFixtures`, location names and movement notes stand in for
-user data and will come from the database. A user's own product name is not translated, so neither
-are these, and an English interface showing Turkish product names is correct rather than a bug.
-
-### The English side is plain, not inventory jargon
-
-`product.md` is built on the claim that the user does not understand SKUs and reorder points and
-should not have to. English copy that reaches for the trade's vocabulary re-imposes exactly what the
-Turkish side avoids, so the glossary is deliberately ordinary:
-
-| Turkish | English | Not |
-|---|---|---|
-| parti | batch | lot |
-| sayım | count | stock take |
-| hareket | change, activity | movement |
-| günlük kaldı | days left | days of cover |
-| tüketim hızı | usage rate | consumption rate |
-| hedef seviye | target level | par level |
-| zayi | waste | shrinkage |
-| konum | location | bin, storage node |
-
-`SKU` stays `SKU`: it is on the product form for businesses that already use one, and there is no
-plainer word that means the same thing.
-
-Two terms already shipped as jargon and were corrected: `days of cover` and `movements`. Check a new
-term against the table before adding it.
-
-### Demo data inside a view is marked, not exempted in a list
-
-Most fixtures live in a `*_fixtures.dart` file. A few demo rows sit inside a view because they only
-make sense next to the widget they feed, and those carry a region marker:
-
-```dart
-// demo-data-start: the movement rows, standing in for ledger entries
-...
-// demo-data-end
-```
-
-`test/no_hardcoded_copy_test.dart` honours the marker and fails on anything else. A marker rather
-than an allow-list in the test, because the decision belongs where the data is, and because it makes
-every demo block greppable when the backend replaces it.
-
-Interpolation goes through `:placeholder` replacements, never string concatenation:
-
-```dart
-Lang.get('screens.dates.subtitle', {'days': _horizon, 'approaching': approaching})
-```
-
-`test/localization_test.dart` asserts every placeholder survives translation, which a concatenated
-string cannot be checked for.
-
-## Anti-Patterns
-
-Each of these is a blocker, and the `component-visual-reviewer` flags every one.
+Each is a blocker and the `component-visual-reviewer` flags it. The numbers are measured, not estimated.
 
 | Anti-pattern | Correct approach |
-|-------------|-----------------|
-| `Color(0xFF...)` or `Colors.*` in component code | A semantic alias key from the table above |
+|---|---|
+| `Color(0xFF...)` or `Colors.*` in component code | A semantic alias key |
 | Hardcoded pixels (`SizedBox(height: 13)`) | Wind spacing utilities on the 4px scale |
 | A one-off widget when a library component exists | Check `docs/component-registry.md` first |
-| `Icons.*` inline in a component body | Extract as `static const IconData _icon = Icons.x;` |
-| `min-h-11` on an `MSButton` to reach the 44pt target | Use padding: `py-3` on `md`, `py-3.5` on `sm`. Measured: min-height grows the box downward without re-centring the label, 4 logical px high. Check the arithmetic against the SIZE, because `py-3` on an `sm` button (12 + 12 + a 16px `text-xs` line) lands at 40 and quietly misses the target the token was there to hold. `min-h-11` is still correct on a plain `WDiv`. |
-| Two controls side by side in one row, each sized by its own padding | Pin both to the same explicit height (`h-11`). A row reads as one control, so `items-center` centres the MISMATCH rather than hiding it: the stock search field measured 52 and its filter button 44. The assistant composer needed the same fix on four children. |
-| A `Material`-free overlay or chrome mounted OUTSIDE the app shell | Wrap it in `Material(type: MaterialType.transparency)` and let a wind `bg-surface` box paint the fill. Anything outside `layout.app` (the assistant overlay, the pinned footer) loses the `Material` ancestor the shell was providing, and every string then renders in Flutter's yellow double-underlined fallback style. It looks like a theme or font bug and sends you into `wind_theme.g.dart`. Cost two debugging cycles in one session. `MaterialType.transparency` avoids a raw colour, which `.design-token-allowlist` would reject. |
-| `Column` + `Expanded` inside a page, to pin a footer or divide the height | Anchor from OUTSIDE `layout.app` instead (`ui/layouts/page_chrome.dart`). The shell puts every route inside `WDiv(className: 'flex-1 overflow-y-auto')`, so a page is handed UNBOUNDED height and `Expanded` fails as `RenderBox was not laid out`, which names nothing. The same fact means a `Positioned` mounted from a page anchors to the bottom of the SCROLLED CONTENT rather than to the viewport: it renders nothing, throws nothing, and the widget was building correctly the whole time. |
-| Anything a screen exists for, placed BELOW a list that grows without bound | A setting MOVES to `/ayarlar` and leaves a folded shortcut above the list with its current value in the header; an action gets PINNED via `AppPageScaffold`'s `footer:`. An unbounded list has no bottom, so whatever sits under it is unreachable for exactly the user who has enough rows to need it. Found on the locations screen, present on six. See D70. |
-| A viewport-anchored control that overlaps another one | Measure, do not guess. The chrome host folds the pinned footer's measured height into `MediaQuery.padding.bottom`, and the floating button lifts by exactly that because it already reads that padding for the nav. A constant is wrong by construction when the footer is two lines plus two buttons on one screen and one button on another. The same applies to the nav itself: it has no fixed height (item content plus safe area, measured at 62 logical px), so clear it by overlapping its hairline rather than leaving a gap that scrolling content shows through. |
-| **Any conditionally-rendered leading glyph OR trailing control** (per state, per row, per depth) | Always reserve the gutter with a fixed-size box and put the glyph inside it. A conditional icon shifts the text beside it, and text that shifts per row destroys the alignment the layout was carrying. This cost two separate fixes in one session: a receipt list with a ragged left edge, and a location tree where children appeared LEFT of their parents because the parent's icon pushed its name further right than the child's indent. Carry state in TONE instead: settled rows `text-fg-disabled`, the one needing attention `text-ai`. **The same failure happens on the trailing edge and it is easier to miss**: a count row rendered its opened-unit field only for products that have one, so every field in the list sat at a different x. Reserve the column with an empty box of the same width. Give the labels beside a column FIXED widths too, or `adet` and `ml` move the column by the difference in their text. |
-| `relative` plus an `absolute` child on the SAME `WDiv` as the flex alignment | Split the layers: an outer `relative` box holding the flex panel and the positioned overlay as two children. Wind turns a container with a positioned child into a Stack, and a Stack silently ignores `items-center justify-center`, so the content collapses to the top-left of an otherwise correct-looking panel. |
-| A raw Flutter `Expanded` or a nested `Column` inside a wind `flex` WDiv | Let one layer own the main axis. Wind paints, Flutter measures: put raw `Expanded` children in a plain `Row`/`Column` and give the surrounding WDiv paint-only tokens (`h-8`, `px-1`). Wind's flex box does not give a bare `Expanded` the parent it needs, and a `Column` nested in wind's `Column` is handed unbounded height. Both fail as `RenderBox was not laid out`, which names nothing. |
-| `items-stretch` on a Row inside a scrolling Column | `items-start`. The Row has no height of its own there, so stretch asks its children to match a height that does not exist and asserts, again without naming the Row. |
-| `bg-surface-container-high` as the fill of anything TAPPABLE (an option row, a chip, a stepper button) | Card tone plus a hairline: `bg-surface-container border border-color-border`. That token is DESIGN.md's INPUT background. Measured: it is `#2C2C2E` on a `#1C1C1E` sheet in dark (lighter than its container, reads as raised, so tappable) and `#E5E5EA` on `#FFFFFF` in light (darker than its container, reads as recessed, which is the universal look of a disabled control). **Elevation direction flips between appearances**, so no fill token can carry "pressable" in both; a border can. Anılcan caught this in one glance at a light-mode screenshot after it had shipped across six screens. Keep the input tone for actual input wells, non-tappable panels and placeholder thumbs. |
-| Selection carried by fill tint alone | Add a non-colour signal: a radio dot, a tick, a glyph. White against `#E3ECFF` is a subtle difference in light mode and no difference at all to a colour-blind user, and DESIGN.md's "colour never carries meaning alone" applies to state, not only to status. |
-| A row of controls sized to their content when the row repeats down a list | Fixed widths. A list of rows is a TABLE even when it is built out of flex boxes, and a column that moves per row is unreadable. If a control is absent on some rows, reserve its space rather than dropping it. |
-| An enabled INPUT left on `bg-surface-container-high` | Pass `className: 'bg-surface-container'`. MSInput ships the input tone, which on a `#FFFFFF` card is `#E5E5EA`: darker than its container, and its `border-color-border` hairline is too close in value to rescue it, so an enabled field reads as disabled. Anılcan caught this after the options and the chips; it is the same root cause a third time. |
-| A control whose buttons have no callback, previewed that way | Wire the callbacks in the preview, and sweep EVERY preview rather than the one that was reported. `WAnchor` gives the pointer cursor only when it actually has a gesture, so a preview that omits them shows no hand on hover and reads as a missing cursor in working code. Reported twice; the second sweep found eleven components previewed this way, so the catalog was showing a dead control for a third of the library. Use a `static void _noop() {}` tear-off rather than `() {}`, because a closure is not a constant and breaks every `const` in the file. Audit with: `for d in lib/ui/components/*/; do ... grep -c "onTap:" $d*.preview.dart; done`. |
-| A stepper built as separate boxes in a row | ONE border around the whole control, with the buttons and field inside it and hairline dividers between them (the segmented shape iOS and Material both use). Neutralise `MSInput`'s own border and radius from the caller with `border-0 rounded-none`, which works because wind ships a `0` border width and a `none` radius. Do NOT reach for a raw `WInput` to get an unstyled field: it needs an `Overlay` ancestor and throws a build-phase `setState` from the preview harness. Three shapes were tried before this one. |
-| A stepper whose step does not match its unit's granularity | No stepper. `±1` belongs on a countable unit; an opened remainder is a measured amount where plus-one-millilitre cannot reach most of its own values, so that field stays typed. |
-| A generic bar as a loading placeholder | The placeholder is the ROW's shadow: same component, same geometry, so it cannot drift and the list does not jump when content lands. `ProductRow.skeleton()`. `ListFooter` takes the shape from its caller because only the caller knows it. A stack of equal bars under a list of thumbnails and figures says nothing about what is arriving. |
-| `h-full` on a route's root | The app shell wraps a route in a vertical scroll, so `h-full` resolves to infinity and wind asserts against it by name. A screen that needs a bounded region (a chat transcript) computes it from `MediaQuery` in Flutter, clamped at both ends, because Core Law 3 forbids interpolating it into a className. |
-| Previewing a bounded-height screen with `PreviewChrome.none` | It hands the view infinity. Use `appMobile`: `appDesktop` bounds the height but LIES about the width (it forces a wide MediaQuery inside a narrow pane), which overflowed a composer row by 107px. |
-| A selectable option with no fill when unselected | Give every option a `bg-surface-container-high`; a group where only the selected row has a background reads as one highlight among labels, not a set of choices |
+| `Icons.*` inline in a component body | `static const IconData _icon = Icons.x;` |
+| `min-h-11` on an `MSButton` to reach 44pt | Padding: `py-3` on `md`, `py-3.5` on `sm`. Min-height grows the box downward without re-centring the label, measured 4 logical px high. Check the arithmetic against the SIZE: `py-3` on an `sm` button lands at 40 and misses the target. `min-h-11` is still correct on a plain `WDiv` |
+| Two controls in one row, each sized by its own padding | Pin both to the same explicit height (`h-11`). A row reads as one control, so `items-center` centres the MISMATCH: the stock search field measured 52 and its filter button 44 |
+| A `Material`-free overlay mounted OUTSIDE the app shell | Wrap in `Material(type: MaterialType.transparency)` and let a wind `bg-surface` box paint the fill. Outside `layout.app` the `Material` ancestor is gone and every string renders in Flutter's yellow double-underlined fallback, which looks like a font bug and sends you into `wind_theme.g.dart` |
+| `Column` + `Expanded` inside a page, to pin a footer | Anchor from OUTSIDE `layout.app` (`ui/layouts/page_chrome.dart`). The shell hands every route unbounded height, so `Expanded` fails as `RenderBox was not laid out`, which names nothing. Same fact means a page-mounted `Positioned` anchors to the scrolled content rather than the viewport: renders nothing, throws nothing |
+| Anything a screen exists for, placed BELOW a list that grows without bound | A setting MOVES to `/ayarlar` with a folded shortcut above the list; an action gets PINNED via `AppPageScaffold`'s `footer:`. An unbounded list has no bottom, so what sits under it is unreachable for exactly the user with enough rows to need it. Found on locations, present on six (D70) |
+| A viewport-anchored control overlapping another | Measure, do not guess. The chrome host folds the pinned footer's measured height into `MediaQuery.padding.bottom`. A constant is wrong by construction when the footer is two lines on one screen and one button on another. The nav has no fixed height either (measured 62 logical px), so clear it by overlapping its hairline |
+| A conditionally-rendered leading glyph OR trailing control | Reserve the gutter with a fixed-size box and put the glyph inside. Text that shifts per row destroys the alignment the layout carries. Cost two fixes in one session: a ragged receipt list, and a location tree where children appeared LEFT of their parents. Carry state in TONE instead. The trailing edge is easier to miss: an opened-unit field rendered only for some products put every field at a different x. Give the labels FIXED widths too, or `adet` and `ml` move the column |
+| `relative` plus an `absolute` child on the SAME `WDiv` as the flex alignment | Split the layers: an outer `relative` box holding the flex panel and the overlay as two children. Wind turns a container with a positioned child into a Stack, and a Stack silently ignores `items-center justify-center` |
+| A raw `Expanded` or a nested `Column` inside a wind `flex` WDiv | Let one layer own the main axis. Put raw `Expanded` children in a plain `Row`/`Column` and give the surrounding WDiv paint-only tokens (`h-8`, `px-1`). Both failures read as `RenderBox was not laid out` |
+| `items-stretch` on a Row inside a scrolling Column | `items-start`. The Row has no height there, so stretch asks children to match a height that does not exist |
+| `bg-surface-container-high` as the fill of anything TAPPABLE | Card tone plus a hairline: `bg-surface-container border border-color-border`. That token is DESIGN.md's INPUT background: `#2C2C2E` on a `#1C1C1E` sheet reads as raised, `#E5E5EA` on `#FFFFFF` reads as recessed, which is the universal look of a disabled control. Elevation direction FLIPS between appearances, so no fill can carry "pressable" in both; a border can |
+| Selection carried by fill tint alone | Add a non-colour signal: a radio dot, a tick, a glyph. White on `#E3ECFF` is subtle in light and nothing at all to a colour-blind user |
+| Controls sized to their content when the row repeats down a list | Fixed widths. A list of rows is a TABLE even when built from flex boxes. If a control is absent on some rows, reserve its space |
+| An enabled INPUT left on `bg-surface-container-high` | Pass `className: 'bg-surface-container'`. MSInput ships the input tone, `#E5E5EA` on a white card, and its hairline is too close in value to rescue it |
+| A control whose buttons have no callback, previewed that way | Wire the callbacks and sweep EVERY preview, not the reported one. `WAnchor` gives the pointer cursor only with a real gesture, so the catalog showed a dead control for a third of the library. Use `static void _noop() {}` rather than `() {}`, which is not a constant and breaks every `const` in the file |
+| A stepper built as separate boxes in a row | ONE border around the whole control with hairline dividers inside, the segmented shape iOS and Material both use. Neutralise `MSInput`'s border and radius from the caller with `border-0 rounded-none`. Do NOT reach for a raw `WInput`: it needs an `Overlay` ancestor and throws a build-phase `setState` from the preview harness |
+| A stepper whose step does not match its unit's granularity | No stepper. `±1` belongs on a countable unit; an opened remainder is a measured amount, so that field stays typed |
+| A generic bar as a loading placeholder | The placeholder is the ROW's shadow: same component, same geometry, so the list cannot jump when content lands (`ProductRow.skeleton()`) |
+| `h-full` on a route's root | The shell wraps a route in a vertical scroll, so `h-full` resolves to infinity and wind asserts by name. A screen needing a bounded region computes it from `MediaQuery`, clamped at both ends |
+| Previewing a bounded-height screen with `PreviewChrome.none` | Use `appMobile`. `none` hands the view infinity, and `appDesktop` bounds the height but LIES about the width (a wide MediaQuery inside a narrow pane), which overflowed a composer row by 107px |
+| A selectable option with no fill when unselected | Give every option a `bg-surface-container-high`; otherwise the group reads as one highlight among labels |
 | Several preview classes in one `.preview.dart` | One preview class per file |
 | CSS-only Wind utilities (`box-shadow`, `filter`, `transform`, `group-*`) | Unsupported in wind; use Flutter animation APIs |
 | Hand-editing `lib/config/wind_theme.g.dart` | `dart run bin/dispatcher.dart design:sync` |
-| Shipping a component with no preview | Add the preview, run `previews:refresh` |
-| Reading a low-contrast FILL as a 1.4.11 failure when the control has visible text | Check for text or an icon first. W3C's Understanding of 1.4.11 says it plainly: "If a control has visible content (such as text or a sufficiently contrasting icon), which helps users identify the presence of the control, then a border or other indication of the overall boundary of the hit area is not required." So `MSButton`'s secondary fill measuring 1.31:1 against a white card is NOT a failure: `Kopyala` carries full contrast and identifies the control. A switch is the opposite case and does fail, because its track and thumb ARE the whole control and there is no text to fall back on. Measured both before concluding either. |
-| A `magic_starter` control used with no `className`, reviewed in dark only | Pass `className: 'border border-color-control'` on anything whose SHAPE is carried by a fill, and check it in light. `MSSwitch`'s off track is `#E7E6EC` with a white thumb: on a white card the control's own edge measured 1.21:1 and the whole switch nearly disappeared, while dark mode looked perfect. Measured with a pixel scan, not by eye, after it had shipped on three screens. `border-color-border` only reached 1.67:1, because the card hairline is deliberately low contrast; `border-color-control` is the token for a control's edge and measures 4.19:1 on screen. NOT interchangeable: a card edge and a control edge are different jobs. |
-| A row of badges or tags with no `wrap` | `flex flex-row wrap`. The count is variable by definition, so there is no width at which the row is known to fit. `LotRow`'s meta line carried an `AÇIK` tag, an expiry badge and a lot code and overflowed by 16 to 36 logical pixels at 390px, on a screen that had never once been laid out at phone width. DESIGN.md's answer to a narrow width is to reflow, not to truncate. |
-| `truncate` on a `WText` inside a Row, expecting it to shrink | It sets ellipsis overflow and nothing else: the Text still takes its intrinsic width, so the Row overflows and the ellipsis never appears. Pair it with `flex-1 min-w-0` on the shrinkable child and `shrink-0` on the one that must keep its width. `SectionHeader`'s count had `truncate` alone and overflowed by 11 and 25 pixels. |
-| Verifying a list screen at catalog width only | Add a `PreviewChrome.appMobile` phone preview. Every list screen in this app was verified wide only, so its densest row had never been laid out at 390px; the defects surfaced by accident, when the dashboard became the first phone-framed screen to render a `LotRow`. |
-| A `WDiv` styled to LOOK like a control | Build the control. Two screens carried a magnifier plus a `WText` inside a rounded, input-toned box: pixel-identical to a search field and with no gesture at all, so a tap did nothing on either platform. A control that cannot be used is worse than an absent one, because the user spends a tap finding out. This is the callback-less-preview rule one step further along: there the control was real and unwired, here there was no control. |
-| A second preview file for a second width | `ResponsiveScreenPreview` renders both in ONE preview, because the width is a VARIANT and this file already requires one preview widget covering every variant and state. Fourteen `*PhoneScreen` files were added before Anılcan named it: the components are responsive, so a second file is duplication dressed as coverage, and it hides a divergence between the two widths a file away instead of showing it in one screenshot. Every screen still has to be seen at 390px, in the FIXED frame rather than a narrowed viewport, because the catalog keeps its sidebar at every width and narrowing squeezes the harness instead of the screen. |
-| A row of `shrink-0` columns with no narrow arrangement | Give it a `flex flex-col md:flex-row` break at a group boundary. When every child is `shrink-0` (which fixed columns require), nothing can give and the row overflows by exactly its excess. Reserve the empty columns with `hidden md:flex` so the reservation applies where the groups share a line and does not become a blank varying-height row where they do not. |
-| Trusting a clean `dusk:exceptions` after re-navigating to a screen | Flutter announces an overflow ONCE per `RenderFlex` instance, so it appears on the FIRST paint after a hot restart and never again. Re-navigating shows an empty buffer and looks like a fix. Probe with: restart, note the UTC time, navigate, then read only entries newer than that mark. The buffer is cumulative and dusk's "N render errors captured on this screen" banner reports what is IN it, not what this screen did. |
+| Reading a low-contrast FILL as a 1.4.11 failure when the control has visible text | Check for text or an icon first. W3C's Understanding of 1.4.11 exempts a control with visible content, so `MSButton`'s secondary fill at 1.31:1 is NOT a failure. A switch is the opposite case: its track and thumb ARE the whole control |
+| A `magic_starter` control used with no `className`, reviewed in dark only | Pass `className: 'border border-color-control'` on anything whose SHAPE is carried by a fill, and check it in light. `MSSwitch`'s off track measured 1.21:1 on a white card while dark mode looked perfect. `border-color-border` only reached 1.67:1; `border-color-control` is the token for a control's edge |
+| A row of badges or tags with no `wrap` | `flex flex-row wrap`. The count is variable by definition, so no width is known to fit. `LotRow`'s meta line overflowed by 16 to 36px at 390px |
+| `truncate` on a `WText` inside a Row, expecting it to shrink | It sets ellipsis overflow and nothing else, so the Text keeps its intrinsic width and the ellipsis never appears. Pair with `flex-1 min-w-0` on the shrinkable child and `shrink-0` on the one keeping its width |
+| Verifying a list screen at catalog width only | Add a `PreviewChrome.appMobile` phone preview. Every list screen was verified wide only, so its densest row had never been laid out at 390px |
+| A `WDiv` styled to LOOK like a control | Build the control. Two screens carried a magnifier plus a `WText` in an input-toned box: pixel-identical to a search field, with no gesture at all |
+| A second preview file for a second width | `ResponsiveScreenPreview` renders both in ONE preview: the width is a VARIANT. Fourteen `*PhoneScreen` files were added before this was named. Every screen still has to be seen at 390px in the FIXED frame, because the catalog keeps its sidebar and narrowing squeezes the harness instead of the screen |
+| A row of `shrink-0` columns with no narrow arrangement | `flex flex-col md:flex-row` at a group boundary. When every child is `shrink-0`, nothing can give. Reserve the empty columns with `hidden md:flex` |
+| Trusting a clean `dusk:exceptions` after re-navigating | Flutter announces an overflow ONCE per `RenderFlex` instance, so it appears on the first paint after a hot restart and never again. Restart, note the UTC time, navigate, then read only entries newer than that mark. The buffer is cumulative |
 
-## Release Boundary
+## Release boundary
 
-Preview files (`*.preview.dart`) and the generated `_previews.g.dart` are dev-only. They are excluded from release builds through the `magic_devtools` dev-package boundary and `kDebugMode`/`kReleaseMode` const-fold. Never import a preview file from production code.
+`*.preview.dart` and the generated `lib/_previews.g.dart` are dev-only, excluded from release builds through the `magic_devtools` boundary and the `kDebugMode` const-fold. Never import a preview file from production code.
