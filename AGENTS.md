@@ -70,7 +70,7 @@ Three mechanics that decide whether that loop actually runs:
 - **Re-request after pushing a fix.** A re-review on push is a separate setting and is off, so a pushed fix is reviewed only if you ask again.
 - **Its verdict never blocks and never approves.** Copilot always leaves a Comment review, so the merge is held by the thread-resolution rule instead: an unresolved inline comment blocks, an addressed one does not. That is also why a comment you disagree with still needs an answer in the thread rather than silence.
 
-Verify before acting on a finding. Every finding on the first real PR was correct, but the reasoning behind one named a cast that had to be checked before the fix was right, and a review that is wrong about the code is still confident.
+**Verify the PREMISE, not just the conclusion.** This is the one that actually cost something on the first real PR. A finding said a seeder needed a tenancy guard because unauthenticated rows would land invisible, the conclusion was right, and the reason was not: `team_id` is NOT NULL, so the insert fails with `SQLSTATE[23502]` instead. Accepting the conclusion put the wrong failure mode into a comment, and a later round found it there. Ask the database, or the framework source, before writing down a because.
 
 **Read the review body, not only the inline comments.** Copilot posts its lower-confidence findings as SUPPRESSED entries inside the body, where no thread and no notification appears. On that first PR the suppressed set is where the best finding was: a seeder reachable on its own through `db:seed --class=`, which would have stamped a null `team_id` on every row and made them invisible.
 

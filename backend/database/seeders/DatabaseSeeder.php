@@ -18,10 +18,10 @@ use RuntimeException;
  *
  * ### Why it authenticates
  *
- * `BelongsToTeam` stamps `team_id` from the AUTH CONTEXT, and `TeamScope` matches nothing at all
- * when there is none, so a seeder that skips this does not fail loudly: it writes rows with a null
- * team and then cannot read them back. Logging the demo user in makes every create below take the
- * same path a request takes, which is also what makes the result trustworthy as a fixture.
+ * `BelongsToTeam` stamps `team_id` from the AUTH CONTEXT, so without one the stamp is null and the
+ * first insert dies on the NOT NULL on `locations.team_id`: a `SQLSTATE[23502]` naming a column,
+ * with nothing in it about seeding or tenancy. Authenticating the demo user makes every create below
+ * take the same path a request takes, which is also what makes the result trustworthy as a fixture.
  *
  * ### Do not re-add `WithoutModelEvents`
  *
@@ -72,9 +72,13 @@ class DatabaseSeeder extends Seeder
             'timezone' => 'UTC',
         ])->save();
 
+        // Keyed on the OWNER alone, deliberately. Matching on the name too means a team somebody
+        // renamed is not found, a second one is created, and the inventory seeder's "this team
+        // already has products" check then passes against an empty team and seeds a duplicate set.
+        // The name is in the second argument so it is applied on creation and left alone afterwards.
         $team = Team::query()->firstOrCreate(
-            ['user_id' => $user->getKey(), 'name' => 'Demo Kitchen'],
-            ['personal_team' => true],
+            ['user_id' => $user->getKey()],
+            ['name' => 'Demo Kitchen', 'personal_team' => true],
         );
 
         // Not fillable on User, and the scope reads exactly this column.

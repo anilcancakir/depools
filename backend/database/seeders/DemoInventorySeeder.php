@@ -36,10 +36,12 @@ class DemoInventorySeeder extends Seeder
     public function run(): void
     {
         // This class is reachable on its own through `db:seed --class=DemoInventorySeeder`, which
-        // skips [DatabaseSeeder] and therefore both of its guards. Unauthenticated it does not fail:
-        // `TeamScope::currentTeamId()` returns null, `BelongsToTeam` stamps that null, and the rows
-        // land in no tenant at all, invisible to every read and confusing to the consistency sweep
-        // later. So each entry point carries its own guard rather than trusting the other one.
+        // skips [DatabaseSeeder] and therefore both of its guards. With no tenant resolved,
+        // `BelongsToTeam` stamps a null `team_id` and the first insert then violates the NOT NULL on
+        // `locations.team_id`, so the real failure is `SQLSTATE[23502]` naming a column rather than
+        // anything about seeding. The guard exists to say WHY in a sentence, not to prevent a silent
+        // write: the database already refuses that. Each entry point carries its own, because
+        // trusting the other one is what makes a second entry point dangerous.
         if (! app()->environment(['local', 'testing'])) {
             throw new RuntimeException('The demo seeder only runs in local or testing.');
         }
@@ -50,9 +52,9 @@ class DemoInventorySeeder extends Seeder
         // like a guard and let that case through.
         if (TeamScope::currentTeamId() === null) {
             throw new RuntimeException(
-                'No current team resolved, so every row would be stamped with a null team_id and then '
-                .'be invisible to every read. Run `db:seed` and let DatabaseSeeder authenticate the '
-                .'demo user and set its current team first.',
+                'No current team resolved, so the first insert would fail on the NOT NULL on '
+                .'locations.team_id. Run `db:seed` rather than this class alone, and let '
+                .'DatabaseSeeder authenticate the demo user and set its current team first.',
             );
         }
 
