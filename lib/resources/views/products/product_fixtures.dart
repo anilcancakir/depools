@@ -323,6 +323,10 @@ class ProductListItem {
       for (final Map<String, dynamic> row in stock) row['location_id'] as String,
     };
 
+    // Parsed once. Two calls were two expressions that could drift apart, and a row whose total
+    // disagreed with its own printed figure is the exact defect the lots comment above records.
+    final num quantity = _toNum(json['quantity']) ?? 0;
+
     final DateTime? earliest = _earliestDate(stock);
     final DateTime reference = _dateOnly(today ?? DateTime.now());
     final int? days = earliest?.difference(reference).inDays;
@@ -332,8 +336,8 @@ class ProductListItem {
       brand: json['brand'] as String?,
       description: json['description'] as String?,
       sku: json['sku'] as String?,
-      amount: _toNum(json['quantity']) ?? 0,
-      formatted: _format(_toNum(json['quantity']) ?? 0),
+      amount: quantity,
+      formatted: _format(quantity),
       unit: json['base_unit'] as String,
       contentAmount: _toNum(json['content_amount']),
       contentUnit: json['content_unit'] as String?,

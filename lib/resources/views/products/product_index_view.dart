@@ -254,7 +254,13 @@ class _ProductIndexViewState extends State<ProductIndexView> {
 
     return MSPageScaffold(
       title: Lang.get('screens.products.title'),
-      subtitle: _isEmptyCatalogue ? null : Lang.get('screens.products.subtitle', {'team': _teamName, 'count': _all.length}),
+      // Null while the first page is in flight, not just when the catalogue is empty. The count
+      // is genuinely unknown then, and rendering `_all.length` reads as "0 products" next to a
+      // real team name: the same false state the list body needed its own loading branch for, on
+      // the one line that sits above it.
+      subtitle: _isEmptyCatalogue || (_controller?.isLoading ?? false)
+          ? null
+          : Lang.get('screens.products.subtitle', {'team': _teamName, 'count': _all.length}),
       actions: [
         // The same entry point the assistant shell has (D50). In this mode it is the only
         // place a full-auto write becomes visible, because there is no transcript.
