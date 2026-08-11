@@ -312,6 +312,12 @@ class _StockInSheetState extends State<StockInSheet> {
           children: [
             WText(_resultLabel, className: 'text-sm text-fg-muted'),
             MSButton(
+              // Disabled with no location to put the stock in. The guards above stopped this sheet
+              // CRASHING for a team that has none, and left something worse: an enabled button that
+              // returned a draft with an empty `locationId` and could only ever come back as a 422.
+              // A control that cannot succeed costs the user a tap to find that out, which is the
+              // same objection this project already records against a `WDiv` dressed as a control.
+              disabled: _locationId.isEmpty,
               onPressed: () => Navigator.of(context).pop(
                 StockInDraft(
                   amount: _amount,
