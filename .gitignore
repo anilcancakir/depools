@@ -84,3 +84,6 @@ pubspec_overrides.yaml
 # Design preview: the stitched full-page render is redundant, the section PNGs are the record
 docs/design-preview/00-full-page.png
 docs/design-preview/.playwright-cli/
+
+# Claude Code session artifact, never shared
+.claude/scheduled_tasks.lock
