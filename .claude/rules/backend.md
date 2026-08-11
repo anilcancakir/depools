@@ -28,7 +28,8 @@ No route accepts a team identifier in any form. The surest way to keep `team_id`
 
 - UUIDv7 primary keys on every table, as a native `uuid` column. Never `$table->id()`.
 - Partial unique indexes and `UNIQUE NULLS NOT DISTINCT` are both in use; reach for them before adding an application-level uniqueness check.
-- **The schema is not deployed yet, so a change edits the migration in place** rather than adding a follow-up one. This stops the day the first environment runs `migrate`, and at that point the rule inverts.
+- **No environment holds data worth preserving yet, so a schema change edits its migration in place** rather than adding a follow-up one. A local development database does not count as deployed; it is reset with `php artisan migrate:fresh --seed`. The rule inverts the day a shared environment holds real rows.
+- A local database therefore goes stale silently: a migration added on another branch never runs there, and the failure surfaces later as `SQLSTATE[42P01] relation "x" does not exist` from something unrelated. `php artisan migrate` after a pull, and `php artisan db:seed` for the demo tenant.
 - Every vocabulary that is genuinely closed gets a CHECK constraint. A column whose vocabulary is deliberately still open carries a comment saying so, so the gap reads as a decision rather than an oversight.
 
 ## Tests

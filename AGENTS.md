@@ -3,9 +3,12 @@
      any more. What IS generated there is one mirror per .claude/rules/ file, by bin/sync-instructions.
      Run that script after editing a rule.
 
-     Maintainer note: this file runs past the 40-to-80-line sweet spot on purpose. The four
-     properties below are safety-critical and a path-scoped rule does not survive /compact, so they
-     have to live here. -->
+     Maintainer note: this file runs past the 40-to-80-line sweet spot on purpose, for two reasons.
+     The four properties below are safety-critical and a path-scoped rule does not survive /compact,
+     so they have to live here. And the PR loop is written out as commands rather than described,
+     because it is the most repeated procedure in the repository and every step of it has a trap that
+     costs a cycle to find; a pointer to another file is one Read away from being skipped. Anything
+     that is neither safety-critical nor run on every task belongs in a rule or in docs/ instead. -->
 # AGENTS.md
 
 Guidance for any AI agent working in this repository (Claude Code, GitHub Copilot, Codex, opencode). This file is canonical; "Where the instructions live" at the bottom says how each tool reaches it.
@@ -58,6 +61,75 @@ The branch is `master` and not `main`, deliberately, matching `magic` and `uptiz
 - The nested layout works here because `pubspec_overrides.yaml` holds ABSOLUTE paths. A relative `../magic` resolves to nothing from `.claude/worktrees/<slug>`, and version solving then fails with an error that blames the wrong thing.
 - Land the work as a PR, and let CI be the evidence rather than a local run. Four checks have to pass before a merge, and a review thread has to be resolved: `Flutter (analyze + test)`, `Backend (pint + tests)`, `Design tokens`, `Instruction mirrors`.
 - Also branch from `master` for the trivial case the worktree rule exempts, because a direct push is refused either way.
+
+**A green suite is not a finished PR. Wait for the review agent before merging.** Copilot code review reads `AGENTS.md`, the path-scoped instructions and `.github/skills/code-review/SKILL.md` from the HEAD branch, and on the first PR here that carried real code it found two defects worth fixing while every check was green. So the loop is: open the PR, wait for the review, verify each comment against the code, fix what is real and answer what is not, push, and re-request.
+
+Three mechanics that decide whether that loop actually runs:
+
+- **Request it explicitly rather than waiting.** The `master` ruleset carries `copilot_code_review`, and it has not fired on its own for every PR here. One line, and it costs nothing when a review is already on the way: `gh api repos/anilcancakir/depools/pulls/<n>/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'`.
+- **Re-request after pushing a fix.** A re-review on push is a separate setting and is off, so a pushed fix is reviewed only if you ask again.
+- **Its verdict never blocks and never approves.** Copilot always leaves a Comment review, so the merge is held by the thread-resolution rule instead: an unresolved inline comment blocks, an addressed one does not. That is also why a comment you disagree with still needs an answer in the thread rather than silence.
+
+**Verify the PREMISE, not just the conclusion.** This is the one that actually cost something on the first real PR. A finding said a seeder needed a tenancy guard because unauthenticated rows would land invisible, the conclusion was right, and the reason was not: `team_id` is NOT NULL, so the insert fails with `SQLSTATE[23502]` instead. Accepting the conclusion put the wrong failure mode into a comment, and a later round found it there. Ask the database, or the framework source, before writing down a because.
+
+**Read the review body, not only the inline comments.** Copilot posts its lower-confidence findings as SUPPRESSED entries inside the body, where no thread and no notification appears. On that first PR the suppressed set is where the best finding was: a seeder reachable on its own through `db:seed --class=`, which would have stamped a null `team_id` on every row and made them invisible.
+
+**Stop when a round produces nothing real, not when it produces nothing.** Each round tends to surface fewer and smaller findings, so fix what is real, re-request, and merge on the first round whose findings you would decline anyway. Rounds are cheap; an unbounded loop chasing hints is not.
+
+### The whole loop, in commands that have been run here
+
+Every line below was executed in this repository and did what it says. The comments are the four traps that cost time, so read them rather than rediscovering them.
+
+```sh
+# Set these two once. Everything below reuses them.
+R=$(git rev-parse --show-toplevel); S=<slug>; B=feature/$S
+W=$R/.claude/worktrees/$S; P=repos/anilcancakir/depools/pulls
+
+# 1. Worktree. Resolve the root FIRST: `git worktree add .claude/worktrees/x` from a subdirectory
+#    creates it UNDER that subdirectory, and the stray path then refuses the next attempt.
+git -C "$R" worktree add "$W" -b "$B" && cd "$W"
+
+# 2. Only for a branch touching backend/: vendor is gitignored and bin/check does NOT install it.
+#    bin/check DOES copy backend/.env, .artisan/plugins.json and backend/public/build on first run.
+(cd backend && composer install --no-interaction --quiet)
+
+# 3. Gate, then open the PR. Scope it with `bin/check backend|flutter` or `--fast` while iterating,
+#    full before pushing. Run bin/sync-instructions too if a rule changed.
+bin/check && git push -u origin "$B"
+N=$(gh pr create --base master --head "$B" --title "..." --body "..." | grep -o '[0-9]*$')
+
+# 4. Wait for the check run to EXIST before watching it: `gh pr checks` exits straight away with
+#    "no checks reported" when the run has not registered yet, which reads exactly like a green PR.
+until [ "$(gh api "repos/anilcancakir/depools/commits/$(git rev-parse HEAD)/check-runs" \
+  --jq .total_count)" -gt 0 ]; do sleep 5; done
+gh pr checks "$N" --watch --fail-fast
+
+# 5. Then the review. Capture the count BEFORE requesting: on a re-review one already exists, so a
+#    wait for "any review" returns instantly and you read the previous one.
+had=$(gh api "$P/$N/reviews" --jq length)
+gh api "$P/$N/requested_reviewers" --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+until [ "$(gh api "$P/$N/reviews" --jq length)" -gt "$had" ]; do sleep 15; done
+gh api "$P/$N/reviews" --jq '.[-1].body'          # summary, plus SUPPRESSED comments worth reading
+gh api "$P/$N/comments" --jq '.[] | "\(.path):\(.line // .original_line)  \(.body)"'
+
+# 6. Fix what is real, answer what is not, push, and run 4 and 5 again. Then resolve every thread:
+#    resolution is what the ruleset checks, and it exists only in GraphQL.
+gh api graphql -f query='{repository(owner:"anilcancakir",name:"depools"){pullRequest(number:'"$N"'){
+  mergeable reviewThreads(first:20){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}'
+gh api graphql -F id=<threadId> \
+  -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}'
+
+# 7. Merge and clean up all four places. `gh pr merge --delete-branch` FAILS while a worktree holds
+#    the branch, and it fails AFTER the merge went through, so the remote branch survives and reads
+#    like the merge broke. Doing it by hand is what stops orphan branches accumulating.
+gh pr merge "$N" --squash
+git -C "$R" worktree remove "$W"
+git -C "$R" branch -D "$B"
+git push origin --delete "$B"
+git -C "$R" fetch -q --prune origin && git -C "$R" merge --ff-only origin/master
+```
+
+`pubspec.lock` will be dirty after any local `flutter pub get`, because the overrides put sibling paths in it. Leave it unstaged; `bin/check` fails when a lock carrying a local path is committed.
 
 ## Verifying a change
 
