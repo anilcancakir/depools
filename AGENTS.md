@@ -3,9 +3,12 @@
      any more. What IS generated there is one mirror per .claude/rules/ file, by bin/sync-instructions.
      Run that script after editing a rule.
 
-     Maintainer note: this file runs past the 40-to-80-line sweet spot on purpose. The four
-     properties below are safety-critical and a path-scoped rule does not survive /compact, so they
-     have to live here. -->
+     Maintainer note: this file runs past the 40-to-80-line sweet spot on purpose, for two reasons.
+     The four properties below are safety-critical and a path-scoped rule does not survive /compact,
+     so they have to live here. And the PR loop is written out as commands rather than described,
+     because it is the most repeated procedure in the repository and every step of it has a trap that
+     costs a cycle to find; a pointer to another file is one Read away from being skipped. Anything
+     that is neither safety-critical nor run on every task belongs in a rule or in docs/ instead. -->
 # AGENTS.md
 
 Guidance for any AI agent working in this repository (Claude Code, GitHub Copilot, Codex, opencode). This file is canonical; "Where the instructions live" at the bottom says how each tool reaches it.
