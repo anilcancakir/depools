@@ -128,6 +128,22 @@ for rule in "$RULES_DIR"/*.md; do
     } >"$target"
 done
 
+# Hand-authored, not generated: `review.instructions.md` is the reviewer checklist Copilot code
+# review reads, and it has no `.claude/rules/` counterpart because Claude does not need it. Staging
+# it as a pass-through is what keeps it alive: the write path below deletes every
+# `*.instructions.md` before copying the staging tree back, and `--check` diffs the two directories
+# recursively, so a file present in one and absent from the other is either deleted on the next run
+# or reported as drift. Copying it in makes both operations no-ops for this file.
+#
+# It is deliberately NOT generated from a rule. `paths: ['**']` in a Claude rule is treated as no
+# `paths:` at all, so the checklist would load into every Claude session, and a session authoring
+# code does not need the list of things a reviewer should flag.
+for passthrough in review; do
+    source_file=".github/instructions/$passthrough.instructions.md"
+    [ -f "$source_file" ] || continue
+    cp "$source_file" "$STAGE/.github/instructions/$passthrough.instructions.md"
+done
+
 if [ "$CHECK" -eq 1 ]; then
     if diff -r -q "$STAGE/.github/instructions" .github/instructions >/dev/null 2>&1 &&
         diff -q "$STAGE/.github/copilot-instructions.md" .github/copilot-instructions.md >/dev/null 2>&1; then
