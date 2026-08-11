@@ -701,6 +701,7 @@
       "manual": "Elle ekle"
     },
     "stock_take": {
+      "back": "Genel bakış",
       "title": "Sayım",
       "subtitle": ":location · :counted / :total sayıldı",
       "where_group": "Nerede",

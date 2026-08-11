@@ -22,7 +22,7 @@ Read `features/inventory-core.md` for the behaviour built on top of this.
 > `ai_credit_grants` (D106, because a credit balance has to be derived for the same reason a stock
 > balance does).
 >
-> The full record is `open-decisions.md`, D72 to D114.
+> The full record is `open-decisions.md`, D72 to D115.
 
 ## The two decisions that shape everything
 

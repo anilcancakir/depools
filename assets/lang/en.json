@@ -701,6 +701,7 @@
       "manual": "Add by hand"
     },
     "stock_take": {
+      "back": "Overview",
       "title": "Count",
       "subtitle": ":location · :counted of :total counted",
       "where_group": "Where",

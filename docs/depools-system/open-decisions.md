@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D114 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D115 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -2121,3 +2121,75 @@ about what can be filtered, and `filtering-and-saved-views.md` exists to prevent
 `Tag` is the fourth user of `NormalisesName` and it is in the nightly sweep's `name_normalized_drift`
 check, which matters more here than for a product: the fold IS the canonical mechanism, so a stale one
 lets a rival row appear.
+
+### D115. Looking at the screens found what reading them could not
+
+A third audit pass rendered the mockups in Chrome instead of grepping them. The two previous passes had
+verified token discipline statically and reported the design surface clean, which was true of what they
+checked. Looking found four things, and the first two were on screen in the first screenshot.
+
+**Turkish uppercase is wrong on every section header, and the fix belongs in Wind.** The `uppercase`
+token calls Dart's `String.toUpperCase()`
+(`fluttersdk_wind-0.0.4/lib/src/parsers/text_transform_parser.dart:19`), which is locale-INSENSITIVE and
+maps `i` to `I` rather than to `İ`. Measured rather than reasoned:
+
+| Input | Rendered | Correct Turkish |
+|---|---|---|
+| `süresi geçmiş` | `SÜRESI GEÇMIŞ` | `SÜRESİ GEÇMİŞ` |
+| `kiler` | `KILER` | `KİLER` |
+| `ne kadar ileri` | `NE KADAR ILERI` | `NE KADAR İLERİ` |
+| `geniş` | `GENIŞ` | `GENİŞ` |
+| `açık` | `AÇIK` | `AÇIK` (no `i`, so correct by accident) |
+
+It affects `section_header`, `stat_card`, `draft_field` and `lot_row`, which is every grouped-list heading
+in the app, plus this project's own preview harness label. On a Turkey-first product it is wrong on nearly
+every screen. The same parser's `capitalize` carries a second form of it: `substring(1).toLowerCase()`
+turns `İ` into `i` plus a combining dot.
+
+**A PR to Wind, not a workaround here.** Anılcan's call, and the reason is layer: a locale-aware
+`_upper()` fixes every consumer of the package at once and costs this project no code. The price is that
+the bug stays on screen until the PR lands and a version bumps, and `DESIGN.md`'s avoid-list now carries
+it so nobody adds a new `uppercase` label in the meantime.
+
+Rejected: moving the uppercase form into the Turkish locale file. It works immediately and depends on no
+other repo, and it puts presentation into copy, forces the English locale to carry its own uppercase
+strings, and comes back silently the first time someone writes `uppercase` again.
+
+Rejected: dropping uppercase headings entirely. `apple-hig.md` says an iOS grouped-list header is
+uppercase, so this would be a deliberate divergence, and it is the option to fall back on if the Wind PR
+stalls.
+
+**`DESIGN.md`'s "Never truncate to fit" gains a stated exception.** A product name in a list row
+ellipsises at 390px, which the rule forbade absolutely. The rule now forbids truncating a control, a
+badge row or a number, and permits it for a NAME in a list row: wrapping a 40-character product name to
+three lines makes a grouped list unscannable, and the full name is one tap away. `LotRow` was already the
+worked example of both halves, its meta row wrapping while its name truncates, and its own comment quoted
+the absolute rule two lines below the `truncate` that broke it. The rule was also written TWICE in the
+Layout section with different wordings, which is how the exception came to be missing from one copy.
+
+**The stock-take screen had no exit.** `StockTakeView` passed neither `backLabel` nor `backFallback`
+while every sibling screen passes both, and its only button was wired to `() {}` whenever the count came
+out perfect. So a user who counted a whole shelf and found every number right was stuck on a screen whose
+button said "Sayımı bitir" and did nothing. Fixed: the back pair is passed, and a perfect count now ends
+the count and leaves, which is what `inventory-core.md` implies by "A match writes nothing" (there is
+nothing to confirm, so there is nothing to dialog about).
+
+**Two notes that are not this project's to fix.** The `/preview` catalog is unusable below about 1024px:
+at 430px it puts its sidebar beside the content, leaving roughly 155px, and text wraps to one character
+per line. It is `magic_devtools` code, so it is a PR there, and the consequence here is that the only
+unauthenticated door to the mockups cannot be used for the mobile half of the `design-first-workflow`
+preview step. Separately, reaching a screen at its real route requires auth and a running backend, so
+`/preview` is that door.
+
+**The running-low list is not indexable, and no index will fix it.** `forecasting.md` asks for "items
+below their reorder point or below their par level". Both thresholds live on `products` while the quantity
+is summed across `product_stock` rows, so the predicate is neither single-table nor row-level: a
+`(team_id, quantity)` index cannot express it. The answer is materialisation, and `shopping_list_items`
+already IS that materialisation, so the open question is whether `RunningLowView` reads it or recomputes.
+Recorded here rather than fixed, because it is a service-layer decision and no service exists yet.
+
+A methodological note worth keeping, because it produced a confident wrong answer: an EXPLAIN run against
+an EMPTY table always shows a Seq Scan, whatever indexes exist, because scanning zero pages is cheapest.
+A report built on that evidence claimed four tables lacked indexes they may or may not need. The existence
+question is answered from `pg_index`, and the usage question needs either rows or
+`SET enable_seqscan = off`.

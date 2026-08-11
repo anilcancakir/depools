@@ -95,6 +95,13 @@ class _StockTakeViewState extends State<StockTakeView> {
     return AppPageScaffold(
       title: Lang.get('screens.stock_take.title'),
       subtitle: Lang.get('screens.stock_take.subtitle', {'location': resolveLocationPath(_locationId), 'counted': counted, 'total': lines.length}),
+      // **This screen had no exit, and that was found by looking at it rather than by reading it.**
+      // It passed neither of these, and its only button was wired to `() {}` whenever the count came
+      // out perfect, so a user who counted a whole shelf and found every number right was stuck: the
+      // button said "Sayımı bitir" and did nothing, and there was no back affordance either. Every
+      // sibling screen passes this pair; this one was the exception.
+      backLabel: Lang.get('screens.stock_take.back'),
+      backFallback: '/',
       footer: _buildCommit(context, lines, counted, variances),
       children: [_buildLocation(), _buildLines(lines)],
     );
@@ -183,8 +190,12 @@ class _StockTakeViewState extends State<StockTakeView> {
           // mistake stays in the history forever even after it is fixed. The dialog restates what
           // will be written and, more importantly, what will NOT be: the skipped rows are left
           // exactly as they were, and that is the part a user cannot see from the list.
+          // A perfect count writes nothing, which `inventory-core.md` is explicit about ("A match
+          // writes nothing", because a zero-delta row would buy a product a forecast tier it did not
+          // earn). So there is nothing to confirm and the button does what its label says: it ends the
+          // count and leaves. It used to be `() {}`, which reads as enabled and behaves as broken.
           onPressed: variances.isEmpty
-              ? () {}
+              ? () => MagicRoute.to('/')
               : () => MagicStarterConfirmDialog.show(
                   context,
                   title: Lang.get('screens.stock_take.commit_title', {'count': variances.length}),
