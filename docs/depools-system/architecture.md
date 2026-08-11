@@ -126,14 +126,19 @@ backend/
 
 ### Database
 
-**PostgreSQL, everywhere including the test suite** (D72), with three extensions and one function:
+**PostgreSQL, everywhere including the test suite** (D72), with two extensions and no functions:
 
 | | Why |
 |---|---|
 | `vector` (pgvector) | the embedding column the resolution cascade's second step searches (D75), `vector(1536)` |
 | `pg_trgm` | what actually matches a truncated receipt line, since `PNR SUT 1LT` is a bag of character triples rather than a prefix or a stem |
-| `unaccent` | the diacritic fold (D82) |
-| `depools_normalize(text)` | `lower()` plus `unaccent()`, wrapped and declared IMMUTABLE because generated columns and index expressions require it and `unaccent()` is not |
+
+**This table used to list `unaccent` and a `depools_normalize(text)` wrapper, and both are gone.** D84
+removed database-side computation entirely, so the diacritic fold is `Str::lower(Str::ascii($name))` in
+PHP, written by a mutator on `name` and checked nightly by `depools:check-consistency` (D88). The wrapper
+existed only because a generated column and an index expression both require IMMUTABLE while `unaccent()`
+does not promise it; with the fold in PHP, Postgres indexes a value it never has to compute. Anyone who
+set the schema up from this page before now installed an extension nothing uses.
 
 No `tsvector` anywhere: stemmed full-text belongs to Meilisearch (D74). Worth knowing rather than
 rediscovering, since it was researched wrong once: PostgreSQL DOES ship `pg_catalog.turkish` and
@@ -159,6 +164,18 @@ foreign keys so a self-referencing table needs its constraint added in a second 
 - `filament/filament` for the operations panel.
 
 `spatie/browsershot` for label sheets, rendered from one Blade template on the backend (D18 reversed, D71). ONE engine everywhere; what differs per environment is the Chrome binary path, not the renderer. `spatie/laravel-pdf`'s driver model was considered and rejected for this: two engines render subtly differently and a label is judged on millimetres, so the thing tested locally has to be the thing that prints. See `features/labeling-and-printing.md`.
+
+### Scheduled work, of which there is exactly one piece and it is load-bearing
+
+`depools:check-consistency` runs nightly at 03:17 and exits non-zero on drift. It is not a safety net:
+`product_stock` is maintained by the application rather than by a trigger (D81), so four of the ten
+invariants in `data-model.md` hold by promise, and this is the only thing that catches a broken one. **A
+deployment that never schedules it silently gives up those four invariants**, which is why it is named
+here rather than left to whoever writes the crontab.
+
+It never repairs on the schedule (D110). Drift is the evidence that some writer bypassed `StockWriter`,
+and a nightly `--fix` would sweep that evidence away every night: the bypass would be permanently
+invisible while permanently present. `--fix` is a manual action taken after someone reads why.
 
 ### The gateway pattern
 

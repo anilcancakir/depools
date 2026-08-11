@@ -127,6 +127,46 @@ return new class extends Migration
             ADD CONSTRAINT receipt_lines_confidence_is_a_percentage
             CHECK (confidence IS NULL OR confidence BETWEEN 0 AND 100)
         ');
+
+        // The cascade step that answered, closed. This vocabulary was already written down as a comment
+        // on the column and enforced nowhere, which matters more here than for most: D89's whole point
+        // is that the cascade becomes MEASURABLE, and a measurement over a free-text column silently
+        // splits `own_product` from a typo'd `ownproduct` into two steps that each look less effective
+        // than the one step really is.
+        DB::statement("
+            ALTER TABLE receipt_lines
+            ADD CONSTRAINT receipt_lines_resolved_by_is_known
+            CHECK (resolved_by IS NULL OR resolved_by IN (
+                'alias', 'own_product', 'catalog', 'off', 'embedding', 'model', 'manual'
+            ))
+        ");
+
+        // A line for zero of something is not a line. Negative would be a refund, which is a document
+        // this table does not model.
+        DB::statement('
+            ALTER TABLE receipt_lines
+            ADD CONSTRAINT receipt_lines_quantity_is_positive
+            CHECK (quantity IS NULL OR quantity > 0)
+        ');
+
+        DB::statement('
+            ALTER TABLE receipt_lines
+            ADD CONSTRAINT receipt_lines_money_is_not_negative
+            CHECK (
+                (unit_price IS NULL OR unit_price >= 0)
+                AND (line_total IS NULL OR line_total >= 0)
+            )
+        ');
+
+        // Turkish VAT is 1, 10 or 20 percent today and has changed three times in a decade, so the
+        // range is checked rather than the values: a rate outside 0 to 100 is arithmetic gone wrong (a
+        // ratio stored as 0.20, or a kuruş amount landing in the wrong column), while 8 is merely
+        // historical.
+        DB::statement('
+            ALTER TABLE receipt_lines
+            ADD CONSTRAINT receipt_lines_vat_rate_is_a_percentage
+            CHECK (vat_rate IS NULL OR vat_rate BETWEEN 0 AND 100)
+        ');
     }
 
     private function addTrigram(): void

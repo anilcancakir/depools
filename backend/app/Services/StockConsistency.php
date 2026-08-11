@@ -99,7 +99,7 @@ final class StockConsistency
 
         match ($finding->check) {
             'projection_drift', 'projection_missing', 'projection_orphaned' => $this->repairProjection($finding),
-            'lot_drift', 'lot_negative' => $this->repairLot($finding),
+            'lot_drift' => $this->repairLot($finding),
             'name_normalized_drift' => $this->repairName($finding),
             default => throw new RuntimeException("No repair is wired for `{$finding->check}`."),
         };
@@ -242,18 +242,13 @@ final class StockConsistency
                 $actual = $this->scale($row->remaining_quantity);
                 $findings = [];
 
-                if (bccomp($actual, '0.000', 3) < 0) {
-                    $findings[] = new ConsistencyFinding(
-                        check: 'lot_negative',
-                        invariant: 2,
-                        teamId: $row->team_id,
-                        subject: "lot {$row->id}",
-                        expected: 'at least 0.000',
-                        actual: $actual,
-                        repairable: true,
-                        context: ['lot_id' => $row->id],
-                    );
-                } elseif (bccomp($expected, $actual, 3) !== 0) {
+                // There was a `lot_negative` check here and it is gone, because
+                // `stock_lots_remaining_is_not_negative` now refuses a stored negative outright.
+                // Invariant 2's second clause is single-column, so it was inside what D84 permits all
+                // along, and a sweep check for a state the database cannot hold is dead code. What
+                // survives is `lot_overdrawn` below: the clamp means a ledger that went negative leaves
+                // the lot at exactly zero, which no CHECK on this table can see.
+                if (bccomp($expected, $actual, 3) !== 0) {
                     $findings[] = new ConsistencyFinding(
                         check: 'lot_drift',
                         invariant: 2,

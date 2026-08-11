@@ -47,6 +47,13 @@ Model identifiers are configuration, never literals in a class. The MVP hardcode
 
 ### What it can do
 
+**These are the IN-APP assistant's tools, not the MCP server's.** The two surfaces are separate and
+their scopes deliberately differ: the in-app assistant writes in v1 behind an approval gate, because
+acting is the whole point of it (`features/ai-assistant.md` and its automation-level table), while the
+MCP server is read-only in v1 and write in v2 (D16, `features/mcp-server.md`). MCP has its own five
+namespaced `inventory_*` tools and its own preview-then-apply write shape; do not read this list as
+that one. A review once did, and concluded the write tools below contradicted D16.
+
 Read tools, available in v1:
 
 - `search_products`: free text, brand, SKU, barcode, tag, category, location filters.

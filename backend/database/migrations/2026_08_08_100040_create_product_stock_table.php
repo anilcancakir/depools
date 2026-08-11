@@ -3,6 +3,7 @@
 use FlutterSdk\MagicStarter\Support\MigrationHelper;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -47,10 +48,37 @@ return new class extends Migration
             $table->unique(['team_id', 'product_id', 'location_id']);
             $table->index(['team_id', 'earliest_expires_at']);
         });
+
+        $this->addConstraints();
     }
 
     public function down(): void
     {
         Schema::dropIfExists('product_stock');
+    }
+
+    /**
+     * The projection cannot be negative, and it cannot count lots it does not have.
+     *
+     * Both are single-column and therefore inside D84. Invariant 1's real content, that this equals the
+     * sum of the ledger, still cannot be a CHECK because the ledger is another table; that is the
+     * nightly sweep's job (D81, D110). What these two catch is the shape of a bad write rather than a
+     * disagreement: a negative shelf, or a row claiming lots while holding nothing.
+     */
+    private function addConstraints(): void
+    {
+        DB::statement('
+            ALTER TABLE product_stock
+            ADD CONSTRAINT product_stock_quantity_is_not_negative
+            CHECK (quantity >= 0)
+        ');
+
+        // `rebuildProductStock` deletes a pair once it holds nothing rather than keeping it at zero, so
+        // a positive quantity with no lots behind it means something else wrote this row.
+        DB::statement('
+            ALTER TABLE product_stock
+            ADD CONSTRAINT product_stock_lots_count_agrees_with_quantity
+            CHECK ((quantity > 0) = (lots_count > 0))
+        ');
     }
 };

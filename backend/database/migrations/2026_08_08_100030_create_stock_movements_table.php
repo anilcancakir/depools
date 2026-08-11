@@ -3,6 +3,7 @@
 use FlutterSdk\MagicStarter\Support\MigrationHelper;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -95,10 +96,78 @@ return new class extends Migration
             $table->index(['team_id', 'product_id', 'occurred_at']);
             $table->index(['stock_lot_id', 'occurred_at']);
         });
+
+        $this->addConstraints();
     }
 
     public function down(): void
     {
         Schema::dropIfExists('stock_movements');
+    }
+
+    /**
+     * The ledger had NO constraints at all, which an audit found by counting rather than by reading.
+     *
+     * Nine other vocabulary columns in this schema were closed by a CHECK while the three on the most
+     * load-bearing table in the product were not. `MovementReason`'s own docblock is explicit about the
+     * stakes: "This list is load-bearing rather than descriptive. Forecasting and the waste metric are
+     * computed by filtering on it, so a value folded into a neighbour destroys a number the product
+     * sells." A typo'd `'wastage'` would silently drop out of the waste ratio, and the ratio would still
+     * look like a number.
+     */
+    private function addConstraints(): void
+    {
+        DB::statement("
+            ALTER TABLE stock_movements
+            ADD CONSTRAINT stock_movements_reason_is_known
+            CHECK (reason IN (
+                'purchase', 'consumption', 'waste', 'stock_take',
+                'correction', 'transfer_in', 'transfer_out', 'return'
+            ))
+        ");
+
+        DB::statement("
+            ALTER TABLE stock_movements
+            ADD CONSTRAINT stock_movements_source_is_known
+            CHECK (source IN (
+                'manual', 'receipt', 'invoice', 'barcode', 'photo',
+                'assistant', 'mcp', 'import', 'shopping_list'
+            ))
+        ");
+
+        DB::statement("
+            ALTER TABLE stock_movements
+            ADD CONSTRAINT stock_movements_actor_type_is_known
+            CHECK (actor_type IN ('user', 'assistant', 'mcp_client', 'system'))
+        ");
+
+        // A zero-delta row is a ledger entry saying nothing happened, and it does measurable harm
+        // rather than none: `inventory-core.md` records that `movementCount` decides a product's
+        // forecast tier, so a zero row buys a product a tier it did not earn. The same document already
+        // refuses to write one ("A match writes nothing").
+        DB::statement('
+            ALTER TABLE stock_movements
+            ADD CONSTRAINT stock_movements_delta_is_not_zero
+            CHECK (delta <> 0)
+        ');
+
+        // D90's pair, enforced as a pair. One without the other cannot render anything: a quantity with
+        // no unit reads as base units and silently contradicts what the user typed, which is the exact
+        // failure the two columns exist to prevent.
+        DB::statement('
+            ALTER TABLE stock_movements
+            ADD CONSTRAINT stock_movements_entered_pair_travels_together
+            CHECK ((entered_quantity IS NULL) = (entered_unit IS NULL))
+        ');
+
+        // `<> 0` rather than `> 0`, deliberately. This is the magnitude the user typed and `delta`
+        // carries the sign, but only the inbound path has ever been written, so the outbound
+        // convention (2 or -2 for "2 koli out") is genuinely undecided. Refusing zero is true under
+        // either convention; assuming positive would freeze a choice nobody has made.
+        DB::statement('
+            ALTER TABLE stock_movements
+            ADD CONSTRAINT stock_movements_entered_quantity_is_not_zero
+            CHECK (entered_quantity IS NULL OR entered_quantity <> 0)
+        ');
     }
 };

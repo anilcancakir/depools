@@ -125,5 +125,27 @@ return new class extends Migration
             NULLS NOT DISTINCT
             WHERE ettn IS NULL AND image_phash IS NOT NULL
         ');
+
+        DB::statement('
+            ALTER TABLE receipts
+            ADD CONSTRAINT receipts_total_is_not_negative
+            CHECK (total_amount IS NULL OR total_amount >= 0)
+        ');
+
+        DB::statement("
+            ALTER TABLE receipts
+            ADD CONSTRAINT receipts_currency_is_an_iso_code
+            CHECK (currency IS NULL OR currency ~ '^[A-Z]{3}$')
+        ");
+
+        // **`status` is deliberately left open, and that is a gap rather than a decision.** Every other
+        // vocabulary column in this schema is closed by a CHECK; this one cannot be, because no document
+        // says what its values are. It ships with `default('pending')`, it is indexed as
+        // `(team_id, status)`, and `pending` is the only value anything writes or renders today.
+        //
+        // The flow implies more (`receipt-ingestion.md`: upload, extract, review the lines, confirm) but
+        // implying is not defining, and freezing an invented set into a CHECK is worse than an open
+        // column: the constraint would then have to be migrated away the first time the real vocabulary
+        // disagreed with the guess. It belongs with whoever builds the review flow.
     }
 };

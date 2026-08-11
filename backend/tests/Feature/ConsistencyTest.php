@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\ConsistencyFinding;
 use App\Services\StockConsistency;
 use App\Services\StockWriter;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -178,13 +179,15 @@ final class ConsistencyTest extends TestCase
         $this->assertSame(2, $findings->firstWhere('check', 'lot_drift')->invariant);
     }
 
-    public function test_a_negative_lot_total_is_caught(): void
+    public function test_a_negative_lot_total_cannot_be_stored_at_all(): void
     {
-        DB::table('stock_lots')->update(['remaining_quantity' => -1]);
+        $this->expectException(QueryException::class);
 
-        // Invariant 2's second clause. `recalculateFromLedger` clamps at zero, so a stored negative
-        // means something wrote the column directly.
-        $this->assertContains('lot_negative', $this->checks());
+        // This used to assert that the SWEEP caught a negative lot. It cannot any more, because the
+        // database refuses one: invariant 2's second clause is single-column and was therefore inside
+        // what D84 permits the whole time. So the check moved from a nightly report to an impossibility,
+        // and the sweep's `lot_negative` was deleted rather than left as a branch nothing can reach.
+        DB::table('stock_lots')->update(['remaining_quantity' => -1]);
     }
 
     public function test_a_lot_the_ledger_drove_below_zero_is_caught_despite_the_clamp(): void

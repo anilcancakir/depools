@@ -110,5 +110,19 @@ return new class extends Migration
             ADD CONSTRAINT shopping_list_items_quantity_is_positive
             CHECK (quantity > 0)
         ');
+
+        // The frozen inputs behind the reason sentence (D98). They are evidence rather than a
+        // calculation, so a negative on-hand or a zero target is a generator bug and it would render as
+        // a sentence the user cannot argue with: "1 var, 0 hedef" explains nothing.
+        DB::statement('
+            ALTER TABLE shopping_list_items
+            ADD CONSTRAINT shopping_list_items_reason_inputs_are_sane
+            CHECK (
+                (reason_on_hand IS NULL OR reason_on_hand >= 0)
+                AND (reason_target IS NULL OR reason_target > 0)
+                AND (reason_days IS NULL OR reason_days >= 0)
+                AND (reason_movement_count IS NULL OR reason_movement_count >= 0)
+            )
+        ');
     }
 };

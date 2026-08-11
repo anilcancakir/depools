@@ -3,6 +3,7 @@
 use FlutterSdk\MagicStarter\Support\MigrationHelper;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -58,10 +59,37 @@ return new class extends Migration
             $table->index(['team_id', 'product_id', 'released_at']);
             $table->index(['team_id', 'warranty_ends_at']);
         });
+
+        $this->addConstraints();
     }
 
     public function down(): void
     {
         Schema::dropIfExists('product_serials');
+    }
+
+    private function addConstraints(): void
+    {
+        DB::statement('
+            ALTER TABLE product_serials
+            ADD CONSTRAINT product_serials_unit_cost_is_not_negative
+            CHECK (unit_cost IS NULL OR unit_cost >= 0)
+        ');
+
+        // Format rather than vocabulary, for the reason `stock_lots` records at length: ISO 4217 gains
+        // and loses codes, and what actually goes wrong is a lowercase code or a symbol.
+        DB::statement("
+            ALTER TABLE product_serials
+            ADD CONSTRAINT product_serials_currency_is_an_iso_code
+            CHECK (currency IS NULL OR currency ~ '^[A-Z]{3}$')
+        ");
+
+        // A unit cannot leave before it arrived. Cheap, single-column-pair, and the sort of thing an
+        // import gets wrong exactly once.
+        DB::statement('
+            ALTER TABLE product_serials
+            ADD CONSTRAINT product_serials_released_after_acquired
+            CHECK (released_at IS NULL OR released_at >= acquired_at)
+        ');
     }
 };

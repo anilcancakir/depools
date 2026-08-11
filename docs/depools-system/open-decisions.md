@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D112 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D113 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -2021,3 +2021,56 @@ pre-check did not model.
 Rejected: adding `depth <= 6` as a CHECK and calling the invariant enforced. It is still worth having as
 belt and braces, and it would not have caught any of the four, because every one of them produced a depth
 inside the legal range.
+
+### D113. The constraint set was audited by counting, not by reading, and it was uneven
+
+37 CHECK constraints existed; there are now 65. The gap was found by asking PostgreSQL for its
+constraints per table rather than by rereading migrations, and the distribution was the finding:
+**`stock_movements`, the most load-bearing table in the product, had ZERO constraints** while nine other
+vocabulary columns elsewhere were closed.
+
+`MovementReason`'s own docblock says why that matters: "This list is load-bearing rather than
+descriptive. Forecasting and the waste metric are computed by filtering on it, so a value folded into a
+neighbour destroys a number the product sells." A typo'd `'wastage'` would drop silently out of the waste
+ratio and the ratio would still look like a number. `reason`, `source` and `actor_type` are now closed,
+along with `receipt_lines.resolved_by`, whose vocabulary was already written down as a comment on the
+column and enforced nowhere, which is worse than most: D89's whole point is that the cascade becomes
+measurable, and a measurement over a free-text column splits one real step into two that each look
+weaker.
+
+**Invariant 2's second clause moved from a nightly report to an impossibility, and the sweep check for it
+was deleted.** "`remaining_quantity` is never negative" is single-column and was therefore inside what
+D84 permits the entire time; `StockConsistency`'s `lot_negative` had been checking nightly for something
+a CHECK can refuse outright. Its test moved from "the sweep catches it" to "the database refuses it", and
+the branch was removed rather than left unreachable. `lot_overdrawn` survives because the clamp means a
+ledger that went negative leaves the lot at exactly zero, which no CHECK on that table can see.
+
+Three pairings are now enforced as pairings rather than as two independent nullable columns, because half
+of each pair renders something wrong rather than nothing: D90's `entered_quantity`/`entered_unit` (a
+quantity with no unit reads as base units and contradicts what the user typed), D25's
+`content_amount`/`content_unit` ("2 adet + 500"), and `product_stock`'s quantity against its `lots_count`.
+
+**Currency is a FORMAT check and deliberately not a vocabulary one.** ISO 4217 carries around 180 active
+codes and gains and loses them, and D5 makes the app multi-currency from day one, so a CHECK listing
+today's supported set would be a migration every time a currency is added. `^[A-Z]{3}$` catches what
+actually happens: a lowercase `try`, a `₺`, or a name where a code belongs.
+
+Two things were deliberately NOT constrained, and both are gaps rather than decisions:
+
+- **`receipts.status` has no vocabulary anywhere.** It ships as `default('pending')`, it is indexed as
+  `(team_id, status)`, and `pending` is the only value anything writes or renders. The flow implies more
+  (upload, extract, review, confirm) but implying is not defining, and freezing an invented set into a
+  CHECK is worse than an open column, because the constraint would have to be migrated away the first
+  time the real vocabulary disagreed with the guess. It belongs with whoever builds the review flow.
+- **The unit vocabulary** (`base_unit`, `content_unit`, `shopping_list_items.unit`, `resolved_unit`) is
+  not demonstrably closed. `inventory-core.md` gives `adet`, `kg`, `lt` and D97 maps three UN/ECE codes to
+  them, but `content_unit`'s own examples include `poşet`, and users define their own package units in
+  `product_units`. A CHECK here would reject a real entry, which is worse than accepting a typo.
+  `raw_unit_code` stays open by D97's explicit design: an unrecognised code is a visible state.
+
+A PostgreSQL behaviour worth not rediscovering: `RefreshDatabase` wraps each test in a transaction and
+PostgreSQL aborts the WHOLE transaction on a failed statement, so a test that catches one constraint
+violation and then writes anything else gets `25P02, current transaction is aborted`. Each attempted
+refusal has to be wrapped in `DB::transaction`, which issues a SAVEPOINT and rolls back to it. SQLite
+would have carried on, so this is the second thing D72 surfaced by moving the suite onto the database
+production uses.

@@ -106,6 +106,38 @@ return new class extends Migration
             ADD CONSTRAINT products_tracking_mode_is_known
             CHECK (tracking_mode IN ('lot', 'serial'))
         ");
+
+        // A target of zero is not a target, it is a product the user does not want. Null already means
+        // "no target set", so zero is a data-entry slip that would make `forecasting.md`'s below-target
+        // reason fire for everything at once.
+        DB::statement('
+            ALTER TABLE products
+            ADD CONSTRAINT products_par_level_is_positive
+            CHECK (par_level IS NULL OR par_level > 0)
+        ');
+
+        // Zero IS meaningful here and the asymmetry with `par_level` is deliberate: "reorder when it
+        // hits nothing" is a real policy for something cheap and always available.
+        DB::statement('
+            ALTER TABLE products
+            ADD CONSTRAINT products_reorder_point_is_not_negative
+            CHECK (reorder_point IS NULL OR reorder_point >= 0)
+        ');
+
+        // D25's pair, enforced as a pair. `content_amount` with no unit renders "2 adet + 500" and a
+        // unit with no amount renders nothing, so either half alone is a display bug the schema can
+        // simply refuse. A zero amount would mean a carton containing nothing.
+        DB::statement('
+            ALTER TABLE products
+            ADD CONSTRAINT products_content_pair_travels_together
+            CHECK ((content_amount IS NULL) = (content_unit IS NULL))
+        ');
+
+        DB::statement('
+            ALTER TABLE products
+            ADD CONSTRAINT products_content_amount_is_positive
+            CHECK (content_amount IS NULL OR content_amount > 0)
+        ');
     }
 
     /**

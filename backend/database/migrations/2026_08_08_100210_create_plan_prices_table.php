@@ -78,5 +78,11 @@ return new class extends Migration
             ADD CONSTRAINT plan_prices_amount_is_positive
             CHECK (amount_minor > 0)
         ');
+
+        DB::statement("
+            ALTER TABLE plan_prices
+            ADD CONSTRAINT plan_prices_currency_is_an_iso_code
+            CHECK (currency ~ '^[A-Z]{3}$')
+        ");
     }
 };

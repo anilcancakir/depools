@@ -69,6 +69,15 @@ return new class extends Migration
                 (status NOT IN ('refunded', 'chargeback') AND amount_minor >= 0)
             )
         ");
+
+        // Format rather than vocabulary, for the reason `stock_lots` records: ISO 4217 gains and loses
+        // codes, and D5 makes this multi-currency from day one. What goes wrong in practice is a
+        // lowercase code or a symbol, and here it goes wrong in a revenue figure.
+        DB::statement("
+            ALTER TABLE payments
+            ADD CONSTRAINT payments_currency_is_an_iso_code
+            CHECK (currency ~ '^[A-Z]{3}$')
+        ");
     }
 
     public function down(): void
