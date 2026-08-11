@@ -13,10 +13,12 @@ import 'package:magic_starter/magic_starter.dart'
         MagicStarterConfirmDialog,
         MSEmptyState;
 
+import '../../../app/controllers/product_detail_controller.dart';
 import '../../../ui/components/draft_field/draft_field.dart';
 import '../../../ui/components/expiry_badge/expiry_badge.dart';
 import '../../../ui/components/location_stock_row/location_stock_row.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
+import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -73,16 +75,7 @@ import 'stock_out_sheet.dart';
 /// a `ProductController` is the next step; the fixtures stay afterwards as the
 /// preview's data source so the catalog keeps working without a backend.
 @immutable
-class ProductShowView extends StatelessWidget {
-  static const IconData _imagePlaceholderIcon = Icons.photo_outlined;
-  static const IconData _moveIcon = Icons.swap_horiz_outlined;
-  static const IconData _labelIcon = Icons.qr_code_2_outlined;
-  static const IconData _moreIcon = Icons.more_horiz_outlined;
-  static const IconData _outIcon = Icons.remove_outlined;
-  static const IconData _inIcon = Icons.add_outlined;
-  static const IconData _chevronIcon = Icons.chevron_right_outlined;
-  static const IconData _emptyLotsIcon = Icons.inventory_2_outlined;
-  static const IconData _emptyMovementsIcon = Icons.history_outlined;
+class ProductShowView extends StatefulWidget {
 
   /// Whether this product has no stock and no history yet.
   ///
@@ -102,30 +95,132 @@ class ProductShowView extends StatelessWidget {
   /// Which fixture to render. Defaults to the lot-tracked milk.
   final TrackingMode mode;
 
+  /// The product id from the route, or null in the preview catalog.
+  final String? id;
+
+  /// A product supplied by the caller, which is how the catalog stays offline.
+  ///
+  /// Null means "read [ProductDetailController] for [id]". The preview passes a fixture, and the
+  /// state class only touches the controller when this is null, so previewing cannot fire a request.
+  final ProductListItem? item;
+
   /// Creates the [ProductShowView].
-  const ProductShowView({super.key}) : isNew = false, mode = TrackingMode.lot;
+  const ProductShowView({super.key, this.id, this.item})
+    : isNew = false,
+      mode = TrackingMode.lot;
 
   /// Creates the view for a product that has no stock or history yet.
-  const ProductShowView.newProduct({super.key}) : isNew = true, mode = TrackingMode.lot;
+  const ProductShowView.newProduct({super.key, this.item})
+    : id = null,
+      isNew = true,
+      mode = TrackingMode.lot;
 
   /// Creates the view for a serial-tracked product (D28).
   ///
   /// A separate entry point rather than a parameter on the default one, because the
   /// serial case has to be REVIEWABLE. Half this design only exists on this path, and
   /// a variant reachable only by editing a fixture is a variant nobody looks at.
-  const ProductShowView.serialTracked({super.key}) : isNew = false, mode = TrackingMode.serial;
+  const ProductShowView.serialTracked({super.key, this.item})
+    : id = null,
+      isNew = false,
+      mode = TrackingMode.serial;
 
-  /// The product this screen renders, read from the SAME fixture the list uses.
+  @override
+  State<ProductShowView> createState() => _ProductShowViewState();
+}
+
+class _ProductShowViewState extends State<ProductShowView> {
+  static const IconData _imagePlaceholderIcon = Icons.photo_outlined;
+  static const IconData _moveIcon = Icons.swap_horiz_outlined;
+  static const IconData _labelIcon = Icons.qr_code_2_outlined;
+  static const IconData _moreIcon = Icons.more_horiz_outlined;
+  static const IconData _outIcon = Icons.remove_outlined;
+  static const IconData _inIcon = Icons.add_outlined;
+  static const IconData _chevronIcon = Icons.chevron_right_outlined;
+  static const IconData _emptyLotsIcon = Icons.inventory_2_outlined;
+  static const IconData _emptyMovementsIcon = Icons.history_outlined;
+
+  /// Null in the preview, where [ProductShowView.item] supplies the product instead.
+  ProductDetailController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final String? id = widget.id;
+    if (widget.item != null || id == null) return;
+
+    // `load` rather than `onInit`, because the id is a parameter rather than a fixed collection:
+    // `onInit` takes no arguments and only `MagicView` calls it anyway. The controller's own guard
+    // makes a second visit to the same product free.
+    _controller = ProductDetailController.instance..addListener(_onControllerChanged);
+    _controller!.load(id);
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The product to draw, or null while it is being fetched.
   ///
-  /// Not a second set of literals. This screen hand-wrote its own numbers and drifted
-  /// from the list three ways in one sitting: total 5 against 2.5, target 6 against 4,
-  /// and lots summing to 4.5 while holding an expired carton the list did not have. A
-  /// user opens the detail screen to check a number they doubt, so it is the last
-  /// place that can afford its own opinion.
-  ProductListItem get _product => productFixtures.firstWhere((p) => p.tracking == mode);
+  /// The fixture fallback is gone from here: this screen used to pick one out of
+  /// [productFixtures] by tracking mode, which was the right call while nothing could hand it a
+  /// product and is a second source of truth now that something can. The catalog passes the
+  /// fixture in through [ProductShowView.item] instead, which keeps the previews rendering the
+  /// same rows the list previews do.
+  ProductListItem? get _resolved => widget.item ?? _controller?.rxState;
+
+  /// The product, after [build] has established there is one.
+  ProductListItem get _product => _resolved!;
+
+  /// The screen before its product has arrived, or after the fetch failed.
+  ///
+  /// A scaffold with no title rather than the product's name, because the name is exactly what is
+  /// not known yet. `SectionCard`'s own `error` plus `onRetry` pair carries the failure, the same
+  /// way the list screen does, so there is one error panel in the app rather than two.
+  Widget _buildPending() {
+    final bool failed = _controller?.isError ?? false;
+
+    return MSPageScaffold(
+      title: Lang.get('screens.products.title'),
+      children: [
+        SectionCard(
+          label: Lang.get('screens.products.detail_title'),
+          error: failed ? _controller?.rxStatus.message : null,
+          onRetry: failed && widget.id != null
+              ? () => _controller?.load(widget.id!, force: true)
+              : null,
+          // `ProductRow.skeleton()` is the only skeleton the library has, and it is the right
+          // shape here: the first card on this screen is the product's identity, which is what a
+          // row draws. A second skeleton component for one card would be a component nobody else
+          // uses.
+          children: failed ? const <Widget>[] : <Widget>[const ProductRow.skeleton()],
+        ),
+      ],
+    );
+  }
+
+  /// The location's full path, from the controller when there is one.
+  ///
+  /// Falls back to the fixture lookup so the preview keeps naming its locations, and to the raw id
+  /// so a location the payload did not describe still heads its own section rather than vanishing.
+  String _locationPath(String locationId) =>
+      _controller?.locationPaths[locationId] ?? resolveLocationPath(locationId) ?? locationId;
+
 
   @override
   Widget build(BuildContext context) {
+    // Guarded FIRST, because everything below reads `_product` and it is null until the fetch
+    // lands. The title is part of the chrome rather than the body, so this cannot be a branch
+    // inside the page: without a product there is nothing to name the screen after either.
+    if (_resolved == null) return _buildPending();
+
     return MSPageScaffold(
       title: _product.name,
       subtitle: _product.brand,
@@ -343,7 +438,7 @@ class ProductShowView extends StatelessWidget {
   Widget _buildBarcodes() {
     return SectionCard(
       label: Lang.get('screens.product.barcodes_group'),
-      count: '${_product.barcodes.length} kod',
+      count: Lang.get('screens.product.barcode_count', {'count': _product.barcodes.length}),
       children: [
         for (final (String code, String meta) in _product.barcodes) _buildBarcodeRow(code, meta),
       ],
@@ -380,7 +475,7 @@ class ProductShowView extends StatelessWidget {
   /// situation from five all fresh, and making them look identical at the top of the
   /// screen would bury it.
   Widget _buildStockSummary() {
-    if (isNew) {
+    if (widget.isNew) {
       return WDiv(
         className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
         children: [
@@ -446,7 +541,7 @@ class ProductShowView extends StatelessWidget {
   /// very thing the middle card says it does not have yet. A third card reading
   /// "Henüz yok" would be noise agreeing with the second one.
   Widget _buildForecast() {
-    if (isNew) {
+    if (widget.isNew) {
       return WDiv(
         className: 'grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch',
         children: [
@@ -461,7 +556,7 @@ class ProductShowView extends StatelessWidget {
             child: StatCard(
               label: Lang.get('screens.product.stat_forecast'),
               value: Lang.get('screens.product.stat_forecast_none'),
-              delta: '0 hareket, 10 gerekiyor',
+              delta: Lang.get('screens.product.stat_forecast_progress', {'count': 0, 'needed': 10}),
             ),
           ),
           WDiv(
@@ -489,13 +584,22 @@ class ProductShowView extends StatelessWidget {
           child: StatCard(
             label: Lang.get('screens.product.stat_forecast'),
             value: Lang.get('screens.product.stat_forecast_none'),
-            delta: '9 hareket, 10 gerekiyor',
+            // The product's real movement count, against the ten `forecasting.md` gates a rate
+            // on. It was a hardcoded 9 from when this screen ran on one fixture, which read as a
+            // fact and was wrong for every product that was not that fixture.
+            delta: Lang.get('screens.product.stat_forecast_progress', {
+              'count': _product.movementCount,
+              'needed': 10,
+            }),
           ),
         ),
         WDiv(
           child: StatCard(
             label: Lang.get('screens.product.stat_waste'),
-            value: '1 adet',
+            // Not invented. A 30-day waste total is an aggregate over movements with the waste
+            // reason, and no endpoint sends it yet; a number here would be the screen making one
+            // up, which is exactly what the fixture-era `1 adet` was doing.
+            value: Lang.get('screens.product.stat_waste_unknown'),
             delta: Lang.get('screens.product.stat_waste_window'),
           ),
         ),
@@ -504,7 +608,7 @@ class ProductShowView extends StatelessWidget {
   }
 
   Widget _buildLocations() {
-    if (isNew) {
+    if (widget.isNew) {
       return SectionCard(
         label: Lang.get('screens.product.locations_group'),
         children: [
@@ -539,9 +643,12 @@ class ProductShowView extends StatelessWidget {
   /// Goes through [ProductListItem.amountAt] rather than counting lots directly, so it
   /// works for both unit models. Counting lots left the serial-tracked screen showing
   /// "0 konum" beside two drills sitting on a shelf, which is the second time a
-  /// lot-shaped assumption has quietly broken the other mode.
+  /// lot-shaped assumption has quietly broken the other widget.mode.
   List<String> get _locationIds =>
-      locationOptions.map((o) => o.id).where((id) => _product.amountAt(id) > 0).toList();
+      // Asked of the PRODUCT rather than scanned out of a global option list. With real data the
+      // fixture ids match nothing, so scanning `locationOptions` found no locations at all and the
+      // screen showed none; the product already knows where its own stock is.
+      _product.locationIds.where((id) => _product.amountAt(id) > 0).toList();
 
   /// One location's row, with its figures taken from the lots it holds.
   ///
@@ -560,13 +667,13 @@ class ProductShowView extends StatelessWidget {
     );
 
     return LocationStockRow(
-      path: resolveLocationPath(locationId) ?? locationId,
+      path: _locationPath(locationId),
       amount: _product.amountAt(locationId),
       quantity: whole == whole.roundToDouble() ? whole.round().toString() : whole.toString(),
       unit: _product.unit,
       remainderFormatted: open?.formatted,
       remainderUnit: open?.unit,
-      lotsLabel: '${lots.length} parti',
+      lotsLabel: Lang.get('screens.product.lot_count', {'count': lots.length}),
       expiryLabel: soonest.isOpen
           ? Lang.get('screens.product.open_soonest', {'label': soonest.expiryLabel})
           : soonest.expiryLabel,
@@ -575,7 +682,7 @@ class ProductShowView extends StatelessWidget {
   }
 
   Widget _buildLots() {
-    if (isNew) {
+    if (widget.isNew) {
       return SectionCard(
         label: Lang.get('screens.product.lots_group'),
         children: [
@@ -607,7 +714,7 @@ class ProductShowView extends StatelessWidget {
     // lots add up to `amount`, which is what the hand-written version could not do.
     return SectionCard(
       label: Lang.get('screens.product.lots_group'),
-      count: '${_product.lots.length} parti',
+      count: Lang.get('screens.product.lot_count', {'count': _product.lots.length}),
       children: [
         for (final LotFixture lot in _product.lots)
           LotRow(
@@ -639,7 +746,7 @@ class ProductShowView extends StatelessWidget {
     );
 
     return LocationStockRow(
-      path: resolveLocationPath(locationId) ?? locationId,
+      path: _locationPath(locationId),
       amount: units.length,
       quantity: '${units.length}',
       unit: _product.unit,
@@ -664,7 +771,7 @@ class ProductShowView extends StatelessWidget {
 
     return SectionCard(
       label: Lang.get('screens.product.serials_group'),
-      count: '$live adet',
+      count: Lang.get('screens.product.serial_count', {'count': live}),
       collapsible: true,
       children: [
         for (final SerialFixture unit in _product.serials)
@@ -681,7 +788,7 @@ class ProductShowView extends StatelessWidget {
   }
 
   Widget _buildMovements() {
-    if (isNew) {
+    if (widget.isNew) {
       return SectionCard(
         label: Lang.get('screens.product.activity_group'),
         children: [

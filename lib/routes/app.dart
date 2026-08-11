@@ -95,7 +95,12 @@ void registerAppRoutes() {
       // registering the literal second would send `/urunler/yeni` to the detail screen looking for
       // a product whose id is the word "yeni".
       MagicRoute.page('/urunler/yeni', () => const ProductFormView()).name('product-create');
-      MagicRoute.page('/urunler/:id', () => const ProductShowView()).name('product');
+      MagicRoute.page(
+        '/urunler/:id',
+        // A handler taking the parameter, which `RouteDefinition.buildWidget` supports for one to
+        // three of them. Without it the screen has no way to know which product it is showing.
+        (String id) => ProductShowView(id: id),
+      ).name('product');
       MagicRoute.page('/konumlar', () => const LocationIndexView()).name('locations');
       // Literal before the parameter, for the reason `/urunler/yeni` states.
       MagicRoute.page('/konumlar/yeni', () => const LocationFormView()).name('location-create');

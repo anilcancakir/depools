@@ -608,7 +608,9 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       //
       // The name stands in for the id while the app is fixture-backed, the same way the location
       // tree routes by path. The detail screen ignores the parameter today.
-      onTap: () => MagicRoute.to('/urunler/${Uri.encodeComponent(item.name)}'),
+      // The server id when there is one, the name otherwise. A fixture row has never been
+      // persisted, so the catalog keeps navigating by name exactly as it did.
+      onTap: () => MagicRoute.to('/urunler/${item.id ?? Uri.encodeComponent(item.name)}'),
     );
   }
 }
