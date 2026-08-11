@@ -327,18 +327,37 @@ class _StockTakeViewState extends State<StockTakeView> {
             countedRemainder: line.countedRemainder?.toString(),
             verdict: _verdictFor(line),
             state: _stateFor(line),
-            onChanged: (next) => setState(() => _whole[_keyOf(line)] = num.tryParse(next)),
+            // **Cleared means REMOVED, not stored as null**, and that became load-bearing when either
+            // field started implying "counted": a lingering null key would keep a row counted after
+            // the user emptied it, so the sheet would submit a figure nobody had typed.
+            onChanged: (next) => setState(() => _enter(_whole, _keyOf(line), next)),
             onDecrement: () => setState(() {
               final num current = line.countedWhole ?? 0;
               _whole[_keyOf(line)] = current <= 0 ? 0 : current - 1;
             }),
             onIncrement: () =>
                 setState(() => _whole[_keyOf(line)] = (line.countedWhole ?? 0) + 1),
-            onRemainderChanged: (next) =>
-                setState(() => _inner[_keyOf(line)] = num.tryParse(next)),
+            onRemainderChanged: (next) => setState(() => _enter(_inner, _keyOf(line), next)),
           ),
       ],
     );
+  }
+
+  /// Records a typed figure, or forgets the field when it no longer holds one.
+  ///
+  /// An unparseable or emptied field is ABSENT rather than null, because absence is what
+  /// `CountLine` reads as uncounted (D58). Storing null would leave the key present, and with either
+  /// field now implying a counted row that would submit a number the user had just deleted.
+  void _enter(Map<String, num?> into, String key, String raw) {
+    final num? value = num.tryParse(raw);
+
+    if (value == null) {
+      into.remove(key);
+
+      return;
+    }
+
+    into[key] = value;
   }
 
   /// What the row says about itself, including what the last commit refused to write.

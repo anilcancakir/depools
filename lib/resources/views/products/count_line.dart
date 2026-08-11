@@ -117,19 +117,30 @@ class CountLine {
     this.countedRemainder,
   });
 
-  /// Whether anybody has entered anything.
+  /// Whether anybody has entered anything, in EITHER field.
   ///
   /// **Not counted is not zero.** An untouched row is left completely alone at commit; a row
   /// counted as zero writes the whole balance off. Collapsing the two would zero out every
   /// product the user did not reach.
-  bool get isCounted => countedWhole != null;
+  ///
+  /// **Either field, because the whole one is not privileged.** This read `countedWhole != null`,
+  /// so a user who counted an opened half-carton and no sealed ones (500 in the remainder, nothing
+  /// in the whole) had their row treated as untouched: excluded from the summary, never submitted,
+  /// and labelled "Not counted" underneath the number they had just typed. Their input was silently
+  /// dropped while the screen contradicted itself.
+  bool get isCounted => countedWhole != null || countedRemainder != null;
 
   /// The counted total in the base unit, combining both fields.
+  ///
+  /// A missing whole count reads as zero once anything HAS been entered, which is the same
+  /// reasoning as [isCounted]: "500 ml and no cartons" is a count, and its whole part is zero.
   num? get countedTotal {
-    if (countedWhole == null) return null;
+    if (!isCounted) return null;
+
     final num content = product.contentAmount ?? 1;
     final num inner = (countedRemainder ?? 0) / content;
-    return countedWhole! + inner;
+
+    return (countedWhole ?? 0) + inner;
   }
 
   /// Counted minus expected. Null while uncounted, because there is no difference to state.

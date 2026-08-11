@@ -26,6 +26,33 @@ void main() {
       expect(skipped.variance, isNull, reason: 'an uncounted line has no difference to write');
     });
 
+    test('a remainder with no whole count is still a count', () {
+      // Somebody counting an opened half-carton and no sealed ones fills only the second field. This
+      // read `countedWhole != null`, so the row was treated as untouched: left out of the summary,
+      // never submitted, and labelled "Not counted" under the number they had just typed.
+      final CountLine milk = fridgeCount.first;
+      final CountLine remainderOnly = CountLine(
+        product: milk.product,
+        expected: 2,
+        countedRemainder: 500,
+      );
+
+      expect(remainderOnly.isCounted, isTrue);
+      expect(remainderOnly.countedTotal, 0.5, reason: 'no cartons plus 500 of 1000 ml');
+      expect(remainderOnly.variance, -1.5);
+
+      // And an untouched row is still untouched: BOTH fields empty is the uncounted case (D58).
+      const CountLine neither = CountLine(product: ProductListItem(
+        name: 'x',
+        amount: 0,
+        formatted: '0',
+        unit: 'adet',
+      ), expected: 2);
+
+      expect(neither.isCounted, isFalse);
+      expect(neither.countedTotal, isNull);
+    });
+
     test('the two count fields combine into the base unit', () {
       // The milk holds 1 sealed carton plus 500 ml of a 1000 ml one, so 1.5 in the base unit.
       // Counting 1 and 0 is a variance of exactly minus half a carton.

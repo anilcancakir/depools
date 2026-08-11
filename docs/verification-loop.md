@@ -143,6 +143,13 @@ keeps laying out at the old width, and everything renders doubled and clipped.
   unchanged. Navigating elsewhere proved the tool fine. Before calling an
   instrument broken, ask whether the change under test could appear in what it
   measures; to check a reservation, scroll the LAST row into view and look at that.
+- **`dusk:fill --text=''` does not fire the field's `onChanged`.** Its clear step
+  sets the text rather than editing it, so a "user cleared the field" path cannot be
+  exercised that way and the row keeps its old state, which reads as a bug in the
+  widget. A real backspace does fire it (`WInput` forwards straight to Flutter's
+  `TextField`). To test the empty branch, type a value the parser REJECTS but the
+  keyboard accepts (`.` or `-`): that fires `onChanged` with something unparseable
+  and takes the same path.
 - **A screen's `dusk:exceptions` was never clean on the eight screens with a
   footer**, so the check that catches a real render fault had two entries in it by
   default. If a baseline is noisy, fix the noise rather than learning to read past

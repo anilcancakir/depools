@@ -163,6 +163,20 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
       );
     }
 
+    // **A 200 that does not answer every line is a failure, not an empty success.** Without this a
+    // response whose `data.lines` was missing or short parsed into an empty list, which has no
+    // unfinished rows, so the screen showed a success toast and navigated away from a shelf it had
+    // not actually committed. On a ledger that is the worst shape of bug available: the user believes
+    // the count landed and nothing says otherwise.
+    //
+    // Compared by SET rather than by count, so a response echoing one product twice and omitting
+    // another cannot pass by arithmetic.
+    final Set<String> answered = lines.map((r) => r.productId).toSet();
+
+    if (answered.length != counted.length || !answered.containsAll(counted.keys)) {
+      return CountCommit.failed(Lang.get('screens.stock_take.commit_failed'));
+    }
+
     // Every balance this count touched is now stale in the shared cache, including for the stock list
     // the user goes back to.
     await load();
