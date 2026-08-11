@@ -26,6 +26,7 @@ import '../../../ui/components/serial_row/serial_row.dart';
 import '../../../ui/components/stat_card/stat_card.dart';
 import '../../../ui/components/tag/index.dart';
 import 'field_editor_sheet.dart';
+import 'product_filter_sheet.dart';
 import 'product_fixtures.dart';
 import 'stock_in_sheet.dart';
 import 'stock_move_sheet.dart';
@@ -199,6 +200,56 @@ class _ProductShowViewState extends State<ProductShowView> {
 
   /// The product, after [build] has established there is one.
   ProductListItem get _product => _resolved!;
+
+  /// Opens the stock-in sheet, and actually writes what it returns.
+  ///
+  /// The draft was DISCARDED before this: the sheet opened, the user filled it in, and the result
+  /// went nowhere. So the ledger had never been written from the UI at all, on the screen whose two
+  /// footer buttons are the product's core promise.
+  ///
+  /// The sheet is given the tenant's real locations, and on success the controller reloads, so the
+  /// batches and the total on screen come from the ledger rather than from an optimistic guess. An
+  /// optimistic update would be the wrong instinct here specifically: FEFO decides which lot a
+  /// consumption comes out of and the server is the only thing that knows, so a client that
+  /// predicted the result would eventually disagree with the ledger it is supposed to be showing.
+  Future<void> _receiveStock() async {
+    final ProductListItem product = _product;
+    final ProductDetailController? controller = _controller;
+
+    final StockInDraft? draft = await StockInSheet.show(
+      context,
+      product: product,
+      locations: controller == null
+          ? null
+          : <FilterOption>[
+              for (final MapEntry<String, String> entry in controller.locationPaths.entries)
+                FilterOption(id: entry.key, label: entry.value, path: entry.value),
+            ],
+    );
+
+    if (draft == null || controller == null) return;
+
+    final String? productId = product.id;
+    if (productId == null) return;
+
+    final String? failure = await controller.receive(
+      productId: productId,
+      locationId: draft.locationId,
+      quantity: draft.amount,
+      expiresAt: draft.expiresAt,
+    );
+
+    if (failure == null) {
+      MagicFeedback.success(Lang.get('screens.stock_in.title'), Lang.get('screens.stock_in.done'));
+
+      return;
+    }
+
+    // The server's own sentence rather than a generic one. The writer's refusals name the reason
+    // ("not enough stock at the source"), and replacing that with "something went wrong" throws away
+    // the only useful part of the response.
+    MagicFeedback.error(Lang.get('screens.stock_in.title'), failure);
+  }
 
   /// The screen before its product has arrived, or after the fetch failed.
   ///
@@ -961,7 +1012,7 @@ class _ProductShowViewState extends State<ProductShowView> {
           child: MSButton(
             // Never disabled, unlike its neighbour. Adding stock is valid at any
             // level, including from zero: that is how a depleted product comes back.
-            onPressed: () => StockInSheet.show(context, product: _product),
+            onPressed: _receiveStock,
             fullWidth: true,
             className: 'justify-center gap-2',
             child: WDiv(

@@ -32,16 +32,27 @@ class StockInSheet extends StatefulWidget {
   /// The product stock is arriving for.
   final ProductListItem product;
 
+  /// The tenant's own locations, or the fixture list when the caller has none.
+  ///
+  /// Read from `locationOptions` before this existed, which matches nothing once the ids are real:
+  /// the picker offered five locations the tenant does not have and none of the ones it does. The
+  /// preview catalog passes nothing and keeps the fixtures, which is what lets it render offline.
+  final List<FilterOption>? locations;
+
   /// Creates a [StockInSheet].
-  const StockInSheet({super.key, required this.product});
+  const StockInSheet({super.key, required this.product, this.locations});
 
   /// Opens the sheet and resolves with the draft movement, or null if dismissed.
-  static Future<StockInDraft?> show(BuildContext context, {required ProductListItem product}) {
+  static Future<StockInDraft?> show(
+    BuildContext context, {
+    required ProductListItem product,
+    List<FilterOption>? locations,
+  }) {
     return MSBottomSheet.show<StockInDraft>(
       context,
       title: Lang.get('screens.stock_in.title'),
       description: product.name,
-      body: StockInSheet(product: product),
+      body: StockInSheet(product: product, locations: locations),
     );
   }
 
@@ -62,11 +73,26 @@ class StockInDraft {
   /// tracks one.
   final String? expiryLabel;
 
+  /// The same date as `YYYY-MM-DD`, for the request.
+  ///
+  /// Held beside the label rather than parsed back out of it. The label is written for a person
+  /// ("18 Ağu", the year omitted inside this one), so it is lossy by design and cannot be turned
+  /// back into a date the API accepts.
+  final String? expiresAt;
+
   /// Creates a [StockInDraft].
-  const StockInDraft({required this.amount, required this.locationId, this.expiryLabel});
+  const StockInDraft({
+    required this.amount,
+    required this.locationId,
+    this.expiryLabel,
+    this.expiresAt,
+  });
 }
 
 class _StockInSheetState extends State<StockInSheet> {
+  /// The locations this sheet offers, from the caller when it has them.
+  List<FilterOption> get _locations => widget.locations ?? locationOptions;
+
   late num _amount = _amountOptions.first.$1;
   late String _locationId = _suggestedLocationId;
 
@@ -82,7 +108,7 @@ class _StockInSheetState extends State<StockInSheet> {
     return <(num, String)>[
       (1, '1 ${widget.product.unit}'),
       (2, '2 ${widget.product.unit}'),
-      if (gap > 2) (gap, '$gap · hedefe tamamla'),
+      if (gap > 2) (gap, Lang.get('screens.stock_in.fill_to_target', {'count': gap})),
     ];
   }
 
@@ -97,12 +123,12 @@ class _StockInSheetState extends State<StockInSheet> {
     // "Buzdolabı" for a power drill whose two units sit on a warehouse shelf, because
     // a serial-tracked product has no lots and the fallback took the first option. The
     // fourth lot-shaped assumption D28 has broken.
-    final List<String> ids = locationOptions
+    final List<String> ids = _locations
         .map((o) => o.id)
         .where((id) => widget.product.amountAt(id) > 0)
         .toList();
 
-    if (ids.isEmpty) return locationOptions.first.id;
+    if (ids.isEmpty) return _locations.isEmpty ? '' : _locations.first.id;
 
     return ids.reduce((a, b) => widget.product.amountAt(a) >= widget.product.amountAt(b) ? a : b);
   }
@@ -123,7 +149,11 @@ class _StockInSheetState extends State<StockInSheet> {
     final num here = widget.product.amountAt(locationId);
     if (here == 0) return Lang.get('screens.stock_in.suggested');
 
-    final String noun = widget.product.tracking == TrackingMode.serial ? Lang.get('screens.stock_in.unit_word') : 'parti';
+    // The product's own unit, because `amountAt` returns HOW MUCH is there rather than how many
+    // batches. A serial-tracked product counts whole units, so it keeps the generic word.
+    final String noun = widget.product.tracking == TrackingMode.serial
+        ? Lang.get('screens.stock_in.unit_word')
+        : widget.product.unit;
     return Lang.get('screens.stock_in.suggested_here', {'count': here.floor(), 'noun': noun});
   }
 
@@ -133,8 +163,17 @@ class _StockInSheetState extends State<StockInSheet> {
   /// place its stock actually lives was not offered at all. The suggestion always
   /// appears, and the rest fill the remaining slots.
   List<FilterOption> get _offeredLocations {
-    final FilterOption suggested = locationOptions.firstWhere((o) => o.id == _suggestedLocationId);
-    final List<FilterOption> rest = locationOptions
+    // Both guards exist because this list is the TENANT'S now rather than a fixture: it can be
+    // empty (a team with no locations yet) and the suggested id can be absent from it (a product
+    // whose stock sits somewhere the picker is not offering). `firstWhere` throws on either, and it
+    // would throw while opening a sheet, nowhere near the cause.
+    if (_locations.isEmpty) return const <FilterOption>[];
+
+    final FilterOption suggested = _locations.firstWhere(
+      (o) => o.id == _suggestedLocationId,
+      orElse: () => _locations.first,
+    );
+    final List<FilterOption> rest = _locations
         .where((o) => o.id != suggested.id)
         .take(2)
         .toList();
@@ -147,7 +186,7 @@ class _StockInSheetState extends State<StockInSheet> {
   /// Null when the product declares no shelf life, in which case the sheet does not
   /// ask for a date at all. Inventing a date field for a box of screws is how a form
   /// gets long enough to be abandoned.
-  (String, String)? get _suggestedExpiry {
+  (String, String, DateTime)? get _suggestedExpiry {
     final int? life = widget.product.shelfLifeDays;
     if (life == null) return null;
 
@@ -166,7 +205,7 @@ class _StockInSheetState extends State<StockInSheet> {
     final String day = '${date.day} ${months[date.month - 1]}';
     final String label = date.year == now.year ? day : '$day ${date.year}';
 
-    return (label, Lang.get('screens.stock_in.date_with_life', {'basis': _dateBasis, 'days': life}));
+    return (label, Lang.get('screens.stock_in.date_with_life', {'basis': _dateBasis, 'days': life}), date);
   }
 
   /// What the date on this product means, which is not the same for both unit models.
@@ -194,7 +233,7 @@ class _StockInSheetState extends State<StockInSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final (String, String)? expiry = _suggestedExpiry;
+    final (String, String, DateTime)? expiry = _suggestedExpiry;
 
     return WDiv(
       className: 'flex flex-col gap-5',
@@ -274,7 +313,19 @@ class _StockInSheetState extends State<StockInSheet> {
             WText(_resultLabel, className: 'text-sm text-fg-muted'),
             MSButton(
               onPressed: () => Navigator.of(context).pop(
-                StockInDraft(amount: _amount, locationId: _locationId, expiryLabel: expiry?.$1),
+                StockInDraft(
+                  amount: _amount,
+                  locationId: _locationId,
+                  expiryLabel: expiry?.$1,
+                  // `YYYY-MM-DD`, which is what the endpoint's `date` rule accepts and what the lot
+                  // column stores. Built by hand rather than through a formatter, because the only
+                  // formatter in this file writes for a person.
+                  expiresAt: expiry == null
+                      ? null
+                      : '${expiry.$3.year.toString().padLeft(4, '0')}-'
+                            '${expiry.$3.month.toString().padLeft(2, '0')}-'
+                            '${expiry.$3.day.toString().padLeft(2, '0')}',
+                ),
               ),
               fullWidth: true,
               className: 'justify-center',
