@@ -69,6 +69,53 @@ Three mechanics that decide whether that loop actually runs:
 
 Verify before acting on a finding. Two of two were correct on the first real PR, but the reasoning behind one of them named a cast that had to be checked before the fix was right, and a review that is wrong about the code is still confident.
 
+### The whole loop, in commands that have been run here
+
+Every line below was executed in this repository and did what it says. The comments are the four traps that cost time, so read them rather than rediscovering them.
+
+```sh
+# 1. Worktree. Resolve the root FIRST: `git worktree add .claude/worktrees/x` from a subdirectory
+#    creates it under THAT directory, and the stray path then blocks the next attempt.
+R=$(git rev-parse --show-toplevel)
+git -C "$R" worktree add "$R/.claude/worktrees/<slug>" -b feature/<slug>
+cd "$R/.claude/worktrees/<slug>"
+
+# 2. A backend branch needs vendor, and bin/check does NOT install it. bin/check DOES copy
+#    backend/.env, .artisan/plugins.json and backend/public/build from the main worktree.
+(cd backend && composer install --no-interaction --quiet)
+
+# 3. Gate, then open the PR. `bin/check backend`, `bin/check flutter` or `--fast` to scope it.
+bin/check
+git push -u origin feature/<slug>
+gh pr create --base master --head feature/<slug> --title "..." --body "..."
+
+# 4. Checks first, then the review. Capture the count before requesting, so the wait also works on a
+#    re-review, where a review already exists and a test for "any review" returns instantly.
+gh pr checks <n> --watch --fail-fast
+P=repos/anilcancakir/depools/pulls/<n>
+gh api $P/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+before=$(gh api $P/reviews --jq 'length')
+until [ "$(gh api $P/reviews --jq 'length')" -gt "$before" ]; do sleep 15; done
+gh api $P/reviews --jq '.[-1].body'
+gh api $P/comments --jq '.[] | "\(.path):\(.line // .original_line)  \(.body)"'
+
+# 5. Fix, push, run step 4 again, then resolve each thread. Resolution is what the ruleset checks and
+#    it exists only in GraphQL; the REST API cannot do it.
+gh api graphql -f query='{repository(owner:"anilcancakir",name:"depools"){pullRequest(number:<n>){
+  mergeable reviewThreads(first:20){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}'
+gh api graphql -F id=<threadId> \
+  -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}'
+
+# 6. Merge, then clean up by hand. `--delete-branch` FAILS while a worktree still holds the branch,
+#    and it fails after the merge has already happened, which reads like the merge broke.
+gh pr merge <n> --squash
+git -C "$R" worktree remove "$R/.claude/worktrees/<slug>"
+git -C "$R" branch -D feature/<slug>
+git -C "$R" fetch -q origin && git -C "$R" merge --ff-only origin/master
+```
+
+`pubspec.lock` will be dirty after any local `flutter pub get`, because the overrides put sibling paths in it. Leave it unstaged; `bin/check` fails when a lock carrying a local path is committed.
+
 ## Verifying a change
 
 `bin/check` is the gate, seven jobs fanned across cores: `flutter analyze`, `flutter test`, `pint --test`, the PHP suite, the design-token scan, the hosted-only lockfile and the component registry. `--fast` runs only the static passes; `flutter` or `backend` scopes it to one half.
