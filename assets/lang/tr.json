@@ -737,11 +737,21 @@
       "will_write": ":count hareket yazılacak · eşleşen sayımlar hareket üretmez",
       "finish": "Sayımı bitir",
       "save_variances": ":count farkı kaydet",
-      "continue": "Sayımı sürdür",
       "commit_title": ":count fark kaydedilsin mi?",
       "commit_description": "Sayılan miktarlarla kayıt arasındaki :count fark, düzeltme hareketi olarak yazılır. Hareket geçmişi silinemez, yalnızca karşı hareketle düzeltilir.",
       "commit_description_skipped": "Sayılan miktarlarla kayıt arasındaki :count fark yazılır. Sayılmayan :skipped ürüne dokunulmaz, olduğu gibi kalır.",
-      "commit_confirm": "Kaydet"
+      "commit_confirm": "Kaydet",
+      "verdict_uncounted": "Sayılmadı",
+      "verdict_matched": "Eşleşti · sistemde :system",
+      "verdict_over": "Sistemde :system · :diff fazla",
+      "verdict_short": "Sistemde :system · :diff eksik",
+      "needs_date": ":amount fazla · tarih gerekli",
+      "serial_tracked": "Birim okutularak sayılır",
+      "nothing_here": "Kayıtta bu konumda ürün yok",
+      "unfinished": ":count satır stok girişinden tamamlanır",
+      "committed": ":count hareket yazıldı",
+      "committed_partly": ":count hareket yazıldı · :unfinished satır tamamlanmadı",
+      "commit_failed": "Sayım kaydedilemedi"
     },
     "stock_move": {
       "after_note": "Sonrasında :from ve :to güncellenir",

@@ -27,11 +27,13 @@ final class InventoryApiTest extends TestCase
     /** @return array{0: User, 1: Location, 2: Product} */
     private function tenant(string $name): array
     {
-        $user = User::factory()->create();
+        /** @var User $user */
+        $user = User::factory()->createOne();
         $team = Team::create(['name' => $name, 'user_id' => $user->getKey()]);
         $user->forceFill(['current_team_id' => $team->getKey()])->save();
+        $user->refresh();
 
-        $this->actingAs($user->refresh(), 'sanctum');
+        $this->actingAs($user, 'sanctum');
 
         $location = Location::create(['name' => $name.' Mutfak']);
         $product = Product::create(['name' => $name.' Süt', 'base_unit' => 'adet']);
@@ -46,6 +48,7 @@ final class InventoryApiTest extends TestCase
         // a missing guard. The guard is still required, and this asserts it exists.
         $this->getJson('/api/v1/products')->assertUnauthorized();
         $this->postJson('/api/v1/stock/receive')->assertUnauthorized();
+        $this->postJson('/api/v1/stock/count')->assertUnauthorized();
     }
 
     public function test_a_cross_tenant_read_is_404_and_never_403(): void
@@ -312,6 +315,115 @@ final class InventoryApiTest extends TestCase
 
         $this->postJson('/api/v1/products', ['name' => 'Başka un', 'base_unit' => 'kg', 'sku' => 'UN-1'])
             ->assertStatus(422)->assertJsonValidationErrors('sku');
+    }
+
+    public function test_a_count_commits_every_writable_line_and_names_the_rest(): void
+    {
+        [, $location, $product] = $this->tenant('Birinci');
+        $matched = Product::create(['name' => 'Kaşar', 'base_unit' => 'adet']);
+        $unrecorded = Product::create(['name' => 'Yoğurt', 'base_unit' => 'adet']);
+
+        foreach ([$product, $matched] as $stocked) {
+            $this->postJson('/api/v1/stock/receive', [
+                'product_id' => $stocked->getKey(),
+                'location_id' => $location->getKey(),
+                'quantity' => 4,
+                'expires_at' => '2026-09-01',
+            ])->assertCreated();
+        }
+
+        // One shelf, three answers. This is the case the endpoint exists to handle: a row that
+        // disagreed, a row that agreed, and a row holding stock the record has never seen. Committing
+        // the first while naming the third is what stops one unfinished row discarding a whole count.
+        $response = $this->postJson('/api/v1/stock/count', [
+            'location_id' => $location->getKey(),
+            'lines' => [
+                ['product_id' => $product->getKey(), 'counted_quantity' => 3],
+                ['product_id' => $matched->getKey(), 'counted_quantity' => 4],
+                ['product_id' => $unrecorded->getKey(), 'counted_quantity' => 2],
+            ],
+        ])->assertOk();
+
+        $response
+            ->assertJsonPath('data.lines.0.outcome', 'written')
+            ->assertJsonPath('data.lines.0.delta', '-1.000')
+            ->assertJsonPath('data.lines.1.outcome', 'matched')
+            ->assertJsonPath('data.lines.2.outcome', 'needs_date')
+            ->assertJsonPath('data.lines.2.delta', '2.000');
+
+        $this->assertCount(1, $response->json('data.lines.0.movement_ids'));
+        $this->assertSame([], $response->json('data.lines.2.movement_ids'));
+
+        // Exactly one count movement in the whole request: the matched line and the deferred one both
+        // wrote nothing, and an empty movement list is the only thing they have in common.
+        $this->assertSame(1, StockMovement::where('reason', MovementReason::StockTake)->count());
+        $this->assertSame('3.000', $product->fresh()->quantityFromLedger());
+        $this->assertSame('0.000', $unrecorded->fresh()->quantityFromLedger());
+    }
+
+    public function test_a_count_naming_another_tenants_product_is_404_and_writes_nothing(): void
+    {
+        [, , $theirProduct] = $this->tenant('İkinci');
+        [, $location, $product] = $this->tenant('Birinci');
+
+        $this->postJson('/api/v1/stock/receive', [
+            'product_id' => $product->getKey(),
+            'location_id' => $location->getKey(),
+            'quantity' => 4,
+        ])->assertCreated();
+
+        // The first line is perfectly writable. Every product is resolved before the transaction opens
+        // precisely so a foreign id on the second line does not leave half a shelf counted.
+        $this->postJson('/api/v1/stock/count', [
+            'location_id' => $location->getKey(),
+            'lines' => [
+                ['product_id' => $product->getKey(), 'counted_quantity' => 1],
+                ['product_id' => $theirProduct->getKey(), 'counted_quantity' => 1],
+            ],
+        ])->assertNotFound();
+
+        $this->assertSame(0, StockMovement::where('reason', MovementReason::StockTake)->count());
+        $this->assertSame('4.000', $product->fresh()->quantityFromLedger());
+    }
+
+    public function test_a_count_refuses_two_lines_for_one_product(): void
+    {
+        [, $location, $product] = $this->tenant('Birinci');
+
+        // The second line would be measured against the balance the first one wrote and come back
+        // `matched`, which reads as agreement about a shelf nobody counted twice.
+        $this->postJson('/api/v1/stock/count', [
+            'location_id' => $location->getKey(),
+            'lines' => [
+                ['product_id' => $product->getKey(), 'counted_quantity' => 1],
+                ['product_id' => $product->getKey(), 'counted_quantity' => 2],
+            ],
+        ])->assertStatus(422)->assertJsonValidationErrors('lines.0.product_id');
+    }
+
+    public function test_a_count_accepts_zero_and_refuses_less(): void
+    {
+        [, $location, $product] = $this->tenant('Birinci');
+
+        $this->postJson('/api/v1/stock/receive', [
+            'product_id' => $product->getKey(),
+            'location_id' => $location->getKey(),
+            'quantity' => 2,
+        ])->assertCreated();
+
+        // Zero is a counted empty shelf and has to be writable; the screen never sends an UNCOUNTED
+        // row at all (D58), so the two facts never arrive through the same field.
+        $this->postJson('/api/v1/stock/count', [
+            'location_id' => $location->getKey(),
+            'lines' => [['product_id' => $product->getKey(), 'counted_quantity' => 0]],
+        ])->assertOk()->assertJsonPath('data.lines.0.delta', '-2.000');
+
+        $this->assertSame('0.000', $product->fresh()->quantityFromLedger());
+
+        $this->postJson('/api/v1/stock/count', [
+            'location_id' => $location->getKey(),
+            'lines' => [['product_id' => $product->getKey(), 'counted_quantity' => -1]],
+        ])->assertStatus(422)->assertJsonValidationErrors('lines.0.counted_quantity');
     }
 
     public function test_a_location_list_arrives_in_reading_order(): void

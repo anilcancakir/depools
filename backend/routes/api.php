@@ -35,5 +35,12 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
         Route::post('receive', [StockController::class, 'receive']);
         Route::post('consume', [StockController::class, 'consume']);
         Route::post('transfer', [StockController::class, 'transfer']);
+
+        // A count is the fourth thing that happens, and the only one that states an ABSOLUTE: the
+        // client sends what is on the shelf and the server derives the difference. It takes a set of
+        // lines rather than one product because a count is scoped to a location and a person counts a
+        // whole shelf in one pass, so committing row by row would leave a half-counted shelf behind
+        // every dropped connection.
+        Route::post('count', [StockController::class, 'count']);
     });
 });

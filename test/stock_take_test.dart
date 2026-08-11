@@ -42,7 +42,102 @@ void main() {
       expect(milk.figure(0.5), '500 ml');
       expect(milk.figure(1.5), '1 adet + 500 ml');
       expect(milk.figure(2), '2 adet');
-      expect(milk.verdict, 'Sistemde 1 adet + 500 ml · 500 ml eksik');
+    });
+
+    test('a base unit that is its own content unit states a decimal', () {
+      // The demo tenant's milk: base unit `l`, content `1 l`. The whole-plus-remainder split needs a
+      // FINER inner unit to mean anything, and with content 1 the inner amount is the same decimal,
+      // so the formatter rounded it to a whole and printed 7.5 l as "7 l + 1 l" - which reads as 8.
+      const ProductListItem litres = ProductListItem(
+        name: 'Whole Milk 1 L',
+        amount: 7.5,
+        formatted: '7',
+        unit: 'l',
+        contentAmount: 1,
+        contentUnit: 'l',
+      );
+
+      final CountLine line = CountLine(product: litres, expected: 7.5, countedWhole: 8);
+
+      expect(line.hasFinerContent, isFalse);
+      expect(line.figure(7.5), '7.50 l');
+      expect(line.figure(0.5), '0.50 l');
+      expect(line.figure(8), '8 l');
+
+      // The carton case still splits, which is what D26 is about.
+      expect(fridgeCount.first.hasFinerContent, isTrue);
+      expect(fridgeCount.first.figure(1.5), '1 adet + 500 ml');
+    });
+
+    test('the verdict names the direction the shelf disagrees in', () {
+      // **`Lang.get` returns the KEY in a test**, because nothing loads the catalogue here, and
+      // `dashboard_first_run_test` records the same fact. So what is observable is the BRANCH, which
+      // is the only part this class decides: the figures it interpolates are asserted through
+      // `figure` above, and `localization_test` asserts the placeholders survive translation.
+      //
+      // This used to assert the whole Turkish sentence, which passed for as long as the sentence was
+      // hardcoded Turkish and no English user could ever see it.
+      final CountLine milk = fridgeCount.first;
+      expect(milk.variance, -0.5);
+      expect(milk.verdict, 'screens.stock_take.verdict_short');
+
+      expect(
+        CountLine(product: milk.product, expected: 1, countedWhole: 3).verdict,
+        'screens.stock_take.verdict_over',
+      );
+      expect(
+        CountLine(product: milk.product, expected: 2, countedWhole: 2).verdict,
+        'screens.stock_take.verdict_matched',
+      );
+      expect(
+        CountLine(product: milk.product, expected: 2).verdict,
+        'screens.stock_take.verdict_uncounted',
+      );
+    });
+
+    test('the expected figure prefers the projection over the lots', () {
+      // On real data the list endpoint sends `product_stock` per location and never sends lots, so
+      // this is the ONLY source that exists there. A fixture has it the other way round, and the
+      // fallback is what keeps the preview renderable.
+      final ProductListItem milk = productFixtures.firstWhere(
+        (p) => p.name == 'Pınar Süt Tam Yağlı 1 lt',
+      );
+
+      expect(milk.locationAmounts, isEmpty, reason: 'a fixture carries no projection');
+      expect(expectedAt(milk, 'loc-fridge'), milk.amountAt('loc-fridge'));
+
+      // The same product with a projection that DISAGREES with its lots. The projection wins, which
+      // is the behaviour that matters: a stale client-side lot sum must not decide what gets written.
+      final ProductListItem projected = ProductListItem(
+        name: milk.name,
+        amount: milk.amount,
+        formatted: milk.formatted,
+        unit: milk.unit,
+        lots: milk.lots,
+        locationIds: milk.locationIds,
+        locationAmounts: const <String, num>{'loc-fridge': 9},
+      );
+
+      expect(expectedAt(projected, 'loc-fridge'), 9);
+    });
+
+    test('a commit separates what landed from what the user still has to finish', () {
+      const CountCommit commit = CountCommit.landed(<CountResult>[
+        CountResult(productId: 'a', outcome: CountOutcome.written, delta: -1),
+        CountResult(productId: 'b', outcome: CountOutcome.matched, delta: 0),
+        CountResult(productId: 'c', outcome: CountOutcome.needsDate, delta: 2),
+        CountResult(productId: 'd', outcome: CountOutcome.serialTracked, delta: 0),
+      ]);
+
+      // A matched row is finished and writes nothing, which is exactly why an empty movement list
+      // cannot be the signal: it is the same for three of the four outcomes.
+      expect(commit.writtenCount, 1);
+      expect(commit.unfinished.map((r) => r.productId), <String>['c', 'd']);
+      expect(commit.error, isNull);
+
+      const CountCommit failed = CountCommit.failed('nope');
+      expect(failed.lines, isEmpty);
+      expect(failed.unfinished, isEmpty);
     });
 
     test('only variances write movements', () {

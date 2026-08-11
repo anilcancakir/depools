@@ -5,7 +5,8 @@ import 'count_row.dart';
 
 /// Static variant-matrix preview for [CountRow].
 ///
-/// Four rows: uncounted, counted and matching, counted and short, and counted as zero.
+/// Four rows plus the placeholder: uncounted, counted and matching, counted and short, counted as
+/// zero, and the skeleton the sheet shows while the balances are on their way.
 ///
 /// The one to look at is the last pair. **Uncounted and zero are different facts** and they
 /// must not look alike: the empty field carries a dash rather than a nought, because an
@@ -51,6 +52,13 @@ class CountRowPreview extends StatelessWidget {
               state: CountState.variance,
             ),
           ],
+        ),
+        // The placeholder, in its own card so its geometry can be compared against the rows above
+        // rather than read on its own. The two have to line up: the whole reason the skeleton is
+        // this component rather than a bar list is that the sheet must not jump when content lands.
+        WDiv(
+          className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+          children: [CountRow.skeleton(), CountRow.skeleton()],
         ),
       ],
     );

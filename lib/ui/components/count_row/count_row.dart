@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show MSInput;
+import 'package:magic_starter/magic_starter.dart' show MSInput, MSSkeleton, SkeletonShape;
 
 import '../quantity_stepper/quantity_stepper.dart';
 import 'count_row.recipe.dart';
@@ -74,6 +74,14 @@ class CountRow extends StatelessWidget {
   /// Called as the opened-unit count changes.
   final ValueChanged<String>? onRemainderChanged;
 
+  /// Whether this is a placeholder rather than a row.
+  ///
+  /// **The skeleton is the row's own shadow, not three grey bars**, for the same reason
+  /// `ProductRow.skeleton` is: a generic bar says "something is coming" while a placeholder with
+  /// this row's geometry says WHAT is coming, and it keeps the sheet from jumping when the content
+  /// lands. Only the same component can guarantee the two match.
+  final bool isSkeleton;
+
   /// Creates a [CountRow].
   const CountRow({
     super.key,
@@ -88,11 +96,28 @@ class CountRow extends StatelessWidget {
     this.onRemainderChanged,
     this.onDecrement,
     this.onIncrement,
-  });
+  }) : isSkeleton = false;
+
+  /// Creates a placeholder with this row's exact geometry.
+  const CountRow.skeleton({super.key})
+    : name = '',
+      unit = '',
+      verdict = '',
+      counted = null,
+      countedRemainder = null,
+      remainderUnit = null,
+      state = CountState.uncounted,
+      onChanged = null,
+      onRemainderChanged = null,
+      onDecrement = null,
+      onIncrement = null,
+      isSkeleton = true;
 
   @override
   Widget build(BuildContext context) {
     final slots = countRowRecipe()(variants: {'state': state.name});
+
+    if (isSkeleton) return _buildSkeleton(slots);
 
     return WDiv(
       className: slots['root'],
@@ -171,6 +196,54 @@ class CountRow extends StatelessWidget {
           ],
         ),
         WText(verdict, className: slots['verdict']),
+      ],
+    );
+  }
+
+  /// The placeholder, drawn from the same slots the real row uses.
+  ///
+  /// **It mirrors the real row's structure element for element, because anything less moves the
+  /// controls.** The stepper's box is 144 x 40 because that is what `QuantityStepper` measures: two
+  /// 40px buttons either side of a 64px field. And the reserved group is rendered even though it is
+  /// empty, for the same reason the real row renders it: it holds the column above `md`, so omitting
+  /// it let the single visible group slide right into the space it should have occupied.
+  ///
+  /// A guessed size anywhere here would make the sheet grow or shrink on the frame the content
+  /// arrives, which is the one thing a placeholder exists to prevent.
+  Widget _buildSkeleton(Map<String, String> slots) {
+    return WDiv(
+      className: slots['root'],
+      children: [
+        WDiv(
+          className: slots['top'],
+          children: [
+            WDiv(
+              className: slots['skeletonName'],
+              child: const MSSkeleton(shape: SkeletonShape.text, width: 168, height: 14),
+            ),
+            WDiv(
+              className: slots['controls'],
+              children: [
+                WDiv(
+                  className: slots['group'],
+                  children: const [
+                    MSSkeleton(shape: SkeletonShape.block, width: 144, height: 40),
+                    MSSkeleton(shape: SkeletonShape.text, width: 28, height: 12),
+                  ],
+                ),
+                WDiv(
+                  className: slots['reservedGroup'],
+                  children: [
+                    WDiv(className: slots['plus']),
+                    WDiv(className: slots['field']),
+                    WDiv(className: slots['unit']),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+        const MSSkeleton(shape: SkeletonShape.text, width: 120, height: 12),
       ],
     );
   }

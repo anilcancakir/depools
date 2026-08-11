@@ -737,11 +737,21 @@
       "will_write": ":count changes will be written · a matching count writes nothing",
       "finish": "Finish the count",
       "save_variances": "Save :count differences",
-      "continue": "Carry on counting",
       "commit_title": "Record :count differences?",
       "commit_description": "The :count differences between what you counted and the record are written as corrections. History cannot be deleted, only corrected with a counter-movement.",
       "commit_description_skipped": "The :count differences are written. The :skipped products you did not count are left exactly as they are.",
-      "commit_confirm": "Record"
+      "commit_confirm": "Record",
+      "verdict_uncounted": "Not counted",
+      "verdict_matched": "Matched · record says :system",
+      "verdict_over": "Record says :system · :diff more",
+      "verdict_short": "Record says :system · :diff less",
+      "needs_date": ":amount more · needs a date",
+      "serial_tracked": "Counted by unit",
+      "nothing_here": "The record shows nothing at this location",
+      "unfinished": ":count left for stock entry",
+      "committed": ":count recorded",
+      "committed_partly": ":count recorded · :unfinished left for stock entry",
+      "commit_failed": "The count could not be saved"
     },
     "stock_move": {
       "after_note": "Afterwards :from and :to are both updated",

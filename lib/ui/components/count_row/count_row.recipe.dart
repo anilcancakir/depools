@@ -41,6 +41,13 @@ WindSlotRecipe countRowRecipe() {
       // over, and the same fix (reserve the space whether or not it is used).
       'field': 'w-20 shrink-0',
       'stepper': 'shrink-0',
+      // The name's column in the SKELETON. It has to take the same `md:flex-1` share as the real
+      // name so the controls beside it land in the same place, and it has to lay its child out as a
+      // row so the placeholder keeps its own width instead of stretching across that share.
+      // Measured before it existed: the placeholder filled the whole column and pushed the stepper
+      // 260 logical px right of where the real one sits, which is the exact jump a skeleton exists
+      // to prevent.
+      'skeletonName': 'md:flex-1 md:min-w-0 flex flex-row items-center',
       'unit': 'w-10 shrink-0 text-xs text-fg-muted',
       'plus': 'w-4 shrink-0 text-xs text-fg-muted text-center',
     },

@@ -65,6 +65,11 @@ final class LedgerWritersTest extends TestCase
                 'app/Models/Product.php',
                 // Aggregates it to find drift, and writes nothing itself.
                 'app/Services/StockConsistency.php',
+                // Holds the movements a count appended, so a caller can render them. It names the class
+                // in a return type and touches no query builder: reachability is what this test
+                // measures, and a value object carrying the writer's own output is the honest case for
+                // being on this list rather than a second author to hunt down.
+                'app/Services/StockCountResult.php',
             ],
             'stock_lots' => [
                 'app/Services/StockWriter.php',
