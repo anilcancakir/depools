@@ -97,13 +97,25 @@ final class LedgerWritersTest extends TestCase
      * the first false positive: `GlobalProductBarcode`'s docblock cites `ProductStock` by name while
      * touching nothing.
      *
+     * Seeders and factories are scanned as well as `app/`, because the decision quoted above names
+     * them explicitly and for a while this test did not look at them: a seeder inserting a movement
+     * would have passed. Migrations are deliberately NOT scanned. They name every one of these
+     * tables as a string because creating a table requires naming it, so including them would flag
+     * all three on every migration and the list would stop meaning anything.
+     *
      * @return array<string, list<string>>
      */
     private function reachers(): array
     {
         $found = array_fill_keys(array_keys($this->tables()), []);
 
-        foreach (Finder::create()->files()->in(base_path('app'))->name('*.php') as $file) {
+        $roots = [
+            base_path('app'),
+            base_path('database/seeders'),
+            base_path('database/factories'),
+        ];
+
+        foreach (Finder::create()->files()->in($roots)->name('*.php') as $file) {
             $path = str_replace(base_path().'/', '', $file->getRealPath());
             $code = $this->withoutComments($file->getContents());
 
