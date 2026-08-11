@@ -87,6 +87,12 @@ class ProductDetailController extends MagicController
       ProductListItem.fromApi(
         Map<String, dynamic>.from(data),
         locationLabels: _locationPaths,
+        // ONE reference date for the whole payload, the same fix `ProductController` already
+        // carries. This screen derives more dates than the list does (the product's own, each
+        // lot's binding date, each serial's warranty), and each mapper defaults to
+        // `DateTime.now()` on its own, so a payload mapped across midnight would disagree with
+        // itself by a day WITHIN one screen: a badge saying two days above a lot saying three.
+        today: DateTime.now(),
       ),
     );
   }
