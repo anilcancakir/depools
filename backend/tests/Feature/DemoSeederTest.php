@@ -34,6 +34,12 @@ final class DemoSeederTest extends TestCase
     {
         parent::setUp();
 
+        // Frozen BEFORE seeding, because the seeder dates its lots from `Carbon::today()` and the
+        // expiry assertions below compute their window from it too. Unfrozen, a suite that crosses
+        // midnight between the two reads a different day at each end, and the expiring and expired
+        // rows swap sides. That is a flake nobody would reproduce.
+        $this->freezeTime();
+
         // Authenticates the demo user, so every assertion below reads through the tenant scope
         // exactly as a request would.
         $this->seed();

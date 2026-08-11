@@ -70,7 +70,11 @@ Three mechanics that decide whether that loop actually runs:
 - **Re-request after pushing a fix.** A re-review on push is a separate setting and is off, so a pushed fix is reviewed only if you ask again.
 - **Its verdict never blocks and never approves.** Copilot always leaves a Comment review, so the merge is held by the thread-resolution rule instead: an unresolved inline comment blocks, an addressed one does not. That is also why a comment you disagree with still needs an answer in the thread rather than silence.
 
-Verify before acting on a finding. Two of two were correct on the first real PR, but the reasoning behind one of them named a cast that had to be checked before the fix was right, and a review that is wrong about the code is still confident.
+Verify before acting on a finding. Every finding on the first real PR was correct, but the reasoning behind one named a cast that had to be checked before the fix was right, and a review that is wrong about the code is still confident.
+
+**Read the review body, not only the inline comments.** Copilot posts its lower-confidence findings as SUPPRESSED entries inside the body, where no thread and no notification appears. On that first PR the suppressed set is where the best finding was: a seeder reachable on its own through `db:seed --class=`, which would have stamped a null `team_id` on every row and made them invisible.
+
+**Stop when a round produces nothing real, not when it produces nothing.** Each round tends to surface fewer and smaller findings, so fix what is real, re-request, and merge on the first round whose findings you would decline anyway. Rounds are cheap; an unbounded loop chasing hints is not.
 
 ### The whole loop, in commands that have been run here
 

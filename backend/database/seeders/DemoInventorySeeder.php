@@ -9,6 +9,8 @@ use App\Services\StockWriter;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use RuntimeException;
 
 /**
  * A demo inventory chosen to make the screens judgeable, not to look plausible.
@@ -33,6 +35,22 @@ class DemoInventorySeeder extends Seeder
 {
     public function run(): void
     {
+        // This class is reachable on its own through `db:seed --class=DemoInventorySeeder`, which
+        // skips [DatabaseSeeder] and therefore both of its guards. Unauthenticated it does not fail:
+        // `TeamScope::currentTeamId()` returns null, `BelongsToTeam` stamps that null, and the rows
+        // land in no tenant at all, invisible to every read and confusing to the consistency sweep
+        // later. So each entry point carries its own guard rather than trusting the other one.
+        if (! app()->environment(['local', 'testing'])) {
+            throw new RuntimeException('The demo seeder only runs in local or testing.');
+        }
+
+        if (Auth::id() === null) {
+            throw new RuntimeException(
+                'No authenticated user, so every row would be stamped with a null team_id and then be '
+                .'invisible. Run `db:seed` and let DatabaseSeeder authenticate the demo user first.',
+            );
+        }
+
         if (Product::query()->exists()) {
             $this->command?->warn('The demo team already has products; skipping. Reset with migrate:fresh --seed.');
 
