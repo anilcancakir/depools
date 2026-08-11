@@ -67,6 +67,35 @@ class SerialFixture {
   /// Whether this unit has left. Kept for the history, excluded from counts.
   final bool isGone;
 
+  /// Builds one unit from an `api/v1/products/{id}` element.
+  ///
+  /// The warranty runs through the same window and the same badge as an expiry, which is D28's
+  /// deliberate reuse rather than an accident of mapping: a warranty running out and a carton
+  /// going off are the same shape of problem.
+  factory SerialFixture.fromApi(Map<String, dynamic> json, {DateTime? today}) {
+    final DateTime reference = ProductListItem.dateOnly(today ?? DateTime.now());
+    final DateTime? ends = ProductListItem.parseDate(json['warranty_ends_at'] as String?);
+    final int? days = ends?.difference(reference).inDays;
+    final String? acquired = ProductListItem.formatDate(json['acquired_at'] as String?);
+
+    return SerialFixture(
+      serial: json['serial'] as String,
+      // Nullable on the wire, because a released unit's location is set to null rather than the row
+      // being deleted: `nullOnDelete`, so removing a shelf cannot remove the record that a drill
+      // existed. An empty string keeps it out of every `serialsAt` bucket, which is right for a unit
+      // that is no longer anywhere, and a cast to `String` here would have thrown on the first
+      // product with history.
+      locationId: json['location_id'] as String? ?? '',
+      warrantyDaysRemaining: days,
+      warrantyLabel: days == null ? null : ProductListItem.expiryLabelFor(days),
+      receivedLabel:
+          acquired == null ? null : Lang.get('screens.products.lot_received', {'date': acquired}),
+      // Released means sold, written off or otherwise gone: counted out of every total and kept
+      // in the list, because the history is why the row still exists.
+      isGone: json['released_at'] != null,
+    );
+  }
+
   /// Creates a [SerialFixture].
   const SerialFixture({
     required this.serial,
@@ -126,6 +155,70 @@ class LotFixture {
   /// Which location holds this lot.
   final String locationId;
 
+  /// Builds one lot from an `api/v1/products/{id}` element.
+  ///
+  /// [contentAmount] and [contentUnit] come from the PRODUCT, because an open lot reports its
+  /// remainder in the content unit (500 ml) while a sealed one reports in the base unit (1 adet).
+  /// That is not an inconsistency to normalise away: it is what the user sees when they pick the
+  /// thing up, and the lot alone cannot know either unit.
+  factory LotFixture.fromApi(
+    Map<String, dynamic> json, {
+    required String baseUnit,
+    num? contentAmount,
+    String? contentUnit,
+    DateTime? today,
+  }) {
+    final num remaining = ProductListItem.toNumOrNull(json['remaining_quantity']) ?? 0;
+    final bool isOpen = json['opened_at'] != null;
+    final DateTime reference = ProductListItem.dateOnly(today ?? DateTime.now());
+
+    // The BINDING date, not the printed one. An opened carton with a week left on the box is
+    // governed by its after-opening deadline (D27), and the server has already applied that rule.
+    final DateTime? binding = ProductListItem.parseDate(json['binding_expires_at'] as String?);
+    final int? days = binding?.difference(reference).inDays;
+
+    // An open lot's remainder is expressed in the content unit, so the figure is scaled into it:
+    // 0.5 of a 1000 ml carton is "500 ml". Without a declared content there is nothing to scale
+    // into and it stays in base units.
+    final bool scaled = isOpen && contentAmount != null && contentUnit != null;
+    final num figure = scaled ? remaining * contentAmount : remaining;
+
+    return LotFixture(
+      remaining: remaining,
+      formatted: ProductListItem.format(figure),
+      unit: scaled ? contentUnit : baseUnit,
+      locationId: json['location_id'] as String,
+      daysUntilExpiry: days,
+      expiryLabel: days == null ? null : ProductListItem.expiryLabelFor(days),
+      isOpen: isOpen,
+      openedLabel: isOpen ? _openedLabel(json) : null,
+      receivedLabel: isOpen ? null : _receivedLabel(json),
+      lotCode: json['lot_code'] as String?,
+      isDepleted: json['is_depleted'] as bool? ?? false,
+    );
+  }
+
+  /// "Opened 5 Aug", plus the printed date when there is one to contrast with.
+  ///
+  /// Both when they differ, because that contrast is the reason the detail screen shows lots at
+  /// all: the badge above says three days and the box says next Tuesday, and the user is checking
+  /// which one the app is going by.
+  static String? _openedLabel(Map<String, dynamic> json) {
+    final String? opened = ProductListItem.formatDate(json['opened_at'] as String?);
+    if (opened == null) return null;
+
+    final String? printed = ProductListItem.formatDate(json['expires_at'] as String?);
+    if (printed == null) return Lang.get('screens.products.lot_opened', {'date': opened});
+
+    return Lang.get('screens.products.lot_opened_printed', {'date': opened, 'printed': printed});
+  }
+
+  static String? _receivedLabel(Map<String, dynamic> json) {
+    final String? received = ProductListItem.formatDate(json['received_at'] as String?);
+
+    return received == null ? null : Lang.get('screens.products.lot_received', {'date': received});
+  }
+
   /// Creates a [LotFixture].
   const LotFixture({
     required this.remaining,
@@ -155,6 +248,13 @@ class LotFixture {
 /// stay afterwards as the preview catalog's data source.
 @immutable
 class ProductListItem {
+  /// The server's identifier, or null for a fixture.
+  ///
+  /// Null is the honest value in the preview catalog: those rows have never been persisted. The
+  /// list row falls back to the name for its route, which is what it always did, so the catalog
+  /// keeps navigating and a wired row navigates to a real product.
+  final String? id;
+
   /// Product name.
   final String name;
 
@@ -314,10 +414,7 @@ class ProductListItem {
     required Map<String, String> locationLabels,
     DateTime? today,
   }) {
-    final List<Map<String, dynamic>> stock = <Map<String, dynamic>>[
-      for (final dynamic row in (json['locations'] as List<dynamic>? ?? const <dynamic>[]))
-        Map<String, dynamic>.from(row as Map<dynamic, dynamic>),
-    ];
+    final List<Map<String, dynamic>> stock = _mapList(json['locations']);
 
     final Set<String> locationIds = <String>{
       for (final Map<String, dynamic> row in stock) row['location_id'] as String,
@@ -325,27 +422,48 @@ class ProductListItem {
 
     // Parsed once. Two calls were two expressions that could drift apart, and a row whose total
     // disagreed with its own printed figure is the exact defect the lots comment above records.
-    final num quantity = _toNum(json['quantity']) ?? 0;
+    final num quantity = toNumOrNull(json['quantity']) ?? 0;
 
-    final DateTime? earliest = _earliestDate(stock);
-    final DateTime reference = _dateOnly(today ?? DateTime.now());
+    final DateTime? earliest = earliestDate(stock);
+    final DateTime reference = dateOnly(today ?? DateTime.now());
     final int? days = earliest?.difference(reference).inDays;
 
+    final List<Map<String, dynamic>> lotRows = _mapList(json['lots']);
+    final List<Map<String, dynamic>> serialRows = _mapList(json['serials']);
+    final num? contentAmount = toNumOrNull(json['content_amount']);
+    final String? contentUnit = json['content_unit'] as String?;
+    final String baseUnit = json['base_unit'] as String;
+
     return ProductListItem(
+      id: json['id'] as String?,
+      lots: <LotFixture>[
+        for (final Map<String, dynamic> lot in lotRows)
+          LotFixture.fromApi(
+            lot,
+            baseUnit: baseUnit,
+            contentAmount: contentAmount,
+            contentUnit: contentUnit,
+            today: today,
+          ),
+      ],
+      serials: <SerialFixture>[
+        for (final Map<String, dynamic> unit in serialRows)
+          SerialFixture.fromApi(unit, today: today),
+      ],
       name: json['name'] as String,
       brand: json['brand'] as String?,
       description: json['description'] as String?,
       sku: json['sku'] as String?,
       amount: quantity,
-      formatted: _format(quantity),
-      unit: json['base_unit'] as String,
-      contentAmount: _toNum(json['content_amount']),
+      formatted: format(quantity),
+      unit: baseUnit,
+      contentAmount: toNumOrNull(json['content_amount']),
       contentUnit: json['content_unit'] as String?,
-      parLevel: _toNum(json['par_level']),
+      parLevel: toNumOrNull(json['par_level']),
       shelfLifeDays: json['default_shelf_life_days'] as int?,
       movementCount: json['movements_count'] as int? ?? 0,
       daysUntilExpiry: days,
-      expiryLabel: days == null ? null : _expiryLabel(days),
+      expiryLabel: days == null ? null : expiryLabelFor(days),
       locationIds: locationIds,
       locationSummary: locationIds
           .map((String id) => locationLabels[id])
@@ -363,6 +481,7 @@ class ProductListItem {
   /// Creates a [ProductListItem].
   const ProductListItem({
     required this.name,
+    this.id,
     required this.amount,
     required this.formatted,
     required this.unit,
@@ -441,7 +560,7 @@ class ProductListItem {
   /// content declaration and the locale's pluralisation.
   (String, String?) get primaryFigure {
     if (wholeCount == 0 && hasOpenUnit) {
-      return (_format(openRemainder!), contentUnit);
+      return (format(openRemainder!), contentUnit);
     }
     return (formatted, unit);
   }
@@ -452,7 +571,7 @@ class ProductListItem {
   /// figure, which is what keeps the two from being printed twice.
   (String, String?)? get remainderFigure {
     if (!hasOpenUnit || wholeCount == 0) return null;
-    return (_format(openRemainder!), contentUnit);
+    return (format(openRemainder!), contentUnit);
   }
 
   /// The already-localised note explaining an open unit, for the row's meta line.
@@ -478,7 +597,7 @@ class ProductListItem {
   ///
   /// `intl` is deliberately not pulled in for this. One separator is the whole difference at
   /// these sizes, and a package plus its locale data is a large answer to a small question.
-  static String _format(num value) {
+  static String format(num value) {
     if (value == value.roundToDouble()) return value.round().toString();
 
     final String fixed = value.toStringAsFixed(2);
@@ -486,25 +605,54 @@ class ProductListItem {
     return Lang.current.languageCode == 'en' ? fixed : fixed.replaceAll('.', ',');
   }
 
+  /// A JSON array of objects, or an empty list when the key was absent or the wrong shape.
+  ///
+  /// Absent is the normal case rather than an error: the list payload gates `lots` and `serials`
+  /// off deliberately, so the same factory serves both shapes.
+  static List<Map<String, dynamic>> _mapList(Object? value) => <Map<String, dynamic>>[
+    if (value is List<dynamic>)
+      for (final dynamic row in value)
+        if (row is Map<dynamic, dynamic>) Map<String, dynamic>.from(row),
+  ];
+
   /// A decimal that PostgreSQL sends as a string, or null.
   ///
   /// `decimal:3` arrives as `'6.000'` rather than as a number, so every threshold on this row
   /// would compare a string against a num and silently fail if it were read directly.
-  static num? _toNum(Object? value) => switch (value) {
+  static num? toNumOrNull(Object? value) => switch (value) {
     null => null,
     final num n => n,
     final String s => num.tryParse(s),
     _ => null,
   };
 
-  static DateTime _dateOnly(DateTime value) => DateTime(value.year, value.month, value.day);
+  static DateTime dateOnly(DateTime value) => DateTime(value.year, value.month, value.day);
+
+  /// A `YYYY-MM-DD` from the API, or null when the field was absent or unparseable.
+  static DateTime? parseDate(Object? value) =>
+      value is String ? DateTime.tryParse(value) : null;
+
+  /// A date for a line of prose, through the catalogue's own format string.
+  ///
+  /// `time.date_format` rather than a Dart literal, because the order of the parts is a locale
+  /// decision and both catalogues already carry it.
+  static String? formatDate(Object? value) {
+    final DateTime? date = parseDate(value);
+    if (date == null) return null;
+
+    return Lang.get('time.date_format', {
+      'day': date.day.toString().padLeft(2, '0'),
+      'month': date.month.toString().padLeft(2, '0'),
+      'year': date.year.toString(),
+    });
+  }
 
   /// The soonest binding date across the locations holding this product.
   ///
   /// Derived here rather than sent, because the payload already carries one date per location
   /// and a product-level copy is a second number that can disagree with the first. Already the
   /// BINDING date, so an opened lot has shortened it server-side (D27).
-  static DateTime? _earliestDate(List<Map<String, dynamic>> stock) {
+  static DateTime? earliestDate(List<Map<String, dynamic>> stock) {
     DateTime? earliest;
 
     for (final Map<String, dynamic> row in stock) {
@@ -519,7 +667,7 @@ class ProductListItem {
 
     if (earliest == null) return null;
 
-    return _dateOnly(earliest);
+    return dateOnly(earliest);
   }
 
   /// The badge text for a binding date.
@@ -527,7 +675,7 @@ class ProductListItem {
   /// `ExpiryBadge.maybe` returns nothing unless it has BOTH a label and a day count, so a null
   /// label here does not degrade the badge, it removes it. Which is why this exists rather than
   /// the row being left to phrase it: the copy belongs in the catalogue either way.
-  static String _expiryLabel(int days) {
+  static String expiryLabelFor(int days) {
     if (days < 0) return Lang.get('components.expiry_badge.expired');
     if (days == 0) return Lang.get('components.expiry_badge.today');
 
