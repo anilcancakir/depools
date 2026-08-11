@@ -44,6 +44,7 @@ Every user-visible string resolves through `Lang.get`. `test/no_hardcoded_copy_t
 - **Key shape is `screens.<screen>.<key>` and `components.<component>.<key>`.** A bottom sheet or a panel is a screen too. Components own their own default copy; their parameters stay already-localised text from the caller.
 - **Both locales get every key.** The translator does not merge the fallback, so a key present in `en.json` and missing from `tr.json` renders the raw key rather than the English text. Adding a language is all-or-nothing.
 - Interpolation goes through `:placeholder` replacements, never string concatenation. `test/localization_test.dart` asserts every placeholder survives translation, which a concatenated string cannot be checked for.
+- **Parity is not presence, and neither gate catches the gap.** `localization_test` compares the two catalogues against each other, so a key a view REFERENCES and neither language has passes both it and `no_hardcoded_copy_test`: the string is not a literal and the two files agree. The screen then renders `screens.x.y` at the user. `flutter analyze` cannot see it either, because a key is a string. So after adding a `Lang.get`, check the key exists rather than trusting a green suite.
 - **Fixtures are not translated.** Product names, location names and movement notes stand in for user data. An English interface showing Turkish product names is correct rather than a bug.
 - Demo rows that live inside a view (because they only make sense next to the widget they feed) carry a region marker, and the copy test honours it:
 

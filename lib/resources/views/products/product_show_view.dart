@@ -201,6 +201,151 @@ class _ProductShowViewState extends State<ProductShowView> {
   /// The product, after [build] has established there is one.
   ProductListItem get _product => _resolved!;
 
+  /// Opens the stock-out sheet and writes what it returns, FEFO deciding the lots.
+  ///
+  /// The location comes from the chosen LOT rather than from a picker: the sheet opens with a lot
+  /// already selected by FEFO, and that lot is somewhere. A serial-tracked product answers through
+  /// its unit instead, which is the same fact reached the other way.
+  ///
+  /// Two of the sheet's four reasons are not writable here, and refusing them out loud is the point.
+  /// A stock-take correction and a data correction can both be POSITIVE, so they are not outflows
+  /// and `StockWriter::consume` refuses them by design; the count screen owns that path. Sending
+  /// them anyway would produce a 422 that reads like a bug.
+  Future<void> _consumeStock() async {
+    final ProductListItem product = _product;
+    final ProductDetailController? controller = _controller;
+
+    final StockOutDraft? draft = await StockOutSheet.show(context, product: product);
+    if (draft == null || controller == null) return;
+
+    final String? productId = product.id;
+    final String? locationId = draft.lot?.locationId ?? draft.serial?.locationId;
+    if (productId == null || locationId == null) return;
+
+    final String? reason = switch (draft.reason) {
+      StockOutReason.consumption => 'consumption',
+      StockOutReason.waste => 'waste',
+      StockOutReason.stockTake || StockOutReason.correction => null,
+    };
+
+    if (reason == null) {
+      MagicFeedback.error(
+        Lang.get('screens.stock_out.title'),
+        Lang.get('screens.stock_out.correction_elsewhere'),
+      );
+
+      return;
+    }
+
+    final num? quantity = _inBaseUnits(draft.amount, draft.unit, product);
+    if (quantity == null) {
+      MagicFeedback.error(
+        Lang.get('screens.stock_out.title'),
+        Lang.get('screens.stock_out.unit_unknown'),
+      );
+
+      return;
+    }
+
+    final String? failure = await controller.consume(
+      productId: productId,
+      locationId: locationId,
+      quantity: quantity,
+      reason: reason,
+    );
+
+    _report(failure, Lang.get('screens.stock_out.title'), Lang.get('screens.stock_out.done'));
+  }
+
+  /// Opens the move sheet and writes the transfer, which is ONE call rather than two.
+  ///
+  /// A transfer is a pair of movements the writer appends together. Splitting it into an out and an
+  /// in client-side would leave a window where the stock is in neither place, and a failure halfway
+  /// would leave it there permanently.
+  Future<void> _moveStock() async {
+    final ProductListItem product = _product;
+    final ProductDetailController? controller = _controller;
+
+    final StockMoveDraft? draft = await StockMoveSheet.show(
+      context,
+      product: product,
+      locations: _controllerLocations(),
+    );
+
+    if (draft == null || controller == null) return;
+
+    final String? productId = product.id;
+    if (productId == null) return;
+
+    final num? quantity = _inBaseUnits(draft.amount, draft.unit, product);
+    if (quantity == null) {
+      MagicFeedback.error(
+        Lang.get('screens.stock_move.title'),
+        Lang.get('screens.stock_out.unit_unknown'),
+      );
+
+      return;
+    }
+
+    final String? failure = await controller.transfer(
+      productId: productId,
+      fromLocationId: draft.fromLocationId,
+      toLocationId: draft.toLocationId,
+      quantity: quantity,
+    );
+
+    _report(failure, Lang.get('screens.stock_move.title'), Lang.get('screens.stock_move.done'));
+  }
+
+  /// A sheet's amount, converted into the BASE unit the endpoints take.
+  ///
+  /// Both sheets can hand back a figure in the product's CONTENT unit rather than its base unit: the
+  /// out sheet's half-and-all options on an open lot are "250 ml" and "500 ml" of a one-litre
+  /// carton, and the move sheet offers the open remainder the same way. `quantity` on
+  /// `/stock/consume` and `/stock/transfer` is in base units, so passing the raw figure through
+  /// would have consumed five hundred LITRES where the user asked for five hundred millilitres.
+  ///
+  /// Returns null when the unit is neither, which cannot happen today and is refused rather than
+  /// guessed at: a wrong number on an append-only ledger is worse than a refused write, because the
+  /// write cannot be taken back without a compensating movement that also has to be right.
+  num? _inBaseUnits(num amount, String unit, ProductListItem product) {
+    if (unit == product.unit) return amount;
+
+    final num? content = product.contentAmount;
+    if (unit == product.contentUnit && content != null && content > 0) return amount / content;
+
+    return null;
+  }
+
+  /// The tenant's locations as filter options, or null in the preview.
+  List<FilterOption>? _controllerLocations() {
+    final ProductDetailController? controller = _controller;
+    if (controller == null) return null;
+
+    // `label` is the SHORT name and `path` is the full hierarchy, which is `FilterOption`'s own
+    // contract: a picker row shows the path, a sentence shows the label. Both were the path here, so
+    // the move sheet's confirmation read the long form in the one place the short form is for.
+    return <FilterOption>[
+      for (final MapEntry<String, String> entry in controller.locationPaths.entries)
+        FilterOption(
+          id: entry.key,
+          label: controller.locationNames[entry.key] ?? entry.value,
+          path: entry.value,
+        ),
+    ];
+  }
+
+  /// One toast for all three writes: the server's sentence on failure, the confirmation otherwise.
+  void _report(String? failure, String title, String success) {
+    if (failure == null) {
+      MagicFeedback.success(title, success);
+
+      return;
+    }
+
+    MagicFeedback.error(title, failure);
+  }
+
   /// Opens the stock-in sheet, and actually writes what it returns.
   ///
   /// The draft was DISCARDED before this: the sheet opened, the user filled it in, and the result
@@ -219,12 +364,7 @@ class _ProductShowViewState extends State<ProductShowView> {
     final StockInDraft? draft = await StockInSheet.show(
       context,
       product: product,
-      locations: controller == null
-          ? null
-          : <FilterOption>[
-              for (final MapEntry<String, String> entry in controller.locationPaths.entries)
-                FilterOption(id: entry.key, label: entry.value, path: entry.value),
-            ],
+      locations: _controllerLocations(),
     );
 
     if (draft == null || controller == null) return;
@@ -239,16 +379,7 @@ class _ProductShowViewState extends State<ProductShowView> {
       expiresAt: draft.expiresAt,
     );
 
-    if (failure == null) {
-      MagicFeedback.success(Lang.get('screens.stock_in.title'), Lang.get('screens.stock_in.done'));
-
-      return;
-    }
-
-    // The server's own sentence rather than a generic one. The writer's refusals name the reason
-    // ("not enough stock at the source"), and replacing that with "something went wrong" throws away
-    // the only useful part of the response.
-    MagicFeedback.error(Lang.get('screens.stock_in.title'), failure);
+    _report(failure, Lang.get('screens.stock_in.title'), Lang.get('screens.stock_in.done'));
   }
 
   /// The screen before its product has arrived, or after the fetch failed.
@@ -307,7 +438,7 @@ class _ProductShowViewState extends State<ProductShowView> {
           // the sheet's own source list would be empty.
           onPressed: _product.amount == 0
               ? null
-              : () => StockMoveSheet.show(context, product: _product),
+              : _moveStock,
           disabled: _product.amount == 0,
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
@@ -994,7 +1125,7 @@ class _ProductShowViewState extends State<ProductShowView> {
             // sheet whose only outcome is closing it again.
             onPressed: _product.amount == 0
                 ? null
-                : () => StockOutSheet.show(context, product: _product),
+                : _consumeStock,
             intent: ButtonIntent.secondary,
             fullWidth: true,
             className: 'justify-center gap-2 bg-surface-container',

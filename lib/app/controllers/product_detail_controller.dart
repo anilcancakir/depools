@@ -22,13 +22,20 @@ class ProductDetailController extends MagicController
   String? _loadedId;
 
   Map<String, String> _locationPaths = const <String, String>{};
+  Map<String, String> _locationNames = const <String, String>{};
 
   /// Location id to its full hierarchy path, for the per-location sections.
   ///
-  /// The PATH rather than the short name, because a detail screen has the width for "Kitchen ›
-  /// Fridge" and that is the question it answers: where exactly. A chip in a filter row wants the
-  /// short name and gets it from the list controller instead.
+  /// The PATH answers "where exactly", which is what a detail screen has the width for.
   Map<String, String> get locationPaths => _locationPaths;
+
+  /// Location id to its short name, for a sentence rather than a row.
+  ///
+  /// Both are kept because `FilterOption` distinguishes them and the sheets rely on that: a picker
+  /// row wants "Kitchen › Fridge" and a sentence wants "Fridge". Filling the short one with the path
+  /// made the move sheet's confirmation read "Afterwards Kitchen › Fridge and Kitchen are both
+  /// updated", the long form in the one place the short form exists for.
+  Map<String, String> get locationNames => _locationNames;
 
   /// The id currently held, or null before the first load.
   String? get loadedId => _loadedId;
@@ -48,24 +55,77 @@ class ProductDetailController extends MagicController
     required num quantity,
     String? expiresAt,
     String? lotCode,
-  }) async {
-    final response = await Http.post('/stock/receive', data: {
-      'product_id': productId,
+  }) {
+    return _write(productId, '/stock/receive', <String, dynamic>{
       'location_id': locationId,
       'quantity': quantity,
       'expires_at': ?expiresAt,
       if (lotCode != null && lotCode.isNotEmpty) 'lot_code': lotCode,
     });
+  }
+
+  /// Takes stock out, FEFO deciding which lots it comes from, then reloads.
+  ///
+  /// [reason] has to be one the endpoint accepts as an OUTFLOW: `consumption`, `waste` or
+  /// `return`. A stock-take correction and a data correction are ledger reasons too, and they are
+  /// deliberately NOT writable here, because either can be positive: they are not outflows and
+  /// `StockWriter::consume` refuses them by design. The count screen owns that path.
+  Future<String?> consume({
+    required String productId,
+    required String locationId,
+    required num quantity,
+    required String reason,
+  }) {
+    return _write(productId, '/stock/consume', <String, dynamic>{
+      'location_id': locationId,
+      'quantity': quantity,
+      'reason': reason,
+    });
+  }
+
+  /// Moves stock between two locations, then reloads.
+  ///
+  /// One call, not an out and an in. A transfer is a PAIR of movements the writer appends together,
+  /// and splitting it client-side would leave a window where the stock exists in neither place.
+  Future<String?> transfer({
+    required String productId,
+    required String fromLocationId,
+    required String toLocationId,
+    required num quantity,
+  }) {
+    return _write(productId, '/stock/transfer', <String, dynamic>{
+      'from_location_id': fromLocationId,
+      'to_location_id': toLocationId,
+      'quantity': quantity,
+    });
+  }
+
+  /// Posts one movement and reloads on success. Returns null, or the server's message.
+  ///
+  /// Extracted on the third caller rather than the first. All three answer 422 the same way, with
+  /// `message` plus per-field `errors`, and the writer's own refusals ("not enough stock at the
+  /// source") arrive through the same shape, so one reader is right for all of them.
+  ///
+  /// The failure is RETURNED rather than set as the controller's error state: blanking a screen the
+  /// user is reading, over a write that changed nothing, is worse than the failure. The reload is
+  /// `force: true`, because the lots on screen are exactly what just changed.
+  Future<String?> _write(String productId, String path, Map<String, dynamic> body) async {
+    final response = await Http.post(path, data: <String, dynamic>{
+      'product_id': productId,
+      ...body,
+    });
 
     if (!response.successful) {
-      // The endpoint answers 422 with `message` plus per-field `errors`, and the writer's own
-      // refusals ("not enough stock at the source") arrive the same way under `quantity`. The
-      // message is the one worth showing: it names the reason rather than the field.
+      // The server's own sentence, because it names the reason. Replacing it with a generic line
+      // throws away the only useful part of a refusal.
       final dynamic message = response['message'];
 
+      // Generic on purpose. This method serves receive, consume and transfer, so naming one of
+      // them made a failed MOVE say "Could not add the stock". The server's own sentence is
+      // preferred above; this is only the case where it sent none.
       return message is String && message.isNotEmpty
           ? message
-          : Lang.get('screens.stock_in.failed');
+          : Lang.get('screens.product.write_failed');
     }
 
     await load(productId, force: true);
@@ -110,11 +170,20 @@ class ProductDetailController extends MagicController
       return;
     }
 
-    _locationPaths = <String, String>{
+    final List<Map<String, dynamic>> locationRows = <Map<String, dynamic>>[
       if (locationResponse['data'] is List<dynamic>)
         for (final dynamic row in locationResponse['data'] as List<dynamic>)
-          if (row is Map<dynamic, dynamic>)
-            row['id'] as String: (row['full_path'] as String?) ?? row['name'] as String,
+          if (row is Map<dynamic, dynamic>) Map<String, dynamic>.from(row),
+    ];
+
+    _locationPaths = <String, String>{
+      for (final Map<String, dynamic> row in locationRows)
+        row['id'] as String: (row['full_path'] as String?) ?? row['name'] as String,
+    };
+
+    _locationNames = <String, String>{
+      for (final Map<String, dynamic> row in locationRows)
+        row['id'] as String: row['name'] as String,
     };
 
     // The LATEST request wins. Navigating product to product starts a second load before the
