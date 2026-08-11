@@ -66,8 +66,8 @@ The branch is `master` and not `main`, deliberately, matching `magic` and `uptiz
 
 Three mechanics that decide whether that loop actually runs:
 
-- **Request it explicitly rather than waiting.** The `master` ruleset carries `copilot_code_review`, and it has not fired on its own for every PR here. One line, and it costs nothing when a review is already on the way: `gh api repos/anilcancakir/depools/pulls/<n>/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'`.
-- **Re-request after pushing a fix.** A re-review on push is a separate setting and is off, so a pushed fix is reviewed only if you ask again.
+- **The review arrives on its own, on open and on every push.** The `master` ruleset carries `copilot_code_review` with `review_on_push: true`, which was measured rather than assumed: a push produced a fresh review with nothing requested. Requesting it explicitly is still the fallback when one does not show up, and it costs nothing when one is already on the way: `gh api repos/anilcancakir/depools/pulls/<n>/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'`.
+- **The automatic review runs at the LITE effort level**, which is the default of two. `Balanced` does deeper analysis of complex logic and cross-service changes, which is what most work here is, at the cost of more Actions minutes and AI credits. It is a repository setting under Copilot rather than an API field, so it is not set from here.
 - **Its verdict never blocks and never approves.** Copilot always leaves a Comment review, so the merge is held by the thread-resolution rule instead: an unresolved inline comment blocks, an addressed one does not. That is also why a comment you disagree with still needs an answer in the thread rather than silence.
 
 **Verify the PREMISE, not just the conclusion.** This is the one that actually cost something on the first real PR. A finding said a seeder needed a tenancy guard because unauthenticated rows would land invisible, the conclusion was right, and the reason was not: `team_id` is NOT NULL, so the insert fails with `SQLSTATE[23502]` instead. Accepting the conclusion put the wrong failure mode into a comment, and a later round found it there. Ask the database, or the framework source, before writing down a because.
@@ -143,7 +143,7 @@ Running it: `flutter run -d chrome`, or `./bin/fsa start --cdp-port=<port>` for 
 
 ## Off-limits
 
-- Generated files are regenerated, never edited: `docs/component-registry.md` (`bin/sync-registry`), `lib/config/wind_theme.g.dart` (`design:sync`), `lib/_previews.g.dart` (`previews:refresh`), `lib/app/commands/_index.g.dart` (`commands:refresh`), `.artisan/plugins.json`, and everything `bin/sync-instructions` writes under `.github/`.
+- Generated files are regenerated, never edited: `.github/skills/{magic-framework,wind-ui}/SKILL.md` (`bin/sync-skills`, and each carries the hash CI checks it against, so an edit here fails the build), `docs/component-registry.md` (`bin/sync-registry`), `lib/config/wind_theme.g.dart` (`design:sync`), `lib/_previews.g.dart` (`previews:refresh`), `lib/app/commands/_index.g.dart` (`commands:refresh`), `.artisan/plugins.json`, and everything `bin/sync-instructions` writes under `.github/`.
 - `backend/vendor/`, `build/`, `.dart_tool/`.
 - `design:sync`, `design:lint`, `make:component` and `previews:refresh` are `magic`'s commands, not this project's, and there is no `depools:artisan`.
 - This repository is public. The tracked `.env` files hold only values that ship to every client anyway; real credentials live on the box and in the CI secret store.
@@ -162,6 +162,7 @@ Running it: `flutter run -d chrome`, or `./bin/fsa start --cdp-port=<port>` for 
 | `.github/instructions/*.instructions.md` | generated from those rules, so Copilot's PR review applies the same rules. `applyTo` is required: Copilot ignores a file in that directory without it |
 | `.github/instructions/review.instructions.md` | the ONE hand-authored file there, passed through by `bin/sync-instructions` rather than generated. The always-on review floor: the four properties as checks, plus the settled decisions a reviewer should stop raising. `excludeAgent` keeps it away from the coding agent |
 | `.github/skills/code-review/SKILL.md` | the review depth, pulled in by Copilot code review when it judges it relevant: the review order, wrong-and-right pairs per layer, and what a finished vertical includes. The directory name is `code-review` because GitHub's guidance is that a review-focused name is what makes the skill reliably read |
+| `.github/skills/{magic-framework,wind-ui}/SKILL.md` | COPIES of the sibling packages' own authoring skills, written by `bin/sync-skills`, so the reviewer knows the framework rather than only our summary of it. Copies and not symlinks because the review runs on GitHub with this checkout alone, and the sources are separate repositories. Two of the five: `artisan`, `dusk` and `telescope` describe tools that drive a running app, which a reviewer reading a diff cannot use |
 | `docs/verification-loop.md` | how a change is proven: static, visual, and dusk E2E |
 | `docs/depools-system/` | the specification: positioning, schema, AI design, monetization, legal, the iteration plan, one document per feature |
 | `docs/design-culture/` | external canon only (Apple HIG, Material 3, Refactoring UI, WCAG 2.2). Read it for why a rule exists; it deliberately names no token, component or breakpoint of this app |

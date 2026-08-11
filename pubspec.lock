@@ -400,37 +400,42 @@ packages:
   fluttersdk_artisan:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/artisan"
-      relative: false
-    source: path
+      name: fluttersdk_artisan
+      sha256: c439ab7cdc9c7341c423e31b0fa1d303133d401e2aa0ab2e516086eb7fc7be5f
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.9"
   fluttersdk_dusk:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/dusk"
-      relative: false
-    source: path
+      name: fluttersdk_dusk
+      sha256: f546cf99844e91a91aca36b99a21427b84cd71aca3ba151094f2f21708dbf418
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.9"
   fluttersdk_telescope:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/telescope"
-      relative: false
-    source: path
+      name: fluttersdk_telescope
+      sha256: "60685316ee9f992edf2832b729e64df208f075d5f526c97f7a067ae884d58066"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.4"
   fluttersdk_wind:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "/Users/anilcan/Code/fluttersdk/wind"
-      relative: false
-    source: path
+      name: fluttersdk_wind
+      sha256: "009b56590384e05bf41478744859b3ab73ed2c1da60edb3cb84fe6cc1c77e53b"
+      url: "https://pub.dev"
+    source: hosted
     version: "1.3.0"
   fluttersdk_wind_diagnostics_contracts:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "/Users/anilcan/Code/fluttersdk/wind_diagnostics_contracts"
-      relative: false
-    source: path
+      name: fluttersdk_wind_diagnostics_contracts
+      sha256: "5d6b324dc334da9ab0b4b4703a551af5b080c4f659f57209a5516cf94e04f1f1"
+      url: "https://pub.dev"
+    source: hosted
     version: "1.0.0"
   glob:
     dependency: transitive
@@ -707,44 +712,50 @@ packages:
   magic:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/magic"
-      relative: false
-    source: path
+      name: magic
+      sha256: "61280e421b58a943898bd4d8481e27994802da5bdc44cbaf705642b2de83f659"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.6"
   magic_deeplink:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/magic_deeplink"
-      relative: false
-    source: path
+      name: magic_deeplink
+      sha256: f04abe3ae5d674aa0322a17e17adc050792333fa3e4c0f87fe329581dc0ea003
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.2"
   magic_devtools:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/magic_devtools"
-      relative: false
-    source: path
+      name: magic_devtools
+      sha256: a2a60df3f5a9fdaf6709b1f84d0b7033adbcf882e820134123e18c72f4d6af0e
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.3"
   magic_notifications:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/magic_notifications"
-      relative: false
-    source: path
+      name: magic_notifications
+      sha256: c87dce13724263b39926782c9c2cd854bcc4b415dd066c48ff3d96fd6f17a2a5
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.2"
   magic_social_auth:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/magic_social_auth"
-      relative: false
-    source: path
+      name: magic_social_auth
+      sha256: "6a92d5902a11b744d7f53002127541e5d4c4ef52850bfc95f23ac74fbad4de0a"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.2"
   magic_starter:
     dependency: "direct main"
     description:
-      path: "/Users/anilcan/Code/fluttersdk/magic_starter"
-      relative: false
-    source: path
+      name: magic_starter
+      sha256: "549266d873e83737b1a73c18ae07f6a900710f3e303aee7a9bbb9cc285089db7"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.1-alpha.19"
   matcher:
     dependency: transitive
