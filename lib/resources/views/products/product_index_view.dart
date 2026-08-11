@@ -143,7 +143,23 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     super.initState();
 
     if (widget.items == null) {
-      _controller = ProductController.instance..addListener(_onControllerChanged);
+      final ProductController controller = ProductController.instance
+        ..addListener(_onControllerChanged);
+
+      // **`onInit` has to be called here, and nothing else calls it.** `Magic.findOrPut` only
+      // registers the instance, and the only caller of `onInit` in the framework is `MagicView`,
+      // which this screen is not. So a controller reached through `.instance` from a plain
+      // `StatefulWidget` never initialises: the screen showed "No products yet" against a tenant
+      // holding eleven, with no request in the server log at all, which is `flutter-app.md`'s
+      // "onInit alone never fires for a non-backing controller" reproduced exactly.
+      //
+      // Guarded on `initialized` rather than called unconditionally, because the controller is
+      // keyed by type and outlives this screen: a second visit would otherwise refetch on every
+      // navigation. `onInit` itself sets that flag, so this is the same once-only contract a
+      // `MagicView` would give it.
+      if (!controller.initialized) controller.onInit();
+
+      _controller = controller;
     }
   }
 

@@ -631,7 +631,12 @@
       "product_count": ":count products",
       "all_of_them": "all :count of them",
       "all": "All",
-      "load_failed": "Could not load products"
+      "load_failed": "Could not load products",
+      "saved": {
+        "expired": "Expired",
+        "expiring": "Expiring soon",
+        "out_of_stock": "Out of stock"
+      }
     },
     "scan": {
       "title": "Scan a barcode",
@@ -961,6 +966,7 @@
       "clear": "Clear"
     },
     "filter_chip": {
+      "apply": "Apply the :label filter",
       "remove": "Remove the :label filter"
     },
     "label_card": {
