@@ -33,6 +33,46 @@ class ProductDetailController extends MagicController
   /// The id currently held, or null before the first load.
   String? get loadedId => _loadedId;
 
+  /// Brings stock in, then reloads so the screen shows what the ledger now says.
+  ///
+  /// Returns null on success, or the server's message. The caller decides how to show it, because a
+  /// failed write must NOT put this controller into its error state: that would blank a screen the
+  /// user is looking at over a write that changed nothing.
+  ///
+  /// The reload is `force: true`, because the guard exists to stop a revisit refetching and this is
+  /// the one case where the held copy is known to be stale: the lots it is drawing are exactly what
+  /// just changed.
+  Future<String?> receive({
+    required String productId,
+    required String locationId,
+    required num quantity,
+    String? expiresAt,
+    String? lotCode,
+  }) async {
+    final response = await Http.post('/stock/receive', data: {
+      'product_id': productId,
+      'location_id': locationId,
+      'quantity': quantity,
+      'expires_at': ?expiresAt,
+      if (lotCode != null && lotCode.isNotEmpty) 'lot_code': lotCode,
+    });
+
+    if (!response.successful) {
+      // The endpoint answers 422 with `message` plus per-field `errors`, and the writer's own
+      // refusals ("not enough stock at the source") arrive the same way under `quantity`. The
+      // message is the one worth showing: it names the reason rather than the field.
+      final dynamic message = response['message'];
+
+      return message is String && message.isNotEmpty
+          ? message
+          : Lang.get('screens.stock_in.failed');
+    }
+
+    await load(productId, force: true);
+
+    return null;
+  }
+
   /// Fetches one product, unless it is already the one held.
   ///
   /// [force] is for after a write: receiving stock changes the lots this screen is drawing, and
