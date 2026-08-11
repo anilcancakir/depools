@@ -37,6 +37,10 @@ final class ProductResource extends JsonResource
                 'stock',
                 fn (): string => number_format((float) $this->stock->sum('quantity'), 3, '.', ''),
             ),
+            // Names rather than objects, because that is the entire payload: the chip renders a name and
+            // the filter sends a name back. Sending `{id, name}` pairs would put a second identifier on
+            // the wire for a value that is already unique per tenant by its fold.
+            'tags' => $this->whenLoaded('tags', fn (): array => $this->tags->pluck('name')->all()),
             'locations' => LocationStockResource::collection($this->whenLoaded('stock')),
         ];
     }

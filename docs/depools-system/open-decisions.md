@@ -716,7 +716,7 @@ movement does (D51): a row that vanished on rejection is one the user cannot un-
 ## Open
 
 > **The file is append-only, so this heading is not a clean boundary.** Decisions taken after O1 to O5
-> were appended below them rather than moved up, which means **D61 through D113 are TAKEN decisions
+> were appended below them rather than moved up, which means **D61 through D114 are TAKEN decisions
 > sitting under this heading**. Do not read a `D` number here as an open question.
 >
 > What is genuinely open, in full: **O1** payment provider for Turkey, **O2** vision model and credit
@@ -2074,3 +2074,50 @@ violation and then writes anything else gets `25P02, current transaction is abor
 refusal has to be wrapped in `DB::transaction`, which issues a SAVEPOINT and rolls back to it. SQLite
 would have carried on, so this is the second thing D72 surfaced by moving the suite onto the database
 production uses.
+
+### D114. Tags are a canonical per-tenant table, and the taxonomy could not have replaced them
+
+`tags` plus a `product_tag` pivot, unique on `(team_id, name_normalized)`. `Product::syncTags()` is the
+only sanctioned way in.
+
+**This was a deferred decision that three documents had already spent.** `ai-enrichment.md` left "whether
+tag generation is worth keeping" open, wondering whether tags "may be redundant now that a real shared
+category taxonomy exists". Meanwhile `filtering-and-saved-views.md` made `tag` a multi-select filter axis,
+`ai-design.md` gave the assistant a `tag` parameter on `search_products`, and the mockups painted the
+chips on the product page and the filter sheet. No column existed anywhere in 48 tables.
+
+The redundancy question was settled by measurement rather than taste. A product carries exactly one
+`product_category_id` and `product_categories` is a single-parent tree, so the test is whether the tags in
+use are each expressible as one category:
+
+| Tag in the mockups | What it is | A category can hold it |
+|---|---|---|
+| `bakliyat` | a category | yes, and it IS redundant |
+| `kahvaltı` | a use occasion | no, it cuts across every category |
+| `soğuk zincir` | a handling property | no |
+| `sarf` | a business classification | no |
+
+Three of four survive, so the axis stays.
+
+**Canonical rather than a `jsonb` array, and the reason is that a MODEL writes these.**
+`ai-enrichment.md` lists tags among the fields enrichment generates, so the failure mode is not a careless
+user, it is a generator producing `kahvaltı` on one product and `Kahvaltı` on the next. Free-text storage
+would then show two chips for one idea and a user would have to tick both to get their own shelf back.
+Uniqueness on the FOLD means the second spelling resolves to the existing row: exactly the argument D89
+made for the resolution cascade's aliases, one layer up. The display name of an existing tag is left
+alone, because a generator's later capitalisation is not a reason to rewrite what a user has been looking
+at.
+
+Rejected: `products.tags jsonb` with a GIN index. It is one column and no join, the filter
+(`tags ?| array[...]`) is fast, and it is the option I would pick if a human typed every tag. It has no
+canonical set, so two spellings diverge silently, renaming a tag means updating every row, and counting
+requires unnesting.
+
+Rejected: removing tags from the UI and leaning on category plus saved filters. Cheapest, and it loses
+`kahvaltı`, `soğuk zincir` and `sarf` with nowhere to put them. It also means editing three documents to
+withdraw an axis two of them promise to the assistant, which would make the assistant and the UI disagree
+about what can be filtered, and `filtering-and-saved-views.md` exists to prevent exactly that split.
+
+`Tag` is the fourth user of `NormalisesName` and it is in the nightly sweep's `name_normalized_drift`
+check, which matters more here than for a product: the fold IS the canonical mechanism, so a stale one
+lets a rival row appear.

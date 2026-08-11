@@ -8,9 +8,11 @@ use Illuminate\Support\Str;
 /**
  * Keeps `name_normalized` in step with `name`, for the tables the resolution cascade searches.
  *
- * Three concrete users, which is what earns a trait rather than a copy: `GlobalProduct`, `OffProduct`
- * and `Product`. All three are matched against a truncated receipt line, so all three need the same
- * fold and the same guarantee that the fold is current.
+ * Four concrete users, which is what earns a trait rather than a copy: `GlobalProduct`, `OffProduct`,
+ * `Product` and `Tag`. The first three are matched against a truncated receipt line, so all of them need
+ * the same fold and the same guarantee that the fold is current. `Tag` uses it for a different reason
+ * that lands in the same place: the fold is what makes its canonical set canonical, so `Kahvaltı` has to
+ * resolve to the row `kahvaltı` already created rather than becoming a rival to it.
  *
  * ### Why a mutator and not an observer
  *

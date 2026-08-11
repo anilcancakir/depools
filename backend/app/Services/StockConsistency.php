@@ -7,6 +7,7 @@ use App\Models\OffProduct;
 use App\Models\Product;
 use App\Models\Scopes\TeamScope;
 use App\Models\StockLot;
+use App\Models\Tag;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -388,6 +389,10 @@ final class StockConsistency
         // finding on one of them belongs to no team rather than to an unknown one.
         $models = [
             Product::class => true,
+            // `Tag` matters more than its size suggests: the fold is what makes the canonical set
+            // canonical, so a stale `name_normalized` lets a second spelling create a rival tag and the
+            // filter chip row shows one idea twice.
+            Tag::class => true,
             GlobalProduct::class => false,
             OffProduct::class => false,
         ];

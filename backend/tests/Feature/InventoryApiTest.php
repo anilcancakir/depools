@@ -100,6 +100,37 @@ final class InventoryApiTest extends TestCase
             ->assertJsonPath('data.locations.0.earliest_expires_at', '2026-09-01');
     }
 
+    public function test_the_endpoint_serves_the_tags_the_screen_renders(): void
+    {
+        [, , $product] = $this->tenant('Birinci');
+
+        $product->syncTags(['kahvaltı', 'soğuk zincir']);
+
+        // The loop the audit found open: `ProductShowView` painted these chips and no endpoint could
+        // ever have sent them. Names rather than objects, because the chip renders a name and the filter
+        // sends one back.
+        $this->getJson('/api/v1/products/'.$product->getKey())
+            ->assertOk()
+            ->assertJsonPath('data.tags', ['kahvaltı', 'soğuk zincir']);
+    }
+
+    public function test_a_tenant_never_sees_another_tenants_tags(): void
+    {
+        [, , $mine] = $this->tenant('Birinci');
+        $mine->syncTags(['kahvaltı']);
+
+        [, , $theirs] = $this->tenant('İkinci');
+        $theirs->syncTags(['kahvaltı']);
+
+        // Two canonical rows, one per tenant, and the eager load must not cross between them. The
+        // `tenant()` helper leaves the caller acting as the LAST tenant it created.
+        $this->getJson('/api/v1/products/'.$theirs->getKey())
+            ->assertOk()
+            ->assertJsonPath('data.tags', ['kahvaltı']);
+
+        $this->getJson('/api/v1/products/'.$mine->getKey())->assertNotFound();
+    }
+
     public function test_taking_more_than_exists_is_422_rather_than_500(): void
     {
         [, $location, $product] = $this->tenant('Birinci');

@@ -8,6 +8,7 @@ use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use RuntimeException;
@@ -112,6 +113,45 @@ final class Product extends Model
     public function lots(): HasMany
     {
         return $this->hasMany(StockLot::class);
+    }
+
+    /**
+     * The tenant's cross-cutting labels on this product.
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'product_tag')
+            ->using(ProductTag::class)
+            ->withTimestamps()
+            ->orderBy('tags.name');
+    }
+
+    /**
+     * Set this product's tags from names, creating only the tags whose fold is genuinely new.
+     *
+     * The sanctioned way in, and the reason it exists rather than leaving callers to `attach()`:
+     *
+     * - a raw `attach()` would insert a pivot row with a null `team_id`, which the column refuses. The
+     *   pivot is a row in a tenant table rather than a tenant model, so nothing stamps it automatically.
+     * - a caller resolving tags itself would eventually match on `name` instead of on the fold, and the
+     *   canonical set that makes the chip row readable would quietly stop being canonical.
+     *
+     * `sync` rather than `attach`, because the tag editor sends the full set the product should end up
+     * with: an enrichment pass that returns two tags for a product that had three is REPLACING them, and
+     * additive semantics would make removing a wrong tag impossible from that path.
+     *
+     * @param  list<string>  $names
+     */
+    public function syncTags(array $names): void
+    {
+        $ids = [];
+
+        foreach ($names as $name) {
+            $tag = Tag::findOrCreateFor($name);
+            $ids[$tag->getKey()] = ['team_id' => $this->team_id];
+        }
+
+        $this->tags()->sync($ids);
     }
 
     /**

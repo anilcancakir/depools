@@ -20,7 +20,7 @@ final class ProductController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return ProductResource::collection(
-            Product::query()->with('stock')->orderBy('name')->get(),
+            Product::query()->with(['stock', 'tags'])->orderBy('name')->get(),
         );
     }
 
@@ -29,9 +29,11 @@ final class ProductController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:255'],
-            // Unique within the tenant only, and enforced here rather than by a database index
-            // because a partial unique index (only where `sku` is not null) is not portable to
-            // sqlite, and because validation can say which product already holds the code.
+            // Unique within the tenant only. The reason recorded here used to be that "a partial unique
+            // index is not portable to sqlite", which stopped being true when D72 moved the suite onto
+            // PostgreSQL: `products_team_sku_unique` now exists and is the real guarantee. This rule
+            // stays because it is the only one of the two that can say WHICH product already holds the
+            // code, and a 422 naming the conflict beats a 500 from a constraint.
             'sku' => ['nullable', 'string', 'max:64', Rule::unique('products', 'sku')
                 ->where('team_id', $request->user()->current_team_id)
                 ->whereNull('deleted_at')],
@@ -50,7 +52,7 @@ final class ProductController extends Controller
     public function show(string $id): ProductResource
     {
         return new ProductResource(
-            Product::query()->with('stock')->findOrFail($id),
+            Product::query()->with(['stock', 'tags'])->findOrFail($id),
         );
     }
 }

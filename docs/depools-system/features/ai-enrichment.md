@@ -163,10 +163,27 @@ the ledger means, and that is a conversion rather than a field edit.
 ## Open
 
 - Which model per entry point. Product recognition weights cost, receipt extraction weights accuracy, and they may not be the same model (O2).
-- Whether tag generation is worth keeping. The MVP had a dedicated agent for it, but tags may be redundant now that a real shared category taxonomy exists. Design should decide whether users actually use tags when categories are good.
 - How many items one shelf photo should attempt. Too many and the review becomes a chore, too few and the feature disappoints.
 
 ### Settled since this list was written
+
+**Tag generation is worth keeping, and the answer came from measurement rather than from taste (D114).**
+The question above asked whether tags are redundant "now that a real shared category taxonomy exists". A
+product carries exactly one `product_category_id` and the taxonomy is a single-parent tree, so the test is
+whether the tags actually in use are expressible as one category each. The four in the mockups:
+`bakliyat` is a category and IS redundant; `kahvaltı` is a use occasion, `soğuk zincir` a handling
+property, and `sarf` a business classification, and none of those three can be a category because each
+cuts across all of them. Three of four survive, so the axis stays.
+
+It also stopped being a design question the moment three other surfaces started promising it:
+`filtering-and-saved-views.md` lists `tag` as a multi-select filter axis, `ai-design.md` gives the
+assistant a `tag` parameter on `search_products`, and the mockups paint the chips. Meanwhile no column
+existed anywhere, so the honest state was a deferred decision that three documents had already spent.
+
+Storage is a canonical `tags` table per tenant plus a `product_tag` pivot, unique on the FOLD rather than
+on the name, specifically because THIS document lists tags among the fields enrichment generates: the
+failure mode is a model writing `kahvaltı` once and `Kahvaltı` next time, and a canonical row is what the
+generator converges on instead of competing with.
 
 **The shelf photo is v1.** The blocker recorded here was that it needs its own review UI and that this is real design work. That work is done: D60 settled the shape (the photograph stays on screen with numbered boxes and the rows carry the same numbers), and `ShelfPhotoView` plus `ShelfCandidateRow` implement it, including the failed-read state. What is left is wiring it to a real endpoint, which is the same work every other screen is waiting on rather than a design question.
 

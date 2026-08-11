@@ -22,7 +22,7 @@ Read `features/inventory-core.md` for the behaviour built on top of this.
 > `ai_credit_grants` (D106, because a credit balance has to be derived for the same reason a stock
 > balance does).
 >
-> The full record is `open-decisions.md`, D72 to D113.
+> The full record is `open-decisions.md`, D72 to D114.
 
 ## The two decisions that shape everything
 
@@ -83,6 +83,37 @@ Unique: (`team_id`, `sku`) where `sku` is not null.
 `tracking_mode` is effectively immutable in the `serial` direction: a product with serials cannot go back to lots, because the serials have no fungible quantity to collapse into.
 
 **Enforced in three places, one per failure mode (D109), and "at validation" was never one of them.** The vocabulary is a CHECK, because a closed set of values constrains rather than derives. The transition is a model guard, because it compares against another table: `serial -> lot` is refused as soon as one serial row exists, which is permanent because a released serial is kept as evidence, while `lot -> serial` is refused only while a lot still holds stock, so an emptied lot does not block a correction. The write that could create the contradiction is refused by `StockWriter::receive`.
+
+### tags and product_tag
+
+A tenant's cross-cutting labels, and the pivot onto products. Added by D114, because three surfaces
+rendered tags and no table stored them.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, pk | |
+| `team_id` | uuid, fk teams | per tenant; `kahvaltı` means something specific to one cafe |
+| `name` | string(48) | as first written, and never rewritten by a later spelling |
+| `name_normalized` | string(48) | the same fold `products` uses (D82, D88) |
+
+Unique: (`team_id`, `name_normalized`). **On the fold and not on `name`**, which is the whole mechanism:
+`ai-enrichment.md` lists tags among the fields enrichment GENERATES, so the failure being prevented is a
+model writing `kahvaltı` once and `Kahvaltı` next time, leaving the filter chip row showing one idea twice.
+The second spelling resolves to the first row instead. Same argument D89 made for the cascade's aliases.
+
+`product_tag` carries `id`, `team_id`, `product_id`, `tag_id`, unique on (`product_id`, `tag_id`), indexed
+on (`team_id`, `tag_id`) for the multi-select filter's direction. `team_id` sits on the pivot rather than
+being inferred through the product, matching `product_barcode`: the filter asks "which of MY products carry
+these tags" and that has to be an index lookup rather than a join to find out whether the answer was ours.
+
+**Why this is not a category.** A product has exactly one `product_category_id` and the taxonomy is a
+single-parent tree, so a tag is precisely what that cannot express. Of the four in the mockups, `bakliyat`
+IS a category and is redundant; `kahvaltı` (a use occasion), `soğuk zincir` (a handling property) and
+`sarf` (a business classification) each cut across every category.
+
+`Product::syncTags()` is the only sanctioned way in. A raw `attach()` would insert a pivot row with a null
+`team_id`, which the column refuses, and a caller resolving tags itself would eventually match on `name`
+instead of on the fold.
 
 ### product_units
 
