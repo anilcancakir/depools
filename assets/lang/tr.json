@@ -630,7 +630,8 @@
       "all_group": "Tüm ürünler",
       "product_count": ":count ürün",
       "all_of_them": ":count ürünün hepsi",
-      "all": "Tümü"
+      "all": "Tümü",
+      "load_failed": "Ürünler yüklenemedi"
     },
     "scan": {
       "title": "Barkod tara",
@@ -1019,6 +1020,11 @@
     },
     "label_preview": {
       "placeholder": "Sunucuda oluşturulur"
+    },
+    "expiry_badge": {
+      "days": ":days gün",
+      "expired": "Süresi geçti",
+      "today": "Bugün"
     }
   }
 }

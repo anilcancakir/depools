@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/products/product_fixtures.dart';
 import '../resources/views/products/product_index_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -14,5 +15,5 @@ class ProductIndexScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const ProductIndexView();
+  static Widget _build(BuildContext context) => const ProductIndexView(items: productFixtures);
 }

@@ -630,7 +630,8 @@
       "all_group": "All products",
       "product_count": ":count products",
       "all_of_them": "all :count of them",
-      "all": "All"
+      "all": "All",
+      "load_failed": "Could not load products"
     },
     "scan": {
       "title": "Scan a barcode",
@@ -1019,6 +1020,11 @@
     },
     "label_preview": {
       "placeholder": "Rendered on the server"
+    },
+    "expiry_badge": {
+      "days": ":days days",
+      "expired": "Expired",
+      "today": "Today"
     }
   }
 }

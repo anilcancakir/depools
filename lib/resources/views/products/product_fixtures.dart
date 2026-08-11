@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:magic/magic.dart';
 
 import '../../../app/models/product_filter.dart';
 import 'product_filter_sheet.dart';
@@ -292,6 +293,69 @@ class ProductListItem {
   /// directly.
   final List<LotFixture> lots;
 
+  /// Builds one row from an `api/v1/products` element.
+  ///
+  /// This is the swap the class docblock above promised: the shape stays, only the source
+  /// changes. It lives beside the fixtures rather than in the controller because the two
+  /// have to agree, and a mapping in the controller is a second definition of the same row
+  /// that nothing compares against.
+  ///
+  /// **[locationLabels] is passed in rather than looked up.** The payload carries location
+  /// IDs and the row prints names, so the caller fetches `/locations` once for the page and
+  /// hands the map down. Resolving per row would be one request per product.
+  ///
+  /// Four fields stay null on purpose, and each is a real absence rather than a gap in this
+  /// mapping: `openRemainder` and `openDaysRemaining` need lot-level data the list payload
+  /// does not carry, `daysOfCover` needs the forecasting service, and `categoryLabel` needs
+  /// the taxonomy. Every one of them is already documented as nullable above, and the row
+  /// renders correctly without them.
+  factory ProductListItem.fromApi(
+    Map<String, dynamic> json, {
+    required Map<String, String> locationLabels,
+    DateTime? today,
+  }) {
+    final List<Map<String, dynamic>> stock = <Map<String, dynamic>>[
+      for (final dynamic row in (json['locations'] as List<dynamic>? ?? const <dynamic>[]))
+        Map<String, dynamic>.from(row as Map<dynamic, dynamic>),
+    ];
+
+    final Set<String> locationIds = <String>{
+      for (final Map<String, dynamic> row in stock) row['location_id'] as String,
+    };
+
+    final DateTime? earliest = _earliestDate(stock);
+    final DateTime reference = _dateOnly(today ?? DateTime.now());
+    final int? days = earliest?.difference(reference).inDays;
+
+    return ProductListItem(
+      name: json['name'] as String,
+      brand: json['brand'] as String?,
+      description: json['description'] as String?,
+      sku: json['sku'] as String?,
+      amount: _toNum(json['quantity']) ?? 0,
+      formatted: _format(_toNum(json['quantity']) ?? 0),
+      unit: json['base_unit'] as String,
+      contentAmount: _toNum(json['content_amount']),
+      contentUnit: json['content_unit'] as String?,
+      parLevel: _toNum(json['par_level']),
+      shelfLifeDays: json['default_shelf_life_days'] as int?,
+      movementCount: json['movements_count'] as int? ?? 0,
+      daysUntilExpiry: days,
+      expiryLabel: days == null ? null : _expiryLabel(days),
+      locationIds: locationIds,
+      locationSummary: locationIds
+          .map((String id) => locationLabels[id])
+          .whereType<String>()
+          .join(' · '),
+      categoryId: json['product_category_id'] as String?,
+      tags: <String>{
+        for (final dynamic tag in (json['tags'] as List<dynamic>? ?? const <dynamic>[]))
+          tag as String,
+      },
+      tracking: json['tracking_mode'] == 'serial' ? TrackingMode.serial : TrackingMode.lot,
+    );
+  }
+
   /// Creates a [ProductListItem].
   const ProductListItem({
     required this.name,
@@ -404,6 +468,54 @@ class ProductListItem {
   static String _format(num value) {
     if (value == value.roundToDouble()) return value.round().toString();
     return value.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  /// A decimal that PostgreSQL sends as a string, or null.
+  ///
+  /// `decimal:3` arrives as `'6.000'` rather than as a number, so every threshold on this row
+  /// would compare a string against a num and silently fail if it were read directly.
+  static num? _toNum(Object? value) => switch (value) {
+    null => null,
+    final num n => n,
+    final String s => num.tryParse(s),
+    _ => null,
+  };
+
+  static DateTime _dateOnly(DateTime value) => DateTime(value.year, value.month, value.day);
+
+  /// The soonest binding date across the locations holding this product.
+  ///
+  /// Derived here rather than sent, because the payload already carries one date per location
+  /// and a product-level copy is a second number that can disagree with the first. Already the
+  /// BINDING date, so an opened lot has shortened it server-side (D27).
+  static DateTime? _earliestDate(List<Map<String, dynamic>> stock) {
+    DateTime? earliest;
+
+    for (final Map<String, dynamic> row in stock) {
+      final String? raw = row['earliest_expires_at'] as String?;
+      if (raw == null) continue;
+
+      final DateTime? parsed = DateTime.tryParse(raw);
+      if (parsed == null) continue;
+
+      if (earliest == null || parsed.isBefore(earliest)) earliest = parsed;
+    }
+
+    if (earliest == null) return null;
+
+    return _dateOnly(earliest);
+  }
+
+  /// The badge text for a binding date.
+  ///
+  /// `ExpiryBadge.maybe` returns nothing unless it has BOTH a label and a day count, so a null
+  /// label here does not degrade the badge, it removes it. Which is why this exists rather than
+  /// the row being left to phrase it: the copy belongs in the catalogue either way.
+  static String _expiryLabel(int days) {
+    if (days < 0) return Lang.get('components.expiry_badge.expired');
+    if (days == 0) return Lang.get('components.expiry_badge.today');
+
+    return Lang.get('components.expiry_badge.days', {'days': days});
   }
 
   /// The neutral window used when a product declares no shelf life.
