@@ -48,19 +48,69 @@ class ProductDetailController extends MagicController
     required num quantity,
     String? expiresAt,
     String? lotCode,
-  }) async {
-    final response = await Http.post('/stock/receive', data: {
-      'product_id': productId,
+  }) {
+    return _write(productId, '/stock/receive', <String, dynamic>{
       'location_id': locationId,
       'quantity': quantity,
       'expires_at': ?expiresAt,
       if (lotCode != null && lotCode.isNotEmpty) 'lot_code': lotCode,
     });
+  }
+
+  /// Takes stock out, FEFO deciding which lots it comes from, then reloads.
+  ///
+  /// [reason] has to be one the endpoint accepts as an OUTFLOW: `consumption`, `waste` or
+  /// `return`. A stock-take correction and a data correction are ledger reasons too, and they are
+  /// deliberately NOT writable here, because either can be positive: they are not outflows and
+  /// `StockWriter::consume` refuses them by design. The count screen owns that path.
+  Future<String?> consume({
+    required String productId,
+    required String locationId,
+    required num quantity,
+    required String reason,
+  }) {
+    return _write(productId, '/stock/consume', <String, dynamic>{
+      'location_id': locationId,
+      'quantity': quantity,
+      'reason': reason,
+    });
+  }
+
+  /// Moves stock between two locations, then reloads.
+  ///
+  /// One call, not an out and an in. A transfer is a PAIR of movements the writer appends together,
+  /// and splitting it client-side would leave a window where the stock exists in neither place.
+  Future<String?> transfer({
+    required String productId,
+    required String fromLocationId,
+    required String toLocationId,
+    required num quantity,
+  }) {
+    return _write(productId, '/stock/transfer', <String, dynamic>{
+      'from_location_id': fromLocationId,
+      'to_location_id': toLocationId,
+      'quantity': quantity,
+    });
+  }
+
+  /// Posts one movement and reloads on success. Returns null, or the server's message.
+  ///
+  /// Extracted on the third caller rather than the first. All three answer 422 the same way, with
+  /// `message` plus per-field `errors`, and the writer's own refusals ("not enough stock at the
+  /// source") arrive through the same shape, so one reader is right for all of them.
+  ///
+  /// The failure is RETURNED rather than set as the controller's error state: blanking a screen the
+  /// user is reading, over a write that changed nothing, is worse than the failure. The reload is
+  /// `force: true`, because the lots on screen are exactly what just changed.
+  Future<String?> _write(String productId, String path, Map<String, dynamic> body) async {
+    final response = await Http.post(path, data: <String, dynamic>{
+      'product_id': productId,
+      ...body,
+    });
 
     if (!response.successful) {
-      // The endpoint answers 422 with `message` plus per-field `errors`, and the writer's own
-      // refusals ("not enough stock at the source") arrive the same way under `quantity`. The
-      // message is the one worth showing: it names the reason rather than the field.
+      // The server's own sentence, because it names the reason. Replacing it with a generic line
+      // throws away the only useful part of a refusal.
       final dynamic message = response['message'];
 
       return message is String && message.isNotEmpty

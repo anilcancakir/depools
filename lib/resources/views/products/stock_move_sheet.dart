@@ -4,6 +4,7 @@ import 'package:magic_starter/magic_starter.dart' show MSBottomSheet, MSButton, 
 
 import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
+import 'product_filter_sheet.dart';
 import 'product_fixtures.dart';
 
 /// Move stock from one location to another.
@@ -28,16 +29,27 @@ class StockMoveSheet extends StatefulWidget {
   /// The product being moved.
   final ProductListItem product;
 
+  /// The tenant's own locations, or the fixture list when the caller has none.
+  ///
+  /// Same reason the in-sheet has this: `locationOptions` matches nothing once the ids are real, so
+  /// the picker offered locations the tenant does not have. The preview passes nothing and keeps the
+  /// fixtures, which is what lets the catalog render offline.
+  final List<FilterOption>? locations;
+
   /// Creates a [StockMoveSheet].
-  const StockMoveSheet({super.key, required this.product});
+  const StockMoveSheet({super.key, required this.product, this.locations});
 
   /// Opens the sheet and resolves with the paired move, or null if dismissed.
-  static Future<StockMoveDraft?> show(BuildContext context, {required ProductListItem product}) {
+  static Future<StockMoveDraft?> show(
+    BuildContext context, {
+    required ProductListItem product,
+    List<FilterOption>? locations,
+  }) {
     return MSBottomSheet.show<StockMoveDraft>(
       context,
       title: Lang.get('screens.stock_move.title'),
       description: product.name,
-      body: StockMoveSheet(product: product),
+      body: StockMoveSheet(product: product, locations: locations),
     );
   }
 
@@ -73,6 +85,31 @@ class StockMoveDraft {
 }
 
 class _StockMoveSheetState extends State<StockMoveSheet> {
+  /// The locations this sheet offers, from the caller when it has them.
+  List<FilterOption> get _locations => widget.locations ?? locationOptions;
+
+  /// A location's full path, or its short label, or the id as a last resort.
+  ///
+  /// Everything here went through `resolveLocationPath`, which searches the FIXTURE options: with
+  /// real ids it returned null, so the picker read "Move from null" on every row and the sentence
+  /// under the amount printed two raw uuids at the user. The caller's list is consulted first now.
+  String _path(String id) {
+    for (final FilterOption option in _locations) {
+      if (option.id == id) return option.fullPath;
+    }
+
+    return resolveLocationPath(id) ?? id;
+  }
+
+  /// The short label, for a sentence rather than a row.
+  String _label(String id) {
+    for (final FilterOption option in _locations) {
+      if (option.id == id) return option.label;
+    }
+
+    return resolveLocationLabel(id) ?? id;
+  }
+
   late String? _from = _sources.firstOrNull;
   String? _to;
 
@@ -88,11 +125,11 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
 
   /// Locations that actually hold some of this product.
   List<String> get _sources =>
-      locationOptions.map((o) => o.id).where((id) => widget.product.amountAt(id) > 0).toList();
+      _locations.map((o) => o.id).where((id) => widget.product.amountAt(id) > 0).toList();
 
   /// Locations this stock could go to: anywhere but where it already is.
   List<String> get _destinations =>
-      locationOptions.map((o) => o.id).where((id) => id != _from).toList();
+      _locations.map((o) => o.id).where((id) => id != _from).toList();
 
   /// Where to propose sending it.
   ///
@@ -125,7 +162,8 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
 
     return <(num, String, String)>[
       if (whole >= 1) (1, base, '1 $base'),
-      if (whole > 1) (whole, base, '$whole $base · hepsi'),
+      if (whole > 1)
+        (whole, base, Lang.get('screens.stock_move.quick_all', {'amount': whole, 'unit': base})),
       if (remainder > 0 && contentUnit != null)
         (remainder, contentUnit, Lang.get('screens.stock_move.quick_open', {'amount': remainder, 'unit': contentUnit})),
     ];
@@ -138,8 +176,8 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
   String get _resultLabel {
     if (!_canCommit) return Lang.get('screens.stock_move.nothing');
 
-    final String fromName = resolveLocationLabel(_from!) ?? _from!;
-    final String toName = resolveLocationLabel(_to!) ?? _to!;
+    final String fromName = _label(_from!);
+    final String toName = _label(_to!);
     return Lang.get('screens.stock_move.after_note', {'from': fromName, 'to': toName});
   }
 
@@ -229,9 +267,9 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
     final num remainder = ((here - whole) * content).round();
 
     return OptionRow(
-      label: resolveLocationPath(id) ?? id,
+      label: _path(id),
       isSelected: id == _from,
-      semanticLabel: Lang.get('screens.stock_move.pick_from', {'path': resolveLocationPath(id)}),
+      semanticLabel: Lang.get('screens.stock_move.pick_from', {'path': _path(id)}),
       onTap: () => setState(() {
         _from = id;
         // The destination list and the amounts both derive from the source, so a stale
@@ -259,14 +297,14 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
     final bool affinityMatches = affinity != null && affinity.$1 == id;
 
     return OptionRow(
-      label: resolveLocationPath(id) ?? id,
+      label: _path(id),
       suggestionReason: !suggested
           ? null
           : affinityMatches
           ? Lang.get('screens.stock_move.suggested_count', {'count': affinity.$2})
           : Lang.get('screens.stock_move.suggested'),
       isSelected: id == _to,
-      semanticLabel: Lang.get('screens.stock_move.pick_to', {'path': resolveLocationPath(id)}),
+      semanticLabel: Lang.get('screens.stock_move.pick_to', {'path': _path(id)}),
       onTap: () => setState(() => _to = id),
     );
   }
