@@ -1,3 +1,4 @@
+import 'package:depools/app/support/count_progress.dart';
 import 'package:depools/resources/views/products/count_fixtures.dart';
 import 'package:depools/resources/views/products/count_line.dart';
 import 'package:depools/resources/views/products/product_fixtures.dart';
@@ -252,6 +253,111 @@ void main() {
       const CountCommit failed = CountCommit.failed('nope');
       expect(failed.lines, isEmpty);
       expect(failed.unfinished, isEmpty);
+    });
+
+    test('a settled row is counted even though it holds no typed figure', () {
+      // **This is the defect Anılcan hit.** A committed row used to lose its typed value, so the
+      // header counted rows with a live figure and fell back to zero the moment a commit landed:
+      // five rows counted, `0 of 25`. A settled row has no live figure BY DESIGN, because that is
+      // what stops it being submitted twice, so the count has to include it from somewhere else.
+      const CountCommit commit = CountCommit.landed(<CountResult>[
+        CountResult(productId: 'a', outcome: CountOutcome.matched, delta: 0),
+        CountResult(productId: 'b', outcome: CountOutcome.written, delta: -1),
+      ]);
+
+      // Both landed, so both are settled and neither is unfinished. `writtenCount` is what the
+      // toast used to report on its own, and it is 1 while the user counted 2.
+      expect(commit.writtenCount, 1);
+      expect(commit.lines.length, 2);
+      expect(commit.unfinished, isEmpty);
+
+      // The pair the toast now states separately: what the user did, and what the ledger did.
+      expect(commit.lines.length, isNot(commit.writtenCount));
+    });
+
+    test('confirming every row against a correct record writes nothing at all', () {
+      // Tapping "same as record" down a shelf is the fastest path through a count and the one that
+      // produced `0 recorded`. Every row matches, so D59 writes nothing, and that is correct: the
+      // failure was reporting the ledger's number as if it were the user's.
+      const CountCommit perfect = CountCommit.landed(<CountResult>[
+        CountResult(productId: 'a', outcome: CountOutcome.matched, delta: 0),
+        CountResult(productId: 'b', outcome: CountOutcome.matched, delta: 0),
+        CountResult(productId: 'c', outcome: CountOutcome.matched, delta: 0),
+      ]);
+
+      expect(perfect.writtenCount, 0);
+      expect(perfect.lines.length, 3);
+      expect(perfect.unfinished, isEmpty);
+    });
+
+    test('a correction typed over a saved row is still a count to submit', () {
+      // **The silent one.** A settled row leaves the sheet, and `_settled` alone decided that, so
+      // restoring one, typing a new number and hiding again dropped the correction three ways: the
+      // row vanished, the verdict still read `Counted · matched`, and the commit filter excluded it.
+      // No error, and the figure sat in the typed map where nothing would ever read it.
+      //
+      // The predicate is "committed AND not being re-typed", which is the same precedence the FIGURE
+      // already used, so a live value outranks a settled one everywhere.
+      final CountLine milk = fridgeCount.first;
+
+      // What the screen holds after a commit: an outcome, and no live figure.
+      const CountResult landed = CountResult(
+        productId: 'p1',
+        outcome: CountOutcome.matched,
+        delta: 0,
+      );
+
+      expect(landed.isUnfinished, isFalse);
+
+      // And what it holds after the user re-types: a live figure beside that same outcome, which has
+      // to read as a count rather than as a settled row.
+      final CountLine retyped = CountLine(
+        product: milk.product,
+        expected: milk.expected,
+        countedWhole: 9,
+      );
+
+      expect(retyped.isCounted, isTrue);
+      expect(retyped.variance, isNot(0), reason: 'a correction that matches nothing must be written');
+    });
+
+    test('skipped is what the shelf has left, not what the sheet is showing', () {
+      // **It printed a negative number.** `skipped` was `lines.length - counted`, and the sheet
+      // excludes settled rows while the count deliberately includes them. Four saved rows hidden on a
+      // shelf of twenty-five reported seventeen instead of twenty-one; a whole shelf settled
+      // reported `-25` at the user.
+      expect(rowsLeftToCount(shelfTotal: 25, counted: 4), 21);
+      expect(rowsLeftToCount(shelfTotal: 25, counted: 25), 0);
+
+      // The two inputs come from different places, so a disagreement has to read as nothing left.
+      expect(rowsLeftToCount(shelfTotal: 4, counted: 25), 0);
+    });
+
+    test('a search cannot declare a shelf finished', () {
+      // The shelf total is the count MATCHING THE QUERY, so searching two rows out of twenty-five and
+      // saving both made settled >= total true. The footer then announced the shelf finished over
+      // twenty-three untouched rows, which is the class of lie this screen exists to avoid.
+      expect(
+        shelfIsFinished(searching: true, settled: 2, shelfTotal: 2, pendingCounts: 0),
+        isFalse,
+        reason: 'a slice of a shelf cannot say the shelf is done',
+      );
+
+      expect(
+        shelfIsFinished(searching: false, settled: 2, shelfTotal: 25, pendingCounts: 0),
+        isFalse,
+      );
+
+      // Something typed and not yet committed is not finished either, however many rows are settled.
+      expect(
+        shelfIsFinished(searching: false, settled: 25, shelfTotal: 25, pendingCounts: 1),
+        isFalse,
+      );
+
+      expect(
+        shelfIsFinished(searching: false, settled: 25, shelfTotal: 25, pendingCounts: 0),
+        isTrue,
+      );
     });
 
     test('only variances write movements', () {

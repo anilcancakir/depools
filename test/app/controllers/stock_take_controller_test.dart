@@ -164,6 +164,34 @@ void main() {
     expect(asked.last, isNot(contains('cursor=')));
   });
 
+  test('the query outlives the screen, which is why the field has to be seeded', () async {
+    // The controller is keyed by type, so leaving the count screen and coming back gives a fresh
+    // `State` with an empty input while this still holds the previous query. The screen seeds its
+    // field from here in `didChangeDependencies`; this pins the half that makes that necessary.
+    Http.fake((MagicRequest request) {
+      if (request.url.contains('/locations')) return locations();
+
+      return page(<String>['a'], total: 1);
+    });
+
+    final StockTakeController controller = StockTakeController();
+
+    await controller.open('shelf');
+    await controller.search('süt');
+
+    expect(controller.query, 'süt');
+
+    // Re-opening the SAME shelf is what a remount does, and it early-returns rather than refetching,
+    // so the query survives. Opening a different one drops it.
+    await controller.open('shelf');
+
+    expect(controller.query, 'süt', reason: 'a remount must not silently discard the search');
+
+    await controller.open('other');
+
+    expect(controller.query, isEmpty, reason: 'another shelf is another list');
+  });
+
   test('reordering refetches, because a cursor belongs to one ordering', () async {
     final List<String> asked = <String>[];
 

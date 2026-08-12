@@ -82,4 +82,120 @@ void main() {
     expect(en['app.name'], 'Depools');
     expect(tr['app.name'], 'Depools');
   });
+
+  group('plural forms', () {
+    // `magic`'s `Lang` has no `choice`, so `lib/app/support/plural.dart` reads Laravel's own
+    // `singular|plural` pipe out of the VALUE. Two ways that goes wrong are silent, and both render
+    // text at the user rather than throwing.
+    final RegExp placeholder = RegExp(r':[a-z_]+');
+
+    test('a pipe splits into exactly two halves', () {
+      // Three halves means one is unreachable, and a trailing pipe means one count renders nothing
+      // at all. Neither is visible until somebody hits that count.
+      for (final MapEntry<String, Map<String, String>> catalogue
+          in <String, Map<String, String>>{'en': en, 'tr': tr}.entries) {
+        for (final MapEntry<String, String> entry in catalogue.value.entries) {
+          if (!entry.value.contains('|')) continue;
+
+          final List<String> halves = entry.value.split('|');
+
+          expect(
+            halves.length,
+            2,
+            reason: '${catalogue.key}: ${entry.key} has ${halves.length} halves',
+          );
+
+          for (final String half in halves) {
+            expect(
+              half.trim(),
+              isNotEmpty,
+              reason: '${catalogue.key}: ${entry.key} has an empty half, so one count renders nothing',
+            );
+          }
+        }
+      }
+    });
+
+    test('both halves interpolate the same names', () {
+      // The halves are interchangeable at runtime, so a placeholder in one and not the other prints
+      // a literal `:count` for exactly one count and reads correctly for every other.
+      for (final MapEntry<String, Map<String, String>> catalogue
+          in <String, Map<String, String>>{'en': en, 'tr': tr}.entries) {
+        for (final MapEntry<String, String> entry in catalogue.value.entries) {
+          if (!entry.value.contains('|')) continue;
+
+          final List<String> halves = entry.value.split('|');
+
+          expect(
+            placeholder.allMatches(halves.last).map((m) => m.group(0)!).toSet(),
+            placeholder.allMatches(halves.first).map((m) => m.group(0)!).toSet(),
+            reason: '${catalogue.key}: ${entry.key} halves do not interpolate the same names',
+          );
+        }
+      }
+    });
+
+    test('a string with two inflecting counts is composed, not piped once', () {
+      // A single pipe can only be right about ONE noun, so a value carrying two independently
+      // varying counts and one pipe is wrong for every case where they differ. `committed_counted`
+      // shipped that way: keyed on the row count while `:written changes written` varied on its own,
+      // and rows-versus-changes differ routinely, because a matching count writes nothing.
+      //
+      // The shape that works is two pluralised fragments and a wrapper holding the separator, which
+      // is also what keeps the composition inside the copy rule. So: a value with a pipe carries at
+      // most one placeholder that a count drives.
+      final RegExp placeholder = RegExp(r':[a-z_]+');
+      const Set<String> countNames = <String>{
+        ':count', ':counted', ':written', ':variances', ':matched', ':skipped', ':unfinished',
+      };
+
+      // **A count followed by a participle drives no inflection, and this test cannot tell.** It
+      // reads placeholder names, not English grammar, so a value where the extra count is followed by
+      // `counted`, `matched`, `skipped` or `left` has to be exempted by hand. Recorded rather than
+      // silently widened, so the exception is a decision instead of a hole:
+      //
+      // - `summary`: `:counted counted · :variances differences`. `counted` is a participle and
+      //   agrees with nothing; `difference` is the noun that inflects, and the pipe is keyed on
+      //   `:variances`. It used to end in the VERB `differ`, whose singular half rendered `1 differs`,
+      //   a verb with no subject; the Turkish side had `fark` as a noun all along, so this was the
+      //   English drifting rather than a translation lagging.
+      const Set<String> participleClauses = <String>{'screens.stock_take.summary'};
+
+      for (final MapEntry<String, String> entry in en.entries) {
+        if (!entry.value.contains('|')) continue;
+        if (participleClauses.contains(entry.key)) continue;
+
+        final Set<String> counts = placeholder
+            .allMatches(entry.value)
+            .map((m) => m.group(0)!)
+            .where(countNames.contains)
+            .toSet();
+
+        // `:matched` is a participle in English too, so it may ride along anywhere.
+        counts.remove(':matched');
+
+        expect(
+          counts.length,
+          lessThanOrEqualTo(1),
+          reason: '${entry.key} pipes on one noun while carrying ${counts.length} counts: $counts. '
+              'Split it into fragments and compose them through a wrapper key.',
+        );
+      }
+    });
+
+    test('a locale that inflects carries a pipe wherever the other one does', () {
+      // Turkish does not inflect after a numeral, so a `tr` value with no pipe is correct rather
+      // than incomplete. English is the other way round: a pipe in `tr` and none in `en` means the
+      // English string agrees with nothing, which is the defect this whole helper exists for.
+      for (final String key in tr.keys) {
+        if (!tr[key]!.contains('|')) continue;
+
+        expect(
+          en[key]!.contains('|'),
+          isTrue,
+          reason: '$key inflects in Turkish and not in English, which is backwards',
+        );
+      }
+    });
+  });
 }
