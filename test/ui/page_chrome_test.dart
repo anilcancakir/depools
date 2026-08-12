@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 // `show`, because magic's barrel re-exports a `TextDirection` of its own (wind's) that shadows the
@@ -35,7 +37,13 @@ void main() {
       MediaQuery(
         data: MediaQueryData(
           size: size,
-          padding: EdgeInsets.only(bottom: safeArea),
+          // **`padding` is DERIVED, and setting the two independently is what made an earlier
+          // version of this file pass for the wrong reason.** Flutter's own documentation gives it
+          // as `max(0.0, viewPadding - viewInsets)`, so a MediaQuery carrying a 34px padding beside
+          // a 20px inset describes a device that does not exist. Modelling it correctly is what
+          // turns the small-inset case below into a real check.
+          viewPadding: EdgeInsets.only(bottom: safeArea),
+          padding: EdgeInsets.only(bottom: math.max(0, safeArea - keyboard)),
           viewInsets: EdgeInsets.only(bottom: keyboard),
         ),
         // The host paints with wind utilities and asks wind whether the window is `lg`, so it
@@ -95,8 +103,10 @@ void main() {
   testWidgets('a keyboard shorter than the clearance does not pull the footer down', (
     WidgetTester tester,
   ) async {
-    // A hardware keyboard attached to a phone reports a small inset for its accessory bar. Taking
-    // the inset unconditionally would drop the footer onto the navigation bar it exists to clear.
+    // A hardware keyboard attached to a phone reports a small inset for its accessory bar. Two
+    // separate ways to get this wrong, and this case catches both: taking the inset unconditionally
+    // drops the footer onto the navigation bar, and deriving the clearance from `padding` rather
+    // than `viewPadding` drops it by however much the inset ate, here 20 of the 34px safe area.
     expect(
       await footerGap(tester, keyboard: 20, safeArea: 34),
       closeTo(navAndSafeArea + footerPadding, 0.5),

@@ -593,7 +593,12 @@ class _StockTakeViewState extends State<StockTakeView> {
       ),
     );
 
-    if (picked == null || !mounted || picked == _locationId) return;
+    // **Against the RESOLVED shelf, not the raw field.** `_locationId` is empty until the user picks
+    // one, while `_activeLocation` has already resolved to the first shelf holding stock, so on the
+    // shelf the screen opens on the two disagree. Comparing the raw field there made "pick the shelf
+    // I am already counting" run the whole reset: typed figures, settled rows and the search, gone
+    // for a gesture that changed nothing.
+    if (picked == null || !mounted || picked == _activeLocation) return;
 
     setState(() {
       _locationId = picked;

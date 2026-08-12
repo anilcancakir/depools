@@ -111,8 +111,15 @@ class _PageChromeHostState extends State<PageChromeHost> {
   ///
   /// Read through wind's own predicate rather than a width literal, because the shell decides with
   /// that predicate. A number here would be the same decision written twice.
+  ///
+  /// **`viewPadding` and not `padding`, because `padding` shrinks when a keyboard opens.** Flutter
+  /// computes it as `max(0, viewPadding - viewInsets)`, so reading it here made the clearance a
+  /// function of the keyboard: a small inset, which is what a hardware keyboard's accessory bar
+  /// reports, took `padding.bottom` from 34 to 14 and dropped the footer 20 pixels ONTO the
+  /// navigation bar. The safe area does not move when the keyboard appears, and this is the value
+  /// that says so.
   double _clearance(BuildContext context) =>
-      wScreenIs(context, 'lg') ? 0 : _navClearance + MediaQuery.paddingOf(context).bottom;
+      wScreenIs(context, 'lg') ? 0 : _navClearance + MediaQuery.viewPaddingOf(context).bottom;
 
   final ValueNotifier<Widget?> _footer = ValueNotifier<Widget?>(null);
   final GlobalKey _footerKey = GlobalKey();
