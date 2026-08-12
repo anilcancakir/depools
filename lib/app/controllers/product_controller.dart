@@ -60,6 +60,8 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
 
   ProductFilter _filter = const ProductFilter();
 
+  ProductSort _sort = ProductSort.name;
+
   String? _cursor;
 
   int _total = 0;
@@ -112,6 +114,14 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   /// What the loaded rows were fetched with.
   ProductFilter get filter => _filter;
 
+  /// How the loaded rows are ordered.
+  ///
+  /// Held beside the filter rather than inside it, because a sort is not a criterion: it changes
+  /// nothing about WHICH rows match, so folding it into `ProductFilter` would make `activeCount`
+  /// count it, `criteria()` render it as a removable chip, and `isEmpty` say a sorted list is
+  /// filtered.
+  ProductSort get sort => _sort;
+
   /// How many rows match [filter] in total, not how many are loaded.
   int get total => _total;
 
@@ -159,11 +169,17 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   /// The cursor is dropped rather than kept, which is the whole reason this is not a setter: a cursor
   /// is a position in ONE ordered result, so carrying it across a filter change would ask the server
   /// to continue a list that no longer exists.
-  Future<void> apply(ProductFilter next) async {
-    if (next == _filter) return;
+  Future<void> apply(ProductFilter next, {ProductSort? sort}) async {
+    final ProductSort nextSort = sort ?? _sort;
+
+    if (next == _filter && nextSort == _sort) return;
 
     _filter = next;
+    _sort = nextSort;
 
+    // The cursor is dropped by `load`, which is what a sort change needs even more than a filter
+    // change does: a cursor is a position in ONE ordering, so continuing it under a different one
+    // would ask the server to resume a list that was never produced.
     await load();
   }
 
@@ -488,6 +504,9 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   /// The query string for one browse request.
   String _query({String? cursor}) => _filter.toQueryString(
     extra: <String, Object?>{
+      // Null for the default, so an unsorted request stays as short as it was and the server's own
+      // default is the single definition of "no sort given".
+      'sort': ?_sort.wire,
       'per_page': _pageSize,
       'cursor': ?cursor,
     },

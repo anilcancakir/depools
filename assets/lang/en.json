@@ -813,7 +813,12 @@
       "expiry_expired": "Expired",
       "expiry_expiring_soon": "Expiring soon",
       "expiry_segment_expired": "Expired",
-      "expiry_segment_expiring_soon": "Soon"
+      "expiry_segment_expiring_soon": "Soon",
+      "sort_group": "Order",
+      "sort_name": "Name",
+      "sort_quantity": "Least stock",
+      "sort_expiry": "Expiring soonest",
+      "sort_recent": "Recently changed"
     },
     "activity": {
       "title": "Activity",

@@ -201,6 +201,55 @@ void main() {
     });
   });
 
+    test('the order travels as a parameter, and the default states nothing', () async {
+      final List<String> asked = <String>[];
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+
+        asked.add(request.url);
+
+        return page(<String>['a'], total: 1);
+      });
+
+      final ProductController controller = ProductController();
+
+      await controller.load();
+
+      // The server's own default IS `name`, so sending it would be a second definition of the same
+      // thing, and the first request would differ from a link that carries no sort.
+      expect(asked.last, isNot(contains('sort=')));
+
+      await controller.apply(const ProductFilter(), sort: ProductSort.expiry);
+
+      expect(asked.last, contains('sort=expiry'));
+      expect(controller.sort, ProductSort.expiry);
+    });
+
+    test('changing only the order still refetches, because the cursor belonged to the old one', () async {
+      int requests = 0;
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+
+        requests++;
+
+        return page(<String>['a'], total: 1);
+      });
+
+      final ProductController controller = ProductController();
+
+      await controller.load();
+
+      final int afterLoad = requests;
+
+      // The filter is identical, so an equality check on the filter alone would return early and
+      // leave the list in the previous order with a control claiming otherwise.
+      await controller.apply(const ProductFilter(), sort: ProductSort.quantity);
+
+      expect(requests, afterLoad + 1);
+    });
+
   group('shelf sweep', () {
     test('a shelf walks every page rather than stopping at the first', () async {
       // The count screen's whole sheet comes from this. A single page would be short by exactly the
