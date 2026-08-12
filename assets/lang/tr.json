@@ -755,7 +755,9 @@
       "unfinished": ":count satır stok girişinden tamamlanır",
       "committed": ":count hareket yazıldı",
       "committed_partly": ":count hareket yazıldı · :unfinished satır tamamlanmadı",
-      "commit_failed": "Sayım kaydedilemedi"
+      "commit_failed": "Sayım kaydedilemedi",
+      "search": "Bu rafta ara",
+      "all_of_them": ":count ürünün hepsi"
     },
     "stock_move": {
       "after_note": "Sonrasında :from ve :to güncellenir",

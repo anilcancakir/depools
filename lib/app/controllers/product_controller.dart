@@ -1,6 +1,5 @@
 import 'package:magic/magic.dart';
 
-import '../../resources/views/products/count_line.dart';
 import '../../resources/views/products/product_filter_sheet.dart';
 import '../../resources/views/products/product_fixtures.dart';
 import '../models/product_filter.dart';
@@ -22,29 +21,18 @@ import '../models/product_filter.dart';
 /// shows one page of "expired" under a chip row that says something else. [apply] is the only way to
 /// change it, and it always refetches from the first page.
 ///
-/// ### Two caches, two questions
+/// ### The shelf moved out
 ///
-/// [items] is the browse list: one filtered page, extended by [loadMore]. [shelf] is every product at
-/// one location, which is a different question and cannot be served from a page. The count screen
-/// needs the whole shelf to build its sheet, and reading a 30-row page instead would silently drop
-/// rows from a count: the sheet would look complete and be short. Keeping them apart is what makes
-/// each one able to be right.
+/// This class used to hold a second cache for the count screen. That was defensible while a shelf
+/// was one list fetched once, and stopped being defensible when the shelf gained its own query,
+/// order, cursor, total and failure state: two state machines in one class share nothing but a file.
+/// `StockTakeController` owns it now, and the two answer different questions.
 class ProductController extends MagicController with MagicStateMixin<List<ProductListItem>> {
   /// How many rows a browse page asks for.
   ///
   /// The server defaults to the same number; sending it makes the page size a decision this file
   /// records rather than one that lives only in PHP.
   static const int _pageSize = 30;
-
-  /// How many rows a shelf sweep asks for per request, which is the endpoint's own ceiling.
-  static const int _shelfPageSize = 100;
-
-  /// How many shelf pages to walk before giving up.
-  ///
-  /// A stop condition rather than a limit anybody should reach: fifty pages is five thousand products
-  /// at ONE location. Without it a server that kept answering with a cursor would loop forever, and
-  /// an infinite loop inside a screen's first paint is the worst way to find that out.
-  static const int _shelfPageLimit = 50;
 
   /// The shared instance, keyed by type.
   ///
@@ -82,19 +70,13 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   /// narrower query, with no error anywhere.
   int _requestId = 0;
 
-  final Map<String, List<ProductListItem>> _shelves = <String, List<ProductListItem>>{};
-
-  final Set<String> _shelvesInFlight = <String>{};
-
-  /// Locations whose sweep failed, so a screen rendering from `build` cannot retry it every frame.
-  ///
-  /// **Without this the retry is a loop.** The count screen asks for its shelf from `build`, because
-  /// which shelf it needs is only known once the locations arrive; on a failure there would be no
-  /// cached answer, so the next frame would ask again, and a server that is down would be asked sixty
-  /// times a second. A recorded failure is what turns that into one request plus a button.
-  final Set<String> _shelfFailures = <String>{};
-
   Set<String> _stockedLocations = const <String>{};
+
+  /// Location id to name, for anything mapping a product payload into rows.
+  ///
+  /// Exposed because `StockTakeController` maps its own rows and needs the same labels; fetching
+  /// them twice would put two answers to one question in the app.
+  Map<String, String> get locationLabels => _locationLabels;
 
   /// The locations the filter sheet offers, in the order the endpoint returns them.
   ///
@@ -335,171 +317,9 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   /// Whether one location holds any stock at all.
   ///
   /// From the location payload's own `stock_count`, not from the loaded products. The count screen
-  /// needs this to open on a shelf with something on it, and it used to answer the question by
-  /// scanning the products it held: correct while that was the whole catalogue, and wrong the moment
-  /// it became one page, because a full shelf whose rows sit on page three would have read as empty.
+  /// needs this to open on a shelf with something on it, and it cannot answer it from a product
+  /// list that is one page: a full shelf whose rows sit on page three would read as empty.
   bool holdsStock(String locationId) => _stockedLocations.contains(locationId);
-
-  /// Every product at one location, or an empty list until [loadShelf] has answered.
-  List<ProductListItem> shelf(String locationId) =>
-      _shelves[locationId] ?? const <ProductListItem>[];
-
-  /// Whether [shelf] has an answer for this location yet.
-  bool hasShelf(String locationId) => _shelves.containsKey(locationId);
-
-  /// Whether the last sweep of this location failed.
-  bool shelfFailed(String locationId) => _shelfFailures.contains(locationId);
-
-  /// Fetches every product at one location, walking the cursor to the end.
-  ///
-  /// **The count screen needs the whole shelf and not a page of it.** A count is scoped to one
-  /// location and a person counts it in one pass, so a sheet built from the first thirty rows would
-  /// be short with nothing on screen saying so, and every product past the thirtieth would silently
-  /// keep whatever balance it had. That is the one failure mode a ledger cannot tolerate quietly.
-  ///
-  /// Cached per location and re-fetched only when asked, because the sheet is built once per visit
-  /// and a commit is what invalidates it.
-  Future<void> loadShelf(String locationId, {bool force = false}) async {
-    if (locationId.isEmpty) return;
-    if (_shelvesInFlight.contains(locationId)) return;
-    if (!force && (_shelves.containsKey(locationId) || _shelfFailures.contains(locationId))) return;
-
-    _shelvesInFlight.add(locationId);
-    _shelfFailures.remove(locationId);
-
-    if (_locations.isEmpty) await _loadLocations();
-
-    final ProductFilter at = ProductFilter(locationIds: <String>{locationId});
-    final List<ProductListItem> rows = <ProductListItem>[];
-    String? cursor;
-    int pages = 0;
-
-    do {
-      final dynamic response = await Http.get(
-        '/products?${at.toQueryString(extra: <String, Object?>{
-          'per_page': _shelfPageSize,
-          'cursor': ?cursor,
-        })}',
-      );
-
-      if (!response.successful) {
-        // Recorded rather than left absent, so the screen can offer a retry instead of asking again
-        // on the next frame. A partly-walked shelf is discarded with it: half a shelf presented as a
-        // count sheet is worse than none, because nothing on it would say it was half.
-        _shelvesInFlight.remove(locationId);
-        _shelfFailures.add(locationId);
-        refreshUI();
-
-        return;
-      }
-
-      rows.addAll(_map(response['data']));
-      cursor = _cursorOf(response);
-      pages++;
-    } while (cursor != null && pages < _shelfPageLimit);
-
-    // **A shelf that ran out of pages is a FAILURE, not a shelf.** Caching what was walked so far
-    // would hand the count screen a sheet that is short by exactly the rows nobody reached, with
-    // nothing on screen saying so, which is the failure this whole method exists to prevent: it
-    // would have been the page-sized sheet again, only bigger. The limit is a stop condition rather
-    // than a size anyone should meet, so meeting it means something is wrong upstream and the honest
-    // answer is the error panel with its retry.
-    if (cursor != null) {
-      _shelvesInFlight.remove(locationId);
-      _shelfFailures.add(locationId);
-      refreshUI();
-
-      return;
-    }
-
-    _shelves[locationId] = rows;
-    _shelvesInFlight.remove(locationId);
-    refreshUI();
-  }
-
-  /// Commits a physical count of one location, then reloads what it changed (D59).
-  ///
-  /// ### Why the count commit lives on the list controller
-  ///
-  /// Because this is the cache it invalidates. The count screen reads its lines and its expected
-  /// figures from exactly these rows, and a commit changes the balance behind them, so the write and
-  /// the data it falsifies belong to one owner. `ProductDetailController` holds `receive`, `consume`
-  /// and `transfer` for the same reason.
-  ///
-  /// ### The counts are keyed by product id, not by name
-  ///
-  /// Two products can share a name, and with real data one of them did: keying the typed figures by
-  /// name would let a count of one write itself onto the other.
-  ///
-  /// A per-line refusal is not a failure. The endpoint commits every writable line and names the
-  /// rest, so this returns the whole answer and lets the screen decide what is still unfinished.
-  Future<CountCommit> commitCount(String locationId, Map<String, num> counted) async {
-    final dynamic response = await Http.post(
-      '/stock/count',
-      data: <String, dynamic>{
-        'location_id': locationId,
-        'lines': <Map<String, dynamic>>[
-          for (final MapEntry<String, num> entry in counted.entries)
-            <String, dynamic>{'product_id': entry.key, 'counted_quantity': entry.value},
-        ],
-      },
-    );
-
-    if (!response.successful) {
-      final dynamic message = response['message'];
-
-      return CountCommit.failed(
-        message is String && message.isNotEmpty
-            ? message
-            : Lang.get('screens.stock_take.commit_failed'),
-      );
-    }
-
-    final dynamic data = response['data'];
-    final List<CountResult> lines = <CountResult>[];
-
-    for (final Map<String, dynamic> row in _rows(data is Map<dynamic, dynamic> ? data['lines'] : null)) {
-      final CountOutcome? outcome = _outcome(row['outcome'] as String?);
-
-      // An outcome this build does not know means the server answered in a vocabulary added after it.
-      // Failing the whole commit is the honest reading: mapping the unknown onto `matched` would tell
-      // the user a row is finished, and onto `needsDate` would send them to fix a row that was fine.
-      if (outcome == null) {
-        return CountCommit.failed(Lang.get('screens.stock_take.commit_failed'));
-      }
-
-      lines.add(
-        CountResult(
-          productId: row['product_id'] as String,
-          outcome: outcome,
-          // `decimal(_, 3)` travels as the string `'-1.000'`, not as a number, so reading it
-          // directly would compare a String against a num and silently fail every threshold.
-          delta: ProductListItem.toNumOrNull(row['delta']) ?? 0,
-        ),
-      );
-    }
-
-    // **A 200 that does not answer every line is a failure, not an empty success.** Without this a
-    // response whose `data.lines` was missing or short parsed into an empty list, which has no
-    // unfinished rows, so the screen showed a success toast and navigated away from a shelf it had
-    // not actually committed. On a ledger that is the worst shape of bug available: the user believes
-    // the count landed and nothing says otherwise.
-    //
-    // Compared by SET rather than by count, so a response echoing one product twice and omitting
-    // another cannot pass by arithmetic.
-    final Set<String> answered = lines.map((r) => r.productId).toSet();
-
-    if (answered.length != counted.length || !answered.containsAll(counted.keys)) {
-      return CountCommit.failed(Lang.get('screens.stock_take.commit_failed'));
-    }
-
-    // Every balance this count touched is now stale in BOTH caches, including for the stock list the
-    // user goes back to. The shelf is refetched rather than dropped, because the screen that asked
-    // for it is still on screen and still rendering from it.
-    await Future.wait(<Future<void>>[load(), loadShelf(locationId, force: true)]);
-
-    return CountCommit.landed(lines);
-  }
 
   /// The query string for one browse request.
   String _query({String? cursor}) => _filter.toQueryString(
@@ -561,14 +381,6 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
 
     return meta is Map<dynamic, dynamic> ? meta['total'] as int? : null;
   }
-
-  static CountOutcome? _outcome(String? raw) => switch (raw) {
-    'written' => CountOutcome.written,
-    'matched' => CountOutcome.matched,
-    'needs_date' => CountOutcome.needsDate,
-    'serial_tracked' => CountOutcome.serialTracked,
-    _ => null,
-  };
 
   List<FilterOption> _toFilterOptions(List<Map<String, dynamic>> rows) => <FilterOption>[
     for (final Map<String, dynamic> row in rows)
