@@ -91,6 +91,14 @@ class DatabaseSeeder extends Seeder
 
         $this->call(DemoInventorySeeder::class);
 
+        // Bulk rows, off unless asked for: `DEMO_VOLUME=90 php artisan db:seed`. The eleven curated
+        // products are what the screens were designed against, so they stay the default; ninety
+        // generated rows on top of them is a different question (does a filter filter, does a list of
+        // a hundred still lay out) and [DemoVolumeSeeder] explains why it is generated rather than
+        // chosen. It reads the variable itself and returns early when it is absent, so the call is
+        // unconditional here.
+        $this->call(DemoVolumeSeeder::class);
+
         $this->command?->info('Demo account: '.self::EMAIL.' / '.self::PASSWORD);
     }
 }

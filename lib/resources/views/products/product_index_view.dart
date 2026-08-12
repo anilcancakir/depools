@@ -543,11 +543,30 @@ class _ProductIndexViewState extends State<ProductIndexView> {
         SectionCard(
           label: Lang.get('screens.products.attention_group'),
           count: Lang.get('screens.products.product_count', {'count': attention.length}),
-          // The only collapsible section on the screen. A cafe owner opens this screen
-          // daily for exactly this list, so it starts open; once it is dealt with, the
-          // whole block folds away instead of pushing the catalogue down the page. The
-          // count stays visible closed, which is what keeps "3 ürün" actionable.
-          collapsible: true,
+          // The only collapsible section on the screen, and it starts CLOSED.
+          //
+          // It used to start open, on the argument that a cafe owner opens this screen daily for
+          // exactly this list. Real data changed the answer: six of eleven products needed attention,
+          // so the section pushed the catalogue most of a screen down and the thing the user came to
+          // look up was below the fold. At a hundred products it is worse.
+          //
+          // Closed costs nothing that matters, because the COUNT stays visible when it is: "6
+          // products" next to the label is the signal, and opening it is one tap. Absent is a
+          // different state again and already handled by the `isNotEmpty` above: no attention, no
+          // card, rather than an empty card saying nothing is wrong.
+          //
+          // **Not collapsible at all when it is the only group**, which is the defect collapsing it
+          // introduced: applying "Expired" leaves 14 matching products, every one of them by
+          // definition an attention row, so the catalogue section disappears and a closed card is the
+          // whole screen. It reads as "nothing found" while fourteen rows sit one tap away, which is
+          // the "shortened list with no indication of why" failure this screen's own documentation
+          // says any review checks for first, arriving from the other direction.
+          //
+          // Expressed as `collapsible` rather than as `initiallyExpanded`, because `SectionCard` reads
+          // that flag once into its own state: flipping it when a filter changes would not reopen a
+          // card the user is already looking at.
+          collapsible: rest.isNotEmpty,
+          initiallyExpanded: false,
           children: [for (final ProductListItem item in attention) _row(item)],
         ),
       if (rest.isNotEmpty)
