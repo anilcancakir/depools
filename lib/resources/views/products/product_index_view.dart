@@ -596,7 +596,13 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             // worth having at the bottom of this particular list.
             ListFooter(
               state: widget.isLoadingMore ? ListFooterState.loadingMore : ListFooterState.end,
-              totalLabel: Lang.get('screens.products.all_of_them', {'count': _all.length}),
+              // Only when nothing is filtered. The label means "the whole collection is loaded, there
+              // is no next page", and under a filtered list of three it read "all 101 of them", which
+              // is a footer contradicting the header two lines above it. The section count already
+              // states how many the filter matched, so there is nothing to replace it with.
+              totalLabel: _filter.isEmpty
+                  ? Lang.get('screens.products.all_of_them', {'count': _all.length})
+                  : null,
               // The row draws its own placeholder, so the two cannot drift.
               skeleton: const ProductRow.skeleton(),
             ),

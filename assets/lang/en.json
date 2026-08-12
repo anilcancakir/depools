@@ -804,7 +804,7 @@
       "reset": "Reset",
       "state_any": "All",
       "state_out_of_stock": "Out of stock",
-      "state_below_par": "Below target",
+      "state_below_par": "Low stock",
       "state_in_stock": "In stock",
       "expiry_any": "All",
       "expiry_expired": "Expired",

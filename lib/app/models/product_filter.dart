@@ -245,6 +245,38 @@ class ProductFilter {
   };
 
   /// Returns a copy with the given fields replaced.
+  /// This filter with [other]'s constraints laid over it.
+  ///
+  /// **What a quick-filter chip does when one is already applied.** The chips used to disappear the
+  /// moment anything was in force, so switching from "Expired" to "Low stock" cost a tap to clear, a
+  /// moment with the list unfiltered, and a second tap. Anılcan pointed at the X on an applied chip
+  /// and read it as a promise of multi-select, correctly.
+  ///
+  /// Merging is what makes that promise keepable where the model can keep it. Measured against the
+  /// demo tenant: of the six pairs the four built-ins can form, TWO match products (expired plus low
+  /// stock, 3 rows; expiring soon plus low stock, 3), two are empty by construction (an out-of-stock
+  /// product has no lots, so it has no date to be expired by), and two are impossible because their
+  /// axis holds one value. Free multi-select would have offered all six and four of them could never
+  /// match anything, which is the same shape as a filter that lies.
+  ///
+  /// So a same-axis chip REPLACES rather than combining, which is the only thing a single-valued axis
+  /// can mean, and a cross-axis one narrows. The set axes union, because a second location is another
+  /// place to look rather than a contradiction.
+  ///
+  /// An empty axis on [other] is not a constraint and leaves this one alone: that is what lets a chip
+  /// carry exactly its own criterion.
+  ProductFilter mergedWith(ProductFilter other) {
+    return ProductFilter(
+      query: other.query.isEmpty ? query : other.query,
+      locationIds: {...locationIds, ...other.locationIds},
+      categoryIds: {...categoryIds, ...other.categoryIds},
+      tags: {...tags, ...other.tags},
+      brands: {...brands, ...other.brands},
+      stockState: other.stockState == StockStateFilter.any ? stockState : other.stockState,
+      expiry: other.expiry == ExpiryFilter.any ? expiry : other.expiry,
+    );
+  }
+
   ProductFilter copyWith({
     String? query,
     Set<String>? locationIds,

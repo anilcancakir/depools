@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:magic_starter/magic_starter.dart' show MSPageScaffold;
 
@@ -175,10 +177,12 @@ class _AppPageScaffoldState extends State<AppPageScaffold> {
         // already exists before the spacer starts. Reserving the full inset on top of it stacked the
         // two and left a visible band of nothing under the last card, which Anılcan saw straight
         // away. Clamped at zero so a footer shorter than the gap cannot push the content up.
-        if (_pinned)
-          SizedBox(
-            height: (PageChrome.footerInsetOf(context) - _scaffoldGap).clamp(0, double.infinity),
-          ),
+        // `math.max` rather than `clamp`, and the reason is legibility rather than a bug: `clamp`
+        // type-checks here (both gates are green on it) only because the analyzer special-cases
+        // `num.clamp` to return `double` when the receiver and bounds are doubles. Leaning on that to
+        // satisfy a `double?` parameter is subtle enough that a reviewer read it as a type error, and
+        // `max` says the same thing with no special case involved.
+        if (_pinned) SizedBox(height: math.max(0, PageChrome.footerInsetOf(context) - _scaffoldGap)),
         // No host (the preview catalog): render it where it used to live rather than dropping it.
         if (!_pinned && widget.footer != null) widget.footer!,
       ],
