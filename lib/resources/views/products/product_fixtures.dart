@@ -598,7 +598,14 @@ class ProductListItem {
   bool get hasFinerContent {
     final num? content = contentAmount;
 
-    return contentUnit != null && content != null && content > 1;
+    // **The unit comparison is the actual test, and it was missing.** This checked only
+    // `content > 1`, which caught the demo tenant's shape (`l` holding `1 l`) and would have let
+    // through the one this guard is written for: `g` holding `500 g` passes an amount test and still
+    // says a gram contains five hundred grams. `figure(1.5)` would then print "1 g + 250 g".
+    //
+    // `POST /products` refuses that shape now, so it can only arrive through an import, which is
+    // exactly the case the guard exists for rather than a hypothetical.
+    return contentUnit != null && contentUnit != unit && content != null && content > 1;
   }
 
   /// The fractional part of a base-unit value, expressed in the content unit.

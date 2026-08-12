@@ -199,9 +199,13 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   /// matches nothing cannot appear.
   ///
   /// Sorted, because a set has no order and chips that reshuffle between openings are unusable.
+  ///
+  /// **Derived from [_all] unconditionally, with no fixture fallback.** A `_controller == null` branch
+  /// returning the constant was the first shape and it reintroduced the same defect in the preview:
+  /// chips offering `soğuk zincir` and `sarf` against fixture rows that carry neither. `_all` is
+  /// already `widget.items ?? _controller?.items`, so one expression serves the catalog and the wired
+  /// screen, and in both a tag that matches nothing cannot appear.
   List<FilterOption> get _tagOptions {
-    if (_controller == null) return tagOptions;
-
     final List<String> names = _all.expand((i) => i.tags).toSet().toList()..sort();
 
     return <FilterOption>[for (final String name in names) FilterOption(id: name, label: name)];

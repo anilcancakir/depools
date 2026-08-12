@@ -30,12 +30,10 @@ WindSlotRecipe countRowRecipe() {
       'controls': 'flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-3',
       // One quantity group: a control and its unit, kept together on every width.
       'group': 'flex flex-row items-center gap-3',
-      // The reserved width of the opened-unit segment, for rows that do not have one. It matches
-      // `quantityStepperRecipe`'s `remainder` slot (`w-24`), so the two have to move together; the
-      // widget comment says why the reservation exists at all.
+      // The reserved width of the opened-unit segment, for rows that do not have one. Only above
+      // `md`, where the controls share a line with the name and a ragged left edge is visible; below
+      // `md` the control has the card to itself.
       //
-      // Only above `md`, where the controls share a line with the name and a ragged left edge is
-      // visible. Below `md` the control has the card to itself.
       // 101, and the odd number is the whole point: it is the arithmetic rather than the nearest step
       // on the scale. The opened segment is `w-28` (112) plus its own 1px divider, and this spacer is
       // a SIBLING separated by `gap-3` (12), which the segment inside the control's border does not

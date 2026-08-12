@@ -366,11 +366,12 @@ class _StockTakeViewState extends State<StockTakeView> {
       return;
     }
 
-    final num content = line.product.contentAmount ?? 1;
-    final int whole = expected.floor();
-    final int inner = ((expected - whole) * content).round();
+    // `innerFor` rather than the arithmetic again. This file had its own copy of "multiply the
+    // fraction by the content and round", which is the duplication this same change removed between
+    // the count sheet and the detail screen, reintroduced one method away from it.
+    final num inner = line.product.innerFor(expected) ?? 0;
 
-    _whole[key] = whole;
+    _whole[key] = expected.floor();
 
     // Absent rather than zero when the record holds no opened amount, because absence is what the
     // sheet reads as "this field was not answered" and a stored zero would claim it was.

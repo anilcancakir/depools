@@ -26,6 +26,39 @@ void main() {
       expect(skipped.variance, isNull, reason: 'an uncounted line has no difference to write');
     });
 
+    test('a content declared in the base unit is never split, at any amount', () {
+      // The guard checked only `contentAmount > 1`, which caught the demo tenant's `l` holding `1 l`
+      // and would have let through the shape it is written for: `g` holding `500 g` passes an amount
+      // test and still says a gram contains five hundred grams. Splitting 1.5 of that would print
+      // "1 g + 250 g".
+      const ProductListItem grams = ProductListItem(
+        name: 'Peynir',
+        amount: 1.5,
+        formatted: '1',
+        unit: 'g',
+        contentAmount: 500,
+        contentUnit: 'g',
+      );
+
+      expect(grams.hasFinerContent, isFalse);
+      expect(grams.innerFor(1.5), isNull);
+      expect(CountLine(product: grams, expected: 1.5).figure(1.5), '1.50 g');
+
+      // A genuinely finer content still splits, which is the case D26 is about.
+      const ProductListItem carton = ProductListItem(
+        name: 'Süt',
+        amount: 1.5,
+        formatted: '1',
+        unit: 'piece',
+        contentAmount: 1000,
+        contentUnit: 'ml',
+      );
+
+      expect(carton.hasFinerContent, isTrue);
+      expect(carton.innerFor(1.5), 500);
+      expect(CountLine(product: carton, expected: 1.5).figure(1.5), '1 piece + 500 ml');
+    });
+
     test('a projection that did not travel falls back to the lots', () {
       final ProductListItem milk = productFixtures.firstWhere(
         (p) => p.name == 'Pınar Süt Tam Yağlı 1 lt',
