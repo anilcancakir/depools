@@ -4,7 +4,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSButton, MSInput, MagicStarterConfirmDialog;
+    show ButtonIntent, ButtonSize, MSButton, MSInput, MagicStarterConfirmDialog;
 
 import '../../../app/controllers/product_controller.dart';
 import '../../../app/controllers/stock_take_controller.dart';
@@ -143,6 +143,30 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// Only the unfinished ones are kept. A row that landed has nothing left to say, and holding its
   /// outcome would leave a stale answer beside a freshly reloaded expected figure.
   final Map<String, CountResult> _unfinished = <String, CountResult>{};
+
+  /// What each committed row was counted as, keyed the same way, for this shelf and this visit.
+  ///
+  /// **A committed row used to lose its typed figure and read as "Not counted" again.** The comment
+  /// justifying that cited D58's blind count, and the reasoning was right about the wrong thing: D58
+  /// keeps a row blind until it is COUNTED, and these rows have been counted. Clearing them made the
+  /// screen appear to undo the user's work, which is exactly what Anılcan saw after confirming five
+  /// rows and reading `0 recorded`.
+  ///
+  /// Held in their own maps rather than left in [_whole] and [_inner], and that separation is what
+  /// keeps the next commit honest: a commit sends what is CURRENTLY typed, so a settled row cannot be
+  /// submitted twice, and re-typing one puts it back into the live maps and submits it again.
+  final Map<String, num?> _settledWhole = <String, num?>{};
+  final Map<String, num?> _settledInner = <String, num?>{};
+
+  /// What the server did with each committed row, so a restored row can say so.
+  final Map<String, CountResult> _settled = <String, CountResult>{};
+
+  /// Whether the committed rows are being shown again.
+  ///
+  /// They leave the sheet when they land, because on a shelf of a thousand the only thing that
+  /// matters is what is LEFT. The bar above the list is what makes that reversible rather than
+  /// destructive: a user who wants to check the number they entered gets it back in one tap.
+  bool _showSettled = false;
 
   /// Whether a commit is in flight, so the button cannot be pressed twice.
   bool _saving = false;
@@ -285,20 +309,49 @@ class _StockTakeViewState extends State<StockTakeView> {
   String _keyOf(CountLine line) => line.product.id ?? line.product.name;
 
   /// The lines for the chosen location, with any typed counts folded in.
+  /// The lines on the sheet, with anything typed folded in and anything settled taken out.
+  ///
+  /// A settled row leaves unless [_showSettled] brought it back, and when it comes back it comes
+  /// back with the figure that was entered rather than as a blank row: the point of showing it again
+  /// is checking what was counted.
   List<CountLine> get _lines => (widget.lines ?? _fromController())
+      .where((line) => _showSettled || !_settled.containsKey(_keyOf(line)))
       .map(
         (line) => CountLine(
           product: line.product,
           expected: line.expected,
-          countedWhole: _whole.containsKey(_keyOf(line))
-              ? _whole[_keyOf(line)]
-              : line.countedWhole,
-          countedRemainder: _inner.containsKey(_keyOf(line))
-              ? _inner[_keyOf(line)]
-              : line.countedRemainder,
+          countedWhole: _typed(_whole, _settledWhole, line) ?? line.countedWhole,
+          countedRemainder: _typed(_inner, _settledInner, line) ?? line.countedRemainder,
         ),
       )
       .toList();
+
+  /// What is in the live map for this row, or in the settled one when it has been committed.
+  ///
+  /// The live map wins, because re-typing a settled row is how a user corrects a count they have
+  /// already saved, and the correction has to be what shows and what submits.
+  num? _typed(Map<String, num?> live, Map<String, num?> settled, CountLine line) {
+    final String key = _keyOf(line);
+
+    if (live.containsKey(key)) return live[key];
+
+    return settled[key];
+  }
+
+  /// How many rows on this shelf have been counted, settled ones included.
+  ///
+  /// **Not the rows with a typed value, which is what it used to be.** A committed row has no live
+  /// figure any more, so counting only those made the header fall back to zero the moment a commit
+  /// landed: five rows counted, header `0 of 25`.
+  int _countedTotal(List<CountLine> lines) {
+    final Set<String> counted = <String>{..._settled.keys};
+
+    for (final CountLine line in lines) {
+      if (line.isCounted && !_settled.containsKey(_keyOf(line))) counted.add(_keyOf(line));
+    }
+
+    return counted.length;
+  }
 
   /// The products the record says sit at one location, and that can be counted by typing a number.
   ///
@@ -354,7 +407,7 @@ class _StockTakeViewState extends State<StockTakeView> {
     _syncShelf();
 
     final List<CountLine> lines = _lines;
-    final int counted = lines.where((l) => l.isCounted).length;
+    final int counted = _countedTotal(lines);
     final List<CountLine> variances = lines.where((l) => l.isCounted && !l.isMatched).toList();
     final StockTakeController? controller = _controller;
     final String locationId = _activeLocation;
@@ -398,6 +451,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       children: [
         _buildLocation(),
         if (!loading && !failed) _buildSearch(),
+        if (!loading && !failed && _settled.isNotEmpty) _buildSettledBar(),
         if (loading)
           _buildLoading()
         else if (failed)
@@ -460,6 +514,40 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// **Server-side, like the products list, and for the same reason.** A search over the loaded
   /// page could only find what the user had already scrolled past, which on a count sheet is the
   /// opposite of useful: the row you are hunting for is the one you have not reached.
+  /// What has been saved on this shelf, and the way back to it.
+  ///
+  /// **The bar is what makes hiding a settled row reversible rather than destructive.** Rows leave
+  /// the sheet when they land, because on a long shelf the only thing that matters is what is left;
+  /// a user who wants to check the figure they entered gets it back in one tap, and the count they
+  /// see is the one they typed rather than a blank row.
+  Widget _buildSettledBar() {
+    return WDiv(
+      // Card tone plus a hairline, like every other pressable surface here. Not a fill: elevation
+      // direction inverts between appearances, so no fill can mean "tappable" in both.
+      className:
+          'flex flex-row items-center justify-between gap-3 min-h-11 px-3 py-2 rounded-md '
+          'bg-surface-container border border-color-border',
+      children: [
+        WText(
+          Lang.get('screens.stock_take.settled', {'count': _settled.length}),
+          className: 'text-sm text-fg-muted flex-1 min-w-0',
+        ),
+        MSButton(
+          onPressed: () => setState(() => _showSettled = !_showSettled),
+          intent: ButtonIntent.ghost,
+          size: ButtonSize.sm,
+          className: 'py-3.5 axis-min shrink-0',
+          child: WText(
+            Lang.get(
+              _showSettled ? 'screens.stock_take.settled_hide' : 'screens.stock_take.settled_show',
+            ),
+            className: 'text-sm font-medium text-fg',
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSearch() {
     // **No `flex-1` wrapper, and that is not a simplification.** The products list wraps its field
     // in one because it shares a ROW with the filter button. Here the field has no sibling and sits
@@ -585,6 +673,20 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   /// What the row says about itself, including what the last commit refused to write.
   String _verdictFor(CountLine line) {
+    // A settled row says what happened to it rather than what it would do. Restoring one through the
+    // bar is for checking a saved count, and `line.verdict` would describe a comparison against the
+    // balance the commit has already corrected: a matched row would read as matched by luck rather
+    // than as saved.
+    final CountResult? landed = _settled[_keyOf(line)];
+
+    if (landed != null) {
+      return landed.outcome == CountOutcome.written
+          ? Lang.get('screens.stock_take.settled_written', {
+              'delta': line.figure(landed.delta.abs()),
+            })
+          : Lang.get('screens.stock_take.settled_matched');
+    }
+
     final CountResult? result = _unfinished[_keyOf(line)];
 
     if (result == null) return line.verdict;
@@ -652,7 +754,35 @@ class _StockTakeViewState extends State<StockTakeView> {
     List<CountLine> variances,
   ) {
     final int skipped = lines.length - counted;
-    final List<CountLine> countedLines = lines.where((l) => l.isCounted).toList();
+    final List<CountLine> countedLines = lines
+        .where((l) => l.isCounted && !_settled.containsKey(_keyOf(l)))
+        .toList();
+
+    // **The shelf is what says the count is over, not the button.** The screen used to leave for the
+    // dashboard on any clean commit, so five rows of twenty-five ended the session. Every row on the
+    // shelf being settled is the only thing that means finished, and the exit is offered here rather
+    // than taken automatically: leaving is the user's call.
+    final int total = _shelfTotal(lines);
+    final bool finished =
+        _controller != null && total > 0 && _settled.length >= total && countedLines.isEmpty;
+
+    if (finished) {
+      return WDiv(
+        className: 'flex flex-col gap-2 pb-2',
+        children: [
+          WText(
+            Lang.get('screens.stock_take.shelf_done', {'total': total}),
+            className: 'text-sm text-fg-muted',
+          ),
+          MSButton(
+            onPressed: () => MagicRoute.to('/'),
+            fullWidth: true,
+            className: 'justify-center',
+            child: WText(Lang.get('screens.stock_take.shelf_done_action')),
+          ),
+        ],
+      );
+    }
 
     return WDiv(
       className: 'flex flex-col gap-2 pb-2',
@@ -761,14 +891,19 @@ class _StockTakeViewState extends State<StockTakeView> {
         ..clear()
         ..addEntries(commit.unfinished.map((r) => MapEntry(r.productId, r)));
 
-      // Every row that landed is now blind again (D58) against the balance it just corrected.
-      // Leaving the typed figure would put a stale number beside a freshly reloaded expected and
-      // report a variance that no longer exists.
+      // **A row that landed is SETTLED, not blind again.** This used to drop the typed figure
+      // outright, citing D58, and D58 is about a row that has not been counted yet: these have been.
+      // Dropping them made the screen appear to undo the work, which is what a user saw after
+      // confirming five rows and reading `0 recorded`.
+      //
+      // Moved rather than kept, and the move is what stops a double submit: a commit sends what is
+      // CURRENTLY typed, so a settled row is out of that set until the user re-types it.
       for (final CountResult result in commit.lines) {
-        if (!result.isUnfinished) {
-          _whole.remove(result.productId);
-          _inner.remove(result.productId);
-        }
+        if (result.isUnfinished) continue;
+
+        _settled[result.productId] = result;
+        _settledWhole[result.productId] = _whole.remove(result.productId);
+        _settledInner[result.productId] = _inner.remove(result.productId);
       }
     });
 
@@ -779,12 +914,23 @@ class _StockTakeViewState extends State<StockTakeView> {
     }
 
     if (commit.unfinished.isEmpty) {
+      // **Two numbers, because they are two facts and only one of them was being reported.** The
+      // toast said `:count recorded` and counted MOVEMENTS, so five rows confirmed against a correct
+      // record read as `0 recorded`: true about the ledger, and a lie about the work. A matching
+      // count writes nothing by design (D59), which is exactly why the row count has to be said out
+      // loud beside it.
       MagicFeedback.success(
         Lang.get('screens.stock_take.title'),
-        Lang.get('screens.stock_take.committed', {'count': commit.writtenCount}),
+        Lang.get('screens.stock_take.committed_counted', {
+          'counted': commit.lines.length,
+          'written': commit.writtenCount,
+        }),
       );
-      MagicRoute.to('/');
 
+      // **No navigation.** It used to leave for the dashboard on any clean commit, which ejected a
+      // user who had counted five of twenty-five rows and left the other twenty untouched with
+      // nothing saying so. The shelf decides when the count is over, and the exit is offered THERE:
+      // see the footer's finished state.
       return;
     }
 

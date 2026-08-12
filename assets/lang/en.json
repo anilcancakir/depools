@@ -757,7 +757,15 @@
       "committed_partly": ":count recorded · :unfinished left for stock entry",
       "commit_failed": "The count could not be saved",
       "search": "Search this shelf",
-      "all_of_them": "all :count of them"
+      "all_of_them": "all :count of them",
+      "settled": ":count rows saved",
+      "settled_show": "Show",
+      "settled_hide": "Hide",
+      "committed_counted": ":counted rows counted · :written changes written",
+      "shelf_done": "Shelf finished · :total of :total",
+      "shelf_done_action": "Back to overview",
+      "settled_matched": "Counted · matched",
+      "settled_written": "Counted · :delta written"
     },
     "stock_move": {
       "after_note": "Afterwards :from and :to are both updated",

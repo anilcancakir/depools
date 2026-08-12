@@ -757,7 +757,15 @@
       "committed_partly": ":count hareket yazıldı · :unfinished satır tamamlanmadı",
       "commit_failed": "Sayım kaydedilemedi",
       "search": "Bu rafta ara",
-      "all_of_them": ":count ürünün hepsi"
+      "all_of_them": ":count ürünün hepsi",
+      "settled": ":count satır kaydedildi",
+      "settled_show": "Göster",
+      "settled_hide": "Gizle",
+      "committed_counted": ":counted satır sayıldı · :written hareket yazıldı",
+      "shelf_done": "Raf tamamlandı · :total / :total",
+      "shelf_done_action": "Genel bakışa dön",
+      "settled_matched": "Sayıldı · eşleşti",
+      "settled_written": "Sayıldı · :delta yazıldı"
     },
     "stock_move": {
       "after_note": "Sonrasında :from ve :to güncellenir",

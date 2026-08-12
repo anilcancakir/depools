@@ -254,6 +254,41 @@ void main() {
       expect(failed.unfinished, isEmpty);
     });
 
+    test('a settled row is counted even though it holds no typed figure', () {
+      // **This is the defect Anılcan hit.** A committed row used to lose its typed value, so the
+      // header counted rows with a live figure and fell back to zero the moment a commit landed:
+      // five rows counted, `0 of 25`. A settled row has no live figure BY DESIGN, because that is
+      // what stops it being submitted twice, so the count has to include it from somewhere else.
+      const CountCommit commit = CountCommit.landed(<CountResult>[
+        CountResult(productId: 'a', outcome: CountOutcome.matched, delta: 0),
+        CountResult(productId: 'b', outcome: CountOutcome.written, delta: -1),
+      ]);
+
+      // Both landed, so both are settled and neither is unfinished. `writtenCount` is what the
+      // toast used to report on its own, and it is 1 while the user counted 2.
+      expect(commit.writtenCount, 1);
+      expect(commit.lines.length, 2);
+      expect(commit.unfinished, isEmpty);
+
+      // The pair the toast now states separately: what the user did, and what the ledger did.
+      expect(commit.lines.length, isNot(commit.writtenCount));
+    });
+
+    test('confirming every row against a correct record writes nothing at all', () {
+      // Tapping "same as record" down a shelf is the fastest path through a count and the one that
+      // produced `0 recorded`. Every row matches, so D59 writes nothing, and that is correct: the
+      // failure was reporting the ledger's number as if it were the user's.
+      const CountCommit perfect = CountCommit.landed(<CountResult>[
+        CountResult(productId: 'a', outcome: CountOutcome.matched, delta: 0),
+        CountResult(productId: 'b', outcome: CountOutcome.matched, delta: 0),
+        CountResult(productId: 'c', outcome: CountOutcome.matched, delta: 0),
+      ]);
+
+      expect(perfect.writtenCount, 0);
+      expect(perfect.lines.length, 3);
+      expect(perfect.unfinished, isEmpty);
+    });
+
     test('only variances write movements', () {
       expect(countedLines.length, 2);
       expect(varianceLines.length, 1);
