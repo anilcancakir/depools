@@ -110,6 +110,36 @@ void main() {
     expect(asked.length, 3);
   });
 
+  test('opening another shelf drops the previous total rather than showing it', () async {
+    // **The header would otherwise lie for a moment.** With rows already on screen the first-page
+    // load skips its loading state, so the new shelf rendered the OLD one's rows and the OLD one's
+    // total until the response landed: `0 of 25` for a shelf holding four.
+    Http.fake((MagicRequest request) {
+      if (request.url.contains('/locations')) return locations();
+
+      return request.url.contains('big')
+          ? page(<String>['a'], total: 25)
+          : page(<String>['b'], total: 4);
+    });
+
+    final StockTakeController controller = StockTakeController();
+
+    await controller.open('big');
+
+    expect(controller.total, 25);
+
+    // Started and not awaited, so the assertion lands while the fetch is still in flight, which is
+    // the only moment the stale total was visible.
+    final Future<void> opening = controller.open('small');
+
+    expect(controller.total, 0);
+    expect(controller.isLoading, isTrue);
+
+    await opening;
+
+    expect(controller.total, 4);
+  });
+
   test('a search narrows the shelf on the server, from the first page', () async {
     final List<String> asked = <String>[];
 

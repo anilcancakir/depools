@@ -264,7 +264,12 @@ class _StockTakeViewState extends State<StockTakeView> {
     final String locationId = _activeLocation;
 
     if (controller == null || locationId.isEmpty) return;
-    if (controller.locationId == locationId || controller.failed) return;
+
+    // **The failure guard is per SHELF, not global.** It read `controller.failed` alone, so one
+    // failed shelf froze the screen: picking any other chip changed `_locationId` and this returned
+    // early anyway, leaving the error panel over a location that had never been tried. A failure
+    // only blocks a retry of the shelf it happened on, and the retry button forces that one.
+    if (controller.locationId == locationId) return;
 
     // After the frame, because `open` notifies listeners and this runs during a build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -425,6 +430,11 @@ class _StockTakeViewState extends State<StockTakeView> {
                     : Lang.get('screens.stock_take.pick_location', {'path': option.fullPath}),
                 onTap: () => setState(() {
                   _locationId = option.id;
+                  // The controller resets its own query when a shelf opens, so the field has to go
+                  // with it. Left alone it showed a term that was no longer narrowing anything,
+                  // which is the same field-and-state desync the products list had.
+                  _searchDebounce?.cancel();
+                  _search.clear();
                   // Another shelf is another count. Carrying the typed figures across would let a
                   // number entered for the fridge commit itself against the pantry's balance.
                   _whole.clear();

@@ -101,6 +101,14 @@ class StockTakeController extends MagicController with MagicStateMixin<List<Prod
     _query = '';
     _cursor = null;
 
+    // **Reset the total and go back to loading, or the header lies for a moment.** The docblock says
+    // this drops what the previous shelf held, and it did not drop these two: with rows already on
+    // screen `_load` skips `setLoading`, so the new shelf rendered the OLD one's rows and the OLD
+    // one's total until the response landed. On a count screen that moment reads as `0 of 25` for a
+    // shelf holding four.
+    _total = 0;
+    setLoading();
+
     await _load();
   }
 
