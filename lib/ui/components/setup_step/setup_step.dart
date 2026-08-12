@@ -32,7 +32,7 @@ export 'setup_step.recipe.dart' show SetupStepState;
 ///   description: 'Bir ürünün nerede durduğunu bilmeden sayım yapılamaz.',
 ///   state: SetupStepState.current,
 ///   actionLabel: 'Konum ekle',
-///   onAction: () => MagicRoute.to('/konumlar'),
+///   onAction: () => MagicRoute.to('/locations'),
 /// )
 /// ```
 @immutable

@@ -110,10 +110,10 @@ The optional explanation sentence can go through `PlacementExplanationGateway` f
 
 | Screen | Route | States |
 |---|---|---|
-| `LocationIndexView` | `/konumlar` | data, empty, filtered-empty |
-| `LocationFormView` | `/konumlar/yeni` | empty (invalid), filled |
-| `LocationShowView` | `/konumlar/:id` | holds stock, empty |
-| placement dial | `/ayarlar` and folded on `/konumlar` | manual, suggested, auto |
+| `LocationIndexView` | `/locations` | data, empty, filtered-empty |
+| `LocationFormView` | `/locations/new` | empty (invalid), filled |
+| `LocationShowView` | `/locations/:id` | holds stock, empty |
+| placement dial | `/settings` and folded on `/locations` | manual, suggested, auto |
 
 ## What the design settled
 

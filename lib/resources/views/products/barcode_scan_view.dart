@@ -229,7 +229,7 @@ class BarcodeScanView extends StatelessWidget {
             // product is the only way forward. That is exactly what `ProductDraftView` is,
             // and it had no entry point until now. A settled row goes nowhere yet.
             onTap: scan.source == ScanSource.unmatched
-                ? () => MagicRoute.to('/taslak')
+                ? () => MagicRoute.to('/draft')
                 : () {},
           ),
       ],

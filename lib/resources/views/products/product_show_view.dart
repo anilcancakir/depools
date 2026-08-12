@@ -463,7 +463,7 @@ class _ProductShowViewState extends State<ProductShowView> {
             // why `LabelPrintView` had no way in until this line existed.
             MSDropdownMenuItem(
               label: Lang.get('screens.product.action_labels'),
-              onTap: () => MagicRoute.to('/etiket'),
+              onTap: () => MagicRoute.to('/labels'),
             ),
             // No `Düzenle` entry. Editing is field by field from the rows below, through
             // `FieldEditorSheet`, which is the pattern `ai-enrichment.md` already describes and the

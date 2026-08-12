@@ -79,51 +79,51 @@ class AppServiceProvider extends ServiceProvider {
         MagicStarterNavItem(
           icon: Icons.event_outlined,
           labelKey: 'nav.dates',
-          path: '/tarihler',
+          path: '/dates',
         ),
         MagicStarterNavItem(
           icon: Icons.trending_down_outlined,
           labelKey: 'nav.running_low',
-          path: '/azalanlar',
+          path: '/running-low',
         ),
         MagicStarterNavItem(
           icon: Icons.shopping_cart_outlined,
           labelKey: 'nav.shopping',
-          path: '/alisveris',
+          path: '/shopping',
         ),
         MagicStarterNavItem(
           icon: Icons.inventory_2_outlined,
           labelKey: 'nav.products',
-          path: '/urunler',
+          path: '/products',
         ),
         // Search is a destination rather than a field on one list, because it answers across
         // products AND locations and neither list can host the other's results.
         MagicStarterNavItem(
           icon: Icons.search_outlined,
           labelKey: 'nav.search',
-          path: '/ara',
+          path: '/search',
         ),
         MagicStarterNavItem(
           icon: Icons.warehouse_outlined,
           labelKey: 'nav.locations',
-          path: '/konumlar',
+          path: '/locations',
         ),
         MagicStarterNavItem(
           icon: Icons.checklist_outlined,
           labelKey: 'nav.stock_take',
-          path: '/sayim',
+          path: '/stock-take',
         ),
         MagicStarterNavItem(
           icon: Icons.auto_awesome_outlined,
           labelKey: 'nav.assistant',
-          path: '/asistan',
+          path: '/assistant',
         ),
         // This app's own settings, not the starter's profile screen: the two preferences D66 and
         // D67 created live here, and the account settings are one tap further in.
         MagicStarterNavItem(
           icon: Icons.settings_outlined,
           labelKey: 'nav.settings',
-          path: '/ayarlar',
+          path: '/settings',
         ),
       ],
       bottomItems: [
@@ -135,29 +135,29 @@ class AppServiceProvider extends ServiceProvider {
         MagicStarterNavItem(
           icon: Icons.event_outlined,
           labelKey: 'nav.dates',
-          path: '/tarihler',
+          path: '/dates',
         ),
         MagicStarterNavItem(
           icon: Icons.qr_code_scanner_outlined,
           labelKey: 'nav.scan',
-          path: '/tara',
+          path: '/scan',
         ),
         MagicStarterNavItem(
           icon: Icons.shopping_cart_outlined,
           labelKey: 'nav.shopping',
-          path: '/alisveris',
+          path: '/shopping',
         ),
         MagicStarterNavItem(
           icon: Icons.inventory_2_outlined,
           labelKey: 'nav.products',
-          path: '/urunler',
+          path: '/products',
         ),
         // Search is a destination rather than a field on one list, because it answers across
         // products AND locations and neither list can host the other's results.
         MagicStarterNavItem(
           icon: Icons.search_outlined,
           labelKey: 'nav.search',
-          path: '/ara',
+          path: '/search',
         ),
       ],
     );

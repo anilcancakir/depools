@@ -140,7 +140,7 @@ class _SearchViewState extends State<SearchView> {
             parLevel: item.parLevel,
             // The server id when there is one. Every tap on a product now reaches an endpoint, so a
             // route carrying a NAME 404s; the fallback keeps the fixture-only previews navigating.
-            onTap: () => MagicRoute.to('/urunler/${item.id ?? Uri.encodeComponent(item.name)}'),
+            onTap: () => MagicRoute.to('/products/${item.id ?? Uri.encodeComponent(item.name)}'),
           ),
       ],
     );
@@ -160,7 +160,7 @@ class _SearchViewState extends State<SearchView> {
             productCount: node.productCount,
             itemSummary: node.summary,
             icon: node.icon,
-            onTap: () => MagicRoute.to('/konumlar/${Uri.encodeComponent(node.path)}'),
+            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(node.path)}'),
           ),
       ],
     );
@@ -181,7 +181,7 @@ class _SearchViewState extends State<SearchView> {
             productCount: node.productCount,
             itemSummary: node.summary,
             icon: node.icon,
-            onTap: () => MagicRoute.to('/konumlar/${Uri.encodeComponent(node.path)}'),
+            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(node.path)}'),
           ),
       ],
     );

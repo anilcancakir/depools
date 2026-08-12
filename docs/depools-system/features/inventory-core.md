@@ -106,13 +106,13 @@ screen name plus `Screen`.
 
 | Screen | Route | States |
 |---|---|---|
-| `ProductIndexView` | `/urunler` | data, empty, loading-more |
-| `ProductFormView` | `/urunler/yeni` | empty (invalid), filled |
-| `ProductShowView` | `/urunler/:id` | data |
-| `LocationIndexView` | `/konumlar` | data, empty, filtered-empty |
-| `LocationFormView` | `/konumlar/yeni` | empty (invalid), filled |
-| `LocationShowView` | `/konumlar/:id` | holds stock, empty |
-| `StockTakeView` | `/sayim` | uncounted, variance, matched |
+| `ProductIndexView` | `/products` | data, empty, loading-more |
+| `ProductFormView` | `/products/new` | empty (invalid), filled |
+| `ProductShowView` | `/products/:id` | data |
+| `LocationIndexView` | `/locations` | data, empty, filtered-empty |
+| `LocationFormView` | `/locations/new` | empty (invalid), filled |
+| `LocationShowView` | `/locations/:id` | holds stock, empty |
+| `StockTakeView` | `/stock-take` | uncounted, variance, matched |
 | `UnitDefinitionSheet` | sheet | empty, factor entered |
 | `StockInSheet` / `StockOutSheet` / `StockMoveSheet` | sheet | see `stock-movements.md` |
 

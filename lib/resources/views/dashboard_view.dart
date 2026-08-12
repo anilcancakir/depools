@@ -167,7 +167,7 @@ class DashboardView extends StatelessWidget {
               description: Lang.get('screens.dashboard.step_locations_note'),
               state: SetupStepState.current,
               actionLabel: Lang.get('screens.dashboard.step_locations_action'),
-              onAction: () => MagicRoute.to('/konumlar'),
+              onAction: () => MagicRoute.to('/locations'),
             ),
             SetupStep(
               marker: '2',
@@ -184,7 +184,7 @@ class DashboardView extends StatelessWidget {
               // paths it names stay reachable: the assistant floats on every screen and the stock
               // list's empty state offers the receipt and the photo.
               actionLabel: Lang.get('screens.dashboard.step_products_action'),
-              onAction: () => MagicRoute.to('/tara'),
+              onAction: () => MagicRoute.to('/scan'),
             ),
             SetupStep(
               marker: '3',
@@ -193,7 +193,7 @@ class DashboardView extends StatelessWidget {
               // same thing, but by then the user has already opened a screen expecting rows.
               description: Lang.get('screens.dashboard.step_targets_note'),
               actionLabel: Lang.get('screens.dashboard.step_targets_action'),
-              onAction: () => MagicRoute.to('/urunler'),
+              onAction: () => MagicRoute.to('/products'),
             ),
           ],
         ),
@@ -265,16 +265,16 @@ class DashboardView extends StatelessWidget {
         WDiv(
           className: 'flex flex-col md:flex-row gap-2 w-full',
           children: [
-            _captureButton(context, Lang.get('screens.dashboard.capture_scan'), _iconScan, '/tara', ButtonIntent.primary),
-            _captureButton(context, Lang.get('screens.dashboard.capture_receipt'), _iconReceipt, '/fis'),
-            _captureButton(context, Lang.get('screens.dashboard.capture_shelf'), _iconShelf, '/raf'),
+            _captureButton(context, Lang.get('screens.dashboard.capture_scan'), _iconScan, '/scan', ButtonIntent.primary),
+            _captureButton(context, Lang.get('screens.dashboard.capture_receipt'), _iconReceipt, '/receipt'),
+            _captureButton(context, Lang.get('screens.dashboard.capture_shelf'), _iconShelf, '/shelf-photo'),
           ],
         ),
         WDiv(
           className: 'flex flex-col md:flex-row gap-2 w-full',
           children: [
-            _captureButton(context, Lang.get('screens.dashboard.capture_assistant'), _iconAssistant, '/asistan'),
-            _captureButton(context, Lang.get('screens.dashboard.capture_count'), _iconCount, '/sayim'),
+            _captureButton(context, Lang.get('screens.dashboard.capture_assistant'), _iconAssistant, '/assistant'),
+            _captureButton(context, Lang.get('screens.dashboard.capture_count'), _iconCount, '/stock-take'),
           ],
         ),
       ],
@@ -330,7 +330,7 @@ class DashboardView extends StatelessWidget {
       count: datesFailed
           ? null
           : Lang.get('screens.dashboard.count_batches', {'count': rows.length}),
-      action: datesFailed ? null : _seeAll('/tarihler', Lang.get('screens.dashboard.dates_action')),
+      action: datesFailed ? null : _seeAll('/dates', Lang.get('screens.dashboard.dates_action')),
       error: datesFailed ? Lang.get('screens.dashboard.dates_failed') : null,
       onRetry: datesFailed ? () {} : null,
       children: [
@@ -365,7 +365,7 @@ class DashboardView extends StatelessWidget {
     return SectionCard(
       label: Lang.get('screens.dashboard.stock_group'),
       count: Lang.get('screens.dashboard.count_products', {'count': rows.length}),
-      action: _seeAll('/azalanlar', Lang.get('screens.dashboard.stock_action')),
+      action: _seeAll('/running-low', Lang.get('screens.dashboard.stock_action')),
       children: [
         for (final ProductListItem p in rows.take(_rowCap)) _productRow(p),
         _hiddenCount(rows.length, Lang.get('screens.dashboard.unit_products')),
@@ -387,7 +387,7 @@ class DashboardView extends StatelessWidget {
       remainderFormatted: remainder?.$1,
       remainderUnit: remainder?.$2,
       parLevel: product.parLevel,
-      onTap: () => MagicRoute.to('/azalanlar'),
+      onTap: () => MagicRoute.to('/running-low'),
     );
   }
 
@@ -400,7 +400,7 @@ class DashboardView extends StatelessWidget {
     return SectionCard(
       label: Lang.get('screens.dashboard.shopping_group'),
       count: Lang.get('screens.dashboard.shopping_count', {'count': pendingLines.length}),
-      action: _seeAll('/alisveris', Lang.get('screens.dashboard.shopping_action')),
+      action: _seeAll('/shopping', Lang.get('screens.dashboard.shopping_action')),
       children: [
         WText(
           Lang.get('screens.dashboard.shopping_note'),

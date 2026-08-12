@@ -778,8 +778,8 @@ gap was invisible because every review happened inside the catalog, which reache
 rather than by URL.
 
 `lib/routes/app.dart` now registers ten routes under the authenticated shell, with Turkish plural
-paths (`/tarihler`, `/azalanlar`, `/urunler`) because a URL is user-facing on web and `/products`
-reads as a scaffold's while `/urunler` reads as this product's. The sidebar carries nine entries and
+paths (`/dates`, `/running-low`, `/products`) because a URL is user-facing on web and `/products`
+reads as a scaffold's while `/products` reads as this product's. The sidebar carries nine entries and
 the bottom bar five.
 
 The views still render fixtures rather than controller state, and routing them BEFORE wiring
@@ -930,7 +930,7 @@ own primary action.
 ### D68. The app owns a settings screen, and the shared layout id is what nearly hid the assistant
 
 D66 and D67 both created a preference and neither had anywhere to live: `nav.settings` pointed at
-`magic_starter`'s profile screen, which knows nothing about either. `/ayarlar` is this app's own
+`magic_starter`'s profile screen, which knows nothing about either. `/settings` is this app's own
 settings, and the account settings are one tap further in.
 
 Preferences are stored in magic's local cache rather than on the account. There is no preferences
@@ -968,7 +968,7 @@ Assumption until the ecosystem moves: build on 2025-11-25 semantics, keep the MC
 ### D69. The assistant opens over the screen, not instead of it
 
 D67 makes the assistant reachable everywhere. This decides what "open" means, and the first
-implementation got it wrong: the floating button pushed `/asistan`, which replaced whatever the user
+implementation got it wrong: the floating button pushed `/assistant`, which replaced whatever the user
 was looking at.
 
 That is the wrong shape for what this thing is for. The assistant is meant to be asked about the
@@ -980,7 +980,7 @@ mounted, closing returns to it unchanged, and there is no state to carry across 
 torn down. On a phone the overlay covers the bottom navigation too, which is what makes it a chat
 window rather than a tab, and matches how WhatsApp and ChatGPT treat entering a conversation.
 
-The `/asistan` route stays for the addressable case: a deep link, and the overview's pinned
+The `/assistant` route stays for the addressable case: a deep link, and the overview's pinned
 assistant verb from D66. Same screen, two presentations, differing only in the way out (a back
 arrow on the route, a close control in the overlay).
 
@@ -1001,7 +1001,7 @@ downstream of it is unreachable by construction and no amount of scrolling fixes
 
 The remedy depends on what the thing is, and the two cases are genuinely different:
 
-**A setting moves.** It goes to `/ayarlar`, which is where a user looks for a preference anyway, and
+**A setting moves.** It goes to `/settings`, which is where a user looks for a preference anyway, and
 the screen that governs it keeps a shortcut ABOVE the list, folded shut, with the current value in
 its header. One stored value, two doors. That is what the placement dial did.
 
@@ -1108,7 +1108,7 @@ starter's own 13 migrations already route through `MigrationHelper` and need not
 
 ### D74. Meilisearch owns user-facing search; PostgreSQL owns the resolution cascade
 
-Two searches that look alike and are not. What a user types into `/ara` wants typo tolerance,
+Two searches that look alike and are not. What a user types into `/search` wants typo tolerance,
 instant results and ranking across products AND locations: that is Meilisearch's job, through
 `laravel/scout`. What the receipt pipeline does to `PNR SUT 1LT` is a resolution cascade whose first
 two steps are an exact-and-normalised match against the tenant's own products and then embedding

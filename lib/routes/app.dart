@@ -40,8 +40,25 @@ import '../resources/views/products/stock_take_view.dart';
 /// and nothing else was addressable. A screen nobody can navigate to is not shipped, however
 /// green its preview is.
 ///
-/// The paths are Turkish and plural, matching the nouns the UI uses, because a URL is user-facing
-/// on web and `/urunler` reads as this app's own where `/products` reads as a scaffold's.
+/// ### The paths are English, and the reason they were not is recorded here rather than deleted
+///
+/// This file used to say: "The paths are Turkish and plural, matching the nouns the UI uses, because
+/// a URL is user-facing on web and `/urunler` reads as this app's own where `/products` reads as a
+/// scaffold's."
+///
+/// The premise is what failed, not the reasoning. A URL IS user-facing, which is exactly why it
+/// cannot be in a language the user does not read: `AGENTS.md`'s own first paragraph says the primary
+/// market is outside Turkey and the default locale is English, so the rule contradicted its own file
+/// from the day it was written. `/urunler` reads as this app's own only to a Turkish speaker; to
+/// everyone else it reads as a typo.
+///
+/// **The route NAMES were English all along**, which is what made the rename mechanical: `/tarihler`
+/// was already `.name('dates')`, `/azalanlar` already `.name('running-low')`. There was no vocabulary
+/// to invent, only a disagreement between a path and its own name to end. `route_paths_test` now pins
+/// that agreement, because a path is a string and no analyzer can see one drift back.
+///
+/// Turkish stays where it belongs: in the INTERFACE, through the language catalogues, which is the
+/// half a Turkish user actually reads.
 ///
 /// The views still render fixtures rather than controller state. That is the next seam, and
 /// routing them first is deliberate: it puts every screen in front of the shell it will actually
@@ -85,31 +102,31 @@ void registerAppRoutes() {
 
       // The three forecasting surfaces, in the order `forecasting.md` ranks them: what is
       // running out of time, what is short, and what to buy.
-      MagicRoute.page('/tarihler', () => const DatesView()).name('dates');
-      MagicRoute.page('/azalanlar', () => const RunningLowView()).name('running-low');
-      MagicRoute.page('/alisveris', () => const ShoppingListView()).name('shopping');
+      MagicRoute.page('/dates', () => const DatesView()).name('dates');
+      MagicRoute.page('/running-low', () => const RunningLowView()).name('running-low');
+      MagicRoute.page('/shopping', () => const ShoppingListView()).name('shopping');
 
       // Stock itself.
-      MagicRoute.page('/urunler', () => const ProductIndexView()).name('products');
+      MagicRoute.page('/products', () => const ProductIndexView()).name('products');
       // **Before `:id`, and the order is load-bearing.** A path parameter matches any segment, so
       // registering the literal second would send `/urunler/yeni` to the detail screen looking for
       // a product whose id is the word "yeni".
-      MagicRoute.page('/urunler/yeni', () => const ProductFormView()).name('product-create');
+      MagicRoute.page('/products/new', () => const ProductFormView()).name('product-create');
       MagicRoute.page(
-        '/urunler/:id',
+        '/products/:id',
         // A handler taking the parameter, which `RouteDefinition.buildWidget` supports for one to
         // three of them. Without it the screen has no way to know which product it is showing.
         (String id) => ProductShowView(id: id),
       ).name('product');
-      MagicRoute.page('/konumlar', () => const LocationIndexView()).name('locations');
+      MagicRoute.page('/locations', () => const LocationIndexView()).name('locations');
       // Literal before the parameter, for the reason `/urunler/yeni` states.
-      MagicRoute.page('/konumlar/yeni', () => const LocationFormView()).name('location-create');
-      MagicRoute.page('/konumlar/:id', () => LocationShowView()).name('location');
-      MagicRoute.page('/sayim', () => const StockTakeView()).name('stock-take');
+      MagicRoute.page('/locations/new', () => const LocationFormView()).name('location-create');
+      MagicRoute.page('/locations/:id', () => LocationShowView()).name('location');
+      MagicRoute.page('/stock-take', () => const StockTakeView()).name('stock-take');
 
       // Capture. The scanner is the barcode path; the assistant is the sentence path and is
       // registered separately below, because it takes over the screen.
-      MagicRoute.page('/tara', () => const BarcodeScanView()).name('scan');
+      MagicRoute.page('/scan', () => const BarcodeScanView()).name('scan');
 
       // **The four screens D61 would have caught again.** These were built, previewed and
       // verified, and the running app could reach none of them: no route, and no other screen
@@ -120,18 +137,18 @@ void registerAppRoutes() {
       // Each is reachable from where it belongs rather than from a menu of everything: the draft
       // from a scan the cascade could not resolve, the receipt and the shelf photo from the
       // overview's capture actions, the label sheet from the product it labels.
-      MagicRoute.page('/taslak', () => const ProductDraftView()).name('draft');
-      MagicRoute.page('/fis', () => const ReceiptReviewView()).name('receipt');
-      MagicRoute.page('/raf', () => const ShelfPhotoView()).name('shelf-photo');
-      MagicRoute.page('/etiket', () => const LabelPrintView()).name('labels');
+      MagicRoute.page('/draft', () => const ProductDraftView()).name('draft');
+      MagicRoute.page('/receipt', () => const ReceiptReviewView()).name('receipt');
+      MagicRoute.page('/shelf-photo', () => const ShelfPhotoView()).name('shelf-photo');
+      MagicRoute.page('/labels', () => const LabelPrintView()).name('labels');
 
       // This app's own settings, distinct from the account settings `magic_starter` owns. It
       // holds the two preferences D66 and D67 created and had nowhere to live.
       // One search over everything, because four dead per-list fields could not answer what
       // `iterations.md` asks of v1: a location is not findable from the product list.
-      MagicRoute.page('/ara', () => const SearchView()).name('search');
+      MagicRoute.page('/search', () => const SearchView()).name('search');
 
-      MagicRoute.page('/ayarlar', () => const SettingsView()).name('settings');
+      MagicRoute.page('/settings', () => const SettingsView()).name('settings');
 
       // The two v1 surfaces that had no screen at all. Both are reached from settings, which is
       // where a user looks for anything they can change, and both are screens rather than settings
@@ -158,7 +175,7 @@ void registerAppRoutes() {
   MagicRoute.group(
     middleware: ['auth'],
     routes: () {
-      MagicRoute.page('/asistan', () => const AssistantView()).name('assistant');
+      MagicRoute.page('/assistant', () => const AssistantView()).name('assistant');
     },
   );
 }

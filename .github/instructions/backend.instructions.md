@@ -52,4 +52,6 @@ DB::transaction(function (): void {
 
 ## Controllers
 
-Thin: inject the service or the contract, return an API Resource. Paths under `api/v1` are English and plural, while the app's own URLs are Turkish, because a screen's URL is read by the person using the product and an API path is read by whoever maintains the client.
+Thin: inject the service or the contract, return an API Resource. Paths under `api/v1` are English and plural.
+
+**The app's own URLs are English too, and this rule used to say the opposite.** It read: "the app's own URLs are Turkish, because a screen's URL is read by the person using the product and an API path is read by whoever maintains the client." The premise was right and the conclusion did not follow: a screen's URL IS read by the person using the product, which is exactly why it cannot be in a language they do not read. `AGENTS.md` says the primary market is outside Turkey and the default locale is English, so the two files contradicted each other from the day this one was written. `/products` and `api/v1/products` now agree, and `test/routes/route_paths_test.dart` keeps every screen path lower-case ASCII.

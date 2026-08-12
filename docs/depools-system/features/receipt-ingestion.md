@@ -82,8 +82,8 @@ Detail in `ai-design.md`.
 
 | Screen | Route | States |
 |---|---|---|
-| `ReceiptReviewView` | `/fis` | lines with confidence and resolution state |
-| forwarding address | `/ayarlar` | the tenant's inbound address, with copy |
+| `ReceiptReviewView` | `/receipt` | lines with confidence and resolution state |
+| forwarding address | `/settings` | the tenant's inbound address, with copy |
 
 ## What the design settled
 

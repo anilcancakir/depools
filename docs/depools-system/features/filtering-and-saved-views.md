@@ -76,8 +76,8 @@ That is why mode 2 of the chip row is not decoration. **The active criteria are 
 
 | Screen | Route | States |
 |---|---|---|
-| `SearchView` | `/ara` | empty query, results, nothing matched |
-| `FilterBar` + `ProductFilterSheet` | on `/urunler` | saved filters, applied criteria, full axis set |
+| `SearchView` | `/search` | empty query, results, nothing matched |
+| `FilterBar` + `ProductFilterSheet` | on `/products` | saved filters, applied criteria, full axis set |
 
 ## What the design settled
 

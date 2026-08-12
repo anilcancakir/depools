@@ -147,8 +147,8 @@ the ledger means, and that is a conversion rather than a field edit.
 
 | Screen | Route | States |
 |---|---|---|
-| `ProductDraftView` | `/taslak` | fields with confidence, unconfirmed, unresolved |
-| `ShelfPhotoView` | `/raf` | reading, ready, failed |
+| `ProductDraftView` | `/draft` | fields with confidence, unconfirmed, unresolved |
+| `ShelfPhotoView` | `/shelf-photo` | reading, ready, failed |
 
 ## What the design settled
 
