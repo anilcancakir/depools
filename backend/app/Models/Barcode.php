@@ -83,11 +83,21 @@ final class Barcode extends Model
             }
         }
 
-        if ($symbology === null || $symbology === '') {
+        // Trimmed like the code beside it. Surrounding whitespace is transport noise rather than part
+        // of an identity, and leaving it in makes a lookup fail for a reason invisible in a log: the
+        // client sees a 404 that means "no such label" when the label is there.
+        //
+        // Case is deliberately NOT normalised here. The vocabulary is open (no CHECK constraint) and
+        // `Gtin::likelySymbology` is its only writer today, always lower-case, so folding case would
+        // be inventing a rule for values nothing yet produces. It becomes a real question the day a
+        // second writer appears, and the place to settle it is the column.
+        $label = trim((string) $symbology);
+
+        if ($label === '') {
             return null;
         }
 
-        return self::query()->where('code', $trimmed)->where('symbology', $symbology)->first();
+        return self::query()->where('code', $trimmed)->where('symbology', $label)->first();
     }
 
     /**

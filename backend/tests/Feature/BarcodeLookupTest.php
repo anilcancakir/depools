@@ -157,6 +157,13 @@ final class BarcodeLookupTest extends TestCase
         $this->getJson('/api/v1/products/by-barcode?code=SHELF-A-0042&symbology=code128')
             ->assertOk()
             ->assertJsonPath('data.id', $product->getKey());
+
+        // Whitespace around the symbology is transport noise, not part of the identity. Leaving it in
+        // fails the lookup for a reason invisible in a log: the client reads a 404 meaning "no such
+        // label" while the label is sitting there.
+        $this->getJson('/api/v1/products/by-barcode?code=SHELF-A-0042&symbology='.urlencode(' code128 '))
+            ->assertOk()
+            ->assertJsonPath('data.id', $product->getKey());
     }
 
     public function test_the_product_search_matches_a_barcode(): void
