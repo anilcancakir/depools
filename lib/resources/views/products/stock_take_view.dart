@@ -4,7 +4,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show ButtonIntent, ButtonSize, MSButton, MSInput, MagicStarterConfirmDialog;
+    show ButtonIntent, ButtonSize, MSBottomSheet, MSButton, MSInput, MagicStarterConfirmDialog;
 
 import '../../../app/controllers/product_controller.dart';
 import '../../../app/controllers/stock_take_controller.dart';
@@ -12,9 +12,9 @@ import '../../../app/support/count_progress.dart';
 import '../../../app/support/plural.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 
-import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/count_row/count_row.dart';
 import '../../../ui/components/list_footer/list_footer.dart';
+import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'count_fixtures.dart';
 import 'count_line.dart';
@@ -99,6 +99,7 @@ class StockTakeView extends StatefulWidget {
 class _StockTakeViewState extends State<StockTakeView> {
   static const IconData _saveIcon = Icons.playlist_add_check;
   static const IconData _searchIcon = Icons.search_outlined;
+  static const IconData _changeIcon = Icons.unfold_more;
 
   /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
   /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a request
@@ -503,7 +504,6 @@ class _StockTakeViewState extends State<StockTakeView> {
       footer: _buildCommit(context, lines, counted, variances),
       children: [
         _buildLocation(),
-        if (!loading && !failed) _buildSearch(),
         if (!loading && !failed && _settled.isNotEmpty) _buildSettledBar(),
         if (loading)
           _buildLoading()
@@ -519,49 +519,103 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   /// Which shelf. Chips rather than a tree, because a count is scoped to one leaf and the
   /// tree's job (finding a place to put something) is not this screen's job.
+  /// Which shelf is being counted, as one row rather than as a wall of chips.
+  ///
+  /// **Measured: the chip wall was 235 logical px at 390x844, 28 per cent of the screen, for a
+  /// control the user touches once per shelf.** The list it pushed down is the reason the screen
+  /// exists. Worse, the arithmetic said the real cost only shows up with a keyboard: the count list
+  /// began at y=621 on an 844px screen, so any keyboard taller than 223px put every row off screen,
+  /// and every phone keyboard is far above that. Searching a shelf while seeing it was impossible.
+  ///
+  /// Collapsed, this is 44px and the shelf name stays on screen, which is the part that has to
+  /// survive: a count committed against the wrong shelf is a ledger entry, not a typo.
   Widget _buildLocation() {
     final String active = _activeLocation;
 
-    return SectionCard(
-      label: Lang.get('screens.stock_take.where_group'),
-      children: [
-        WDiv(
-          className: 'flex flex-row wrap items-center gap-2 py-1',
+    return WAnchor(
+      onTap: _pickLocation,
+      semanticLabel: Lang.get('screens.stock_take.change_location', {'path': _pathOf(active)}),
+      child: WDiv(
+        // Card tone plus a hairline, never `bg-surface-container-high`: that token is DESIGN.md's
+        // INPUT background and reads as recessed in light mode, which is the universal look of a
+        // disabled control. Elevation direction flips between appearances, so only a border can
+        // carry "pressable" in both.
+        className: 'flex flex-row items-center gap-3 min-h-11 px-4 py-2 rounded-lg '
+            'bg-surface-container border border-color-border',
+        children: [
+          WText(
+            Lang.get('screens.stock_take.where_group'),
+            className: 'text-xs font-medium text-fg-muted shrink-0',
+          ),
+          // `flex-1 min-w-0` beside `truncate`, because `truncate` alone only sets the overflow
+          // behaviour: without a shrinkable box the Text keeps its intrinsic width and the ellipsis
+          // never appears. A deep path is exactly the case that needs it.
+          WText(
+            _pathOf(active),
+            className: 'flex-1 min-w-0 truncate text-sm font-medium text-fg',
+          ),
+          const WIcon(_changeIcon, className: 'size-4 text-fg-muted shrink-0'),
+        ],
+      ),
+    );
+  }
+
+  /// Opens the shelf picker and switches to what it returns.
+  ///
+  /// A sheet rather than the chips inline, because the choice is made once and the screen belongs
+  /// to the count. `OptionRow` is the same picker row the move sheet uses, so a location list looks
+  /// the same wherever it is offered.
+  Future<void> _pickLocation() async {
+    final String? picked = await MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.stock_take.pick_location_title'),
+      // **The `Builder` is load-bearing, and leaving it out is not a style slip.** The sibling
+      // sheets pop with `Navigator.of(context)` from inside their own `build`, so their context
+      // already sits under the sheet's route. This body is built inline from the VIEW's context,
+      // which resolves to the route BEHIND the sheet: tapping an option popped the count screen
+      // instead of the sheet, and the app threw a navigator assertion, a go_router delegate
+      // assertion and a duplicate GlobalKey in one go.
+      body: Builder(
+        builder: (BuildContext sheetContext) => WDiv(
+          className: 'flex flex-col gap-1',
           children: [
             for (final FilterOption option in _locationOptions)
-              ChoiceChip(
+              OptionRow(
                 label: option.fullPath,
-                isSuggested: option.id == active,
-                semanticLabel: option.id == active
+                isSelected: option.id == _activeLocation,
+                semanticLabel: option.id == _activeLocation
                     ? Lang.get('screens.stock_take.current_location', {'path': option.fullPath})
                     : Lang.get('screens.stock_take.pick_location', {'path': option.fullPath}),
-                onTap: () => setState(() {
-                  _locationId = option.id;
-                  // The controller resets its own query when a shelf opens, so the field has to go
-                  // with it. Left alone it showed a term that was no longer narrowing anything,
-                  // which is the same field-and-state desync the products list had.
-                  _searchDebounce?.cancel();
-                  _search.clear();
-                  // Another shelf is another count. Carrying the typed figures across would let a
-                  // number entered for the fridge commit itself against the pantry's balance.
-                  _whole.clear();
-                  _inner.clear();
-                  _unfinished.clear();
-                  // **And the settled state, which is per SHELF and was leaking across them.** Its
-                  // own docblock says "this shelf and this visit" and nothing enforced it: the bar
-                  // went on reporting the previous shelf's saved rows, and a product that sits at
-                  // two locations was hidden on the second one, so a row that still needed counting
-                  // was invisible there.
-                  _settled.clear();
-                  _settledWhole.clear();
-                  _settledInner.clear();
-                  _showSettled = false;
-                }),
+                onTap: () => Navigator.of(sheetContext).pop(option.id),
               ),
           ],
         ),
-      ],
+      ),
     );
+
+    if (picked == null || !mounted || picked == _locationId) return;
+
+    setState(() {
+      _locationId = picked;
+      // The controller resets its own query when a shelf opens, so the field has to go with it.
+      // Left alone it showed a term that was no longer narrowing anything, which is the same
+      // field-and-state desync the products list had.
+      _searchDebounce?.cancel();
+      _search.clear();
+      // Another shelf is another count. Carrying the typed figures across would let a number
+      // entered for the fridge commit itself against the pantry's balance.
+      _whole.clear();
+      _inner.clear();
+      _unfinished.clear();
+      // **And the settled state, which is per SHELF and was leaking across them.** Its own docblock
+      // says "this shelf and this visit" and nothing enforced it: the bar went on reporting the
+      // previous shelf's saved rows, and a product that sits at two locations was hidden on the
+      // second one, so a row that still needed counting was invisible there.
+      _settled.clear();
+      _settledWhole.clear();
+      _settledInner.clear();
+      _showSettled = false;
+    });
   }
 
   /// The sheet itself.
@@ -655,18 +709,40 @@ class _StockTakeViewState extends State<StockTakeView> {
     );
   }
 
+  /// The search field, which now lives in the pinned bar rather than in the page.
+  ///
+  /// **It moved to the bottom because that is where the keyboard is, and Apple says so.** The HIG
+  /// (search fields, June 2026) is explicit: "Place search at the bottom if there's room... it keeps
+  /// the search experience easy to reach", and when tapped it "animates into a search field above
+  /// the keyboard so they can begin typing". Settings, Mail and Notes ship it. Here it is the
+  /// difference between a usable count and an impossible one: with the field at the top of the page,
+  /// the rows it filters were pushed under the keyboard, so the user typed a name and could not see
+  /// the row they had just found.
+  ///
+  /// It shares the bar with the commit button, which is the Mail and Notes arrangement rather than
+  /// the Settings one ("as a new toolbar where search is the only item"), because this screen's
+  /// primary action has to stay in reach too.
+  ///
+  /// **`flex-1 min-w-0` is required here and was forbidden in the old position.** In the page's
+  /// vertical children the shell hands unbounded height, so a flex child asserted and rendered
+  /// nothing; inside a bounded Row it is what lets the field give the button its width.
   Widget _buildSearch() {
-    // **No `flex-1` wrapper, and that is not a simplification.** The products list wraps its field
-    // in one because it shares a ROW with the filter button. Here the field has no sibling and sits
-    // directly in the page's vertical children, where the shell hands unbounded height, so a
-    // `flex-1` child asserts with `RenderFlex children have non-zero flex but incoming height
-    // constraints are unbounded`. Copied across, it rendered nothing and took the sheet with it.
-    return MSInput(
-      className: 'h-11 bg-surface-container-high',
-      placeholder: Lang.get('screens.stock_take.search'),
-      prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
-      controller: _search,
-      onChanged: _onSearchChanged,
+    return WDiv(
+      className: 'flex-1 min-w-0',
+      child: MSInput(
+        // `h-11` on BOTH halves of the row, the fix the products list and the assistant composer
+        // both needed: a field sized by its own padding measured 52 beside a 44 button, and
+        // `items-center` centres that mismatch rather than hiding it.
+        //
+        // `bg-surface-container` rather than the `-high` the products list uses, because this one
+        // sits on the footer's `bg-surface` fill: `-high` is the input tone for a page surface and
+        // reads as recessed against a card.
+        className: 'h-11 bg-surface-container',
+        placeholder: Lang.get('screens.stock_take.search'),
+        prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+        controller: _search,
+        onChanged: _onSearchChanged,
+      ),
     );
   }
 
@@ -890,11 +966,20 @@ class _StockTakeViewState extends State<StockTakeView> {
             Lang.get('screens.stock_take.shelf_done', {'total': total}),
             className: 'text-sm text-fg-muted',
           ),
-          MSButton(
-            onPressed: () => MagicRoute.to('/'),
-            fullWidth: true,
-            className: 'justify-center',
-            child: WText(Lang.get('screens.stock_take.shelf_done_action')),
+          // The field stays even here, because finishing is not the only thing left to do: a user
+          // who wants to re-check a row they entered gets to it by searching for it, and typing
+          // takes the shelf out of the finished state on its own (`shelfIsFinished` is false while
+          // a query narrows the sheet), which puts the normal bar back.
+          WDiv(
+            className: 'flex flex-row items-center gap-2',
+            children: [
+              _buildSearch(),
+              MSButton(
+                onPressed: () => MagicRoute.to('/'),
+                className: 'h-11 justify-center shrink-0',
+                child: WText(Lang.get('screens.stock_take.shelf_done_action')),
+              ),
+            ],
           ),
         ],
       );
@@ -932,7 +1017,16 @@ class _StockTakeViewState extends State<StockTakeView> {
             Lang.get('screens.stock_take.unfinished', {'count': _unfinished.length}),
             className: 'text-xs text-fg-muted',
           ),
-        MSButton(
+        // **The search field and the commit share one bar, which is the whole point of the move.**
+        // Apple's HIG offers both arrangements for bottom search: its own toolbar (Settings) or
+        // alongside other controls (Mail, Notes). This screen takes the second, because a count has
+        // one primary action and burying it to give search a bar of its own would trade one
+        // out-of-reach control for another.
+        WDiv(
+          className: 'flex flex-row items-center gap-2',
+          children: [
+            _buildSearch(),
+            MSButton(
           // **Committing asks first, and the question is the numbers.** This writes count movements
           // into an append-only ledger: undoing means writing a counter-movement, so the mistake
           // stays in the history forever even after it is fixed. The dialog restates what will be
@@ -960,19 +1054,20 @@ class _StockTakeViewState extends State<StockTakeView> {
                   confirmLabel: Lang.get('screens.stock_take.commit_confirm'),
                   onConfirm: () => _commit(countedLines),
                 ),
-          fullWidth: true,
-          className: 'justify-center',
-          child: WDiv(
-            className: 'flex flex-row items-center justify-center gap-2',
-            children: [
-              const WIcon(_saveIcon, className: 'size-4'),
-              WText(
-                variances.isEmpty
-                    ? Lang.get('screens.stock_take.finish')
-                    : plural('screens.stock_take.save_variances', variances.length, {'count': variances.length}),
+              className: 'h-11 justify-center shrink-0',
+              child: WDiv(
+                className: 'flex flex-row items-center justify-center gap-2',
+                children: [
+                  const WIcon(_saveIcon, className: 'size-4'),
+                  WText(
+                    variances.isEmpty
+                        ? Lang.get('screens.stock_take.finish')
+                        : plural('screens.stock_take.save_variances', variances.length, {'count': variances.length}),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart' show Material, MaterialType;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
@@ -189,7 +191,20 @@ class _PageChromeHostState extends State<PageChromeHost> {
                 // See [_clearance]: the navigation is a bottom bar only below `lg`, and its own height
                 // grows by the device's safe area, so the pair tracks together on a phone with a home
                 // indicator and collapses to nothing on a desktop window.
-                bottom: _clearance(context),
+                //
+                // **The keyboard is the other thing anchored to this edge, and it wins.** A footer
+                // at the navigation's clearance sits UNDER an open keyboard, which is the same
+                // overlap defect the clearance exists to prevent, one layer further out. `max`
+                // rather than a sum because the keyboard covers the navigation bar while it is up,
+                // so adding the two would float the footer a nav-height above the keys.
+                //
+                // `viewInsets` is zero on Flutter web, which is correct there (a desktop browser
+                // has no soft keyboard) and is also why this cannot be verified in a dusk run. It
+                // is real on iOS and Android.
+                bottom: math.max(
+                  _clearance(context),
+                  MediaQuery.viewInsetsOf(context).bottom,
+                ),
                 // The `Material` is the same one the assistant overlay needed, for the same
                 // reason: this draws OUTSIDE `layout.app`, which is what was providing the
                 // ancestor every `Text` under a `MaterialApp` resolves its style from. Without

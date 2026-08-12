@@ -768,7 +768,9 @@
       "committed_counted": ":rows · :changes",
       "summary": ":counted ürün sayıldı · :variances fark",
       "committed_rows": ":counted satır sayıldı",
-      "committed_changes": ":written hareket yazıldı"
+      "committed_changes": ":written hareket yazıldı",
+      "change_location": "Sayılan raf, şu an :path",
+      "pick_location_title": "Hangi raf"
     },
     "stock_move": {
       "after_note": "Sonrasında :from ve :to güncellenir",
