@@ -192,13 +192,25 @@ class _StockTakeViewState extends State<StockTakeView> {
 
       _catalogue = catalogue;
       _controller = StockTakeController.instance..addListener(_onControllerChanged);
+
+      // Seeded ONCE, here, and not in `didChangeDependencies`, which is where it was.
+      //
+      // **That was a clobber waiting for a keyboard.** The field is debounced by 400ms, so during
+      // that window it holds what the user just typed while `controller.query` still holds the
+      // previous term. `didChangeDependencies` fires on any inherited change, and on a phone the
+      // loudest one is `MediaQuery` when the keyboard opens or closes: exactly while someone is
+      // typing. It would have overwritten the input with the stale query and silently undone the
+      // last few characters.
+      //
+      // `initState` cannot race it: the `State` is new, `_search` is empty, and the only thing in
+      // the controller is whatever a previous visit left there, which is precisely what this is for.
+      _syncSearchField();
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncSearchField();
 
     final ScrollPosition? position =
         _controller == null ? null : Scrollable.maybeOf(context)?.position;
@@ -210,7 +222,7 @@ class _StockTakeViewState extends State<StockTakeView> {
     _scroll?.addListener(_onScroll);
   }
 
-  /// Puts the field back in step with the shelf it is narrowing.
+  /// Seeds the field from the shelf it is narrowing, once per mount.
   ///
   /// **The controller outlives this screen and the field does not.** `StockTakeController` is keyed
   /// by type, so leaving the count screen and coming back gives a fresh `State` with an empty input
@@ -218,8 +230,8 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// with nothing on screen saying why. Measured by navigating away and back after searching.
   ///
   /// Seeded rather than cleared, because the search is the user's and a quick trip to another screen
-  /// is not a reason to throw it away. Guarded on inequality so this is idempotent: it runs whenever
-  /// dependencies change, not once.
+  /// is not a reason to throw it away. Called from [initState] and nowhere else, so it cannot fire
+  /// mid-edit; the guard on inequality stays because it costs nothing and says what it means.
   void _syncSearchField() {
     final StockTakeController? controller = _controller;
 
