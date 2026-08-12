@@ -925,9 +925,17 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// a sixth that forgot to record the row would lose exactly one product's count, silently. Funnel
   /// them through one method and forgetting is not available.
   void _edit(CountLine line, VoidCallback change) {
-    _touched[_keyOf(line)] = line;
+    final String key = _keyOf(line);
+
+    _touched[key] = line;
 
     change();
+
+    // **And forgotten again when the change empties the row.** Clearing both fields un-counts a row
+    // (absence is what `CountLine` reads as uncounted, D58), so keeping its record would leave an
+    // entry that every build walks past and never uses. The pair is what keeps this map exactly the
+    // rows with a live figure rather than a log of everything the visit touched.
+    if (!_whole.containsKey(key) && !_inner.containsKey(key)) _touched.remove(key);
   }
 
   /// Records a typed figure, or forgets the field when it no longer holds one.
@@ -1241,6 +1249,11 @@ class _StockTakeViewState extends State<StockTakeView> {
         _settled[result.productId] = result;
         _settledWhole[result.productId] = _whole.remove(result.productId);
         _settledInner[result.productId] = _inner.remove(result.productId);
+        // The row's record goes with its figures, so `_touched` holds exactly the rows with a live
+        // count rather than everything the visit ever passed through. Without this a long session
+        // with periodic commits leaves a map that is scanned on every build and skipped almost
+        // entirely. Re-typing a settled row puts it back, because every write records the row first.
+        _touched.remove(result.productId);
       }
     });
 
