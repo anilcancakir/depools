@@ -74,7 +74,7 @@ grep -rn 'Color(0x\|Colors\.' lib/ui/components/<name>/
 grep -rn 'SizedBox(height: [0-9]\|SizedBox(width: [0-9]' lib/ui/components/<name>/
 ```
 
-An earlier version of this file pointed these at `/Users/anilcan/Code/fluttersdk/lib/...`, one segment
+An earlier version of this file pointed these at `<workspace>/fluttersdk/lib/...`, one segment
 short of the project. That directory does not exist, so the grep matched nothing and every review
 silently passed this step. If a command here returns nothing, confirm the path resolves before
 concluding the component is clean.

@@ -58,6 +58,14 @@ The branch is `master` and not `main`, deliberately, matching `magic` and `uptiz
 
 - Every task starts in its own worktree: `EnterWorktree`, or `git worktree add .claude/worktrees/<slug> -b feature/<slug>` by hand. Branches are `feature/<slug>` or `fix/<slug>`.
 - A worktree is a fresh checkout, so three gitignored files it needs are absent: `pubspec_overrides.yaml`, `backend/.env`, `.artisan/plugins.json`. `.worktreeinclude` copies all three when Claude Code creates the worktree, and `bin/check` copies the last two plus `backend/public/build` on first run. Never hand-author them. Run `(cd backend && composer install)` yourself when the branch touches `composer.lock`.
+- A fresh worktree also has no `.dart_tool`, so `flutter test` re-downloads sqlite3's prebuilt native library, and the whole gate is blocked while that download is failing. It failed here on a documentation-only branch. Seed the built copy from the main worktree instead of waiting it out, which takes a second and needs no network:
+
+  ```sh
+  # From inside the worktree. `--show-toplevel` is the wrong tool here: it resolves to the WORKTREE,
+  # so it would copy the cache onto itself. The common git dir is the main checkout's.
+  M=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+  mkdir -p .dart_tool/hooks_runner/shared && cp -R "$M/.dart_tool/hooks_runner/shared/sqlite3" .dart_tool/hooks_runner/shared/
+  ```
 - The nested layout works here because `pubspec_overrides.yaml` holds ABSOLUTE paths. A relative `../magic` resolves to nothing from `.claude/worktrees/<slug>`, and version solving then fails with an error that blames the wrong thing.
 - Land the work as a PR, and let CI be the evidence rather than a local run. Four checks have to pass before a merge, and a review thread has to be resolved: `Flutter (analyze + test)`, `Backend (pint + tests)`, `Design tokens`, `Instruction mirrors`.
 - Also branch from `master` for the trivial case the worktree rule exempts, because a direct push is refused either way.
@@ -72,7 +80,17 @@ Three mechanics that decide whether that loop actually runs:
 
 **Verify the PREMISE, not just the conclusion.** This is the one that actually cost something on the first real PR. A finding said a seeder needed a tenancy guard because unauthenticated rows would land invisible, the conclusion was right, and the reason was not: `team_id` is NOT NULL, so the insert fails with `SQLSTATE[23502]` instead. Accepting the conclusion put the wrong failure mode into a comment, and a later round found it there. Ask the database, or the framework source, before writing down a because.
 
-**Read the review body, not only the inline comments.** Copilot posts its lower-confidence findings as SUPPRESSED entries inside the body, where no thread and no notification appears. On that first PR the suppressed set is where the best finding was: a seeder reachable on its own through `db:seed --class=`, which would have stamped a null `team_id` on every row and made them invisible.
+It applies to the ANSWER as much as to the finding, which is the easier half to miss. On #17 a reply said a bad plural was unreachable "since a commit writing nothing takes the other branch", and the branch is on `unfinished.isEmpty` rather than on the written count: zero changes is the NORMAL outcome there, because a count matching the ledger writes nothing (D59), and the code comment three lines above said so. The fix was right and the reason was invented. Read the branch you are about to describe, then write the reply.
+
+**Read the review body, not only the inline comments. Measured across every reviewed PR here, MORE findings arrive suppressed than inline: 28 against 23.** Copilot posts its lower-confidence findings as SUPPRESSED entries inside the review body, where no thread, no notification and no `pulls/<n>/comments` entry appears. `gh pr view --comments` does not show them either. The only way to read them is the body itself:
+
+```sh
+gh api "$P/$N/reviews" --jq '.[-1].body' | grep -B2 -A25 -i suppress
+```
+
+Two things that make skipping them expensive rather than untidy. The suppressed set is where the best findings have been: on the first PR with real code it held a seeder reachable through `db:seed --class=` that would have stamped a null `team_id` on every row, and on #17 it held a debounced search field that could clobber what the user was typing. And **the inline set dries up while the suppressed one does not**: #17 ran five rounds, all three of its inline comments landed in round one, and rounds two through five produced seven findings between them without a single inline. So an agent watching for inline comments reads round one and then, entirely correctly, sees nothing for the rest of the PR.
+
+Grepping the body for `generated no new comments` is not a check for this. That sentence is present in a round that carries suppressed findings; it counts only the inline ones.
 
 **Stop when a round produces nothing real, not when it produces nothing.** Each round tends to surface fewer and smaller findings, so fix what is real, re-request, and merge on the first round whose findings you would decline anyway. Rounds are cheap; an unbounded loop chasing hints is not.
 
@@ -103,6 +121,16 @@ N=$(gh pr create --base master --head "$B" --title "..." --body "..." | grep -o 
 until [ "$(gh api "repos/anilcancakir/depools/commits/$(git rev-parse HEAD)/check-runs" \
   --jq .total_count)" -gt 0 ]; do sleep 5; done
 gh pr checks "$N" --watch --fail-fast
+
+#    A red `Flutter (analyze + test)` naming nothing in your diff is usually not your diff. The
+#    sqlite3 package's build hook downloads a prebuilt `libsqlite3.x64.linux.so` from a GitHub
+#    release, and that connection drops: `Building native assets failed`, before a single test runs.
+#    Read the log before touching the code, then re-run the JOB. Not an empty commit: a push starts
+#    another review round, so a network flake would cost a round of AI credits. And do not conclude
+#    it is a GitHub outage and wait: the same download failed locally on arm64 while `curl` fetched
+#    the very same URL with a 200, so it is Dart's HTTP client on that redirect, not the asset.
+gh run view --log-failed --job <jobId> | tail -40
+gh run rerun <runId> --failed
 
 # 5. Then the review. Capture the count BEFORE requesting: on a re-review one already exists, so a
 #    wait for "any review" returns instantly and you read the previous one.
