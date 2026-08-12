@@ -85,6 +85,28 @@ final class BarcodeLookupTest extends TestCase
             ->assertJsonPath('data.id', $product->getKey());
     }
 
+    public function test_a_formatted_read_resolves_and_a_letter_in_it_does_not(): void
+    {
+        // `Gtin::fromScan` exists to strip the spaces and hyphens a scanner or a spreadsheet import
+        // puts in, so refusing them here would mean a GTIN recorded from a formatted read could never
+        // be found again. Deferring to it entirely is the opposite mistake: it strips every non-digit,
+        // so an internal label would come back as its digits and resolve as somebody else's GTIN.
+        [, $product] = $this->tenant('Alpha');
+        $product->linkBarcode(Barcode::forGtin('8690504010012'));
+
+        $this->getJson('/api/v1/products/by-barcode?code=869 0504 010012')
+            ->assertOk()
+            ->assertJsonPath('data.id', $product->getKey());
+
+        $this->getJson('/api/v1/products/by-barcode?code='.urlencode('8690-5040-10012'))
+            ->assertOk()
+            ->assertJsonPath('data.id', $product->getKey());
+
+        // A letter anywhere means it is not a GTIN, whatever its digits would spell.
+        $this->getJson('/api/v1/products/by-barcode?code='.urlencode('SHELF-A-0042'))
+            ->assertNotFound();
+    }
+
     public function test_an_unknown_code_is_a_miss_rather_than_an_empty_product(): void
     {
         $this->tenant('Alpha');

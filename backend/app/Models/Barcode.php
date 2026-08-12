@@ -56,10 +56,16 @@ final class Barcode extends Model
      * `firstOrCreate` makes impossible by always succeeding.
      *
      * Which regime applies is decided from the code itself rather than trusted from the caller. A GTIN
-     * is digits by definition, so a read that is not digits-only cannot be one however it was labelled,
-     * and a read longer than fourteen digits is not one either. Everything else is a `(code, symbology)`
+     * is digits by definition, so a read carrying a letter cannot be one however it was labelled, and a
+     * read longer than fourteen digits is not one either. Everything else is a `(code, symbology)`
      * identity, where the symbology is part of what the label IS: the same digits as Code128 and as a QR
      * are two different labels.
+     *
+     * **Separators are allowed and letters are not, which is a narrower rule than either extreme.**
+     * Requiring digits only would contradict [Gtin::fromScan], whose whole job is to strip the spaces
+     * and hyphens a scanner or a spreadsheet import puts in, so a GTIN recorded from a formatted read
+     * would never resolve again. Deferring to it entirely is worse: it strips every non-digit, so an
+     * internal label like `SHELF-A-0042` would come back as `0042` and resolve as somebody's GTIN.
      */
     public static function findForScan(string $raw, ?string $symbology = null): ?self
     {
@@ -69,8 +75,12 @@ final class Barcode extends Model
             return null;
         }
 
-        if (preg_match('/^\d{1,'.self::gtinLength().'}$/', $trimmed) === 1) {
-            return self::query()->where('gtin', (string) Gtin::fromScan($trimmed))->first();
+        if (preg_match('/^[\d\s-]{1,'.(self::gtinLength() * 2).'}$/', $trimmed) === 1) {
+            $digits = preg_replace('/[\s-]/', '', $trimmed) ?? '';
+
+            if ($digits !== '' && strlen($digits) <= self::gtinLength()) {
+                return self::query()->where('gtin', (string) Gtin::fromScan($digits))->first();
+            }
         }
 
         if ($symbology === null || $symbology === '') {
