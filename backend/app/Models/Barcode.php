@@ -43,7 +43,33 @@ final class Barcode extends Model
      */
     public static function forCode(string $code, string $symbology): self
     {
-        return self::firstOrCreate(['code' => $code, 'symbology' => $symbology]);
+        return self::firstOrCreate([
+            'code' => trim($code),
+            'symbology' => self::normaliseSymbology($symbology),
+        ]);
+    }
+
+    /**
+     * The canonical form of a symbology name: trimmed and lower-cased.
+     *
+     * **Both halves of one identity go through here, and that pairing is the whole reason it exists.**
+     * The lookup used to trim while this writer stored verbatim, which is worse than neither doing it:
+     * a label written with a stray space could never be found again by the method built to find it.
+     * A normalisation applied on one side of a pair is not a normalisation, it is a mismatch.
+     *
+     * Case folds too, and I argued against that a round ago on the grounds that `Gtin::likelySymbology`
+     * is the only writer and always lower-case. That was wrong about the shape of the risk rather than
+     * about today's data: [forCode] is public and takes a CALLER's symbology, so the day the scan screen
+     * writes one, `QR` and `qr` become two identities for one label and every later scan resolves to
+     * whichever the client happened to spell. The column has no CHECK constraint to catch it, and every
+     * value this codebase produces is lower-case already, so folding costs nothing and closes it.
+     *
+     * The code itself is only trimmed, never folded: it is the label's content, and a QR carrying a URL
+     * is case-sensitive.
+     */
+    private static function normaliseSymbology(string $symbology): string
+    {
+        return mb_strtolower(trim($symbology));
     }
 
     /**
@@ -88,15 +114,10 @@ final class Barcode extends Model
             }
         }
 
-        // Trimmed like the code beside it. Surrounding whitespace is transport noise rather than part
-        // of an identity, and leaving it in makes a lookup fail for a reason invisible in a log: the
-        // client sees a 404 that means "no such label" when the label is there.
-        //
-        // Case is deliberately NOT normalised here. The vocabulary is open (no CHECK constraint) and
-        // `Gtin::likelySymbology` is its only writer today, always lower-case, so folding case would
-        // be inventing a rule for values nothing yet produces. It becomes a real question the day a
-        // second writer appears, and the place to settle it is the column.
-        $label = trim((string) $symbology);
+        // The same canonical form the writer stores, from the same method, so the two cannot disagree.
+        // Whitespace and case are transport noise around an identity rather than part of it; see
+        // [normaliseSymbology] for why the pairing matters more than either rule on its own.
+        $label = self::normaliseSymbology((string) $symbology);
 
         if ($label === '') {
             return null;

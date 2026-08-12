@@ -115,6 +115,29 @@ final class BarcodeLookupTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_one_label_stays_one_identity_however_its_symbology_is_spelled(): void
+    {
+        // **The write path and the lookup have to agree, or normalising either one makes things
+        // worse.** `forCode` stored verbatim while the lookup trimmed, so a label written with a stray
+        // space could never be found again by the method built to find it. Case is the same failure
+        // one step later: `forCode` takes a caller's symbology, so `QR` and `qr` would be two
+        // identities for one label and a scan would resolve to whichever the client happened to spell.
+        [, $product] = $this->tenant('Alpha');
+
+        $first = Barcode::forCode('SHELF-A-0042', ' QR ');
+        $second = Barcode::forCode('SHELF-A-0042', 'qr');
+
+        $this->assertTrue($first->is($second), 'one label must not split into two rows');
+
+        $product->linkBarcode($first);
+
+        foreach ([' QR ', 'qr', 'Qr'] as $spelling) {
+            $this->getJson('/api/v1/products/by-barcode?code=SHELF-A-0042&symbology='.urlencode($spelling))
+                ->assertOk()
+                ->assertJsonPath('data.id', $product->getKey());
+        }
+    }
+
     public function test_a_code_longer_than_the_column_is_refused_rather_than_missed(): void
     {
         // `barcodes.code` is `string(128)`, so a longer value could never have been stored and can
