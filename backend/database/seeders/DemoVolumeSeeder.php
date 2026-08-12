@@ -139,7 +139,13 @@ class DemoVolumeSeeder extends Seeder
 
             // Two tags on some, one on others, none on the rest: the tag filter needs overlapping
             // sets to be worth anything, and an untagged product is a real row.
-            if ($i % 3 !== 2) {
+            //
+            // **The stride is 7 because the tag list has 6 entries, and that is not a detail.** It was
+            // `$i % 3 !== 2`, and 3 divides 6, so `kuru gıda` (index 2) and `bakliyat` (index 5) landed
+            // on a skipped row EVERY time: the tag axis offered four options instead of six and the
+            // fixture looked fine. A modulo fixture is only as varied as its strides are coprime, and
+            // that is exactly the kind of gap generated data hides.
+            if ($i % 7 !== 6) {
                 $product->syncTags([
                     self::TAGS[$i % count(self::TAGS)],
                     ...($i % 6 === 0 ? [self::TAGS[($i + 3) % count(self::TAGS)]] : []),

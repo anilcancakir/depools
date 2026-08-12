@@ -212,11 +212,16 @@ class ProductFilter {
   /// where the axis name is already the group label above it. It is never a chip:
   /// an unconstrained axis is not a criterion. A longer "Tüm stok durumları" took
   /// half the control's width and pushed the other three segments off a phone.
+  /// **These were const Turkish literals and no gate could see them.**
+  /// `no_hardcoded_copy_test` scans `lib/resources/views` and `lib/ui/components`, and this file is in
+  /// `lib/app/models`, so the filter sheet showed `Tümü` and `Az kalan` on an English interface for as
+  /// long as nobody opened it. The chip names above went through `Lang.get` already, which is what
+  /// made the leak so easy to miss: the chips read English and the sheet behind them did not.
   static String stockStateLabel(StockStateFilter state) => switch (state) {
-    StockStateFilter.any => 'Tümü',
-    StockStateFilter.outOfStock => 'Stok yok',
-    StockStateFilter.belowPar => 'Az kalan',
-    StockStateFilter.inStock => 'Stokta',
+    StockStateFilter.any => Lang.get('screens.product_filter.state_any'),
+    StockStateFilter.outOfStock => Lang.get('screens.product_filter.state_out_of_stock'),
+    StockStateFilter.belowPar => Lang.get('screens.product_filter.state_below_par'),
+    StockStateFilter.inStock => Lang.get('screens.product_filter.state_in_stock'),
   };
 
   /// The already-localised label for an expiry constraint, as a removable chip.
@@ -224,9 +229,9 @@ class ProductFilter {
   /// Says the whole thing, because a chip has to stand alone: read out of context in
   /// a row of criteria, "Yakında" could be almost anything.
   static String expiryLabel(ExpiryFilter expiry) => switch (expiry) {
-    ExpiryFilter.any => 'Tümü',
-    ExpiryFilter.expired => 'Süresi geçti',
-    ExpiryFilter.expiringSoon => 'Yakında bitecek',
+    ExpiryFilter.any => Lang.get('screens.product_filter.expiry_any'),
+    ExpiryFilter.expired => Lang.get('screens.product_filter.expiry_expired'),
+    ExpiryFilter.expiringSoon => Lang.get('screens.product_filter.expiry_expiring_soon'),
   };
 
   /// The same constraint, shortened for a segmented control.
@@ -234,9 +239,9 @@ class ProductFilter {
   /// The group label ("Son kullanma") already supplies what the chip has to spell
   /// out, so the segment can drop the verb and fit three options on a phone.
   static String expirySegmentLabel(ExpiryFilter expiry) => switch (expiry) {
-    ExpiryFilter.any => 'Tümü',
-    ExpiryFilter.expired => 'Geçti',
-    ExpiryFilter.expiringSoon => 'Yakında',
+    ExpiryFilter.any => Lang.get('screens.product_filter.expiry_any'),
+    ExpiryFilter.expired => Lang.get('screens.product_filter.expiry_segment_expired'),
+    ExpiryFilter.expiringSoon => Lang.get('screens.product_filter.expiry_segment_expiring_soon'),
   };
 
   /// Returns a copy with the given fields replaced.
@@ -363,9 +368,11 @@ class SavedProductFilter {
 
   /// The filters that ship with the app.
   ///
-  /// They overlap the list's own "Dikkat gerekiyor" section deliberately: that
-  /// section is the always-visible summary of the same conditions, and these are
-  /// the drill-in that shows one of them complete rather than truncated.
+  /// **They are now the only surface for these conditions.** The list used to carry a separate "needs
+  /// attention" section holding the union of them, and it was removed: it split one collection into
+  /// two cards, and pushed the catalogue below the fold when open or read as an empty screen when
+  /// closed and a filter matched only attention rows. These four chips do the same job in one tap
+  /// each, and they show one condition COMPLETE rather than the union truncated.
   /// A getter rather than a `const` list, and the reason is a defect this shape caused.
   ///
   /// The names were const Turkish literals, which was invisible while the whole interface was
@@ -390,6 +397,23 @@ class SavedProductFilter {
       id: 'builtin:out-of-stock',
       name: Lang.get('screens.products.saved.out_of_stock'),
       filter: const ProductFilter(stockState: StockStateFilter.outOfStock),
+      isBuiltIn: true,
+    ),
+    // **The fourth, and the one that was missing.** These four are the whole set because each maps to
+    // a DIFFERENT action, which is the test a quick filter has to pass: out of stock means buy it now,
+    // below target means add it to the shopping list, expiring soon means use it up, and expired means
+    // write it off. A fifth would either repeat one of those or answer a question nobody asks
+    // standing at a shelf.
+    //
+    // Below-target is the canonical inventory filter and it was the gap: the other three are all
+    // about a date or a zero, and none of them answers "what do I need to order", which is the
+    // question a reorder point exists for. An unset target can never match, which is deliberate:
+    // `isBelowPar` requires a level the user chose, or every product with a little stock would report
+    // as low.
+    SavedProductFilter(
+      id: 'builtin:low-stock',
+      name: Lang.get('screens.products.saved.low_stock'),
+      filter: const ProductFilter(stockState: StockStateFilter.belowPar),
       isBuiltIn: true,
     ),
   ];

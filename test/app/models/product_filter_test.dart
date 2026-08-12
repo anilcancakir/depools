@@ -62,7 +62,16 @@ void main() {
         tags: {'kahvaltı'},
       );
 
-      expect(filter.criteria().map((c) => c.label), ['"süt"', 'Az kalan', 'kahvaltı']);
+      // The stock-state label is a KEY here, not a sentence: `Lang.get` returns the key in a test
+      // because nothing loads the catalogue, and this used to assert `'Az kalan'` because the label
+      // was a hardcoded Turkish literal. That literal was the defect (the filter sheet read Turkish
+      // on an English interface), so the assertion moves to the key and the ORDER, which is what this
+      // test is actually about. A search term and a tag are user data and stay verbatim.
+      expect(filter.criteria().map((c) => c.label), [
+        '"süt"',
+        'screens.product_filter.state_below_par',
+        'kahvaltı',
+      ]);
     });
   });
 

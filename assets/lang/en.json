@@ -647,7 +647,8 @@
       "saved": {
         "expired": "Expired",
         "expiring": "Expiring soon",
-        "out_of_stock": "Out of stock"
+        "out_of_stock": "Out of stock",
+        "low_stock": "Low stock"
       },
       "saved_prefix": "Filter",
       "scan": "Scan a barcode",
@@ -800,7 +801,16 @@
       "category": "Category",
       "tag": "Tag",
       "apply": "Show :count products",
-      "reset": "Reset"
+      "reset": "Reset",
+      "state_any": "All",
+      "state_out_of_stock": "Out of stock",
+      "state_below_par": "Below target",
+      "state_in_stock": "In stock",
+      "expiry_any": "All",
+      "expiry_expired": "Expired",
+      "expiry_expiring_soon": "Expiring soon",
+      "expiry_segment_expired": "Expired",
+      "expiry_segment_expiring_soon": "Soon"
     },
     "activity": {
       "title": "Activity",

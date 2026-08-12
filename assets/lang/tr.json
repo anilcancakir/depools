@@ -647,7 +647,8 @@
       "saved": {
         "expired": "Süresi geçenler",
         "expiring": "Yakında bitecek",
-        "out_of_stock": "Stok yok"
+        "out_of_stock": "Stok yok",
+        "low_stock": "Az kalan"
       },
       "saved_prefix": "Filtre",
       "scan": "Barkod tara",
@@ -800,7 +801,16 @@
       "category": "Kategori",
       "tag": "Etiket",
       "apply": ":count ürün göster",
-      "reset": "Sıfırla"
+      "reset": "Sıfırla",
+      "state_any": "Tümü",
+      "state_out_of_stock": "Stok yok",
+      "state_below_par": "Az kalan",
+      "state_in_stock": "Stokta",
+      "expiry_any": "Tümü",
+      "expiry_expired": "Süresi geçti",
+      "expiry_expiring_soon": "Yakında bitecek",
+      "expiry_segment_expired": "Geçti",
+      "expiry_segment_expiring_soon": "Yakında"
     },
     "activity": {
       "title": "Hareketler",
