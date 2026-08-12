@@ -451,15 +451,17 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// page could only find what the user had already scrolled past, which on a count sheet is the
   /// opposite of useful: the row you are hunting for is the one you have not reached.
   Widget _buildSearch() {
-    return WDiv(
-      className: 'flex-1 min-w-0',
-      child: MSInput(
-        className: 'h-11 bg-surface-container-high',
-        placeholder: Lang.get('screens.stock_take.search'),
-        prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
-        controller: _search,
-        onChanged: _onSearchChanged,
-      ),
+    // **No `flex-1` wrapper, and that is not a simplification.** The products list wraps its field
+    // in one because it shares a ROW with the filter button. Here the field has no sibling and sits
+    // directly in the page's vertical children, where the shell hands unbounded height, so a
+    // `flex-1` child asserts with `RenderFlex children have non-zero flex but incoming height
+    // constraints are unbounded`. Copied across, it rendered nothing and took the sheet with it.
+    return MSInput(
+      className: 'h-11 bg-surface-container-high',
+      placeholder: Lang.get('screens.stock_take.search'),
+      prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+      controller: _search,
+      onChanged: _onSearchChanged,
     );
   }
 
