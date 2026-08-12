@@ -115,6 +115,21 @@ final class BarcodeLookupTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_a_code_longer_than_the_column_is_refused_rather_than_missed(): void
+    {
+        // `barcodes.code` is `string(128)`, so a longer value could never have been stored and can
+        // never resolve. A 404 there would say "no such product" when the truth is "this API cannot
+        // hold that value", and a client deciding whether to offer the user a new-product draft would
+        // act on the wrong one of those.
+        $this->tenant('Alpha');
+
+        $this->getJson('/api/v1/products/by-barcode?code='.str_repeat('9', 129))
+            ->assertStatus(422);
+
+        $this->getJson('/api/v1/products/by-barcode?code='.str_repeat('9', 128).'&symbology=code128')
+            ->assertNotFound();
+    }
+
     public function test_a_lookup_never_creates_a_barcode_row(): void
     {
         // **A count screen scans whatever is in front of it, including the wrong side of a box.** If a
