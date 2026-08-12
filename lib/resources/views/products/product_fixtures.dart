@@ -368,6 +368,19 @@ class ProductListItem {
   /// declared shelf life still has to be able to warn.
   final int? shelfLifeDays;
 
+  /// The warning window the API stated, in days, or null for a fixture.
+  ///
+  /// **The server is the authority on this number and the client stopped deriving it.** The formula
+  /// existed twice, once here in Dart and once in PHP, because the server has to answer the
+  /// "expiring soon" filter and the badge has to agree with what that filter selected. Two
+  /// implementations of `clamp(round(life * 0.2), 1, 60)` in two languages is a badge that says
+  /// "5 days left" in green next to a row the filter put under "expiring soon", the day either side
+  /// is tuned.
+  ///
+  /// Null in the preview catalog, where nothing has been through an endpoint, and
+  /// [expiryThresholdDays] falls back to the local derivation there so the fixtures still render.
+  final int? statedThresholdDays;
+
   /// The already-formatted expiry label for the row.
   final String? expiryLabel;
 
@@ -496,6 +509,7 @@ class ProductListItem {
       contentUnit: json['content_unit'] as String?,
       parLevel: toNumOrNull(json['par_level']),
       shelfLifeDays: json['default_shelf_life_days'] as int?,
+      statedThresholdDays: json['expiry_threshold_days'] as int?,
       movementCount: json['movements_count'] as int? ?? 0,
       daysUntilExpiry: days,
       expiryLabel: days == null ? null : expiryLabelFor(days),
@@ -533,6 +547,7 @@ class ProductListItem {
     this.daysUntilExpiry,
     this.expiryLabel,
     this.shelfLifeDays,
+    this.statedThresholdDays,
     this.contentAmount,
     this.contentUnit,
     this.openRemainder,
@@ -799,7 +814,17 @@ class ProductListItem {
   /// The window is the last fifth of the shelf life, floored at one day and capped
   /// at [maxThresholdDays]. Milk (5 days) warns 1 day out; a tin (730 days) warns 60
   /// days out. Those two ends are what the proportion was chosen to satisfy.
+  /// Prefers what the API stated, and derives only when nothing did.
+  ///
+  /// The derivation below is now the FIXTURE path rather than the product's own rule: it exists so
+  /// the preview catalog can render a badge for rows that never went through an endpoint. On real
+  /// data [statedThresholdDays] is always present, and `Product::expiryThresholdFor` is the only
+  /// place the arithmetic happens.
   int get expiryThresholdDays {
+    final int? stated = statedThresholdDays;
+
+    if (stated != null) return stated;
+
     final int life = shelfLifeDays ?? fallbackThresholdDays * 5;
     return (life * 0.2).round().clamp(1, maxThresholdDays);
   }

@@ -23,6 +23,10 @@ final class LocationResource extends JsonResource
             'full_path' => $this->full_path,
             'parent_id' => $this->parent_location_id,
             'depth' => $this->depth,
+            // How many product/location pairs sit here, which the client reads as "does this shelf
+            // hold anything". Gated on the caller having asked, so `show` does not pay for a count it
+            // does not render.
+            'stock_count' => $this->whenCounted('stock'),
         ];
     }
 }

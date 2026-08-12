@@ -93,6 +93,9 @@ final class LedgerWritersTest extends TestCase
                 // below ("everything permitted is a model or a service") is worth more than the
                 // directory name it would have preferred.
                 'app/Services/ProductListQuery.php',
+                // Counts its own pairs, so a screen can ask whether a shelf holds anything without
+                // reading the product list. A relation declaration and nothing else.
+                'app/Models/Location.php',
             ],
         ];
     }

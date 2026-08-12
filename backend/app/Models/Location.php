@@ -116,6 +116,24 @@ final class Location extends Model
     }
 
     /**
+     * The materialised per-product totals sitting here.
+     *
+     * Read-only, and it exists for one question: does this location hold anything at all. The count
+     * screen has to open on a shelf with stock on it, and the first location in reading order is a
+     * ROOT, which holds nothing directly because its children do. Measured against the demo tenant,
+     * defaulting to it opened the count screen on "nothing at this location" for a tenant with four
+     * full shelves.
+     *
+     * The screen used to answer that from the products it had loaded, which stopped being possible
+     * when the product list became one page: a shelf whose stock happens to sit on page three would
+     * have read as empty. So the location payload answers it instead, where the answer is exact.
+     */
+    public function stock(): HasMany
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+
+    /**
      * The already-joined path a screen renders, e.g. `Mutfak › Buzdolabı`.
      *
      * Derived from `path` rather than by walking parents, which is the whole point of storing it.
