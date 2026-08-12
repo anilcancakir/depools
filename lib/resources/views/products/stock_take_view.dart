@@ -4,7 +4,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show ButtonIntent, ButtonSize, MSButton, MSInput, MagicStarterConfirmDialog;
+    show ButtonIntent, ButtonSize, MSBottomSheet, MSButton, MSInput, MagicStarterConfirmDialog;
 
 import '../../../app/controllers/product_controller.dart';
 import '../../../app/controllers/stock_take_controller.dart';
@@ -12,9 +12,9 @@ import '../../../app/support/count_progress.dart';
 import '../../../app/support/plural.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 
-import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/count_row/count_row.dart';
 import '../../../ui/components/list_footer/list_footer.dart';
+import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'count_fixtures.dart';
 import 'count_line.dart';
@@ -99,6 +99,8 @@ class StockTakeView extends StatefulWidget {
 class _StockTakeViewState extends State<StockTakeView> {
   static const IconData _saveIcon = Icons.playlist_add_check;
   static const IconData _searchIcon = Icons.search_outlined;
+  static const IconData _changeIcon = Icons.unfold_more;
+  static const IconData _leaveIcon = Icons.check;
 
   /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
   /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a request
@@ -162,6 +164,22 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   /// What the server did with each committed row, so a restored row can say so.
   final Map<String, CountResult> _settled = <String, CountResult>{};
+
+  /// The ROW behind every figure typed on this shelf, keyed the same way as the figures.
+  ///
+  /// **Without this the sheet can only commit what is currently on screen.** A count is a product,
+  /// an expected quantity and a number; [_whole] and [_inner] hold the number alone, and the other
+  /// two came from whichever rows the controller had loaded. Narrow the shelf with a search and
+  /// those rows are gone, so a figure typed a moment earlier had nothing left to attach to.
+  ///
+  /// Kept as the row rather than as the ids to re-fetch, because a commit must not depend on a
+  /// request succeeding: the numbers are already in the user's head and on their shelf, and asking
+  /// the server again to find out what they were counting would put a network failure between a
+  /// finished count and saving it.
+  ///
+  /// Cleared with the rest of the per-shelf state when the shelf changes, for the same reason those
+  /// are: a row typed for the fridge must never commit against the pantry.
+  final Map<String, CountLine> _touched = <String, CountLine>{};
 
   /// Whether the committed rows are being shown again.
   ///
@@ -391,16 +409,55 @@ class _StockTakeViewState extends State<StockTakeView> {
     return settled[key];
   }
 
+  /// Every row typed into on this shelf during this visit, whatever the search is showing now.
+  ///
+  /// **The screen used to answer this from the rows on screen, and a search empties those.** Typing
+  /// a count for one product and then searching for the next left the first product out of the
+  /// loaded page, so the summary fell to `0 counted`, the commit button went dead, and the work
+  /// already done could not be saved at all. The figures were never lost, they sat in [_whole] and
+  /// [_inner] the whole time, but nothing read them: for the user that is the same thing as losing
+  /// them, and worse, because the screen said zero rather than saying nothing.
+  ///
+  /// So the typed maps are the source, and [_touched] is what makes that possible: a figure alone
+  /// cannot be committed, since the commit needs the product and its expected quantity to compute a
+  /// delta, and those live on the row. Recording the row when it is first typed into keeps the whole
+  /// visit addressable no matter which page the shelf is scrolled or filtered to.
+  ///
+  /// Committed rows fall out on their own, because a commit moves their figures from [_whole] and
+  /// [_inner] into the settled maps.
+  List<CountLine> _countedThisVisit() {
+    final List<CountLine> out = <CountLine>[];
+
+    // In the order the rows were first typed into, which is the order the user worked in and so the
+    // order the confirmation dialog should list them in.
+    for (final MapEntry<String, CountLine> entry in _touched.entries) {
+      final String key = entry.key;
+
+      if (!_whole.containsKey(key) && !_inner.containsKey(key)) continue;
+
+      out.add(
+        CountLine(
+          product: entry.value.product,
+          expected: entry.value.expected,
+          countedWhole: _whole[key],
+          countedRemainder: _inner[key],
+        ),
+      );
+    }
+
+    return out;
+  }
+
   /// How many rows on this shelf have been counted, settled ones included.
   ///
   /// **Not the rows with a typed value, which is what it used to be.** A committed row has no live
   /// figure any more, so counting only those made the header fall back to zero the moment a commit
   /// landed: five rows counted, header `0 of 25`.
-  int _countedTotal(List<CountLine> lines) {
+  int _countedTotal() {
     final Set<String> counted = <String>{..._settled.keys};
 
-    for (final CountLine line in lines) {
-      if (line.isCounted && !_isSettled(line)) counted.add(_keyOf(line));
+    for (final CountLine line in _countedThisVisit()) {
+      if (line.isCounted) counted.add(_keyOf(line));
     }
 
     return counted.length;
@@ -460,8 +517,13 @@ class _StockTakeViewState extends State<StockTakeView> {
     _syncShelf();
 
     final List<CountLine> lines = _lines;
-    final int counted = _countedTotal(lines);
-    final List<CountLine> variances = lines.where((l) => l.isCounted && !l.isMatched).toList();
+    final int counted = _countedTotal();
+    // **From the visit, not from the rows on screen.** A search narrows what is loaded, and reading
+    // the variances off the visible rows made a count typed before the search invisible to the
+    // summary, to the confirmation dialog and to the commit itself.
+    final List<CountLine> variances = _countedThisVisit()
+        .where((l) => l.isCounted && !l.isMatched)
+        .toList();
     final StockTakeController? controller = _controller;
     final String locationId = _activeLocation;
 
@@ -503,7 +565,6 @@ class _StockTakeViewState extends State<StockTakeView> {
       footer: _buildCommit(context, lines, counted, variances),
       children: [
         _buildLocation(),
-        if (!loading && !failed) _buildSearch(),
         if (!loading && !failed && _settled.isNotEmpty) _buildSettledBar(),
         if (loading)
           _buildLoading()
@@ -519,49 +580,120 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   /// Which shelf. Chips rather than a tree, because a count is scoped to one leaf and the
   /// tree's job (finding a place to put something) is not this screen's job.
+  /// Which shelf is being counted, as one row rather than as a wall of chips.
+  ///
+  /// **Measured: the chip wall was 235 logical px at 390x844, 28 per cent of the screen, for a
+  /// control the user touches once per shelf.** The list it pushed down is the reason the screen
+  /// exists. Worse, the arithmetic said the real cost only shows up with a keyboard: the count list
+  /// began at y=621 on an 844px screen, so any keyboard taller than 223px put every row off screen,
+  /// and every phone keyboard is far above that. Searching a shelf while seeing it was impossible.
+  ///
+  /// Collapsed, this is 44px and the shelf name stays on screen, which is the part that has to
+  /// survive: a count committed against the wrong shelf is a ledger entry, not a typo.
   Widget _buildLocation() {
     final String active = _activeLocation;
 
-    return SectionCard(
-      label: Lang.get('screens.stock_take.where_group'),
-      children: [
-        WDiv(
-          className: 'flex flex-row wrap items-center gap-2 py-1',
+    return WAnchor(
+      onTap: _pickLocation,
+      semanticLabel: Lang.get('screens.stock_take.change_location', {'path': _pathOf(active)}),
+      child: WDiv(
+        // Card tone plus a hairline, never `bg-surface-container-high`: that token is DESIGN.md's
+        // INPUT background and reads as recessed in light mode, which is the universal look of a
+        // disabled control. Elevation direction flips between appearances, so only a border can
+        // carry "pressable" in both.
+        className: 'flex flex-row items-center gap-3 min-h-11 px-4 py-2 rounded-lg '
+            'bg-surface-container border border-color-border',
+        children: [
+          WText(
+            Lang.get('screens.stock_take.where_group'),
+            className: 'text-xs font-medium text-fg-muted shrink-0',
+          ),
+          // `flex-1 min-w-0` beside `truncate`, because `truncate` alone only sets the overflow
+          // behaviour: without a shrinkable box the Text keeps its intrinsic width and the ellipsis
+          // never appears. A deep path is exactly the case that needs it.
+          WText(
+            _pathOf(active),
+            className: 'flex-1 min-w-0 truncate text-sm font-medium text-fg',
+          ),
+          const WIcon(_changeIcon, className: 'size-4 text-fg-muted shrink-0'),
+        ],
+      ),
+    );
+  }
+
+  /// Opens the shelf picker and switches to what it returns.
+  ///
+  /// A sheet rather than the chips inline, because the choice is made once and the screen belongs
+  /// to the count. `OptionRow` is the same picker row the move sheet uses, so a location list looks
+  /// the same wherever it is offered.
+  Future<void> _pickLocation() async {
+    // **Resolved once, because it is a scan and not a field.** With no shelf picked yet
+    // `_activeLocation` walks the options looking for the first one holding stock, so reading it
+    // twice per row inside the loop below turns a list of locations into a quadratic one. Small
+    // today at five shelves and not a reason to write it the wrong way: the same list is what a
+    // warehouse tenant grows.
+    final String active = _activeLocation;
+
+    final String? picked = await MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.stock_take.pick_location_title'),
+      // **The `Builder` is load-bearing, and leaving it out is not a style slip.** The sibling
+      // sheets pop with `Navigator.of(context)` from inside their own `build`, so their context
+      // already sits under the sheet's route. This body is built inline from the VIEW's context,
+      // which resolves to the route BEHIND the sheet: tapping an option popped the count screen
+      // instead of the sheet, and the app threw a navigator assertion, a go_router delegate
+      // assertion and a duplicate GlobalKey in one go.
+      body: Builder(
+        builder: (BuildContext sheetContext) => WDiv(
+          className: 'flex flex-col gap-1',
           children: [
             for (final FilterOption option in _locationOptions)
-              ChoiceChip(
+              OptionRow(
                 label: option.fullPath,
-                isSuggested: option.id == active,
+                isSelected: option.id == active,
                 semanticLabel: option.id == active
                     ? Lang.get('screens.stock_take.current_location', {'path': option.fullPath})
                     : Lang.get('screens.stock_take.pick_location', {'path': option.fullPath}),
-                onTap: () => setState(() {
-                  _locationId = option.id;
-                  // The controller resets its own query when a shelf opens, so the field has to go
-                  // with it. Left alone it showed a term that was no longer narrowing anything,
-                  // which is the same field-and-state desync the products list had.
-                  _searchDebounce?.cancel();
-                  _search.clear();
-                  // Another shelf is another count. Carrying the typed figures across would let a
-                  // number entered for the fridge commit itself against the pantry's balance.
-                  _whole.clear();
-                  _inner.clear();
-                  _unfinished.clear();
-                  // **And the settled state, which is per SHELF and was leaking across them.** Its
-                  // own docblock says "this shelf and this visit" and nothing enforced it: the bar
-                  // went on reporting the previous shelf's saved rows, and a product that sits at
-                  // two locations was hidden on the second one, so a row that still needed counting
-                  // was invisible there.
-                  _settled.clear();
-                  _settledWhole.clear();
-                  _settledInner.clear();
-                  _showSettled = false;
-                }),
+                onTap: () => Navigator.of(sheetContext).pop(option.id),
               ),
           ],
         ),
-      ],
+      ),
     );
+
+    // **Against the RESOLVED shelf, not the raw field.** `_locationId` is empty until the user picks
+    // one, while `_activeLocation` has already resolved to the first shelf holding stock, so on the
+    // shelf the screen opens on the two disagree. Comparing the raw field there made "pick the shelf
+    // I am already counting" run the whole reset: typed figures, settled rows and the search, gone
+    // for a gesture that changed nothing.
+    // Against the value the SHEET was built from, not a fresh read. Re-resolving here repeats the
+    // scan, and worse, it can answer differently: the catalogue can load while the sheet is open, so
+    // the row the user saw ticked and the shelf this compares against would be two different places,
+    // and picking the one shown as current would run the reset that throws the count away.
+    if (picked == null || !mounted || picked == active) return;
+
+    setState(() {
+      _locationId = picked;
+      // The controller resets its own query when a shelf opens, so the field has to go with it.
+      // Left alone it showed a term that was no longer narrowing anything, which is the same
+      // field-and-state desync the products list had.
+      _searchDebounce?.cancel();
+      _search.clear();
+      // Another shelf is another count. Carrying the typed figures across would let a number
+      // entered for the fridge commit itself against the pantry's balance.
+      _whole.clear();
+      _inner.clear();
+      _touched.clear();
+      _unfinished.clear();
+      // **And the settled state, which is per SHELF and was leaking across them.** Its own docblock
+      // says "this shelf and this visit" and nothing enforced it: the bar went on reporting the
+      // previous shelf's saved rows, and a product that sits at two locations was hidden on the
+      // second one, so a row that still needed counting was invisible there.
+      _settled.clear();
+      _settledWhole.clear();
+      _settledInner.clear();
+      _showSettled = false;
+    });
   }
 
   /// The sheet itself.
@@ -655,18 +787,40 @@ class _StockTakeViewState extends State<StockTakeView> {
     );
   }
 
+  /// The search field, which now lives in the pinned bar rather than in the page.
+  ///
+  /// **It moved to the bottom because that is where the keyboard is, and Apple says so.** The HIG
+  /// (search fields, June 2026) is explicit: "Place search at the bottom if there's room... it keeps
+  /// the search experience easy to reach", and when tapped it "animates into a search field above
+  /// the keyboard so they can begin typing". Settings, Mail and Notes ship it. Here it is the
+  /// difference between a usable count and an impossible one: with the field at the top of the page,
+  /// the rows it filters were pushed under the keyboard, so the user typed a name and could not see
+  /// the row they had just found.
+  ///
+  /// It shares the bar with the commit button, which is the Mail and Notes arrangement rather than
+  /// the Settings one ("as a new toolbar where search is the only item"), because this screen's
+  /// primary action has to stay in reach too.
+  ///
+  /// **`flex-1 min-w-0` is required here and was forbidden in the old position.** In the page's
+  /// vertical children the shell hands unbounded height, so a flex child asserted and rendered
+  /// nothing; inside a bounded Row it is what lets the field give the button its width.
   Widget _buildSearch() {
-    // **No `flex-1` wrapper, and that is not a simplification.** The products list wraps its field
-    // in one because it shares a ROW with the filter button. Here the field has no sibling and sits
-    // directly in the page's vertical children, where the shell hands unbounded height, so a
-    // `flex-1` child asserts with `RenderFlex children have non-zero flex but incoming height
-    // constraints are unbounded`. Copied across, it rendered nothing and took the sheet with it.
-    return MSInput(
-      className: 'h-11 bg-surface-container-high',
-      placeholder: Lang.get('screens.stock_take.search'),
-      prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
-      controller: _search,
-      onChanged: _onSearchChanged,
+    return WDiv(
+      className: 'flex-1 min-w-0',
+      child: MSInput(
+        // `h-11` on BOTH halves of the row, the fix the products list and the assistant composer
+        // both needed: a field sized by its own padding measured 52 beside a 44 button, and
+        // `items-center` centres that mismatch rather than hiding it.
+        //
+        // `bg-surface-container` rather than the `-high` the products list uses, because this one
+        // sits on the footer's `bg-surface` fill: `-high` is the input tone for a page surface and
+        // reads as recessed against a card.
+        className: 'h-11 bg-surface-container',
+        placeholder: Lang.get('screens.stock_take.search'),
+        prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+        controller: _search,
+        onChanged: _onSearchChanged,
+      ),
     );
   }
 
@@ -690,15 +844,20 @@ class _StockTakeViewState extends State<StockTakeView> {
             // **Cleared means REMOVED, not stored as null**, and that became load-bearing when either
             // field started implying "counted": a lingering null key would keep a row counted after
             // the user emptied it, so the sheet would submit a figure nobody had typed.
-            onChanged: (next) => setState(() => _enter(_whole, _keyOf(line), next)),
-            onDecrement: () => setState(() {
-              final num current = line.countedWhole ?? 0;
-              _whole[_keyOf(line)] = current <= 0 ? 0 : current - 1;
-            }),
-            onIncrement: () =>
-                setState(() => _whole[_keyOf(line)] = (line.countedWhole ?? 0) + 1),
-            onRemainderChanged: (next) => setState(() => _enter(_inner, _keyOf(line), next)),
-            onConfirmRecorded: () => setState(() => _confirmRecorded(line)),
+            onChanged: (next) =>
+                setState(() => _edit(line, () => _enter(_whole, _keyOf(line), next))),
+            onDecrement: () => setState(
+              () => _edit(line, () {
+                final num current = line.countedWhole ?? 0;
+                _whole[_keyOf(line)] = current <= 0 ? 0 : current - 1;
+              }),
+            ),
+            onIncrement: () => setState(
+              () => _edit(line, () => _whole[_keyOf(line)] = (line.countedWhole ?? 0) + 1),
+            ),
+            onRemainderChanged: (next) =>
+                setState(() => _edit(line, () => _enter(_inner, _keyOf(line), next))),
+            onConfirmRecorded: () => setState(() => _edit(line, () => _confirmRecorded(line))),
             // The figure the tap would write, through the SAME formatter the verdict uses, so the
             // button and the line under it can never state one quantity two ways. See the parameter's
             // own docblock for why this is the one place D58 lets the expected figure show.
@@ -759,6 +918,28 @@ class _StockTakeViewState extends State<StockTakeView> {
     } else {
       _inner[key] = inner;
     }
+  }
+
+  /// Applies a change to one row's figures, recording the ROW first.
+  ///
+  /// **Every write to [_whole] or [_inner] goes through here, and that is the point.** The figure
+  /// and the row it belongs to have to be recorded together or the commit cannot reconstruct what
+  /// was counted once a search has scrolled the row out of the loaded page. Five call sites write
+  /// figures (typing, either stepper button, the remainder field, and agreeing with the record), and
+  /// a sixth that forgot to record the row would lose exactly one product's count, silently. Funnel
+  /// them through one method and forgetting is not available.
+  void _edit(CountLine line, VoidCallback change) {
+    final String key = _keyOf(line);
+
+    _touched[key] = line;
+
+    change();
+
+    // **And forgotten again when the change empties the row.** Clearing both fields un-counts a row
+    // (absence is what `CountLine` reads as uncounted, D58), so keeping its record would leave an
+    // entry that every build walks past and never uses. The pair is what keeps this map exactly the
+    // rows with a live figure rather than a log of everything the visit touched.
+    if (!_whole.containsKey(key) && !_inner.containsKey(key)) _touched.remove(key);
   }
 
   /// Records a typed figure, or forgets the field when it no longer holds one.
@@ -863,9 +1044,21 @@ class _StockTakeViewState extends State<StockTakeView> {
     // Both figures are arithmetic this screen reports about itself, and both shipped wrong in ways
     // nothing could see, so they live in `count_progress.dart` where a test can call the same code
     // rather than re-implement it.
-    final int skipped = rowsLeftToCount(shelfTotal: _shelfTotal(lines), counted: counted);
-    final List<CountLine> countedLines = lines
-        .where((l) => l.isCounted && !_isSettled(l))
+    final int skipped = rowsLeftToCount(
+      shelfTotal: _shelfTotal(lines),
+      counted: counted,
+      // The shelf total is the count matching the QUERY, and `counted` is now the whole visit, so
+      // under a search the subtraction compares two different sets.
+      searching: _controller?.query.isNotEmpty ?? false,
+    );
+    // **What gets committed is the whole visit, not the current page of it.** This read the rows on
+    // screen, so counting a product and then searching for the next one emptied it: the summary said
+    // `0 counted`, the button went dead, and there was no way to save work that had already been
+    // done. `_countedThisVisit` holds only uncommitted figures already, so the settled filter that
+    // used to be here is not needed: a commit moves a row's figures into the settled maps and it
+    // drops out on its own.
+    final List<CountLine> countedLines = _countedThisVisit()
+        .where((l) => l.isCounted)
         .toList();
 
     // **The shelf is what says the count is over, not the button.** The screen used to leave for the
@@ -890,11 +1083,20 @@ class _StockTakeViewState extends State<StockTakeView> {
             Lang.get('screens.stock_take.shelf_done', {'total': total}),
             className: 'text-sm text-fg-muted',
           ),
-          MSButton(
-            onPressed: () => MagicRoute.to('/'),
-            fullWidth: true,
-            className: 'justify-center',
-            child: WText(Lang.get('screens.stock_take.shelf_done_action')),
+          // The field stays even here, because finishing is not the only thing left to do: a user
+          // who wants to re-check a row they entered gets to it by searching for it, and typing
+          // takes the shelf out of the finished state on its own (`shelfIsFinished` is false while
+          // a query narrows the sheet), which puts the normal bar back.
+          WDiv(
+            className: 'flex flex-row items-center gap-2',
+            children: [
+              _buildSearch(),
+              MSButton(
+                onPressed: () => MagicRoute.to('/'),
+                className: 'h-11 justify-center shrink-0',
+                child: WText(Lang.get('screens.stock_take.shelf_done_action')),
+              ),
+            ],
           ),
         ],
       );
@@ -932,7 +1134,16 @@ class _StockTakeViewState extends State<StockTakeView> {
             Lang.get('screens.stock_take.unfinished', {'count': _unfinished.length}),
             className: 'text-xs text-fg-muted',
           ),
-        MSButton(
+        // **The search field and the commit share one bar, which is the whole point of the move.**
+        // Apple's HIG offers both arrangements for bottom search: its own toolbar (Settings) or
+        // alongside other controls (Mail, Notes). This screen takes the second, because a count has
+        // one primary action and burying it to give search a bar of its own would trade one
+        // out-of-reach control for another.
+        WDiv(
+          className: 'flex flex-row items-center gap-2',
+          children: [
+            _buildSearch(),
+            MSButton(
           // **Committing asks first, and the question is the numbers.** This writes count movements
           // into an append-only ledger: undoing means writing a counter-movement, so the mistake
           // stays in the history forever even after it is fixed. The dialog restates what will be
@@ -944,8 +1155,18 @@ class _StockTakeViewState extends State<StockTakeView> {
           // earn). There is still something to send, because the server checks each row against the
           // live balance rather than trusting this screen's expected figure, so the confirmation is
           // skipped rather than the request.
-          disabled: _saving || countedLines.isEmpty,
-          onPressed: variances.isEmpty
+          // **With nothing left to save the button becomes the way out, rather than dying.** It
+          // read `Finish the count` and went disabled the moment a commit landed, so a user who
+          // saved two rows of twenty-five was looking at a button promising an exit and refusing to
+          // give one. This screen has had that defect before in another form, when the same button
+          // was wired to an empty callback on a perfect count.
+          //
+          // One live action in the pinned bar at all times is what the bar is for, and the two jobs
+          // never overlap: there is either something typed and unsaved, or there is not.
+          disabled: _saving,
+          onPressed: countedLines.isEmpty
+              ? () => MagicRoute.to('/')
+              : variances.isEmpty
               ? () => _commit(countedLines)
               : () => MagicStarterConfirmDialog.show(
                   context,
@@ -960,19 +1181,32 @@ class _StockTakeViewState extends State<StockTakeView> {
                   confirmLabel: Lang.get('screens.stock_take.commit_confirm'),
                   onConfirm: () => _commit(countedLines),
                 ),
-          fullWidth: true,
-          className: 'justify-center',
-          child: WDiv(
-            className: 'flex flex-row items-center justify-center gap-2',
-            children: [
-              const WIcon(_saveIcon, className: 'size-4'),
-              WText(
-                variances.isEmpty
-                    ? Lang.get('screens.stock_take.finish')
-                    : plural('screens.stock_take.save_variances', variances.length, {'count': variances.length}),
+              className: 'h-11 justify-center shrink-0',
+              child: WDiv(
+                className: 'flex flex-row items-center justify-center gap-2',
+                children: [
+                  // The glyph follows the job. A save icon over a button that navigates away would
+                  // be the same lie the label was telling.
+                  WIcon(
+                    countedLines.isEmpty ? _leaveIcon : _saveIcon,
+                    className: 'size-4',
+                  ),
+                  WText(
+                    // `shelf_done_action` rather than a new string, and rather than `finish`. It
+                    // names the NAVIGATION ("Back to overview") instead of claiming the count is
+                    // over, which would be false with twenty-three rows still untouched. `finish`
+                    // is unavailable here anyway: it is what the SAVE button says when every
+                    // counted row matched.
+                    countedLines.isEmpty
+                        ? Lang.get('screens.stock_take.shelf_done_action')
+                        : variances.isEmpty
+                        ? Lang.get('screens.stock_take.finish')
+                        : plural('screens.stock_take.save_variances', variances.length, {'count': variances.length}),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -1019,6 +1253,11 @@ class _StockTakeViewState extends State<StockTakeView> {
         _settled[result.productId] = result;
         _settledWhole[result.productId] = _whole.remove(result.productId);
         _settledInner[result.productId] = _inner.remove(result.productId);
+        // The row's record goes with its figures, so `_touched` holds exactly the rows with a live
+        // count rather than everything the visit ever passed through. Without this a long session
+        // with periodic commits leaves a map that is scanned on every build and skipped almost
+        // entirely. Re-typing a settled row puts it back, because every write records the row first.
+        _touched.remove(result.productId);
       }
     });
 

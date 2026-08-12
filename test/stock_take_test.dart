@@ -326,11 +326,23 @@ void main() {
       // excludes settled rows while the count deliberately includes them. Four saved rows hidden on a
       // shelf of twenty-five reported seventeen instead of twenty-one; a whole shelf settled
       // reported `-25` at the user.
-      expect(rowsLeftToCount(shelfTotal: 25, counted: 4), 21);
-      expect(rowsLeftToCount(shelfTotal: 25, counted: 25), 0);
+      expect(rowsLeftToCount(shelfTotal: 25, counted: 4, searching: false), 21);
+      expect(rowsLeftToCount(shelfTotal: 25, counted: 25, searching: false), 0);
 
       // The two inputs come from different places, so a disagreement has to read as nothing left.
-      expect(rowsLeftToCount(shelfTotal: 4, counted: 25), 0);
+      expect(rowsLeftToCount(shelfTotal: 4, counted: 25, searching: false), 0);
+    });
+
+    test('a search cannot claim how many rows are left', () {
+      // The shelf total is the count MATCHING THE QUERY while the counted figure is the whole visit,
+      // so under a search the subtraction compares two different sets. Counting two rows and then
+      // searching for a third product left a one-row total against a count of two, which reports
+      // nothing skipped on a shelf with twenty-three rows nobody has looked at.
+      expect(rowsLeftToCount(shelfTotal: 1, counted: 2, searching: true), 0);
+
+      // And it is the SEARCH that suppresses it, not the arithmetic happening to come out at zero:
+      // the same figures with no search running still report what is left.
+      expect(rowsLeftToCount(shelfTotal: 25, counted: 2, searching: false), 23);
     });
 
     test('a search cannot declare a shelf finished', () {
