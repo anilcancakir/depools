@@ -156,6 +156,11 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   Future<void> load() async {
     final int request = ++_requestId;
 
+    // Any page in flight belongs to the filter being replaced, so it is abandoned here rather than
+    // waited for. `loadMore` sees the bumped request id and drops its answer; this is the half that
+    // makes sure the flag it set does not outlive it.
+    _loadingMore = false;
+
     // Skeletons only when there is nothing to show. Replacing a list the user is reading with
     // placeholders on every filter change is a flash for no information: the rows are still true
     // until the answer lands, and [refreshing] is what says more is coming.
@@ -227,9 +232,15 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
 
     // A filter change during the fetch invalidates this page: appending it would mix rows selected
     // under two different criteria into one list.
-    if (request != _requestId) return;
-
+    //
+    // **Cleared BEFORE the return, and that ordering is the whole content of this line.** Returning
+    // with the flag still set leaves it set forever: nothing else resets it, so the guard at the top
+    // of this method refuses every later page and the footer stays on its spinner. One filter change
+    // landing while a page was in flight would have killed pagination for the rest of the session,
+    // and the screen would have looked like a list that simply ended.
     _loadingMore = false;
+
+    if (request != _requestId) return;
 
     if (!response.successful) {
       // The page the user already has stays. A failed "load more" is not a failed screen, and
@@ -328,6 +339,20 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
       cursor = _cursorOf(response);
       pages++;
     } while (cursor != null && pages < _shelfPageLimit);
+
+    // **A shelf that ran out of pages is a FAILURE, not a shelf.** Caching what was walked so far
+    // would hand the count screen a sheet that is short by exactly the rows nobody reached, with
+    // nothing on screen saying so, which is the failure this whole method exists to prevent: it
+    // would have been the page-sized sheet again, only bigger. The limit is a stop condition rather
+    // than a size anyone should meet, so meeting it means something is wrong upstream and the honest
+    // answer is the error panel with its retry.
+    if (cursor != null) {
+      _shelvesInFlight.remove(locationId);
+      _shelfFailures.add(locationId);
+      refreshUI();
+
+      return;
+    }
 
     _shelves[locationId] = rows;
     _shelvesInFlight.remove(locationId);

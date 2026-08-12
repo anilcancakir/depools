@@ -193,7 +193,7 @@ class _StockTakeViewState extends State<StockTakeView> {
     final String locationId = _activeLocation;
 
     if (controller == null || locationId.isEmpty) return;
-    if (controller.hasShelf(locationId)) return;
+    if (controller.hasShelf(locationId) || controller.shelfFailed(locationId)) return;
 
     // After the frame, because `loadShelf` notifies listeners and this runs during a build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
