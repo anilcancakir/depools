@@ -38,6 +38,13 @@ final class ProductResource extends JsonResource
             // because an opened unit runs on that clock instead (D27).
             'default_shelf_life_days' => $this->default_shelf_life_days,
             'opened_shelf_life_days' => $this->opened_shelf_life_days,
+            // The window itself, and not only the shelf life it comes from. The client had its own
+            // copy of `clamp(round(life * 0.2), 1, 60)` in Dart, and the server needs the same number
+            // to answer the "expiring soon" filter, so the formula existed twice in two languages: the
+            // badge and the filter would have disagreed about one carton the day either side was
+            // tuned. `Product::expiryThresholdDays` is now the only implementation and this is how it
+            // reaches the screen.
+            'expiry_threshold_days' => $this->resource->expiryThresholdDays(),
             // How much history exists, which is the only thing that decides what may be CLAIMED about
             // this product: `forecasting.md` gates a rate on roughly ten movements, and below that the
             // client shows context or nothing rather than a number. Gated on the caller having asked,

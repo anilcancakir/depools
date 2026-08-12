@@ -87,6 +87,12 @@ final class LedgerWritersTest extends TestCase
                 'app/Models/ProductStock.php',
                 // Eager-loads it so a list screen costs one query rather than fifty aggregations.
                 'app/Models/Product.php',
+                // Reads it, and only reads it: the stock list's quantity and expiry axes are questions
+                // about the projection, so the filter joins an aggregate over it. It is a service and
+                // not a query directory for exactly this test's sake, because the categorical guard
+                // below ("everything permitted is a model or a service") is worth more than the
+                // directory name it would have preferred.
+                'app/Services/ProductListQuery.php',
             ],
         ];
     }
