@@ -164,6 +164,22 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// What the server did with each committed row, so a restored row can say so.
   final Map<String, CountResult> _settled = <String, CountResult>{};
 
+  /// The ROW behind every figure typed on this shelf, keyed the same way as the figures.
+  ///
+  /// **Without this the sheet can only commit what is currently on screen.** A count is a product,
+  /// an expected quantity and a number; [_whole] and [_inner] hold the number alone, and the other
+  /// two came from whichever rows the controller had loaded. Narrow the shelf with a search and
+  /// those rows are gone, so a figure typed a moment earlier had nothing left to attach to.
+  ///
+  /// Kept as the row rather than as the ids to re-fetch, because a commit must not depend on a
+  /// request succeeding: the numbers are already in the user's head and on their shelf, and asking
+  /// the server again to find out what they were counting would put a network failure between a
+  /// finished count and saving it.
+  ///
+  /// Cleared with the rest of the per-shelf state when the shelf changes, for the same reason those
+  /// are: a row typed for the fridge must never commit against the pantry.
+  final Map<String, CountLine> _touched = <String, CountLine>{};
+
   /// Whether the committed rows are being shown again.
   ///
   /// They leave the sheet when they land, because on a shelf of a thousand the only thing that
@@ -392,16 +408,55 @@ class _StockTakeViewState extends State<StockTakeView> {
     return settled[key];
   }
 
+  /// Every row typed into on this shelf during this visit, whatever the search is showing now.
+  ///
+  /// **The screen used to answer this from the rows on screen, and a search empties those.** Typing
+  /// a count for one product and then searching for the next left the first product out of the
+  /// loaded page, so the summary fell to `0 counted`, the commit button went dead, and the work
+  /// already done could not be saved at all. The figures were never lost, they sat in [_whole] and
+  /// [_inner] the whole time, but nothing read them: for the user that is the same thing as losing
+  /// them, and worse, because the screen said zero rather than saying nothing.
+  ///
+  /// So the typed maps are the source, and [_touched] is what makes that possible: a figure alone
+  /// cannot be committed, since the commit needs the product and its expected quantity to compute a
+  /// delta, and those live on the row. Recording the row when it is first typed into keeps the whole
+  /// visit addressable no matter which page the shelf is scrolled or filtered to.
+  ///
+  /// Committed rows fall out on their own, because a commit moves their figures from [_whole] and
+  /// [_inner] into the settled maps.
+  List<CountLine> _countedThisVisit() {
+    final List<CountLine> out = <CountLine>[];
+
+    // In the order the rows were first typed into, which is the order the user worked in and so the
+    // order the confirmation dialog should list them in.
+    for (final MapEntry<String, CountLine> entry in _touched.entries) {
+      final String key = entry.key;
+
+      if (!_whole.containsKey(key) && !_inner.containsKey(key)) continue;
+
+      out.add(
+        CountLine(
+          product: entry.value.product,
+          expected: entry.value.expected,
+          countedWhole: _whole[key],
+          countedRemainder: _inner[key],
+        ),
+      );
+    }
+
+    return out;
+  }
+
   /// How many rows on this shelf have been counted, settled ones included.
   ///
   /// **Not the rows with a typed value, which is what it used to be.** A committed row has no live
   /// figure any more, so counting only those made the header fall back to zero the moment a commit
   /// landed: five rows counted, header `0 of 25`.
-  int _countedTotal(List<CountLine> lines) {
+  int _countedTotal() {
     final Set<String> counted = <String>{..._settled.keys};
 
-    for (final CountLine line in lines) {
-      if (line.isCounted && !_isSettled(line)) counted.add(_keyOf(line));
+    for (final CountLine line in _countedThisVisit()) {
+      if (line.isCounted) counted.add(_keyOf(line));
     }
 
     return counted.length;
@@ -461,8 +516,13 @@ class _StockTakeViewState extends State<StockTakeView> {
     _syncShelf();
 
     final List<CountLine> lines = _lines;
-    final int counted = _countedTotal(lines);
-    final List<CountLine> variances = lines.where((l) => l.isCounted && !l.isMatched).toList();
+    final int counted = _countedTotal();
+    // **From the visit, not from the rows on screen.** A search narrows what is loaded, and reading
+    // the variances off the visible rows made a count typed before the search invisible to the
+    // summary, to the confirmation dialog and to the commit itself.
+    final List<CountLine> variances = _countedThisVisit()
+        .where((l) => l.isCounted && !l.isMatched)
+        .toList();
     final StockTakeController? controller = _controller;
     final String locationId = _activeLocation;
 
@@ -611,6 +671,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       // entered for the fridge commit itself against the pantry's balance.
       _whole.clear();
       _inner.clear();
+      _touched.clear();
       _unfinished.clear();
       // **And the settled state, which is per SHELF and was leaking across them.** Its own docblock
       // says "this shelf and this visit" and nothing enforced it: the bar went on reporting the
@@ -771,15 +832,20 @@ class _StockTakeViewState extends State<StockTakeView> {
             // **Cleared means REMOVED, not stored as null**, and that became load-bearing when either
             // field started implying "counted": a lingering null key would keep a row counted after
             // the user emptied it, so the sheet would submit a figure nobody had typed.
-            onChanged: (next) => setState(() => _enter(_whole, _keyOf(line), next)),
-            onDecrement: () => setState(() {
-              final num current = line.countedWhole ?? 0;
-              _whole[_keyOf(line)] = current <= 0 ? 0 : current - 1;
-            }),
-            onIncrement: () =>
-                setState(() => _whole[_keyOf(line)] = (line.countedWhole ?? 0) + 1),
-            onRemainderChanged: (next) => setState(() => _enter(_inner, _keyOf(line), next)),
-            onConfirmRecorded: () => setState(() => _confirmRecorded(line)),
+            onChanged: (next) =>
+                setState(() => _edit(line, () => _enter(_whole, _keyOf(line), next))),
+            onDecrement: () => setState(
+              () => _edit(line, () {
+                final num current = line.countedWhole ?? 0;
+                _whole[_keyOf(line)] = current <= 0 ? 0 : current - 1;
+              }),
+            ),
+            onIncrement: () => setState(
+              () => _edit(line, () => _whole[_keyOf(line)] = (line.countedWhole ?? 0) + 1),
+            ),
+            onRemainderChanged: (next) =>
+                setState(() => _edit(line, () => _enter(_inner, _keyOf(line), next))),
+            onConfirmRecorded: () => setState(() => _edit(line, () => _confirmRecorded(line))),
             // The figure the tap would write, through the SAME formatter the verdict uses, so the
             // button and the line under it can never state one quantity two ways. See the parameter's
             // own docblock for why this is the one place D58 lets the expected figure show.
@@ -840,6 +906,20 @@ class _StockTakeViewState extends State<StockTakeView> {
     } else {
       _inner[key] = inner;
     }
+  }
+
+  /// Applies a change to one row's figures, recording the ROW first.
+  ///
+  /// **Every write to [_whole] or [_inner] goes through here, and that is the point.** The figure
+  /// and the row it belongs to have to be recorded together or the commit cannot reconstruct what
+  /// was counted once a search has scrolled the row out of the loaded page. Five call sites write
+  /// figures (typing, either stepper button, the remainder field, and agreeing with the record), and
+  /// a sixth that forgot to record the row would lose exactly one product's count, silently. Funnel
+  /// them through one method and forgetting is not available.
+  void _edit(CountLine line, VoidCallback change) {
+    _touched[_keyOf(line)] = line;
+
+    change();
   }
 
   /// Records a typed figure, or forgets the field when it no longer holds one.
@@ -945,8 +1025,14 @@ class _StockTakeViewState extends State<StockTakeView> {
     // nothing could see, so they live in `count_progress.dart` where a test can call the same code
     // rather than re-implement it.
     final int skipped = rowsLeftToCount(shelfTotal: _shelfTotal(lines), counted: counted);
-    final List<CountLine> countedLines = lines
-        .where((l) => l.isCounted && !_isSettled(l))
+    // **What gets committed is the whole visit, not the current page of it.** This read the rows on
+    // screen, so counting a product and then searching for the next one emptied it: the summary said
+    // `0 counted`, the button went dead, and there was no way to save work that had already been
+    // done. `_countedThisVisit` holds only uncommitted figures already, so the settled filter that
+    // used to be here is not needed: a commit moves a row's figures into the settled maps and it
+    // drops out on its own.
+    final List<CountLine> countedLines = _countedThisVisit()
+        .where((l) => l.isCounted)
         .toList();
 
     // **The shelf is what says the count is over, not the button.** The screen used to leave for the
