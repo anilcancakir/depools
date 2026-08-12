@@ -124,6 +124,58 @@ void main() {
       expect(controller.total, 3);
     });
 
+    test('a filtered first load still learns the catalogue size', () async {
+      // **A shared link mounts this screen with a filter already on**, so the first load is filtered
+      // and the unfiltered total is never free. It used to be written only on an empty filter, so
+      // the subtitle read "11 of 0 products" and the no-matches panel would have told a tenant with
+      // a hundred products that they owned none.
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+        if (request.url.contains('stock_state=')) return page(<String>['a'], total: 11);
+
+        return page(<String>['a'], total: 101);
+      });
+
+      final ProductController controller = ProductController();
+
+      await controller.apply(const ProductFilter(stockState: StockStateFilter.outOfStock));
+
+      expect(controller.total, 11);
+      expect(controller.catalogueTotal, 101, reason: 'the unfiltered count has to be fetched here');
+    });
+
+    test('extending to a page count does not refetch the page already loaded', () async {
+      // The URL flow applies the filter (which loads page one) and then asks for the page count. An
+      // unconditional `load()` inside `loadPages` made every shared deep link fetch page one twice,
+      // and nothing about the result looked wrong: the list was correct and the request was waste.
+      final List<String> asked = <String>[];
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+
+        asked.add(request.url);
+
+        return request.url.contains('cursor=')
+            ? page(<String>['b'], total: 2)
+            : page(<String>['a'], next: 'CURSOR', total: 2);
+      });
+
+      final ProductController controller = ProductController();
+
+      await controller.apply(const ProductFilter(query: 'süt'));
+
+      final int afterApply = asked.length;
+
+      await controller.loadPages(2);
+
+      expect(
+        asked.length - afterApply,
+        1,
+        reason: 'extending by one page is one request, not a reload plus a page',
+      );
+      expect(controller.items.length, 2);
+    });
+
     test('the filter travels as query parameters rather than being applied here', () async {
       final List<String> asked = <String>[];
 

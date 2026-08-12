@@ -163,6 +163,38 @@ void main() {
       expect(Uri.splitQueryString(query).keys, <String>['location_ids[]']);
     });
 
+    test('a URL round-trips a filter, repeated keys included', () {
+      // **This is what a shared link has to survive.** `Uri.queryParameters` keeps only the LAST
+      // value of a repeated key, so three selected shelves would come back as one and the list
+      // would be quietly wider than the URL said. `queryParametersAll` is what the parser reads.
+      const filter = ProductFilter(
+        query: 'süt & krema',
+        locationIds: {'loc-a', 'loc-b'},
+        tags: {'soğuk zincir'},
+        stockState: StockStateFilter.belowPar,
+        expiry: ExpiryFilter.expiringSoon,
+      );
+
+      final Uri url = Uri.parse('/products?${filter.toQueryString()}');
+
+      expect(ProductFilter.fromQueryParameters(url.queryParametersAll), filter);
+
+      // And the collapsed map really does lose one, which is why the parser cannot use it.
+      expect(url.queryParameters['location_ids[]'], isNot(contains(',')));
+      expect(url.queryParametersAll['location_ids[]'], hasLength(2));
+    });
+
+    test('a URL carrying nothing is an empty filter rather than a broken one', () {
+      expect(ProductFilter.fromQueryParameters(const {}), const ProductFilter());
+
+      // A link written by an older release, naming an option that has since gone. It widens rather
+      // than throwing: a shared URL outlives the build that produced it.
+      expect(
+        ProductFilter.fromQueryParameters(const {'stock_state': ['someRemovedOption']}),
+        const ProductFilter(),
+      );
+    });
+
     test('the query string escapes what a user can type, and carries the transport keys', () {
       const filter = ProductFilter(query: 'süt & krema');
 

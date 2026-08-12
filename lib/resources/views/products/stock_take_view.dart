@@ -387,6 +387,10 @@ class _StockTakeViewState extends State<StockTakeView> {
                 setState(() => _whole[_keyOf(line)] = (line.countedWhole ?? 0) + 1),
             onRemainderChanged: (next) => setState(() => _enter(_inner, _keyOf(line), next)),
             onConfirmRecorded: () => setState(() => _confirmRecorded(line)),
+            // The figure the tap would write, through the SAME formatter the verdict uses, so the
+            // button and the line under it can never state one quantity two ways. See the parameter's
+            // own docblock for why this is the one place D58 lets the expected figure show.
+            recordedFigure: line.figure(line.expected),
           ),
       ],
     );

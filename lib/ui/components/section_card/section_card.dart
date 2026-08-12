@@ -48,8 +48,18 @@ class SectionCard extends StatefulWidget {
   static const IconData _expandedIcon = Icons.expand_less_outlined;
   static const IconData _collapsedIcon = Icons.expand_more_outlined;
 
-  /// The section label, forwarded to [SectionHeader].
-  final String label;
+  /// The section label, forwarded to [SectionHeader], or null for a card with no header at all.
+  ///
+  /// **Null exists for the screen whose page IS the section.** The stock list is one card holding
+  /// every product, under a page titled `Stock` whose subtitle already states the count, so its
+  /// header repeated the page: `ALL PRODUCTS · 101 products` under `Stock · 101 products`, plus an
+  /// `All ›` control that went nowhere because there is no other list to go to. A section header
+  /// earns its place when a screen holds SEVERAL sections and the reader has to tell them apart.
+  ///
+  /// A headerless card cannot be [collapsible]: the header is the only thing to tap, so the two
+  /// together would render a section nobody can open. That combination is asserted rather than
+  /// quietly ignored.
+  final String? label;
 
   /// An optional already-formatted count, for example `'3 ürün'`.
   final String? count;
@@ -90,7 +100,7 @@ class SectionCard extends StatefulWidget {
   /// Creates a [SectionCard].
   const SectionCard({
     super.key,
-    required this.label,
+    this.label,
     required this.children,
     this.count,
     this.action,
@@ -118,26 +128,36 @@ class _SectionCardState extends State<SectionCard> {
     // let `initiallyExpanded: false` silently hide a section with no way to open it.
     final bool showBody = !widget.collapsible || _expanded;
     final String? error = widget.error;
+    final String? label = widget.label;
 
-    final Widget header = SectionHeader(
-      label: widget.label,
-      count: widget.count,
-      action: widget.action,
-      indicator: widget.collapsible
-          ? WIcon(
-              _expanded ? SectionCard._expandedIcon : SectionCard._collapsedIcon,
-              className: slots['chevron'],
-            )
-          : null,
+    assert(
+      label != null || !widget.collapsible,
+      'a headerless SectionCard cannot be collapsible: the header is the only thing to tap, so the '
+      'body would have no way to be opened again',
     );
+
+    final Widget? header = label == null
+        ? null
+        : SectionHeader(
+            label: label,
+            count: widget.count,
+            action: widget.action,
+            indicator: widget.collapsible
+                ? WIcon(
+                    _expanded ? SectionCard._expandedIcon : SectionCard._collapsedIcon,
+                    className: slots['chevron'],
+                  )
+                : null,
+          );
 
     return WDiv(
       className: slots['root'],
       children: [
-        if (widget.collapsible)
-          WAnchor(onTap: _toggle, semanticLabel: widget.label, child: header)
-        else
-          header,
+        if (header != null)
+          if (widget.collapsible)
+            WAnchor(onTap: _toggle, semanticLabel: label, child: header)
+          else
+            header,
         if (showBody)
           WDiv(
             className: slots['body'],

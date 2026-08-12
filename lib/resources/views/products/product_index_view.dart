@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
@@ -6,7 +7,6 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show
         ButtonIntent,
-        ButtonSize,
         MSButton,
         MSEmptyState,
         MSInput,
@@ -126,7 +126,6 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   static const IconData _receiptIcon = Icons.receipt_long_outlined;
   static const IconData _photoIcon = Icons.photo_camera_outlined;
   static const IconData _addIcon = Icons.add_outlined;
-  static const IconData _chevronIcon = Icons.chevron_right_outlined;
 
   /// How long after the last keystroke the search is sent.
   ///
@@ -134,6 +133,12 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   /// a product name. 350ms is the pause that reads as "finished typing a word" without the user
   /// noticing they waited.
   static const Duration _searchDelay = Duration(milliseconds: 350);
+
+  /// How many pages a shared link may ask a cold client to fetch.
+  ///
+  /// The URL is editable by whoever holds it, and each page is a request, so this is a ceiling on
+  /// what a stranger's link can cost rather than a limit anybody legitimately reaches.
+  static const int _maxSharedPages = 50;
 
   /// How close to the bottom, in logical pixels, the next page is asked for.
   ///
@@ -201,6 +206,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       if (!controller.initialized) controller.onInit();
 
       _controller = controller;
+      _applyUrl(controller);
     }
   }
 
@@ -243,7 +249,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     if (position == null || !position.hasContentDimensions) return;
 
     if (position.maxScrollExtent - position.pixels <= _loadMoreThreshold) {
-      _controller?.loadMore();
+      // The URL follows the page count, so a link copied after scrolling reproduces the rows the
+      // sender was looking at rather than only the filter they had applied.
+      _controller?.loadMore().then((_) {
+        if (mounted) _syncUrl();
+      });
     }
   }
 
@@ -252,6 +262,67 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   /// The controller's copy when there is one, so the chips can never describe a filter other than the
   /// one the rows were fetched with. The local field is the preview's.
   ProductFilter get _filter => _controller?.filter ?? _localFilter;
+
+  /// Adopts the filter a URL carries, which is what makes a shared link reproduce what was sent.
+  ///
+  /// Read from `currentLocation` and parsed here rather than through the router's own
+  /// `queryParameters`: that one is a `Map<String, String>` and keeps only the last value of a
+  /// repeated key, so `location_ids[]=a&location_ids[]=b` would arrive as one shelf and the list
+  /// would silently be wider than the URL said. `queryParametersAll` keeps both.
+  ///
+  /// Does nothing when the URL carries no filter, so an ordinary visit is one request and the
+  /// controller's own `onInit` load stands. `pages` is honoured only alongside a real page count,
+  /// because re-fetching pages one to N costs N requests and an ordinary link should not.
+  void _applyUrl(ProductController controller) {
+    final Uri uri = Uri.parse(MagicRouter.instance.currentLocation ?? '');
+    final ProductFilter fromUrl = ProductFilter.fromQueryParameters(uri.queryParametersAll);
+    final int pages = int.tryParse(uri.queryParameters['pages'] ?? '') ?? 1;
+
+    if (fromUrl.isEmpty && pages <= 1) return;
+
+    // After the frame: `onInit` above may already have a load in flight, and the controller's own
+    // request-sequence guard is what makes this one win rather than the two racing.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      await controller.apply(fromUrl);
+
+      // Capped, because `pages` arrives from a URL a stranger can edit, and fifty is far past
+      // anything a shared link should ask a cold client to fetch.
+      //
+      // `math.min` rather than `clamp`, for the same legibility reason recorded on the other side of
+      // this file: `clamp` type-checks here only because the analyzer special-cases `num.clamp` to
+      // return `int` when the receiver and both bounds are `int`, and a reviewer read it as a type
+      // error. The lower bound was redundant anyway, since this line is already inside `pages > 1`.
+      if (pages > 1) await controller.loadPages(math.min(pages, _maxSharedPages));
+    });
+  }
+
+  /// The filter written into this screen's own URL, so a link reproduces what the sender saw.
+  ///
+  /// **`replace`, never `to`.** A push per keystroke would fill the history with one entry per
+  /// letter of a search term, and the back button would then walk the user backwards through their
+  /// own typing instead of off the screen.
+  ///
+  /// The page COUNT rides along and the cursor deliberately does not. A cursor encodes a row's
+  /// position in one ordered result, so a shared one lands the reader in the middle of a list with
+  /// nothing above it, and points at nothing at all once that row is renamed or consumed. A count
+  /// re-fetches pages one to N, which is the same rows in the same order with the top intact, and it
+  /// stays meaningful however the data moves underneath it.
+  void _syncUrl() {
+    final ProductController? controller = _controller;
+
+    if (controller == null) return;
+
+    final int pages = controller.loadedPages;
+
+    MagicRoute.replace(
+      '/products?${controller.filter.toQueryString(extra: <String, Object?>{
+        // Omitted at one, which is the common case, so an ordinary link stays short.
+        if (pages > 1) 'pages': pages,
+      })}',
+    );
+  }
 
   /// Applies a filter, wherever it has to go.
   void _setFilter(ProductFilter next) {
@@ -268,7 +339,9 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       return;
     }
 
-    controller.apply(next);
+    controller.apply(next).then((_) {
+      if (mounted) _syncUrl();
+    });
   }
 
   /// Every row the screen knows about.
@@ -345,6 +418,33 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   String get _teamName =>
       MagicStarter.teamResolver?.currentTeam()?.name ?? Lang.get('app.name');
 
+  /// The line under the page title: whose catalogue this is, and how much of it is on screen.
+  ///
+  /// **This is where the list's count lives now.** The card below used to carry its own
+  /// `ALL PRODUCTS · 101 products` header, which repeated this line sixteen pixels lower, and the
+  /// count it showed was the FILTERED one while this showed the catalogue: two numbers, two
+  /// meanings, no label saying which was which.
+  ///
+  /// Null while the first page is in flight, not just when the catalogue is empty. The count is
+  /// genuinely unknown then, and a zero next to a real team name reads as "this tenant has nothing"
+  /// rather than as a pending request.
+  String? get _subtitle {
+    if (_isEmptyCatalogue || (_controller?.isLoading ?? false)) return null;
+
+    // Both numbers only while a filter is narrowing, because "101 of 101" is noise. The catalogue
+    // figure stays in either form: it is what makes a short list legible as a filtered one rather
+    // than as a small tenant.
+    if (_filter.isActive) {
+      return Lang.get('screens.products.subtitle_filtered', {
+        'team': _teamName,
+        'count': _matchCount,
+        'total': _catalogueCount,
+      });
+    }
+
+    return Lang.get('screens.products.subtitle', {'team': _teamName, 'count': _catalogueCount});
+  }
+
   Future<void> _openSheet() async {
     final ProductFilter? applied = await ProductFilterSheet.show(
       context,
@@ -409,13 +509,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       // is genuinely unknown then, and rendering `_all.length` reads as "0 products" next to a
       // real team name: the same false state the list body needed its own loading branch for, on
       // the one line that sits above it.
-      subtitle: _isEmptyCatalogue || (_controller?.isLoading ?? false)
-          ? null
-          // The CATALOGUE size, not the page and not the filtered count. This line names the tenant
-          // and how much they hold, so it has to stay still while a filter narrows the list under it:
-          // `_all.length` was the whole collection before and is one page of thirty now, which would
-          // have made the header of a hundred-product tenant read "30 products".
-          : Lang.get('screens.products.subtitle', {'team': _teamName, 'count': _catalogueCount}),
+      subtitle: _subtitle,
       actions: [
         // The same entry point the assistant shell has (D50). In this mode it is the only
         // place a full-auto write becomes visible, because there is no transcript.
@@ -719,24 +813,20 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     return <Widget>[
       if (visible.isNotEmpty)
         SectionCard(
-          label: Lang.get('screens.products.all_group'),
-          // How many the FILTER matched, not how many are loaded. With a paginated list those are
-          // different numbers until the last page arrives, and the loaded one would count up as the
-          // user scrolls: a header that changes while you read it says nothing about the filter.
-          count: Lang.get('screens.products.product_count', {'count': _matchCount}),
-          action: MSButton(
-            onPressed: () {},
-            intent: ButtonIntent.ghost,
-            size: ButtonSize.sm,
-            className: 'py-3.5 axis-min',
-            child: WDiv(
-              className: 'flex flex-row items-center gap-0.5 axis-min',
-              children: [
-                WText(Lang.get('screens.products.all')),
-                WIcon(_chevronIcon, className: 'size-4'),
-              ],
-            ),
-          ),
+          // **No header, because this page IS the section.** It carried
+          // `ALL PRODUCTS · 101 products` directly under a page header reading `Stock` and
+          // `Demo Kitchen · 101 products`: the same name and the same number, twice, sixteen pixels
+          // apart. A section header earns its place when a screen holds several sections and the
+          // reader has to tell them apart, which this screen stopped doing when the separate
+          // "needs attention" card was removed and one list was left.
+          //
+          // The count moved UP rather than away: the page subtitle now states what the filter
+          // matched as well as what the tenant holds, which is where a reader looks for the scope of
+          // what is under it.
+          //
+          // The `All ›` control went with it, and it was dead: `onPressed: () {}`, pointing at
+          // nothing, because there is no other list of products to go to. An affordance that costs
+          // a tap to discover is inert is worse than an absent one.
           children: [
             for (final ProductListItem item in visible) _row(item),
             // The footer states the total rather than pretending to page eight fixtures.

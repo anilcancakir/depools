@@ -82,6 +82,20 @@ class CountRow extends StatelessWidget {
   /// Null hides the control, which is what the preview catalog and any read-only use get.
   final VoidCallback? onConfirmRecorded;
 
+  /// What the record says, already formatted, for the confirmation control to name.
+  ///
+  /// **The button said "same as record" and never said what the record was**, so the one gesture on
+  /// the sheet that commits a number without typing it asked the user to agree with a figure they
+  /// could not see. That is the shape D58 exists to prevent from the other direction: the expected
+  /// quantity stays hidden until a count is entered, precisely so the number does not lead the
+  /// count, and a button that WRITES that number is the one place it has to be visible, because
+  /// tapping it is the act of accepting it.
+  ///
+  /// Already formatted by the caller (`1 piece + 200 g`), which is `CountLine.figure`'s job: only it
+  /// knows the base unit, the content unit and D26's whole-plus-remainder split. Null falls back to
+  /// the bare label, which is what a row with no figure to state gets.
+  final String? recordedFigure;
+
   /// Whether this is a placeholder rather than a row.
   ///
   /// **The skeleton is the row's own shadow, not three grey bars**, for the same reason
@@ -105,6 +119,7 @@ class CountRow extends StatelessWidget {
     this.onDecrement,
     this.onIncrement,
     this.onConfirmRecorded,
+    this.recordedFigure,
   }) : isSkeleton = false;
 
   /// Creates a placeholder with this row's exact geometry.
@@ -121,6 +136,7 @@ class CountRow extends StatelessWidget {
       onDecrement = null,
       onIncrement = null,
       onConfirmRecorded = null,
+      recordedFigure = null,
       isSkeleton = true;
 
   @override
@@ -193,7 +209,15 @@ class CountRow extends StatelessWidget {
                   className: slots['confirm'],
                   children: [
                     const WIcon(_confirmIcon, className: 'size-3.5'),
-                    WText(Lang.get('components.count_row.confirm_recorded')),
+                    // The figure when there is one, so the control names the number it is about to
+                    // write rather than asking the user to agree with something off screen.
+                    WText(
+                      recordedFigure == null
+                          ? Lang.get('components.count_row.confirm_recorded')
+                          : Lang.get('components.count_row.confirm_recorded_figure', {
+                              'figure': recordedFigure!,
+                            }),
+                    ),
                   ],
                 ),
               ),
