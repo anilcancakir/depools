@@ -25,7 +25,10 @@ final class LocationController extends Controller
         // Ordered by `path` so the client receives a tree in reading order and does not have to
         // sort a hierarchy it only has flat rows of.
         return LocationResource::collection(
-            Location::query()->orderBy('path')->get(),
+            // One aggregate for the whole tree rather than a query per node. The count screen opens on
+            // the first location that HOLDS something, and it can no longer work that out from the
+            // product list because that list is one page now.
+            Location::query()->withCount('stock')->orderBy('path')->get(),
         );
     }
 

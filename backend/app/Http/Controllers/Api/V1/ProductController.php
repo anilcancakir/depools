@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
+use App\Services\ProductListQuery;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
@@ -17,18 +18,81 @@ use Illuminate\Validation\Rule;
  */
 final class ProductController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    /**
+     * How many rows a page holds when the caller does not say.
+     *
+     * Thirty is roughly two phone screens of list, so the next page is already in flight before the
+     * user reaches the bottom of this one.
+     */
+    private const PER_PAGE = 30;
+
+    /**
+     * One page of the tenant's products, narrowed by the filter the client sends.
+     *
+     * ### Cursor, not offset
+     *
+     * A stock list changes while it is being read: a count commits, a receipt lands, and every later
+     * page shifts by one under an OFFSET. The reader then sees a row twice or never. A cursor is
+     * keyed on the ordering columns instead, so an insert somewhere behind the reader cannot move
+     * what is in front of them.
+     *
+     * **`id` after `name` is what makes the cursor sound, not tidiness.** A cursor built on `name`
+     * alone cannot separate two products sharing one, so `where name > 'Süt'` skips the second `Süt`
+     * and `>=` repeats the first. This catalog HAS duplicate names: the demo tenant holds two, and
+     * the count screen already keys its figures by id for the same reason.
+     *
+     * ### Why the count is a second query
+     *
+     * A cursor paginator has no total by construction, which is most of why it is cheap. The filter
+     * sheet previews how many rows a draft filter would match, so the number has to exist; it is a
+     * COUNT over the same predicates rather than a second definition of them. One extra query per
+     * request, over one tenant's catalog, which is what buys a filter that can say what it will do
+     * before it does it.
+     */
+    public function index(Request $request): AnonymousResourceCollection
     {
-        return ProductResource::collection(
+        $criteria = $request->validate([
+            // `ProductFilter.toMap()`'s keys, unchanged. That shape is already the one the
+            // assistant's `search_products` tool speaks, so a second spelling here would be a
+            // translation layer between two definitions of one filter.
+            'query' => ['nullable', 'string', 'max:255'],
+            'location_ids' => ['sometimes', 'array'],
+            'location_ids.*' => ['uuid'],
+            'category_ids' => ['sometimes', 'array'],
+            'category_ids.*' => ['uuid'],
+            'tags' => ['sometimes', 'array'],
+            'tags.*' => ['string', 'max:64'],
+            'brands' => ['sometimes', 'array'],
+            'brands.*' => ['string', 'max:255'],
+            'stock_state' => ['nullable', Rule::in(['out_of_stock', 'below_par', 'in_stock'])],
+            'expiry' => ['nullable', Rule::in(['expired', 'expiring_soon'])],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'cursor' => ['nullable', 'string'],
+        ]);
+
+        // ONE reference date for the whole request. Two calls either side of midnight would count a
+        // product as expired for the page and not for the total, which is the shape of bug that reads
+        // as a flickering list rather than as a clock problem.
+        $filter = new ProductListQuery($criteria, today());
+
+        $page = $filter->apply(
             Product::query()
                 ->with(['stock', 'tags'])
                 // One aggregate for the whole page rather than a query per row. The count decides
                 // which certainty tier the client is allowed to speak in, so a list without it can
                 // only render the most cautious one for everything.
-                ->withCount('movements')
-                ->orderBy('name')
-                ->get(),
-        );
+                ->withCount('movements'),
+        )
+            ->orderBy('products.name')
+            ->orderBy('products.id')
+            ->cursorPaginate($criteria['per_page'] ?? self::PER_PAGE)
+            ->withQueryString();
+
+        return ProductResource::collection($page)->additional([
+            // A fresh builder, because the one above is spent. Same filter object, so the predicates
+            // cannot drift between the page and its own count.
+            'meta' => ['total' => $filter->apply(Product::query())->count()],
+        ]);
     }
 
     public function store(Request $request): ProductResource

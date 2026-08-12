@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
@@ -71,13 +73,27 @@ class ProductFilterSheet extends StatefulWidget {
   /// Passed in rather than computed here: the sheet does not own the catalogue, and
   /// a count computed from a different source than the list would eventually
   /// disagree with it.
-  final int Function(ProductFilter draft) countMatches;
+  ///
+  /// **Asynchronous, because the catalogue is not in memory any more.** The filter runs on the
+  /// server now, so the only honest count is the one the server gives for the same criteria; a local
+  /// count over the loaded page would say "3 products" about a page rather than about the filter.
+  /// Returning null means the count could not be fetched, and the sheet then keeps the number it
+  /// already had rather than showing a zero that means "the network is down".
+  final Future<int?> Function(ProductFilter draft) countMatches;
+
+  /// How many products [initial] matches, which the caller already knows.
+  ///
+  /// Passed in so the button has a true number the moment the sheet opens. Without it the sheet
+  /// would spend its first frames with no count, and the only honest label for that state is one
+  /// without a number, which means the button changes shape a beat after it appears.
+  final int initialCount;
 
   /// Creates a [ProductFilterSheet].
   const ProductFilterSheet({
     super.key,
     required this.initial,
     required this.countMatches,
+    required this.initialCount,
     this.locations = const [],
     this.categories = const [],
     this.tags = const [],
@@ -90,7 +106,8 @@ class ProductFilterSheet extends StatefulWidget {
   static Future<ProductFilter?> show(
     BuildContext context, {
     required ProductFilter initial,
-    required int Function(ProductFilter draft) countMatches,
+    required Future<int?> Function(ProductFilter draft) countMatches,
+    required int initialCount,
     List<FilterOption> locations = const [],
     List<FilterOption> categories = const [],
     List<FilterOption> tags = const [],
@@ -101,6 +118,7 @@ class ProductFilterSheet extends StatefulWidget {
       body: ProductFilterSheet(
         initial: initial,
         countMatches: countMatches,
+        initialCount: initialCount,
         locations: locations,
         categories: categories,
         tags: tags,
@@ -115,10 +133,51 @@ class ProductFilterSheet extends StatefulWidget {
 class _ProductFilterSheetState extends State<ProductFilterSheet> {
   late ProductFilter _draft = widget.initial;
 
+  /// How long to wait after a toggle before asking the server how many rows the draft matches.
+  ///
+  /// Long enough that picking three shelves in a row is one request rather than three, short enough
+  /// that the number lands before the user has finished reading the option they just tapped.
+  static const Duration _countDelay = Duration(milliseconds: 250);
+
   static const List<StockStateFilter> _stockStates = StockStateFilter.values;
   static const List<ExpiryFilter> _expiries = ExpiryFilter.values;
 
-  void _set(ProductFilter next) => setState(() => _draft = next);
+  late int _matches = widget.initialCount;
+
+  Timer? _debounce;
+
+  /// Which count request is the newest, so a slower earlier answer cannot land after it.
+  int _request = 0;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _set(ProductFilter next) {
+    setState(() => _draft = next);
+    _recount();
+  }
+
+  /// Asks for the draft's count, debounced.
+  ///
+  /// The number is kept in state rather than awaited in `build`, because `build` runs on every frame
+  /// and a request per frame is not a thing to do. The stale-answer guard is the same shape as
+  /// `ProductController`'s: two counts can be in flight, and the older one arriving last would leave
+  /// the button stating a figure for criteria the user has already changed.
+  void _recount() {
+    _debounce?.cancel();
+    _debounce = Timer(_countDelay, () async {
+      final int request = ++_request;
+      final ProductFilter asked = _draft;
+      final int? count = await widget.countMatches(asked);
+
+      if (!mounted || request != _request || count == null) return;
+
+      setState(() => _matches = count);
+    });
+  }
 
   /// Toggles one value on a multi-select axis.
   Set<String> _toggled(Set<String> current, String id) {
@@ -129,7 +188,7 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final int matches = widget.countMatches(_draft);
+    final int matches = _matches;
 
     return WDiv(
       className: 'flex flex-col gap-5',

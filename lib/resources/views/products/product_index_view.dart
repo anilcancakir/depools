@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
@@ -57,9 +59,18 @@ import 'product_fixtures.dart';
 /// list with no indication of why: the user concludes the product is not there and
 /// leaves. Any review of this screen checks that first.
 ///
-/// Rendered from [ProductController], and filtered client-side against the loaded rows, so
-/// the sheet's count and the list cannot disagree. The preview catalog passes
-/// [ProductIndexView.items] instead, which is the same contract from a different source.
+/// ### Where the filtering happens, and why it moved
+///
+/// On the SERVER, through [ProductController]. It used to happen here, over the rows the controller
+/// had loaded, and that was correct while the endpoint answered the whole collection. It stops being
+/// correct the moment the list is a page: a filter over thirty rows can only find what those thirty
+/// held, so "expired" would report three items on page one and three different ones on page two.
+///
+/// So the view stopped owning the filter. [ProductController.filter] is the single copy, the chips
+/// and the sheet write to it through [ProductController.apply], and the rows arrive already narrowed.
+/// The preview catalog still filters locally against [ProductIndexView.items], because there is no
+/// server behind it; that is the one place two paths exist, and it is why [_visible] reads the
+/// controller when there is one instead of filtering unconditionally.
 class ProductIndexView extends StatefulWidget {
   /// Whether the tenant has no products at all yet.
   final bool isEmpty;
@@ -117,7 +128,37 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   static const IconData _addIcon = Icons.add_outlined;
   static const IconData _chevronIcon = Icons.chevron_right_outlined;
 
-  ProductFilter _filter = const ProductFilter();
+  /// How long after the last keystroke the search is sent.
+  ///
+  /// The query is a server request now, so a request per character would be thirty requests to type
+  /// a product name. 350ms is the pause that reads as "finished typing a word" without the user
+  /// noticing they waited.
+  static const Duration _searchDelay = Duration(milliseconds: 350);
+
+  /// How close to the bottom, in logical pixels, the next page is asked for.
+  ///
+  /// Roughly three rows' worth, so the page is already in flight while the user is still reading
+  /// what they have rather than arriving after they hit the end and stopped.
+  static const double _loadMoreThreshold = 240;
+
+  /// The filter, for the preview catalog only.
+  ///
+  /// A wired screen reads [ProductController.filter] instead; see [_filter]. This exists because the
+  /// catalog has no controller and no server, and a sheet that could not filter the fixtures would
+  /// make the whole screen unreviewable there.
+  ProductFilter _localFilter = const ProductFilter();
+
+  final TextEditingController _search = TextEditingController();
+
+  Timer? _searchDebounce;
+
+  /// The scroll the shell put above this page, watched for the bottom of the list.
+  ///
+  /// **The scrollable is an ANCESTOR, which rules out the obvious approach.** A
+  /// `NotificationListener<ScrollNotification>` placed among this page's children never fires,
+  /// because a scroll notification travels UP from the `Scrollable` and this page is below it.
+  /// `Scrollable.maybeOf` looks the other way, which is the direction the widget actually lies in.
+  ScrollPosition? _scroll;
 
   /// Filters saved by the user, on top of the built-ins.
   ///
@@ -164,7 +205,26 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Attached here rather than in `initState`, because the ancestor `Scrollable` is only reachable
+    // once this element has its dependencies. Re-resolved on every call and compared, so a shell that
+    // rebuilds its scroll view does not leave the listener on a dead position.
+    final ScrollPosition? position = _controller == null ? null : Scrollable.maybeOf(context)?.position;
+
+    if (position == _scroll) return;
+
+    _scroll?.removeListener(_onScroll);
+    _scroll = position;
+    _scroll?.addListener(_onScroll);
+  }
+
+  @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _search.dispose();
+    _scroll?.removeListener(_onScroll);
     _controller?.removeListener(_onControllerChanged);
     super.dispose();
   }
@@ -173,13 +233,75 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     if (mounted) setState(() {});
   }
 
-  /// Every row the screen knows about, before the filter.
+  /// Asks for the next page as the bottom of the list comes into reach.
+  ///
+  /// The controller absorbs the repeats: this fires on every scroll frame while inside the threshold,
+  /// and `loadMore` returns immediately unless there is a cursor and nothing in flight.
+  void _onScroll() {
+    final ScrollPosition? position = _scroll;
+
+    if (position == null || !position.hasContentDimensions) return;
+
+    if (position.maxScrollExtent - position.pixels <= _loadMoreThreshold) {
+      _controller?.loadMore();
+    }
+  }
+
+  /// What is narrowing the list.
+  ///
+  /// The controller's copy when there is one, so the chips can never describe a filter other than the
+  /// one the rows were fetched with. The local field is the preview's.
+  ProductFilter get _filter => _controller?.filter ?? _localFilter;
+
+  /// Applies a filter, wherever it has to go.
+  void _setFilter(ProductFilter next) {
+    // Keep the field and the query in step in both directions. Removing the text criterion with the
+    // chip's X has to empty the field too, or the box goes on showing a term that is no longer
+    // filtering anything.
+    if (_search.text != next.query) _search.text = next.query;
+
+    final ProductController? controller = _controller;
+
+    if (controller == null) {
+      setState(() => _localFilter = next);
+
+      return;
+    }
+
+    controller.apply(next);
+  }
+
+  /// Every row the screen knows about.
+  ///
+  /// On a wired screen this is one page of an already-narrowed list, which is why the counts below
+  /// come from the controller rather than from `.length`.
   List<ProductListItem> get _all =>
       widget.items ?? _controller?.items ?? const <ProductListItem>[];
 
-  List<ProductListItem> get _visible => _all.where((item) => item.matches(_filter)).toList();
+  /// The rows to render.
+  ///
+  /// Already narrowed by the server when there is a controller. The local pass is the preview's only.
+  List<ProductListItem> get _visible => _controller != null
+      ? _all
+      : _all.where((item) => item.matches(_localFilter)).toList();
 
-  int _countMatches(ProductFilter draft) => _all.where((item) => item.matches(draft)).length;
+  /// How many rows match the current filter in total, not how many are loaded.
+  int get _matchCount => _controller?.total ?? _visible.length;
+
+  /// How many products the tenant holds with nothing narrowing the list.
+  int get _catalogueCount => _controller?.catalogueTotal ?? _all.length;
+
+  /// How many rows a draft filter would match.
+  ///
+  /// A request on a wired screen, and the loaded fixtures in the catalog. Both answer the same
+  /// question about the same source the list renders from, which is the property the sheet needs.
+  Future<int?> _countMatches(ProductFilter draft) async {
+    final ProductController? controller = _controller;
+
+    if (controller != null) return controller.countFor(draft);
+
+    return _all.where((item) => item.matches(draft)).length;
+  }
 
   /// The locations the filter sheet offers.
   ///
@@ -228,6 +350,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       context,
       initial: _filter,
       countMatches: _countMatches,
+      initialCount: _matchCount,
       locations: _locationOptions,
       // Categories are STILL the fixture list, and that is a reported gap rather than an oversight:
       // the payload sends `product_category_id` but no name, `Product` has no `category` relation to
@@ -240,7 +363,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     // Null means dismissed, which is not the same as an empty filter. Coalescing the
     // two would silently clear a filter every time the user swiped the sheet away.
     if (applied == null || !mounted) return;
-    setState(() => _filter = applied);
+    _setFilter(applied);
   }
 
   void _save() {
@@ -288,7 +411,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       // the one line that sits above it.
       subtitle: _isEmptyCatalogue || (_controller?.isLoading ?? false)
           ? null
-          : Lang.get('screens.products.subtitle', {'team': _teamName, 'count': _all.length}),
+          // The CATALOGUE size, not the page and not the filtered count. This line names the tenant
+          // and how much they hold, so it has to stay still while a filter narrows the list under it:
+          // `_all.length` was the whole collection before and is one page of thirty now, which would
+          // have made the header of a hundred-product tenant read "30 products".
+          : Lang.get('screens.products.subtitle', {'team': _teamName, 'count': _catalogueCount}),
       actions: [
         // The same entry point the assistant shell has (D50). In this mode it is the only
         // place a full-auto write becomes visible, because there is no transcript.
@@ -321,7 +448,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             saved: _saved,
             resolveLocation: resolveLocationLabel,
             resolveCategory: resolveCategoryLabel,
-            onChanged: (next) => setState(() => _filter = next),
+            onChanged: _setFilter,
             onSave: _save,
           ),
         ],
@@ -342,6 +469,19 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           ..._buildList(visible),
       ],
     );
+  }
+
+  /// Debounces a keystroke into a filter change.
+  ///
+  /// The text is compared against the filter before anything is sent, so re-typing the same word or
+  /// a `setText` from [_setFilter] cannot start a request that would change nothing.
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(_searchDelay, () {
+      if (!mounted || value == _filter.query) return;
+
+      _setFilter(_filter.copyWith(query: value));
+    });
   }
 
   /// Search and filter, side by side.
@@ -374,7 +514,12 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             className: 'h-11 bg-surface-container-high',
             placeholder: Lang.get('screens.products.search'),
             prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
-            onChanged: (String _) {},
+            // **This was `(String _) {}` and the field did nothing at all.** It looked and felt like
+            // a search box, took focus and showed the typed text, and never narrowed the list. The
+            // filter had a `query` axis all along and nothing wrote to it, so the most obvious
+            // control on the screen was the one that was not connected.
+            controller: _search,
+            onChanged: _onSearchChanged,
           ),
         ),
         // **The active state is a count, not a fill.** This button turned `bg-primary` when a
@@ -537,11 +682,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             icon: _filterIcon,
             title: Lang.get('screens.products.filtered_empty'),
             description:
-                Lang.get('screens.products.filtered_description', {'count': _all.length}),
+                Lang.get('screens.products.filtered_description', {'count': _catalogueCount}),
           ),
         ),
         MSButton(
-          onPressed: () => setState(() => _filter = const ProductFilter()),
+          onPressed: () => _setFilter(const ProductFilter()),
           fullWidth: true,
           className: 'justify-center',
           child: WText(Lang.get('screens.products.filter_clear')),
@@ -575,7 +720,10 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       if (visible.isNotEmpty)
         SectionCard(
           label: Lang.get('screens.products.all_group'),
-          count: Lang.get('screens.products.product_count', {'count': visible.length}),
+          // How many the FILTER matched, not how many are loaded. With a paginated list those are
+          // different numbers until the last page arrives, and the loaded one would count up as the
+          // user scrolls: a header that changes while you read it says nothing about the filter.
+          count: Lang.get('screens.products.product_count', {'count': _matchCount}),
           action: MSButton(
             onPressed: () {},
             intent: ButtonIntent.ghost,
@@ -595,13 +743,23 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             // The total is also the SKU count the plan meters on, so it is the one number
             // worth having at the bottom of this particular list.
             ListFooter(
-              state: widget.isLoadingMore ? ListFooterState.loadingMore : ListFooterState.end,
+              // Three states now, and the middle one is the reason this component had a
+              // `loadingMore` variant nothing could reach: a page really is in flight here, so the
+              // footer says so rather than looking like the end of the data. `widget.isLoadingMore`
+              // stays as the catalog's way of previewing that state.
+              state: widget.isLoadingMore || (_controller?.loadingMore ?? false)
+                  ? ListFooterState.loadingMore
+                  : ListFooterState.end,
               // Only when nothing is filtered. The label means "the whole collection is loaded, there
               // is no next page", and under a filtered list of three it read "all 101 of them", which
               // is a footer contradicting the header two lines above it. The section count already
               // states how many the filter matched, so there is nothing to replace it with.
-              totalLabel: _filter.isEmpty
-                  ? Lang.get('screens.products.all_of_them', {'count': _all.length})
+              //
+              // And only once there IS no next page: it used to be the row count, which is now a page
+              // count, so a footer under the first thirty of a hundred would have claimed the whole
+              // collection was loaded while the cursor said otherwise.
+              totalLabel: _filter.isEmpty && !(_controller?.hasMore ?? false)
+                  ? Lang.get('screens.products.all_of_them', {'count': _catalogueCount})
                   : null,
               // The row draws its own placeholder, so the two cannot drift.
               skeleton: const ProductRow.skeleton(),

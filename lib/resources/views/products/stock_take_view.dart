@@ -167,11 +167,38 @@ class _StockTakeViewState extends State<StockTakeView> {
     // Measured against the demo tenant, whose first location has no stock at all, defaulting to it
     // opened this screen on "nothing at this location" for a tenant with four full shelves, which
     // reads as a broken screen rather than as an empty shelf.
+    //
+    // Answered from the LOCATION payload's own `stock_count` rather than by scanning products. The
+    // products it could scan are one page now, so a full shelf whose rows sit on a later page would
+    // have read as empty and the default would have moved to the wrong shelf. It is also the only
+    // order that works: the shelf itself is fetched per location, so deciding which one to fetch
+    // cannot depend on having fetched them all.
+    final ProductController? controller = _controller;
+
     for (final FilterOption option in options) {
-      if (_stockedAt(option.id).isNotEmpty) return option.id;
+      if (controller == null || controller.holdsStock(option.id)) return option.id;
     }
 
     return options.first.id;
+  }
+
+  /// Makes sure the shelf being counted has been fetched.
+  ///
+  /// Called from `build` rather than from `initState`, because the location is not known there: the
+  /// tenant's locations arrive with the first load, and [_activeLocation] resolves against them. The
+  /// controller drops a repeat call for a location it already holds or is already fetching, so
+  /// calling this on every frame issues at most one request per shelf.
+  void _syncShelf() {
+    final ProductController? controller = _controller;
+    final String locationId = _activeLocation;
+
+    if (controller == null || locationId.isEmpty) return;
+    if (controller.hasShelf(locationId) || controller.shelfFailed(locationId)) return;
+
+    // After the frame, because `loadShelf` notifies listeners and this runs during a build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) controller.loadShelf(locationId);
+    });
   }
 
   /// How a line is keyed in the typed-count maps.
@@ -203,11 +230,19 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// typed figure would be a second, disagreeing answer to "how many". The server refuses them too,
   /// which is the guard rather than the duplicate: this keeps a row that can only ever be refused
   /// off the sheet.
+  /// **The whole shelf, not the browse list's current page.** This read `_controller.items`, which
+  /// was the entire catalogue and is now one filtered page of thirty. Left alone it would have built
+  /// a count sheet from whatever the user happened to have scrolled to: short, with nothing on
+  /// screen saying so, and every product past the page silently keeping its old balance. On a ledger
+  /// that is the worst available shape of bug, because the user believes the count landed.
+  ///
+  /// [ProductController.loadShelf] walks the cursor to the end for one location, and [_syncShelf]
+  /// is what asks for it.
   List<ProductListItem> _stockedAt(String locationId) {
     if (locationId.isEmpty) return const <ProductListItem>[];
 
     return <ProductListItem>[
-      for (final ProductListItem product in _controller?.items ?? const <ProductListItem>[])
+      for (final ProductListItem product in _controller?.shelf(locationId) ?? const <ProductListItem>[])
         if (product.locationIds.contains(locationId) && product.tracking != TrackingMode.serial)
           product,
     ];
@@ -234,10 +269,23 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   @override
   Widget build(BuildContext context) {
+    _syncShelf();
+
     final List<CountLine> lines = _lines;
     final int counted = lines.where((l) => l.isCounted).length;
     final List<CountLine> variances = lines.where((l) => l.isCounted && !l.isMatched).toList();
-    final bool loading = _controller?.isLoading ?? false;
+    final ProductController? controller = _controller;
+    final String locationId = _activeLocation;
+
+    // Two fetches stand between this screen and its sheet now: the locations, and then the shelf
+    // itself. Reading only the controller's own status would call the screen loaded while the shelf
+    // was still being walked, and an empty sheet at that moment reads as "nothing at this location"
+    // for a shelf that is full.
+    final bool loading = controller != null &&
+        (controller.isLoading ||
+            (!controller.hasShelf(locationId) && !controller.shelfFailed(locationId)));
+    final bool failed =
+        controller != null && (controller.isError || controller.shelfFailed(locationId));
 
     // The commit is the point of this screen and it used to sit at the END of the count, so a
     // forty-line shelf put `Sayımı kaydet` a full scroll away from the last line the user typed.
@@ -266,7 +314,7 @@ class _StockTakeViewState extends State<StockTakeView> {
         _buildLocation(),
         if (loading)
           _buildLoading()
-        else if (_controller?.isError ?? false)
+        else if (failed)
           _buildLoadFailed()
         else if (lines.isEmpty)
           _buildNothingHere()
@@ -450,7 +498,12 @@ class _StockTakeViewState extends State<StockTakeView> {
     return SectionCard(
       label: Lang.get('screens.stock_take.list_group'),
       error: Lang.get('screens.products.load_failed'),
-      onRetry: () => _controller?.load(),
+      // Retries the SHELF as well, and forces it: a recorded failure is what stops `_syncShelf`
+      // asking again on every frame, so without the force this button would clear nothing.
+      onRetry: () {
+        _controller?.load();
+        _controller?.loadShelf(_activeLocation, force: true);
+      },
       children: const <Widget>[],
     );
   }

@@ -297,6 +297,27 @@ class ProductFilter {
     );
   }
 
+  /// The wire spelling of each stock state.
+  ///
+  /// **`snake_case`, not the Dart enum's own `name`.** `stockState.name` gives `outOfStock`, and the
+  /// rest of this API speaks snake_case: the count endpoint already answers `needs_date` and
+  /// `serial_tracked`. One vocabulary in two casings inside one contract is a thing to look up rather
+  /// than a thing to know, and `ProductListQuery` validates against exactly these strings.
+  ///
+  /// `any` is absent on purpose. An unconstrained axis is not a criterion, so it is omitted from the
+  /// payload rather than sent as a value meaning "no".
+  static const Map<StockStateFilter, String> _stockStateWire = <StockStateFilter, String>{
+    StockStateFilter.outOfStock: 'out_of_stock',
+    StockStateFilter.belowPar: 'below_par',
+    StockStateFilter.inStock: 'in_stock',
+  };
+
+  /// The wire spelling of each expiry constraint. See [_stockStateWire].
+  static const Map<ExpiryFilter, String> _expiryWire = <ExpiryFilter, String>{
+    ExpiryFilter.expired: 'expired',
+    ExpiryFilter.expiringSoon: 'expiring_soon',
+  };
+
   /// Serialises to the shape the API and the assistant's `search_products` share.
   ///
   /// Empty axes are omitted rather than sent as empty lists, so a stored saved
@@ -308,9 +329,46 @@ class ProductFilter {
       if (categoryIds.isNotEmpty) 'category_ids': categoryIds.toList(),
       if (tags.isNotEmpty) 'tags': tags.toList(),
       if (brands.isNotEmpty) 'brands': brands.toList(),
-      if (stockState != StockStateFilter.any) 'stock_state': stockState.name,
-      if (expiry != ExpiryFilter.any) 'expiry': expiry.name,
+      if (stockState != StockStateFilter.any) 'stock_state': _stockStateWire[stockState],
+      if (expiry != ExpiryFilter.any) 'expiry': _expiryWire[expiry],
     };
+  }
+
+  /// [toMap] as a URL query string, plus whatever else the caller is sending.
+  ///
+  /// **A list becomes `key[]=a&key[]=b`, and that suffix is the whole reason this exists.** Dio
+  /// encodes a `List` as `key=a&key=b` by default, and PHP's parser keeps only the LAST value for a
+  /// repeated bare key: three selected shelves would arrive as one, and the list would come back
+  /// narrower than the chips say it is. Nothing errors, which is what makes it worth a named method
+  /// with a test rather than an inline join at the call site.
+  ///
+  /// Lives here rather than in the controller because the encoding is a property of this shared wire
+  /// shape; [extra] is where the transport's own concerns (the cursor, the page size) go, so the
+  /// filter does not have to know about them.
+  String toQueryString({Map<String, Object?> extra = const <String, Object?>{}}) {
+    final List<String> pairs = <String>[];
+
+    void add(String key, Object? value) {
+      if (value == null) return;
+
+      pairs.add(
+        '${Uri.encodeQueryComponent(key)}=${Uri.encodeQueryComponent(value.toString())}',
+      );
+    }
+
+    for (final MapEntry<String, Object?> entry in <String, Object?>{...toMap(), ...extra}.entries) {
+      final Object? value = entry.value;
+
+      if (value is List) {
+        for (final Object? item in value) {
+          add('${entry.key}[]', item);
+        }
+      } else {
+        add(entry.key, value);
+      }
+    }
+
+    return pairs.join('&');
   }
 
   /// Rebuilds a filter from [toMap]'s output.
@@ -331,11 +389,11 @@ class ProductFilter {
       tags: setOf('tags'),
       brands: setOf('brands'),
       stockState: StockStateFilter.values.firstWhere(
-        (s) => s.name == map['stock_state'],
+        (s) => _stockStateWire[s] == map['stock_state'],
         orElse: () => StockStateFilter.any,
       ),
       expiry: ExpiryFilter.values.firstWhere(
-        (e) => e.name == map['expiry'],
+        (e) => _expiryWire[e] == map['expiry'],
         orElse: () => ExpiryFilter.any,
       ),
     );

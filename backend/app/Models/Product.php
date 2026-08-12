@@ -46,6 +46,23 @@ final class Product extends Model
         'reorder_point',
     ];
 
+    /**
+     * The shelf life assumed for a product that declares none.
+     *
+     * Not zero and not "never warn": a product carrying an expiry date still has to be able to warn
+     * when nobody told us how long it keeps. Five weeks is the neutral middle of the range this
+     * catalog actually holds.
+     */
+    public const FALLBACK_SHELF_LIFE_DAYS = 35;
+
+    /**
+     * The longest warning window, in days.
+     *
+     * Without a ceiling the proportion runs away on long-life goods: a tin with a two year shelf
+     * life would start warning 146 days out, which is noise rather than signal.
+     */
+    public const MAX_EXPIRY_THRESHOLD_DAYS = 60;
+
     protected function casts(): array
     {
         return [
@@ -54,6 +71,45 @@ final class Product extends Model
             'par_level' => 'decimal:3',
             'reorder_point' => 'decimal:3',
         ];
+    }
+
+    /**
+     * How many days before its printed date this product starts needing attention.
+     *
+     * **Derived per product rather than fixed**, which is the decision `open-decisions.md` records.
+     * One global number cannot be right for both milk and flour: seven days always warns about a
+     * five-day carton and never warns about a tin. The window is the last fifth of the shelf life,
+     * floored at a day and capped at [MAX_EXPIRY_THRESHOLD_DAYS], so milk (5 days) warns 1 day out
+     * and a tin (730 days) warns 60 days out.
+     *
+     * ### This is the ONLY implementation of the formula, and that is the point
+     *
+     * The client had its own copy in Dart, which is how the badge and the "expiring soon" filter can
+     * disagree about the same carton: two languages, two roundings, one drifting apart on the day
+     * somebody tunes the proportion. So the number travels in the payload
+     * (`ProductResource.expiry_threshold_days`) and the server filters with it too. `ProductListQuery`
+     * calls the static form to bucket a whole tenant's shelf lives into dates, which keeps every
+     * arithmetic step in PHP where D84 wants it: the database only compares a column to a date it
+     * was handed.
+     */
+    public function expiryThresholdDays(): int
+    {
+        return self::expiryThresholdFor(
+            $this->default_shelf_life_days === null ? null : (int) $this->default_shelf_life_days,
+        );
+    }
+
+    /**
+     * [expiryThresholdDays] for a shelf life that is not attached to a loaded model.
+     *
+     * Static so the row-level accessor and the query-level bucketing are the same arithmetic rather
+     * than two copies of it.
+     */
+    public static function expiryThresholdFor(?int $shelfLifeDays): int
+    {
+        $life = $shelfLifeDays ?? self::FALLBACK_SHELF_LIFE_DAYS;
+
+        return max(1, min(self::MAX_EXPIRY_THRESHOLD_DAYS, (int) round($life * 0.2)));
     }
 
     /**

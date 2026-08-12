@@ -131,6 +131,54 @@ void main() {
 
       expect(filter.stockState, StockStateFilter.any);
     });
+
+    test('the wire vocabulary is snake_case, which the Dart enum name is not', () {
+      // `stockState.name` gives `outOfStock`, and `ProductListQuery` validates against
+      // `out_of_stock`. A camelCase value would be REFUSED with a 422 rather than silently
+      // ignored, which is the better failure, but it is still a broken filter.
+      const filter = ProductFilter(
+        stockState: StockStateFilter.outOfStock,
+        expiry: ExpiryFilter.expiringSoon,
+      );
+
+      expect(filter.toMap()['stock_state'], 'out_of_stock');
+      expect(filter.toMap()['expiry'], 'expiring_soon');
+    });
+
+    test('a list becomes key[] pairs, because a bare repeated key collapses in PHP', () {
+      // **The suffix is the whole content of this test.** Dio encodes a List as `key=a&key=b`, and
+      // PHP's parser keeps only the LAST value for a repeated bare key: three selected shelves
+      // would arrive as one, and the list would come back narrower than the chips say it is. No
+      // error anywhere, on either side.
+      const filter = ProductFilter(locationIds: {'a', 'b'});
+
+      final String query = filter.toQueryString();
+
+      expect(query, contains('location_ids%5B%5D=a'));
+      expect(query, contains('location_ids%5B%5D=b'));
+
+      // Decoded, the parameter name carries the brackets, which is the form PHP turns into an
+      // array. Note what a parser WITHOUT that rule does with the same string: it keeps one value.
+      // That is the behaviour on the other side of a bare `location_ids=a&location_ids=b`.
+      expect(Uri.splitQueryString(query).keys, <String>['location_ids[]']);
+    });
+
+    test('the query string escapes what a user can type, and carries the transport keys', () {
+      const filter = ProductFilter(query: 'süt & krema');
+
+      final String query = filter.toQueryString(
+        extra: <String, Object?>{'per_page': 30, 'cursor': null},
+      );
+
+      // An unescaped `&` would split one term into two parameters, and the second one would be a
+      // key the endpoint refuses.
+      expect(Uri.splitQueryString(query)['query'], 'süt & krema');
+      expect(Uri.splitQueryString(query)['per_page'], '30');
+
+      // A null extra is omitted rather than sent as the string "null", which the cursor validator
+      // would accept and the paginator would then fail to decode.
+      expect(query, isNot(contains('cursor')));
+    });
   });
 
   group('ProductListItem.matches', () {
@@ -227,6 +275,43 @@ void main() {
 
       expect(fresh.expiryThresholdDays, 1);
       expect(forever.expiryThresholdDays, ProductListItem.maxThresholdDays);
+    });
+
+    test('the window the API states wins over the local derivation', () {
+      // **The server is the authority and the derivation above is the fixture path.** The formula
+      // ran in two languages: here for the badge, and in PHP for the "expiring soon" filter. Two
+      // implementations is a badge reading "5 days left" in green on a row the filter put under
+      // expiring soon, the day either side is tuned. `expiry_threshold_days` is what makes them one.
+      final ProductListItem stated = ProductListItem.fromApi(
+        <String, dynamic>{
+          'id': 'p1',
+          'name': 'Konserve',
+          'base_unit': 'adet',
+          'quantity': '2.000',
+          'default_shelf_life_days': 730,
+          // Deliberately NOT what the local formula produces for 730 days, which is the cap of 60.
+          // A test using the agreeing number could not tell the two sources apart.
+          'expiry_threshold_days': 45,
+        },
+        locationLabels: const <String, String>{},
+      );
+
+      expect(stated.expiryThresholdDays, 45);
+
+      // And without it the local derivation still answers, which is what keeps the preview catalog
+      // rendering a badge for rows that never went through an endpoint.
+      final ProductListItem silent = ProductListItem.fromApi(
+        <String, dynamic>{
+          'id': 'p2',
+          'name': 'Konserve',
+          'base_unit': 'adet',
+          'quantity': '2.000',
+          'default_shelf_life_days': 730,
+        },
+        locationLabels: const <String, String>{},
+      );
+
+      expect(silent.expiryThresholdDays, ProductListItem.maxThresholdDays);
     });
 
     test('a product that tracks no expiry never matches an expiry constraint', () {
