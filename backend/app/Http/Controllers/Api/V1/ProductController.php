@@ -66,6 +66,7 @@ final class ProductController extends Controller
             'brands.*' => ['string', 'max:255'],
             'stock_state' => ['nullable', Rule::in(['out_of_stock', 'below_par', 'in_stock'])],
             'expiry' => ['nullable', Rule::in(['expired', 'expiring_soon'])],
+            'sort' => ['nullable', Rule::in(ProductListQuery::SORTS)],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'cursor' => ['nullable', 'string'],
         ]);
@@ -83,8 +84,9 @@ final class ProductController extends Controller
                 // only render the most cautious one for everything.
                 ->withCount('movements'),
         )
-            ->orderBy('products.name')
-            ->orderBy('products.id')
+            // The ordering moved INTO the filter object, because the cursor and the sort are one
+            // decision: an aggregate sort has to select its own column for the cursor to be able to
+            // read it, and only the thing that built the join can add that select.
             ->cursorPaginate($criteria['per_page'] ?? self::PER_PAGE)
             ->withQueryString();
 

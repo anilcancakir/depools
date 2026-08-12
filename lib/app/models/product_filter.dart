@@ -548,3 +548,45 @@ class SavedProductFilter {
     ),
   ];
 }
+
+/// How the stock list is ordered.
+///
+/// **Four, and each answers a DIFFERENT question**, which is the same test the built-in filter chips
+/// have to pass: find it by name, what do I need to buy, what do I need to use up, what just moved.
+/// A fifth would either repeat one of those or answer something nobody asks standing at a shelf.
+///
+/// The wire spelling is snake_case like every other vocabulary this API speaks, and
+/// `ProductListQuery::SORTS` validates against exactly these strings.
+enum ProductSort {
+  /// A to Z. The default, because finding a product you are holding is the common case and a name
+  /// is the only thing you can look up without reading the row.
+  name,
+
+  /// Least on hand first, which is the order for deciding what to buy.
+  quantity,
+
+  /// Soonest date first, which is the order for deciding what to use up. A product with no date
+  /// sorts last: no date is the opposite of urgent.
+  expiry,
+
+  /// Most recently changed first.
+  recent,
+}
+
+/// The wire spelling and the label of each sort.
+extension ProductSortWire on ProductSort {
+  /// What the API is sent. `name` is the server's default, so it is omitted rather than stated.
+  String? get wire => this == ProductSort.name ? null : name;
+
+  /// The already-localised label for a control.
+  String get label => Lang.get('screens.product_filter.sort_$name');
+
+  /// Reads a wire value back, falling back to the default.
+  ///
+  /// An unknown value widens to the default rather than throwing, like the filter axes: a link or a
+  /// saved view outlives the release that wrote it.
+  static ProductSort fromWire(String? value) => ProductSort.values.firstWhere(
+    (s) => s.name == value,
+    orElse: () => ProductSort.name,
+  );
+}

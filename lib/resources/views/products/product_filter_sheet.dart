@@ -59,6 +59,13 @@ class ProductFilterSheet extends StatefulWidget {
   /// The filter the sheet opens on.
   final ProductFilter initial;
 
+  /// The order the sheet opens on.
+  ///
+  /// Here rather than in [ProductFilter] because a sort is not a criterion: it changes nothing about
+  /// which rows match. It shares the sheet because both answer "how is this list shaped", and a
+  /// second surface for one segmented control would be a control the user has to go looking for.
+  final ProductSort initialSort;
+
   /// Location options, deepest paths included, ordered as the tree reads.
   final List<FilterOption> locations;
 
@@ -94,6 +101,7 @@ class ProductFilterSheet extends StatefulWidget {
     required this.initial,
     required this.countMatches,
     required this.initialCount,
+    required this.initialSort,
     this.locations = const [],
     this.categories = const [],
     this.tags = const [],
@@ -103,22 +111,24 @@ class ProductFilterSheet extends StatefulWidget {
   ///
   /// Null means "changed nothing", which is different from an empty filter
   /// ("cleared everything"), so a caller must not coalesce the two.
-  static Future<ProductFilter?> show(
+  static Future<({ProductFilter filter, ProductSort sort})?> show(
     BuildContext context, {
     required ProductFilter initial,
     required Future<int?> Function(ProductFilter draft) countMatches,
     required int initialCount,
+    required ProductSort initialSort,
     List<FilterOption> locations = const [],
     List<FilterOption> categories = const [],
     List<FilterOption> tags = const [],
   }) {
-    return MSBottomSheet.show<ProductFilter>(
+    return MSBottomSheet.show<({ProductFilter filter, ProductSort sort})>(
       context,
       title: Lang.get('screens.product_filter.title'),
       body: ProductFilterSheet(
         initial: initial,
         countMatches: countMatches,
         initialCount: initialCount,
+        initialSort: initialSort,
         locations: locations,
         categories: categories,
         tags: tags,
@@ -132,6 +142,8 @@ class ProductFilterSheet extends StatefulWidget {
 
 class _ProductFilterSheetState extends State<ProductFilterSheet> {
   late ProductFilter _draft = widget.initial;
+
+  late ProductSort _sort = widget.initialSort;
 
   /// How long to wait after a toggle before asking the server how many rows the draft matches.
   ///
@@ -193,6 +205,18 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
     return WDiv(
       className: 'flex flex-col gap-5',
       children: [
+        // **First, and above the axes, because a sort is not one of them.** Everything below narrows
+        // WHICH products appear; this one only changes the order they appear in, so putting it among
+        // the filters would invite reading it as a fifth condition. `activeCount` and the chip row
+        // both ignore it for the same reason.
+        _group(
+          Lang.get('screens.product_filter.sort_group'),
+          MSSegmentedControl<ProductSort>(
+            options: ProductSort.values.map((s) => s.label).toList(),
+            selectedIndex: ProductSort.values.indexOf(_sort),
+            onChanged: (index) => setState(() => _sort = ProductSort.values[index]),
+          ),
+        ),
         _group(
           Lang.get('screens.product_filter.stock_state'),
           MSSegmentedControl<StockStateFilter>(
@@ -240,7 +264,8 @@ class _ProductFilterSheetState extends State<ProductFilterSheet> {
           className: 'flex flex-col gap-2 pt-2',
           children: [
             MSButton(
-              onPressed: () => Navigator.of(context).pop(_draft),
+              onPressed: () =>
+                  Navigator.of(context).pop((filter: _draft, sort: _sort)),
               fullWidth: true,
               className: 'justify-center',
               // The count, not "Uygula". A user about to filter a 42-product list

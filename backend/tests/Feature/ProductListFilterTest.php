@@ -380,6 +380,126 @@ final class ProductListFilterTest extends TestCase
         $this->assertSame($count(4), $count(40));
     }
 
+    public function test_each_sort_orders_by_what_it_names_and_stays_stable(): void
+    {
+        $today = Carbon::today();
+
+        // Deliberately one shared quantity and one shared date, because a tie is where a cursor
+        // fails: without `products.id` after the sort column the walk steps over the second row.
+        $b = $this->product('B ürün', ['tracks_expiry' => true, 'default_shelf_life_days' => 30]);
+        $a = $this->product('A ürün', ['tracks_expiry' => true, 'default_shelf_life_days' => 30]);
+        $c = $this->product('C ürün');
+
+        $this->writer->receive($b, $this->fridge, 5, expiresAt: $today->copy()->addDays(2)->toDateString());
+        $this->writer->receive($a, $this->fridge, 5, expiresAt: $today->copy()->addDays(9)->toDateString());
+
+        $this->assertSame(
+            [$a->getKey(), $b->getKey(), $c->getKey()],
+            $this->ids(['sort' => 'name']),
+            'the default orders by name',
+        );
+
+        // `c` holds nothing, so it has no projection row at all and the left join gives NULL. Least
+        // first has to put it FIRST, which is what the coalesce is for: a NULL would sort last in
+        // PostgreSQL ascending and the product most in need of buying would land at the bottom.
+        $this->assertSame($c->getKey(), $this->ids(['sort' => 'quantity'])[0]);
+
+        // Soonest first, and the one with no date last rather than first: no date is the opposite
+        // of urgent.
+        $this->assertSame(
+            [$b->getKey(), $a->getKey(), $c->getKey()],
+            $this->ids(['sort' => 'expiry']),
+        );
+    }
+
+    public function test_a_sort_with_ties_still_walks_every_row_once(): void
+    {
+        // Five products with no stock at all, so every one of them sorts at the same quantity. This
+        // is the case `products.id` exists for, and the one a single-page assertion cannot see.
+        for ($i = 0; $i < 5; $i++) {
+            $this->product('Ürün '.$i);
+        }
+
+        $seen = [];
+        $cursor = null;
+        $pages = 0;
+
+        do {
+            $query = ['sort' => 'quantity', 'per_page' => 2];
+
+            if ($cursor !== null) {
+                $query['cursor'] = $cursor;
+            }
+
+            $response = $this->getJson('/api/v1/products?'.http_build_query($query))->assertOk();
+
+            $seen = array_merge($seen, array_column($response->json('data'), 'id'));
+            $cursor = $response->json('meta.next_cursor');
+            $pages++;
+        } while ($cursor !== null && $pages < 10);
+
+        $this->assertSame(5, count(array_unique($seen)), 'a tie made the cursor skip or repeat');
+        $this->assertSame(5, count($seen));
+    }
+
+    public function test_recent_orders_by_when_a_product_last_changed(): void
+    {
+        $old = $this->product('Eski');
+        $middle = $this->product('Orta');
+        $newest = $this->product('Yeni');
+
+        // Written explicitly rather than relying on creation order: three inserts inside one test can
+        // land on the same millisecond, and a test that passes because the rows happened to be saved
+        // in the right sequence is pinning the clock rather than the ORDER BY.
+        $old->forceFill(['updated_at' => now()->subDays(3)])->saveQuietly();
+        $middle->forceFill(['updated_at' => now()->subDay()])->saveQuietly();
+        $newest->forceFill(['updated_at' => now()])->saveQuietly();
+
+        $this->assertSame(
+            [$newest->getKey(), $middle->getKey(), $old->getKey()],
+            $this->ids(['sort' => 'recent']),
+        );
+    }
+
+    public function test_recent_survives_a_tie_the_way_every_other_sort_does(): void
+    {
+        // Five products stamped with the SAME instant, which is the ordinary case for anything a
+        // migration, an import or a seeder wrote in one pass. Without `products.id` after
+        // `updated_at` the cursor cannot separate them.
+        $stamp = now()->subHour();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->product('Ürün '.$i)->forceFill(['updated_at' => $stamp])->saveQuietly();
+        }
+
+        $seen = [];
+        $cursor = null;
+        $pages = 0;
+
+        do {
+            $query = ['sort' => 'recent', 'per_page' => 2];
+
+            if ($cursor !== null) {
+                $query['cursor'] = $cursor;
+            }
+
+            $response = $this->getJson('/api/v1/products?'.http_build_query($query))->assertOk();
+
+            $seen = array_merge($seen, array_column($response->json('data'), 'id'));
+            $cursor = $response->json('meta.next_cursor');
+            $pages++;
+        } while ($cursor !== null && $pages < 10);
+
+        $this->assertSame(5, count(array_unique($seen)));
+        $this->assertSame(5, count($seen));
+    }
+
+    public function test_an_unknown_sort_is_refused_rather_than_silently_ignored(): void
+    {
+        // A dropped sort answers in the default order and looks like the option did nothing.
+        $this->getJson('/api/v1/products?sort=cheapest')->assertJsonValidationErrorFor('sort');
+    }
+
     public function test_an_unknown_axis_value_is_refused_rather_than_ignored(): void
     {
         // A silently dropped filter is the worst answer available: the list comes back unnarrowed

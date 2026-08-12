@@ -153,6 +153,9 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   /// make the whole screen unreviewable there.
   ProductFilter _localFilter = const ProductFilter();
 
+  /// The order, for the preview catalog only. See [_localFilter].
+  ProductSort _localSort = ProductSort.name;
+
   final TextEditingController _search = TextEditingController();
 
   Timer? _searchDebounce;
@@ -276,16 +279,17 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   void _applyUrl(ProductController controller) {
     final Uri uri = Uri.parse(MagicRouter.instance.currentLocation ?? '');
     final ProductFilter fromUrl = ProductFilter.fromQueryParameters(uri.queryParametersAll);
+    final ProductSort sortFromUrl = ProductSortWire.fromWire(uri.queryParameters['sort']);
     final int pages = int.tryParse(uri.queryParameters['pages'] ?? '') ?? 1;
 
-    if (fromUrl.isEmpty && pages <= 1) return;
+    if (fromUrl.isEmpty && sortFromUrl == ProductSort.name && pages <= 1) return;
 
     // After the frame: `onInit` above may already have a load in flight, and the controller's own
     // request-sequence guard is what makes this one win rather than the two racing.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
-      await controller.apply(fromUrl);
+      await controller.apply(fromUrl, sort: sortFromUrl);
 
       // Capped, because `pages` arrives from a URL a stranger can edit, and fifty is far past
       // anything a shared link should ask a cold client to fetch.
@@ -318,14 +322,23 @@ class _ProductIndexViewState extends State<ProductIndexView> {
 
     MagicRoute.replace(
       '/products?${controller.filter.toQueryString(extra: <String, Object?>{
+        // Null for the default order, so an ordinary link carries no sort at all and the server's
+        // own default stays the single definition of it.
+        'sort': ?controller.sort.wire,
         // Omitted at one, which is the common case, so an ordinary link stays short.
         if (pages > 1) 'pages': pages,
       })}',
     );
   }
 
-  /// Applies a filter, wherever it has to go.
-  void _setFilter(ProductFilter next) {
+  /// The order the list is in.
+  ///
+  /// The controller's when there is one, for the same reason the filter is: the rows arrive in that
+  /// order, so a control describing a different one would be describing nothing.
+  ProductSort get _sort => _controller?.sort ?? _localSort;
+
+  /// Applies a filter and an order, wherever they have to go.
+  void _setFilter(ProductFilter next, {ProductSort? sort}) {
     // Keep the field and the query in step in both directions. Removing the text criterion with the
     // chip's X has to empty the field too, or the box goes on showing a term that is no longer
     // filtering anything.
@@ -334,12 +347,15 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     final ProductController? controller = _controller;
 
     if (controller == null) {
-      setState(() => _localFilter = next);
+      setState(() {
+        _localFilter = next;
+        if (sort != null) _localSort = sort;
+      });
 
       return;
     }
 
-    controller.apply(next).then((_) {
+    controller.apply(next, sort: sort).then((_) {
       if (mounted) _syncUrl();
     });
   }
@@ -446,11 +462,12 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   }
 
   Future<void> _openSheet() async {
-    final ProductFilter? applied = await ProductFilterSheet.show(
+    final ({ProductFilter filter, ProductSort sort})? applied = await ProductFilterSheet.show(
       context,
       initial: _filter,
       countMatches: _countMatches,
       initialCount: _matchCount,
+      initialSort: _sort,
       locations: _locationOptions,
       // Categories are STILL the fixture list, and that is a reported gap rather than an oversight:
       // the payload sends `product_category_id` but no name, `Product` has no `category` relation to
@@ -463,7 +480,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     // Null means dismissed, which is not the same as an empty filter. Coalescing the
     // two would silently clear a filter every time the user swiped the sheet away.
     if (applied == null || !mounted) return;
-    _setFilter(applied);
+    _setFilter(applied.filter, sort: applied.sort);
   }
 
   void _save() {

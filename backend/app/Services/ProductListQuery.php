@@ -91,8 +91,73 @@ final class ProductListQuery
         $this->applySets($query);
         $this->applyStockState($query);
         $this->applyExpiry($query);
+        $this->applyOrder($query);
 
         return $query;
+    }
+
+    /**
+     * The sort options a caller may name, and what each one answers.
+     *
+     * Four, and each maps to a DIFFERENT question, which is the test a sort option has to pass to
+     * earn a place: find it by name, what do I need to buy, what do I need to use up, what just
+     * moved. A fifth would either repeat one of those or answer something nobody asks.
+     */
+    public const SORTS = ['name', 'quantity', 'expiry', 'recent'];
+
+    /**
+     * Orders the page, and gives the cursor something unique to hold on to.
+     *
+     * ### Every order ends in `products.id`, and that is not tidiness
+     *
+     * A cursor is `WHERE (sort_column, id) > (?, ?)`. Without a unique tiebreaker two rows sharing a
+     * sort value cannot be separated, so `>` steps over the second and `>=` returns the first
+     * forever. `name` was already proven to need it (this catalogue holds duplicate names) and every
+     * other option needs it MORE: a hundred products can share a quantity of zero.
+     *
+     * ### Why the aggregate sorts select their own column
+     *
+     * Laravel builds the cursor by reading the ordering column OFF THE MODEL, so ordering by
+     * `stock_totals.total_quantity` while selecting only `products.*` gives it nothing to read and
+     * the next page starts from the beginning. Selecting it under a name the model carries is what
+     * makes the cursor able to encode it.
+     *
+     * `coalesce` is there for the same reason rather than as arithmetic: a product with no stock has
+     * no projection row at all (`rebuildProductStock` deletes a pair once it holds nothing), so the
+     * left join gives NULL, and a NULL in a cursor comparison is not orderable. Substituting a value
+     * to sort BY is a query concern; nothing here derives a quantity or writes one down.
+     *
+     * @param  Builder<Product>  $query
+     */
+    private function applyOrder(Builder $query): void
+    {
+        switch ($this->criteria['sort'] ?? null) {
+            case 'quantity':
+                // Least first, because the question this answers is what to buy.
+                $query->addSelect(
+                    DB::raw('coalesce(stock_totals.total_quantity, 0) as sort_quantity'),
+                )->orderBy('sort_quantity')->orderBy('products.id');
+                break;
+
+            case 'expiry':
+                // Soonest first, and a product with no date sorts LAST rather than first: no date is
+                // the opposite of urgent, and `ORDER BY ... NULLS LAST` cannot be used because the
+                // cursor would then have to encode a NULL. The sentinel never leaves this clause: it
+                // is not stored, not sent, and not shown.
+                $query->addSelect(
+                    DB::raw("coalesce(stock_totals.earliest_expires_at, '9999-12-31') as sort_expiry"),
+                )->orderBy('sort_expiry')->orderBy('products.id');
+                break;
+
+            case 'recent':
+                // What moved last, newest first. `updated_at` rather than the ledger's own clock,
+                // because a rename is a change the user is looking for here too.
+                $query->orderByDesc('products.updated_at')->orderByDesc('products.id');
+                break;
+
+            default:
+                $query->orderBy('products.name')->orderBy('products.id');
+        }
     }
 
     /**

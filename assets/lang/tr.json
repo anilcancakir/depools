@@ -813,7 +813,12 @@
       "expiry_expired": "Süresi geçti",
       "expiry_expiring_soon": "Yakında bitecek",
       "expiry_segment_expired": "Geçti",
-      "expiry_segment_expiring_soon": "Yakında"
+      "expiry_segment_expiring_soon": "Yakında",
+      "sort_group": "Sıralama",
+      "sort_name": "Ad",
+      "sort_quantity": "En az stok",
+      "sort_expiry": "Tarihi en yakın",
+      "sort_recent": "Son değişen"
     },
     "activity": {
       "title": "Hareketler",
