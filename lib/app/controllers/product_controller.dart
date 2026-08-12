@@ -285,9 +285,15 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   /// with. Stops early when the list runs out, so a link written against a longer list still lands
   /// on a complete one rather than hanging on a page that no longer exists.
   Future<void> loadPages(int count) async {
-    await load();
+    // **Only when nothing is loaded**, because the caller has usually just loaded page one. The URL
+    // flow applies the filter first, which loads, and then asks for the page count: an unconditional
+    // `load()` here fetched page one a second time, so every shared deep link paid for an identical
+    // request nobody read.
+    if (rxState == null) await load();
 
-    for (int i = 1; i < count && hasMore; i++) {
+    // Counted from what IS loaded rather than from one, so this extends a list instead of assuming
+    // it starts at a page.
+    for (int i = loadedPages; i < count && hasMore; i++) {
       await loadMore();
     }
   }

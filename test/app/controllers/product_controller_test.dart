@@ -144,6 +144,38 @@ void main() {
       expect(controller.catalogueTotal, 101, reason: 'the unfiltered count has to be fetched here');
     });
 
+    test('extending to a page count does not refetch the page already loaded', () async {
+      // The URL flow applies the filter (which loads page one) and then asks for the page count. An
+      // unconditional `load()` inside `loadPages` made every shared deep link fetch page one twice,
+      // and nothing about the result looked wrong: the list was correct and the request was waste.
+      final List<String> asked = <String>[];
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+
+        asked.add(request.url);
+
+        return request.url.contains('cursor=')
+            ? page(<String>['b'], total: 2)
+            : page(<String>['a'], next: 'CURSOR', total: 2);
+      });
+
+      final ProductController controller = ProductController();
+
+      await controller.apply(const ProductFilter(query: 'süt'));
+
+      final int afterApply = asked.length;
+
+      await controller.loadPages(2);
+
+      expect(
+        asked.length - afterApply,
+        1,
+        reason: 'extending by one page is one request, not a reload plus a page',
+      );
+      expect(controller.items.length, 2);
+    });
+
     test('the filter travels as query parameters rather than being applied here', () async {
       final List<String> asked = <String>[];
 
