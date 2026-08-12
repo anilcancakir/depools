@@ -666,7 +666,11 @@ class _StockTakeViewState extends State<StockTakeView> {
     // shelf the screen opens on the two disagree. Comparing the raw field there made "pick the shelf
     // I am already counting" run the whole reset: typed figures, settled rows and the search, gone
     // for a gesture that changed nothing.
-    if (picked == null || !mounted || picked == _activeLocation) return;
+    // Against the value the SHEET was built from, not a fresh read. Re-resolving here repeats the
+    // scan, and worse, it can answer differently: the catalogue can load while the sheet is open, so
+    // the row the user saw ticked and the shelf this compares against would be two different places,
+    // and picking the one shown as current would run the reset that throws the count away.
+    if (picked == null || !mounted || picked == active) return;
 
     setState(() {
       _locationId = picked;
