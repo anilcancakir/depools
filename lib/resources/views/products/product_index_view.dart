@@ -187,6 +187,30 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   /// have is a filter that can only ever match nothing.
   List<FilterOption> get _locationOptions => _controller?.locations ?? locationOptions;
 
+  /// The tag options, derived from the rows that are loaded.
+  ///
+  /// **A fixture list here could not match anything.** The sheet was handed `tagOptions`, a constant,
+  /// so its tag chips offered `soğuk zincir` and `sarf` against a tenant that has neither and none of
+  /// the tags it does have. Two of the five axes were inert in exactly that way; this is one of them.
+  ///
+  /// Derived rather than fetched, because there is nothing to fetch: the payload sends each product's
+  /// tag NAMES, and the filter matches on the name too (`ProductResource` explains why it sends names
+  /// rather than id pairs). So the union of what is loaded IS the set worth offering, and a tag that
+  /// matches nothing cannot appear.
+  ///
+  /// Sorted, because a set has no order and chips that reshuffle between openings are unusable.
+  ///
+  /// **Derived from [_all] unconditionally, with no fixture fallback.** A `_controller == null` branch
+  /// returning the constant was the first shape and it reintroduced the same defect in the preview:
+  /// chips offering `soğuk zincir` and `sarf` against fixture rows that carry neither. `_all` is
+  /// already `widget.items ?? _controller?.items`, so one expression serves the catalog and the wired
+  /// screen, and in both a tag that matches nothing cannot appear.
+  List<FilterOption> get _tagOptions {
+    final List<String> names = _all.expand((i) => i.tags).toSet().toList()..sort();
+
+    return <FilterOption>[for (final String name in names) FilterOption(id: name, label: name)];
+  }
+
   /// Whether this tenant genuinely has nothing yet, as opposed to a filter matching nothing.
   bool get _isEmptyCatalogue => widget.isEmpty || (_controller?.isEmpty ?? false);
 
@@ -205,8 +229,12 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       initial: _filter,
       countMatches: _countMatches,
       locations: _locationOptions,
+      // Categories are STILL the fixture list, and that is a reported gap rather than an oversight:
+      // the payload sends `product_category_id` but no name, `Product` has no `category` relation to
+      // eager-load, and `ProductCategory::label()` needs a locale. Wiring it is four small steps
+      // across the backend and belongs with them, not here.
       categories: categoryOptions,
-      tags: tagOptions,
+      tags: _tagOptions,
     );
 
     // Null means dismissed, which is not the same as an empty filter. Coalescing the
@@ -522,38 +550,32 @@ class _ProductIndexViewState extends State<ProductIndexView> {
     );
   }
 
-  /// The list, grouped so the thing that needs attention comes first.
+  /// The list. ONE list, in the order the endpoint returns.
   ///
-  /// Expiring and out-of-stock items lead, because that is the one section a cafe
-  /// opens this screen for daily and it needs no forecast to be correct, only a date
-  /// comparison. The grouping is derived from [ProductListItem.needsAttention], the
-  /// same test the three built-in saved filters cover, so the section and the chips
-  /// cannot drift apart.
+  /// **There was a separate "needs attention" section above the catalogue and it is gone.** The
+  /// argument for it was that expiring and out-of-stock items are what a cafe opens this screen for
+  /// daily, and the argument held right up to the point of seeing it on real data: it split one
+  /// collection into two cards with two counts, and Anılcan called the design of it bad outright.
   ///
-  /// **Both sections respect the filter.** An attention section that ignored it would
-  /// keep showing an expired product after the user filtered to one location, which
-  /// is exactly the "why is this still here" confusion the visible-filter rule exists
-  /// to prevent.
+  /// Two attempts to save it are worth recording, because both failed for reasons that would apply
+  /// again. Starting it OPEN pushed the catalogue most of a screen down: at eleven products six needed
+  /// attention, at a hundred it was fifty-seven, so the thing the user came to look up was below the
+  /// fold. Starting it CLOSED then broke filtering: "Expired" leaves fourteen products, every one of
+  /// them by definition an attention row, so the catalogue card disappeared and a closed card became
+  /// the whole screen, reading as "nothing found" with fourteen rows one tap away.
+  ///
+  /// **Nothing was lost by removing it**, which is what makes it the right call rather than a
+  /// concession. The three chips above the list narrow to exactly those products in one tap, the
+  /// dashboard counts them, and every row still carries its own expiry and stock badges. What went is
+  /// a second grouping of the same rows, not the information.
+  ///
+  /// [ProductListItem.needsAttention] stays: the chips are defined by it.
   List<Widget> _buildList(List<ProductListItem> visible) {
-    final List<ProductListItem> attention = visible.where((i) => i.needsAttention).toList();
-    final List<ProductListItem> rest = visible.where((i) => !i.needsAttention).toList();
-
     return <Widget>[
-      if (attention.isNotEmpty)
-        SectionCard(
-          label: Lang.get('screens.products.attention_group'),
-          count: Lang.get('screens.products.product_count', {'count': attention.length}),
-          // The only collapsible section on the screen. A cafe owner opens this screen
-          // daily for exactly this list, so it starts open; once it is dealt with, the
-          // whole block folds away instead of pushing the catalogue down the page. The
-          // count stays visible closed, which is what keeps "3 ürün" actionable.
-          collapsible: true,
-          children: [for (final ProductListItem item in attention) _row(item)],
-        ),
-      if (rest.isNotEmpty)
+      if (visible.isNotEmpty)
         SectionCard(
           label: Lang.get('screens.products.all_group'),
-          count: Lang.get('screens.products.product_count', {'count': rest.length}),
+          count: Lang.get('screens.products.product_count', {'count': visible.length}),
           action: MSButton(
             onPressed: () {},
             intent: ButtonIntent.ghost,
@@ -568,13 +590,19 @@ class _ProductIndexViewState extends State<ProductIndexView> {
             ),
           ),
           children: [
-            for (final ProductListItem item in rest) _row(item),
+            for (final ProductListItem item in visible) _row(item),
             // The footer states the total rather than pretending to page eight fixtures.
             // The total is also the SKU count the plan meters on, so it is the one number
             // worth having at the bottom of this particular list.
             ListFooter(
               state: widget.isLoadingMore ? ListFooterState.loadingMore : ListFooterState.end,
-              totalLabel: Lang.get('screens.products.all_of_them', {'count': _all.length}),
+              // Only when nothing is filtered. The label means "the whole collection is loaded, there
+              // is no next page", and under a filtered list of three it read "all 101 of them", which
+              // is a footer contradicting the header two lines above it. The section count already
+              // states how many the filter matched, so there is nothing to replace it with.
+              totalLabel: _filter.isEmpty
+                  ? Lang.get('screens.products.all_of_them', {'count': _all.length})
+                  : null,
               // The row draws its own placeholder, so the two cannot drift.
               skeleton: const ProductRow.skeleton(),
             ),

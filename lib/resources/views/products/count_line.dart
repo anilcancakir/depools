@@ -167,22 +167,10 @@ class CountLine {
 
   /// Whether the content unit is genuinely FINER than the base unit.
   ///
-  /// D26's whole-plus-remainder split only means something when one base unit contains many inner
-  /// ones: a 1 lt carton counted in `adet` holds 1000 `ml`, so half of it is "500 ml" and nobody has
-  /// to verify "1,5 adet" against a shelf.
-  ///
-  /// **A product whose base unit IS its content unit is the opposite case**, and the demo tenant has
-  /// one: milk with a base unit of `l` and a content of `1 l`. There the inner amount is not a count
-  /// of small units, it is the same decimal, so [figure] rounded it to a whole and printed 7.5 l as
-  /// "7 l + 1 l", which reads as 8. The remainder field is a duplicate of the main one too.
-  ///
-  /// A decimal is the right form here rather than a violation of D26: the objection is to a
-  /// COUNTABLE unit ("1,5 adet"), and 7.5 litres is exactly how a measured quantity is stated.
-  bool get hasFinerContent {
-    final num? content = product.contentAmount;
-
-    return product.contentUnit != null && content != null && content > 1;
-  }
+  /// A property of the PRODUCT rather than of the count, so it lives there and this delegates: the
+  /// detail screen's headline needs the same answer, and two definitions of "can this quantity be
+  /// split" is how the two screens would come to print one product two ways.
+  bool get hasFinerContent => product.hasFinerContent;
 
   /// A base-unit figure written the way D26 requires: a whole count and an open remainder,
   /// never one decimal. `1.5` becomes `1 adet + 500 ml`, because nobody can verify "1,5
@@ -196,8 +184,9 @@ class CountLine {
     if (!hasFinerContent) return '${ProductListItem.format(value)} ${product.unit}';
 
     final int whole = value.floor();
-    final num content = product.contentAmount ?? 1;
-    final int inner = ((value - whole) * content).round();
+    // The same splitter the detail screen's headline uses, so "1 piece + 250 g" cannot come out one
+    // way here and another way there.
+    final num inner = product.innerFor(value) ?? 0;
     final String head = '$whole ${product.unit}';
     if (inner == 0 || product.contentUnit == null) return head;
     // A zero whole is dropped when there is an inner amount. Half a carton is "500 ml", not

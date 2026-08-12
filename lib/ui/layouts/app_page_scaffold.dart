@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:magic_starter/magic_starter.dart' show MSPageScaffold;
 
@@ -68,6 +70,13 @@ class AppPageScaffold extends StatefulWidget {
 }
 
 class _AppPageScaffoldState extends State<AppPageScaffold> {
+  /// The gap `MSPageScaffold` puts between the sections it is given.
+  ///
+  /// `pageScaffoldChildrenAreaRecipe` is `mt-6 flex flex-col gap-6`, and wind's scale is 4 logical px
+  /// a step, so a child inherits 24px of separation before it. The footer reservation subtracts it
+  /// rather than stacking on top: see the spacer in [build].
+  static const double _scaffoldGap = 24;
+
   ValueNotifier<Widget?>? _slot;
 
   /// Whether the footer is being drawn by the host rather than by this page.
@@ -163,7 +172,17 @@ class _AppPageScaffoldState extends State<AppPageScaffold> {
         // which is what lifts the assistant launcher, but that MediaQuery never reaches a page.
         // Measured here, `MediaQuery.paddingOf(context).bottom` reads 0 while the footer stands over
         // a hundred pixels tall, so reserving from it reserved nothing.
-        if (_pinned) SizedBox(height: PageChrome.footerInsetOf(context)),
+        // Minus the column's own trailing gap, because this spacer is a CHILD of
+        // `pageScaffoldChildrenAreaRecipe`'s `flex flex-col gap-6`, so 24 logical px of the room
+        // already exists before the spacer starts. Reserving the full inset on top of it stacked the
+        // two and left a visible band of nothing under the last card, which Anılcan saw straight
+        // away. Clamped at zero so a footer shorter than the gap cannot push the content up.
+        // `math.max` rather than `clamp`, and the reason is legibility rather than a bug: `clamp`
+        // type-checks here (both gates are green on it) only because the analyzer special-cases
+        // `num.clamp` to return `double` when the receiver and bounds are doubles. Leaning on that to
+        // satisfy a `double?` parameter is subtle enough that a reviewer read it as a type error, and
+        // `max` says the same thing with no special case involved.
+        if (_pinned) SizedBox(height: math.max(0, PageChrome.footerInsetOf(context) - _scaffoldGap)),
         // No host (the preview catalog): render it where it used to live rather than dropping it.
         if (!_pinned && widget.footer != null) widget.footer!,
       ],

@@ -1,4 +1,8 @@
-import 'package:flutter/material.dart' show Icons;
+// `SelectionArea` alongside `Icons`, because selection handles and the copy menu are Material's.
+// `SelectableRegion` is the widgets-layer primitive underneath it and needs a delegate plus a context
+// menu builder supplied by hand; this is the assembled version. Still a `show` list rather than a bare
+// material import, which the design rules forbid.
+import 'package:flutter/material.dart' show Icons, SelectionArea;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
@@ -493,14 +497,33 @@ class _ProductShowViewState extends State<ProductShowView> {
         ),
       ],
       children: [
-        _buildIdentity(),
-        _buildDetails(context),
-        _buildBarcodes(),
-        _buildStockSummary(),
-        _buildForecast(),
-        _buildLocations(),
-        _buildLots(),
-        _buildMovements(),
+        // **Everything on this screen is selectable, because this screen is where the values are.**
+        // A SKU, a barcode, a lot code and a quantity are things a person copies into a supplier's
+        // form, a message or a spreadsheet, and a Flutter web app gives you none of that by default:
+        // text is painted, not selected. One `SelectionArea` covers the whole page rather than
+        // sprinkling `SelectableText`, which would have to be repeated in every row and would drift
+        // the first time a row was added.
+        //
+        // It wraps the SECTIONS and not the scaffold, so the header title stays plain. Selecting a
+        // page title is not a thing anyone needs, and dragging across it while trying to scroll is.
+        //
+        // Taps still reach the field rows underneath: `SelectionArea` claims the drag gesture, not
+        // the tap, which is why the rows remain editable. Verified by tapping one.
+        SelectionArea(
+          child: WDiv(
+            className: 'flex flex-col gap-6',
+            children: [
+              _buildIdentity(),
+              _buildDetails(context),
+              _buildBarcodes(),
+              _buildStockSummary(),
+              _buildForecast(),
+              _buildLocations(),
+              _buildLots(),
+              _buildMovements(),
+            ],
+          ),
+        ),
         _buildPrimaryAction(context),
       ],
     );

@@ -54,6 +54,34 @@ class QuantityStepper extends StatelessWidget {
   /// Called when plus is tapped.
   final VoidCallback? onIncrement;
 
+  /// The unit this quantity is counted in, rendered inside the field.
+  ///
+  /// Inside rather than beside: a unit floating next to the control is a separate object, and two
+  /// of them next to two boxes read as two independent quantities. `12 piece` is one thing.
+  final String? unit;
+
+  /// The opened unit's amount, as typed.
+  ///
+  /// Non-null [remainderUnit] is what makes the second segment appear at all. A product with
+  /// nothing finer inside it has no remainder to state, and a second field measuring the same unit
+  /// as the first is a duplicate: measured on the demo tenant's milk, base `l` with a content of
+  /// `1 l`, where both labels read `l`.
+  final String? remainderValue;
+
+  /// The opened unit's unit, for example `ml`. Null hides the segment.
+  final String? remainderUnit;
+
+  /// What the empty remainder field says it is for.
+  ///
+  /// **The field names itself while it is empty**, which is when the user needs to know. The
+  /// alternative was a caption above the segment, and it needs a spacer matched to the first
+  /// segment's width to sit over the right one: a fixed number that goes wrong the moment a digit
+  /// is added. Once the field holds a value the unit suffix and the divider carry the meaning.
+  final String? remainderPlaceholder;
+
+  /// Called as the opened-unit amount changes.
+  final ValueChanged<String>? onRemainderChanged;
+
   /// Creates a [QuantityStepper].
   const QuantityStepper({
     super.key,
@@ -63,6 +91,11 @@ class QuantityStepper extends StatelessWidget {
     this.onChanged,
     this.onDecrement,
     this.onIncrement,
+    this.unit,
+    this.remainderValue,
+    this.remainderUnit,
+    this.remainderPlaceholder,
+    this.onRemainderChanged,
   });
 
   @override
@@ -81,9 +114,25 @@ class QuantityStepper extends StatelessWidget {
             placeholder: placeholder,
             type: InputType.number,
             onChanged: onChanged,
+            suffix: unit == null ? null : WText(unit!, className: slots['unit']),
           ),
         ),
         _button(slots, slots['right'], _incrementIcon, Lang.get('components.quantity_stepper.increment', {'name': semanticName}), onIncrement),
+        // The opened unit, in the same control. No stepper on it: the step is one and a remainder is
+        // a measured amount, so plus-one-millilitre is a control that cannot reach most of its own
+        // values. That reasoning is why the segment is a bare field rather than a second stepper.
+        if (remainderUnit != null)
+          WDiv(
+            className: slots['remainder'],
+            child: MSInput(
+              className: slots['input'],
+              value: remainderValue ?? '',
+              placeholder: remainderPlaceholder ?? placeholder,
+              type: InputType.number,
+              onChanged: onRemainderChanged,
+              suffix: WText(remainderUnit!, className: slots['unit']),
+            ),
+          ),
       ],
     );
   }

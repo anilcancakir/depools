@@ -8,6 +8,7 @@ use App\Models\StockLot;
 use App\Models\StockMovement;
 use App\Services\ConsistencyFinding;
 use App\Services\StockConsistency;
+use Database\Seeders\DemoVolumeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -141,6 +142,36 @@ final class DemoSeederTest extends TestCase
         $this->seed();
 
         $this->assertSame($before, Product::query()->count());
+    }
+
+    public function test_the_volume_seeder_is_off_unless_asked_for(): void
+    {
+        // The eleven curated products are what every screen was designed against, so the default has
+        // to stay the eleven. `setUp` already seeded without the variable.
+        $this->assertSame(11, Product::query()->count());
+    }
+
+    public function test_bulk_products_go_through_the_writer_without_drifting(): void
+    {
+        // Five rather than ninety: the point is the PATH, and it is the same path for every row. A
+        // seeder that inserted directly would produce a fixture that looks right and disagrees with
+        // the ledger, which is the failure D81 exists to prevent, and drift is the only way to see it.
+        putenv('DEMO_VOLUME=5');
+
+        try {
+            $this->seed(DemoVolumeSeeder::class);
+
+            $this->assertSame(16, Product::query()->count());
+
+            $findings = app(StockConsistency::class)
+                ->sweep()
+                ->map(static fn (ConsistencyFinding $finding): string => $finding->describe())
+                ->all();
+
+            $this->assertSame([], $findings, 'The bulk fixture drifted from the ledger');
+        } finally {
+            putenv('DEMO_VOLUME');
+        }
     }
 
     private function productNamed(string $name): Product

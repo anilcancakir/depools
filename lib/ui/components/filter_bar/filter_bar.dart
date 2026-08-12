@@ -69,6 +69,13 @@ class FilterBar extends StatelessWidget {
     return null;
   }
 
+  /// Whether [item]'s constraints are already part of the current filter.
+  ///
+  /// Merging it changes nothing when they are, so the chip would be inert. Tested by merging rather
+  /// than by comparing axis to axis: the question is exactly "would tapping this do anything", and
+  /// `mergedWith` is the thing that would happen.
+  bool _isApplied(SavedProductFilter item) => filter.mergedWith(item.filter) == filter;
+
   @override
   Widget build(BuildContext context) {
     final slots = filterBarRecipe()();
@@ -108,6 +115,22 @@ class FilterBar extends StatelessWidget {
               applied: true,
               onTap: () => onChanged(criterion.remainder),
             ),
+
+        // **The offers stay on screen, which they did not before.** This mode used to render only
+        // what was in force, so applying one built-in hid the other three: switching from "Expired"
+        // to "Low stock" cost a tap to clear, a moment with the list unfiltered, and a second tap.
+        // The X on an applied chip promises that a filter is one tap away from being undone, and the
+        // row now keeps the same promise for adding one.
+        //
+        // Merged rather than replaced, so a cross-axis pair narrows (expired AND low stock is a real
+        // question with real rows behind it) while a same-axis one overwrites, which is the only
+        // thing a single-valued axis can mean.
+        //
+        // Whichever is applied is filtered OUT of the offers rather than shown inert: it is already
+        // on the row to its left, with an X on it.
+        for (final SavedProductFilter item in saved)
+          if (!_isApplied(item))
+            FilterChip(label: item.name, onTap: () => onChanged(filter.mergedWith(item.filter))),
 
         // "Kaydet" only for an ad-hoc filter. Offering it on an already-saved one
         // invites a second copy of the same criteria under a different name, which

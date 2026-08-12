@@ -586,6 +586,46 @@ class ProductListItem {
   /// next to a total of 2.4.
   num get wholeCount => amount.floor();
 
+  /// Whether the content unit is genuinely FINER than the base unit.
+  ///
+  /// The base unit is what you COUNT and the content is what one of them holds: a carton is `piece`
+  /// holding `1000 ml`. A declaration where the two are the same unit says a litre contains a litre,
+  /// and then there is nothing to split a fractional quantity into, because half a base unit is half
+  /// of the same unit rather than a count of smaller ones (D26). Six demo products shipped in that
+  /// shape and a 500 g pack read as "2 g".
+  ///
+  /// `POST /products` now refuses it, but an import can still produce it, so the guard stays.
+  bool get hasFinerContent {
+    final num? content = contentAmount;
+
+    // **The unit comparison is the actual test, and it was missing.** This checked only
+    // `content > 1`, which caught the demo tenant's shape (`l` holding `1 l`) and would have let
+    // through the one this guard is written for: `g` holding `500 g` passes an amount test and still
+    // says a gram contains five hundred grams. `figure(1.5)` would then print "1 g + 250 g".
+    //
+    // `POST /products` refuses that shape now, so it can only arrive through an import, which is
+    // exactly the case the guard exists for rather than a hypothetical.
+    return contentUnit != null && contentUnit != unit && content != null && content > 1;
+  }
+
+  /// The fractional part of a base-unit value, expressed in the content unit.
+  ///
+  /// **One splitter, used by both screens.** The detail page's headline and the count sheet's verdict
+  /// were computing the same thing, and two implementations of "1.5 cartons is 1 and 500 ml" is how
+  /// they would come to disagree about one product.
+  ///
+  /// Null when the product has nothing finer to be measured in, and null on a whole value, which is
+  /// what makes it usable as the "is there a remainder at all" test.
+  num? innerFor(num value) {
+    if (!hasFinerContent) return null;
+
+    final num fraction = value - value.floor();
+
+    if (fraction <= 0) return null;
+
+    return (fraction * contentAmount!).round();
+  }
+
   /// The figure the row prints first, and its unit.
   ///
   /// **When nothing is whole, the open remainder becomes the primary figure.** A pack
@@ -596,19 +636,40 @@ class ProductListItem {
   /// This is the decision `Quantity` deliberately does not make, because it needs the
   /// content declaration and the locale's pluralisation.
   (String, String?) get primaryFigure {
-    if (wholeCount == 0 && hasOpenUnit) {
-      return (format(openRemainder!), contentUnit);
+    final num? inner = _remainder;
+
+    if (wholeCount == 0 && inner != null) {
+      return (format(inner), contentUnit);
     }
+
+    // The WHOLE count, not the formatted total, whenever there is a remainder to print beside it:
+    // otherwise a quantity of 1.5 read "1.50 piece" and then "+ 250 g" after it, stating the same
+    // half twice. Anılcan asked for "1 piece + 250 g" and this is the half of it that was wrong.
+    if (inner != null) return (format(wholeCount), unit);
+
     return (formatted, unit);
   }
+
+  /// The open unit's amount, from the payload when it carried one and derived otherwise.
+  ///
+  /// **The list endpoint cannot send it**, which the `fromApi` docblock records: knowing WHICH unit is
+  /// open is lot-level data and a fifty-row list does not carry lots. So a fractional total is the
+  /// evidence, and it is the same inference `StockWriter::markOpenedIfPartial` makes on the way in: a
+  /// quantity that is not a whole number of base units can only mean a unit has been opened.
+  ///
+  /// Without this the detail screen printed "1.5 piece" for one pack and 250 g of a second.
+  num? get _remainder => openRemainder ?? innerFor(amount);
 
   /// The trailing `+ N unit` part, or null when there is nothing to add.
   ///
   /// Null when nothing is open, and null when the remainder is already the primary
   /// figure, which is what keeps the two from being printed twice.
   (String, String?)? get remainderFigure {
-    if (!hasOpenUnit || wholeCount == 0) return null;
-    return (format(openRemainder!), contentUnit);
+    final num? inner = _remainder;
+
+    if (inner == null || wholeCount == 0) return null;
+
+    return (format(inner), contentUnit);
   }
 
   /// The already-localised note explaining an open unit, for the row's meta line.

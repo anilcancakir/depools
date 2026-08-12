@@ -30,10 +30,27 @@ WindSlotRecipe countRowRecipe() {
       'controls': 'flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-3',
       // One quantity group: a control and its unit, kept together on every width.
       'group': 'flex flex-row items-center gap-3',
-      // The reserved empty group, which only earns its space where the groups share a line.
-      // Below `md` it would be a blank line of varying height instead of a held column.
-      'reservedGroup': 'hidden md:flex md:flex-row md:items-center gap-3',
+      // The reserved width of the opened-unit segment, for rows that do not have one. Only above
+      // `md`, where the controls share a line with the name and a ragged left edge is visible; below
+      // `md` the control has the card to itself.
+      //
+      // 101, and the odd number is the whole point: it is the arithmetic rather than the nearest step
+      // on the scale. The opened segment is `w-28` (112) plus its own 1px divider, and this spacer is
+      // a SIBLING separated by `gap-3` (12), which the segment inside the control's border does not
+      // pay. 112 + 1 − 12 = 101, so the controls' left edges land on the same x whether or not the
+      // row has a remainder. `w-24` was the nearest step and left the rows 5px ragged, which Anılcan
+      // spotted in a zoomed crop.
+      'reservedGroup': 'hidden md:flex w-[101px] shrink-0',
       'verdict': 'text-xs text-fg-muted',
+      // The verdict line and the one-tap confirmation share it: the verdict is short and the line was
+      // otherwise empty, which is the room the control needed without competing with the quantity
+      // fields for the row's width.
+      'verdictRow': 'flex flex-row items-center gap-3',
+      // Card tone plus a hairline, like every other pressable surface here, and never a fill: a fill
+      // cannot mean "tappable" in both appearances because elevation direction inverts between them.
+      'confirm':
+          'flex flex-row items-center gap-1 shrink-0 px-2 py-1 rounded-sm '
+          'bg-surface-container border border-color-border text-xs text-fg-muted',
       // Fixed widths, because this is a COLUMN and not a row of content. Sized to their
       // text, `adet` is wider than `ml` and a row with no opened-unit pair has two fewer
       // children, so the fields wandered left and right down the list. Anılcan caught it in

@@ -55,6 +55,36 @@ void main() {
       expect(labels, isEmpty);
     });
 
+    test('merging a quick filter narrows across axes and replaces within one', () {
+      // What a chip does when one is already applied. Measured against the demo tenant: of the six
+      // pairs the four built-ins can form, two match rows (expired + low stock, expiring + low
+      // stock), two are empty by construction because an out-of-stock product has no lots and so no
+      // date, and two are impossible because their axis holds a single value.
+      const expired = ProductFilter(expiry: ExpiryFilter.expired);
+      const lowStock = ProductFilter(stockState: StockStateFilter.belowPar);
+      const outOfStock = ProductFilter(stockState: StockStateFilter.outOfStock);
+
+      // Cross-axis: both survive, which is the pair with rows behind it.
+      final both = expired.mergedWith(lowStock);
+      expect(both.expiry, ExpiryFilter.expired);
+      expect(both.stockState, StockStateFilter.belowPar);
+
+      // Same axis: the newer value wins, because that is the only thing one slot can mean.
+      final replaced = lowStock.mergedWith(outOfStock);
+      expect(replaced.stockState, StockStateFilter.outOfStock);
+
+      // An empty axis is not a constraint, so merging a chip carries exactly its own criterion and
+      // leaves a search term and a tag set alone.
+      const narrowed = ProductFilter(query: 'süt', tags: {'kahvaltı'});
+      final merged = narrowed.mergedWith(lowStock);
+      expect(merged.query, 'süt');
+      expect(merged.tags, {'kahvaltı'});
+      expect(merged.stockState, StockStateFilter.belowPar);
+
+      // And merging something already in force is a no-op, which is what hides an inert chip.
+      expect(lowStock.mergedWith(lowStock), lowStock);
+    });
+
     test('coarse constraints are listed before the multi-selects', () {
       const filter = ProductFilter(
         query: 'süt',
@@ -62,7 +92,16 @@ void main() {
         tags: {'kahvaltı'},
       );
 
-      expect(filter.criteria().map((c) => c.label), ['"süt"', 'Az kalan', 'kahvaltı']);
+      // The stock-state label is a KEY here, not a sentence: `Lang.get` returns the key in a test
+      // because nothing loads the catalogue, and this used to assert `'Az kalan'` because the label
+      // was a hardcoded Turkish literal. That literal was the defect (the filter sheet read Turkish
+      // on an English interface), so the assertion moves to the key and the ORDER, which is what this
+      // test is actually about. A search term and a tag are user data and stay verbatim.
+      expect(filter.criteria().map((c) => c.label), [
+        '"süt"',
+        'screens.product_filter.state_below_par',
+        'kahvaltı',
+      ]);
     });
   });
 
