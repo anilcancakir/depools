@@ -33,10 +33,34 @@ WindSlotRecipe quantityStepperRecipe() {
       'left': 'h-10 w-10 shrink-0 flex items-center justify-center border-r border-color-border',
       'right': 'h-10 w-10 shrink-0 flex items-center justify-center border-l border-color-border',
       'icon': 'size-4 text-fg',
-      'field': 'w-16 shrink-0',
+      // Wide enough for a number AND its unit, because the unit now lives inside it. Measured at
+      // `w-16` (64px), which is what it was when the unit floated outside: "piece" filled the field
+      // and pushed the 12 out of sight entirely, and the placeholder dash rendered on top of the unit
+      // so the empty state read as struck-through text.
+      'field': 'w-24 shrink-0',
       // Its own border and radius removed so the group's are the only ones, and the same fill
       // as the group so the surface is continuous.
-      'input': 'border-0 rounded-none bg-surface-container text-center',
+      // `focus:ring-1` halves the ring `MSInput`'s own recipe applies (`focus:ring-2`), which read as
+      // a thick slab on web and, on a segment inside a shared border, fought the control's outline
+      // rather than pointing at a field. Thinner, not absent: a focus indicator is required (WCAG
+      // 2.4.7) and it keeps the primary colour so it is still unmistakably the focused one.
+      //
+      // The caller's className is emitted LAST, so this overrides the component's own variant at the
+      // same granularity rather than having to disable it.
+      'input': 'border-0 rounded-none bg-surface-container text-center focus:ring-1',
+      // The opened-unit segment, INSIDE the same border with a hairline before it.
+      //
+      // **Two separately bordered boxes read as two independent quantities**, and on a product whose
+      // base unit equals its content unit both labels said the same word, so nothing on screen said
+      // which was which. This is one quantity in two parts, so it is one control in two segments and
+      // the divider is the only thing between them.
+      //
+      // Wider than the whole field because a remainder is a measured amount: `500` and `1.240` both
+      // have to fit where the whole count is usually one or two digits.
+      'remainder': 'w-28 shrink-0 border-l border-color-border',
+      // The unit, in the field it belongs to rather than floating beside the control. A unit on the
+      // outside is a separate object; inside, it is part of the number it measures.
+      'unit': 'text-xs text-fg-muted pr-2',
     },
   );
 }

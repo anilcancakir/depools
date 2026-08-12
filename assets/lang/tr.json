@@ -1060,6 +1060,11 @@
       "days": ":days gün",
       "expired": "Süresi geçti",
       "today": "Bugün"
+    },
+    "count_row": {
+      "opened": "açık",
+      "confirm_recorded": "kayıtla aynı",
+      "confirm_recorded_for": ":name için kayıttaki miktarı gir"
     }
   }
 }

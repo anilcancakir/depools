@@ -1,6 +1,7 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show MSInput, MSSkeleton, SkeletonShape;
+import 'package:magic_starter/magic_starter.dart' show MSSkeleton, SkeletonShape;
 
 import '../quantity_stepper/quantity_stepper.dart';
 import 'count_row.recipe.dart';
@@ -34,6 +35,8 @@ enum CountState {
 /// user did not get to.
 @immutable
 class CountRow extends StatelessWidget {
+  static const IconData _confirmIcon = Icons.done;
+
   /// The product name.
   final String name;
 
@@ -74,6 +77,11 @@ class CountRow extends StatelessWidget {
   /// Called as the opened-unit count changes.
   final ValueChanged<String>? onRemainderChanged;
 
+  /// Fills the row with the quantity on record, in one tap.
+  ///
+  /// Null hides the control, which is what the preview catalog and any read-only use get.
+  final VoidCallback? onConfirmRecorded;
+
   /// Whether this is a placeholder rather than a row.
   ///
   /// **The skeleton is the row's own shadow, not three grey bars**, for the same reason
@@ -96,6 +104,7 @@ class CountRow extends StatelessWidget {
     this.onRemainderChanged,
     this.onDecrement,
     this.onIncrement,
+    this.onConfirmRecorded,
   }) : isSkeleton = false;
 
   /// Creates a placeholder with this row's exact geometry.
@@ -111,6 +120,7 @@ class CountRow extends StatelessWidget {
       onRemainderChanged = null,
       onDecrement = null,
       onIncrement = null,
+      onConfirmRecorded = null,
       isSkeleton = true;
 
   @override
@@ -129,73 +139,66 @@ class CountRow extends StatelessWidget {
             WDiv(
               className: slots['controls'],
               children: [
-                // **The two quantity groups are their own rows, and that is a width fix.**
-                // Measured in the 390px frame: the flat version needed 370px of a 326px card and
-                // overflowed by 44, the second unit label landing at x=1019 against a card edge at
-                // 975. Everything in here is `shrink-0` by design, so nothing could give. The
-                // groups stack below `md` and share one line above it, which is the same reflow
-                // the name above them already does.
-                WDiv(
-                  className: slots['group'],
-                  children: [
-                    // A stepper on the countable field and a plain box on the remainder. The step
-                    // is one, so it only belongs where the unit is countable: plus-one-millilitre
-                    // on an opened carton is a control that cannot reach most of its own values.
-                    WDiv(
-                      className: slots['stepper'],
-                      child: QuantityStepper(
-                        semanticName: name,
-                        value: counted,
-                        onChanged: onChanged,
-                        onDecrement: onDecrement,
-                        onIncrement: onIncrement,
-                      ),
-                    ),
-                    WText(unit, className: slots['unit']),
-                  ],
+                // **One control, two segments, and the units inside the fields they belong to.**
+                // This used to be two separately bordered boxes with their units floating beside
+                // them and a `+` between, which read as two independent quantities. It is one
+                // quantity in two parts (a whole count and an opened remainder), and on a product
+                // whose base unit equals its content unit both floating labels said the same word,
+                // so nothing on screen said which box was which.
+                QuantityStepper(
+                  semanticName: name,
+                  value: counted,
+                  unit: unit,
+                  onChanged: onChanged,
+                  onDecrement: onDecrement,
+                  onIncrement: onIncrement,
+                  remainderValue: countedRemainder,
+                  remainderUnit: remainderUnit,
+                  remainderPlaceholder: Lang.get('components.count_row.opened'),
+                  onRemainderChanged: onRemainderChanged,
                 ),
-                // The opened-unit column is ALWAYS reserved, and above `md` that is what keeps
-                // every field in its column down the list. Below `md` the groups are on separate
-                // lines, so a reserved empty group would be a blank line whose height varies per
-                // row: `hidden md:flex` keeps the reservation exactly where it does work.
-                if (remainderUnit == null)
-                  WDiv(
-                    className: slots['reservedGroup'],
-                    children: [
-                      WDiv(className: slots['plus']),
-                      WDiv(className: slots['field']),
-                      WDiv(className: slots['unit']),
-                    ],
-                  )
-                else
-                  WDiv(
-                    className: slots['group'],
-                    children: [
-                      WText('+', className: slots['plus']),
-                      WDiv(
-                        className: slots['field'],
-                        child: MSInput(
-                          // `bg-surface-container` overrides the recipe's `-high` fill. MSInput
-                          // ships the input tone, which is `#E5E5EA` on a `#FFFFFF` card in light
-                          // mode: darker than its container, so it reads as recessed and therefore
-                          // disabled, and the hairline is too close in value to rescue it. Card
-                          // tone plus the recipe's own border is the outlined-field look every
-                          // platform uses for an ENABLED input.
-                          className: 'bg-surface-container',
-                          value: countedRemainder ?? '',
-                          placeholder: '—',
-                          type: InputType.number,
-                          onChanged: onRemainderChanged,
-                        ),
-                      ),
-                      WText(remainderUnit!, className: slots['unit']),
-                    ],
-                  ),
+                // The remainder's width is reserved on rows that do not have one, so the numbers
+                // line up down the list: a list of repeating controls is a TABLE, and the left edge
+                // is where the eye reads. Without this the minus button sat 96px further right on
+                // every row that had a remainder.
+                //
+                // `hidden md:flex` keeps the reservation where it does work. Below `md` the control
+                // has the card to itself, so a reserved column there would be dead space.
+                if (remainderUnit == null) WDiv(className: slots['reservedGroup']),
               ],
             ),
           ],
         ),
-        WText(verdict, className: slots['verdict']),
+        // The verdict, and beside it the one-tap confirmation while the row is still uncounted.
+        //
+        // **This is what keeps the count blind without making it slow** (D58). Pre-filling every
+        // field with the recorded quantity was the obvious way to save typing and it is the strongest
+        // form of the anchoring D58 exists to prevent: it does not just show the number, it accepts
+        // it, so every row would open as "matched" and a user tapping through would confirm the
+        // ledger rather than check it. It also collapses "nobody looked" into "counted and agreed",
+        // so a shelf where three rows of forty were counted would report forty.
+        //
+        // One tap does the same work and keeps the difference that matters: agreeing becomes the
+        // user's own action, the way an unticked box differs from a pre-ticked one. It disappears
+        // once the row is counted, because from then on the verdict says what the state is.
+        WDiv(
+          className: slots['verdictRow'],
+          children: [
+            WText(verdict, className: slots['verdict']),
+            if (!isSkeleton && state == CountState.uncounted && onConfirmRecorded != null)
+              WAnchor(
+                onTap: onConfirmRecorded,
+                semanticLabel: Lang.get('components.count_row.confirm_recorded_for', {'name': name}),
+                child: WDiv(
+                  className: slots['confirm'],
+                  children: [
+                    const WIcon(_confirmIcon, className: 'size-3.5'),
+                    WText(Lang.get('components.count_row.confirm_recorded')),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }

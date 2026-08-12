@@ -338,9 +338,47 @@ class _StockTakeViewState extends State<StockTakeView> {
             onIncrement: () =>
                 setState(() => _whole[_keyOf(line)] = (line.countedWhole ?? 0) + 1),
             onRemainderChanged: (next) => setState(() => _enter(_inner, _keyOf(line), next)),
+            onConfirmRecorded: () => setState(() => _confirmRecorded(line)),
           ),
       ],
     );
+  }
+
+  /// Fills a row with the quantity on record, in one tap.
+  ///
+  /// **The count stays blind until this is pressed** (D58), which is the whole reason it is a control
+  /// rather than a pre-filled field: the expected figure appears because the user asked for it, not
+  /// because the app assumed it. Agreeing is then their action, and a row nobody touched is still
+  /// distinguishable from a row somebody checked and agreed with.
+  ///
+  /// Split the same way the two fields are, so a product with a finer content unit lands as whole
+  /// units plus a remainder rather than as one decimal (D26): 1.5 cartons becomes 1 and 500 ml. The
+  /// arithmetic mirrors `CountLine.countedTotal` in reverse, and `figure` is the read-only version of
+  /// the same split, which is why both live on `CountLine`.
+  void _confirmRecorded(CountLine line) {
+    final String key = _keyOf(line);
+    final num expected = line.expected;
+
+    if (!line.hasFinerContent) {
+      _whole[key] = expected;
+      _inner.remove(key);
+
+      return;
+    }
+
+    final num content = line.product.contentAmount ?? 1;
+    final int whole = expected.floor();
+    final int inner = ((expected - whole) * content).round();
+
+    _whole[key] = whole;
+
+    // Absent rather than zero when the record holds no opened amount, because absence is what the
+    // sheet reads as "this field was not answered" and a stored zero would claim it was.
+    if (inner == 0) {
+      _inner.remove(key);
+    } else {
+      _inner[key] = inner;
+    }
   }
 
   /// Records a typed figure, or forgets the field when it no longer holds one.

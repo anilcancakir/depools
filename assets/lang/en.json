@@ -1060,6 +1060,11 @@
       "days": ":days days",
       "expired": "Expired",
       "today": "Today"
+    },
+    "count_row": {
+      "opened": "opened",
+      "confirm_recorded": "same as record",
+      "confirm_recorded_for": "Count :name as the record says"
     }
   }
 }
