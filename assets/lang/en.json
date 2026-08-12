@@ -755,7 +755,9 @@
       "unfinished": ":count left for stock entry",
       "committed": ":count recorded",
       "committed_partly": ":count recorded · :unfinished left for stock entry",
-      "commit_failed": "The count could not be saved"
+      "commit_failed": "The count could not be saved",
+      "search": "Search this shelf",
+      "all_of_them": "all :count of them"
     },
     "stock_move": {
       "after_note": "Afterwards :from and :to are both updated",

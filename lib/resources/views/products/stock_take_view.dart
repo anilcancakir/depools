@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show MSButton, MagicStarterConfirmDialog;
+import 'package:magic_starter/magic_starter.dart'
+    show MSButton, MSInput, MagicStarterConfirmDialog;
 
 import '../../../app/controllers/product_controller.dart';
+import '../../../app/controllers/stock_take_controller.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/count_row/count_row.dart';
+import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'count_fixtures.dart';
 import 'count_line.dart';
@@ -91,11 +96,36 @@ class StockTakeView extends StatefulWidget {
 
 class _StockTakeViewState extends State<StockTakeView> {
   static const IconData _saveIcon = Icons.playlist_add_check;
+  static const IconData _searchIcon = Icons.search_outlined;
 
   /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
   /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a request
   /// from the catalog the moment this screen was previewed.
-  ProductController? _controller;
+  StockTakeController? _controller;
+
+  /// The products list, read only for the location chips and which of them hold stock.
+  ProductController? _catalogue;
+
+  /// How long after the last keystroke the shelf is narrowed.
+  ///
+  /// Longer than the browse list's 350ms, because this field is used while holding a product: the
+  /// user types a few letters, looks at the shelf, then types more. A tighter window would fire
+  /// mid-word and reflow the sheet under their thumb.
+  static const Duration _searchDelay = Duration(milliseconds: 400);
+
+  /// How close to the bottom, in logical pixels, the next page of the shelf is asked for.
+  static const double _loadMoreThreshold = 240;
+
+  final TextEditingController _search = TextEditingController();
+
+  Timer? _searchDebounce;
+
+  /// The scroll the shell put above this page, watched for the bottom of the sheet.
+  ///
+  /// The scrollable is an ANCESTOR, so a `NotificationListener` among these children would never
+  /// fire; `Scrollable.maybeOf` looks the direction the widget actually lies in. Same shape as the
+  /// products list, and the same reason.
+  ScrollPosition? _scroll;
 
   /// Which location is being counted, empty until [_activeLocation] names one.
   ///
@@ -122,22 +152,63 @@ class _StockTakeViewState extends State<StockTakeView> {
     super.initState();
 
     if (widget.lines == null) {
-      final ProductController controller = ProductController.instance
+      // Two controllers, because there are two questions. The catalogue answers which locations
+      // exist and which hold anything; the shelf answers what the record says is on the one being
+      // counted. Only the second is this screen's own.
+      final ProductController catalogue = ProductController.instance
         ..addListener(_onControllerChanged);
 
       // **`onInit` has to be called here, and nothing else calls it.** `Magic.findOrPut` only
       // registers the instance, and the framework's only caller of `onInit` is `MagicView`, which
       // this screen is not. Guarded on `initialized` because the controller is keyed by type and
       // outlives this screen, so a second visit would otherwise refetch on every navigation.
-      if (!controller.initialized) controller.onInit();
+      if (!catalogue.initialized) catalogue.onInit();
 
-      _controller = controller;
+      _catalogue = catalogue;
+      _controller = StockTakeController.instance..addListener(_onControllerChanged);
     }
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final ScrollPosition? position =
+        _controller == null ? null : Scrollable.maybeOf(context)?.position;
+
+    if (position == _scroll) return;
+
+    _scroll?.removeListener(_onScroll);
+    _scroll = position;
+    _scroll?.addListener(_onScroll);
+  }
+
+  /// Asks for the next page of the shelf as its bottom comes into reach.
+  void _onScroll() {
+    final ScrollPosition? position = _scroll;
+
+    if (position == null || !position.hasContentDimensions) return;
+
+    if (position.maxScrollExtent - position.pixels <= _loadMoreThreshold) {
+      _controller?.loadMore();
+    }
+  }
+
+  /// Debounces a keystroke into a shelf search.
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(_searchDelay, () {
+      if (mounted) _controller?.search(value);
+    });
+  }
+
+  @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _search.dispose();
+    _scroll?.removeListener(_onScroll);
     _controller?.removeListener(_onControllerChanged);
+    _catalogue?.removeListener(_onControllerChanged);
     super.dispose();
   }
 
@@ -146,7 +217,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   }
 
   /// The locations offered as chips, in the endpoint's reading order.
-  List<FilterOption> get _locationOptions => _controller?.locations ?? locationOptions;
+  List<FilterOption> get _locationOptions => _catalogue?.locations ?? locationOptions;
 
   /// The location being counted.
   ///
@@ -173,10 +244,10 @@ class _StockTakeViewState extends State<StockTakeView> {
     // have read as empty and the default would have moved to the wrong shelf. It is also the only
     // order that works: the shelf itself is fetched per location, so deciding which one to fetch
     // cannot depend on having fetched them all.
-    final ProductController? controller = _controller;
+    final ProductController? catalogue = _catalogue;
 
     for (final FilterOption option in options) {
-      if (controller == null || controller.holdsStock(option.id)) return option.id;
+      if (catalogue == null || catalogue.holdsStock(option.id)) return option.id;
     }
 
     return options.first.id;
@@ -189,15 +260,15 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// controller drops a repeat call for a location it already holds or is already fetching, so
   /// calling this on every frame issues at most one request per shelf.
   void _syncShelf() {
-    final ProductController? controller = _controller;
+    final StockTakeController? controller = _controller;
     final String locationId = _activeLocation;
 
     if (controller == null || locationId.isEmpty) return;
-    if (controller.hasShelf(locationId) || controller.shelfFailed(locationId)) return;
+    if (controller.locationId == locationId || controller.failed) return;
 
-    // After the frame, because `loadShelf` notifies listeners and this runs during a build.
+    // After the frame, because `open` notifies listeners and this runs during a build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) controller.loadShelf(locationId);
+      if (mounted) controller.open(locationId);
     });
   }
 
@@ -236,13 +307,19 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// screen saying so, and every product past the page silently keeping its old balance. On a ledger
   /// that is the worst available shape of bug, because the user believes the count landed.
   ///
-  /// [ProductController.loadShelf] walks the cursor to the end for one location, and [_syncShelf]
-  /// is what asks for it.
+  /// [StockTakeController] fetches it a page at a time, and [_syncShelf] is what asks for it.
+  ///
+  /// **A page is safe here where it was not before**, and the reason is worth keeping next to the
+  /// code: an uncounted row writes NOTHING, and the commit sends only what was typed, so a row the
+  /// user never scrolled to is a row left exactly as it was. The header counts against the shelf's
+  /// real total rather than the loaded rows, so nobody is told they are nearly done fifty rows into
+  /// a thousand. What was unsafe before was a sheet built from the BROWSE list's page, which looked
+  /// like the whole shelf and was a slice of a different list.
   List<ProductListItem> _stockedAt(String locationId) {
     if (locationId.isEmpty) return const <ProductListItem>[];
 
     return <ProductListItem>[
-      for (final ProductListItem product in _controller?.shelf(locationId) ?? const <ProductListItem>[])
+      for (final ProductListItem product in _controller?.rows ?? const <ProductListItem>[])
         if (product.locationIds.contains(locationId) && product.tracking != TrackingMode.serial)
           product,
     ];
@@ -274,18 +351,18 @@ class _StockTakeViewState extends State<StockTakeView> {
     final List<CountLine> lines = _lines;
     final int counted = lines.where((l) => l.isCounted).length;
     final List<CountLine> variances = lines.where((l) => l.isCounted && !l.isMatched).toList();
-    final ProductController? controller = _controller;
+    final StockTakeController? controller = _controller;
     final String locationId = _activeLocation;
 
-    // Two fetches stand between this screen and its sheet now: the locations, and then the shelf
-    // itself. Reading only the controller's own status would call the screen loaded while the shelf
-    // was still being walked, and an empty sheet at that moment reads as "nothing at this location"
-    // for a shelf that is full.
+    // Two fetches stand between this screen and its sheet: the locations, and then the shelf itself.
+    // Reading only one status would call the screen loaded while the shelf was still coming, and an
+    // empty sheet at that moment reads as "nothing at this location" for a shelf that is full.
     final bool loading = controller != null &&
         (controller.isLoading ||
-            (!controller.hasShelf(locationId) && !controller.shelfFailed(locationId)));
+            (_catalogue?.isLoading ?? false) ||
+            (controller.locationId != locationId && !controller.failed));
     final bool failed =
-        controller != null && (controller.isError || controller.shelfFailed(locationId));
+        controller != null && (controller.failed || (_catalogue?.isError ?? false));
 
     // The commit is the point of this screen and it used to sit at the END of the count, so a
     // forty-line shelf put `Sayımı kaydet` a full scroll away from the last line the user typed.
@@ -300,7 +377,10 @@ class _StockTakeViewState extends State<StockTakeView> {
           : Lang.get('screens.stock_take.subtitle', {
               'location': _pathOf(_activeLocation),
               'counted': counted,
-              'total': lines.length,
+              // The SHELF's size, not the loaded rows. With a page of fifty and a shelf of a
+              // thousand, `0 / 50 counted` would tell a user they were nearly done fifty rows in.
+              // The server answers the real figure whether or not the client has scrolled to it.
+              'total': _shelfTotal(lines),
             }),
       // **This screen had no exit, and that was found by looking at it rather than by reading it.**
       // It passed neither of these, and its only button was wired to `() {}` whenever the count came
@@ -312,6 +392,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       footer: _buildCommit(context, lines, counted, variances),
       children: [
         _buildLocation(),
+        if (!loading && !failed) _buildSearch(),
         if (loading)
           _buildLoading()
         else if (failed)
@@ -358,10 +439,34 @@ class _StockTakeViewState extends State<StockTakeView> {
   }
 
   /// The sheet itself.
+  /// How many products the record says are on this shelf, matching the search.
+  ///
+  /// The controller's total on a wired screen; the rendered rows in the preview, which has no
+  /// server and where the two are the same number anyway.
+  int _shelfTotal(List<CountLine> lines) => _controller?.total ?? lines.length;
+
+  /// Finding one product on a shelf of a thousand, without scrolling to it.
+  ///
+  /// **Server-side, like the products list, and for the same reason.** A search over the loaded
+  /// page could only find what the user had already scrolled past, which on a count sheet is the
+  /// opposite of useful: the row you are hunting for is the one you have not reached.
+  Widget _buildSearch() {
+    return WDiv(
+      className: 'flex-1 min-w-0',
+      child: MSInput(
+        className: 'h-11 bg-surface-container-high',
+        placeholder: Lang.get('screens.stock_take.search'),
+        prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+        controller: _search,
+        onChanged: _onSearchChanged,
+      ),
+    );
+  }
+
   Widget _buildLines(List<CountLine> lines) {
     return SectionCard(
       label: Lang.get('screens.stock_take.list_group'),
-      count: Lang.get('screens.stock_take.product_count', {'count': lines.length}),
+      count: Lang.get('screens.stock_take.product_count', {'count': _shelfTotal(lines)}),
       children: [
         for (final CountLine line in lines)
           CountRow(
@@ -391,6 +496,21 @@ class _StockTakeViewState extends State<StockTakeView> {
             // button and the line under it can never state one quantity two ways. See the parameter's
             // own docblock for why this is the one place D58 lets the expected figure show.
             recordedFigure: line.figure(line.expected),
+          ),
+        // **A sheet that has more rows says so.** Without this the last loaded row looks like the
+        // end of the shelf, and a user who stopped there would commit a count of the first page
+        // believing it was the whole thing. The rows they never saw would be left alone either way,
+        // which is what makes the pagination safe, but the belief would still be wrong.
+        if (_controller != null)
+          ListFooter(
+            // `hasMore` alone covers both, because the cursor is only cleared once the last page
+            // has landed: while that page is in flight `hasMore` is still true. A separate
+            // `loadingMore` branch would have said the same thing twice.
+            state: _controller!.hasMore ? ListFooterState.loadingMore : ListFooterState.end,
+            totalLabel: _controller!.hasMore
+                ? null
+                : Lang.get('screens.stock_take.all_of_them', {'count': _shelfTotal(lines)}),
+            skeleton: const CountRow.skeleton(),
           ),
       ],
     );
@@ -505,8 +625,8 @@ class _StockTakeViewState extends State<StockTakeView> {
       // Retries the SHELF as well, and forces it: a recorded failure is what stops `_syncShelf`
       // asking again on every frame, so without the force this button would clear nothing.
       onRetry: () {
-        _controller?.load();
-        _controller?.loadShelf(_activeLocation, force: true);
+        _catalogue?.load();
+        _controller?.open(_activeLocation, force: true);
       },
       children: const <Widget>[],
     );
@@ -603,7 +723,7 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   /// Send every counted row and act on what came back.
   Future<void> _commit(List<CountLine> countedLines) async {
-    final ProductController? controller = _controller;
+    final StockTakeController? controller = _controller;
 
     // The preview has no controller and nothing to write to. It renders the same tree, which is the
     // point of it, so the button is real and its effect is simply absent.
@@ -619,7 +739,7 @@ class _StockTakeViewState extends State<StockTakeView> {
 
     setState(() => _saving = true);
 
-    final CountCommit commit = await controller.commitCount(_activeLocation, counts);
+    final CountCommit commit = await controller.commit(_activeLocation, counts);
 
     if (!mounted) return;
 
