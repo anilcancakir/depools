@@ -100,6 +100,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   static const IconData _saveIcon = Icons.playlist_add_check;
   static const IconData _searchIcon = Icons.search_outlined;
   static const IconData _changeIcon = Icons.unfold_more;
+  static const IconData _leaveIcon = Icons.check;
 
   /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
   /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a request
@@ -1024,7 +1025,13 @@ class _StockTakeViewState extends State<StockTakeView> {
     // Both figures are arithmetic this screen reports about itself, and both shipped wrong in ways
     // nothing could see, so they live in `count_progress.dart` where a test can call the same code
     // rather than re-implement it.
-    final int skipped = rowsLeftToCount(shelfTotal: _shelfTotal(lines), counted: counted);
+    final int skipped = rowsLeftToCount(
+      shelfTotal: _shelfTotal(lines),
+      counted: counted,
+      // The shelf total is the count matching the QUERY, and `counted` is now the whole visit, so
+      // under a search the subtraction compares two different sets.
+      searching: _controller?.query.isNotEmpty ?? false,
+    );
     // **What gets committed is the whole visit, not the current page of it.** This read the rows on
     // screen, so counting a product and then searching for the next one emptied it: the summary said
     // `0 counted`, the button went dead, and there was no way to save work that had already been
@@ -1129,8 +1136,18 @@ class _StockTakeViewState extends State<StockTakeView> {
           // earn). There is still something to send, because the server checks each row against the
           // live balance rather than trusting this screen's expected figure, so the confirmation is
           // skipped rather than the request.
-          disabled: _saving || countedLines.isEmpty,
-          onPressed: variances.isEmpty
+          // **With nothing left to save the button becomes the way out, rather than dying.** It
+          // read `Finish the count` and went disabled the moment a commit landed, so a user who
+          // saved two rows of twenty-five was looking at a button promising an exit and refusing to
+          // give one. This screen has had that defect before in another form, when the same button
+          // was wired to an empty callback on a perfect count.
+          //
+          // One live action in the pinned bar at all times is what the bar is for, and the two jobs
+          // never overlap: there is either something typed and unsaved, or there is not.
+          disabled: _saving,
+          onPressed: countedLines.isEmpty
+              ? () => MagicRoute.to('/')
+              : variances.isEmpty
               ? () => _commit(countedLines)
               : () => MagicStarterConfirmDialog.show(
                   context,
@@ -1149,9 +1166,21 @@ class _StockTakeViewState extends State<StockTakeView> {
               child: WDiv(
                 className: 'flex flex-row items-center justify-center gap-2',
                 children: [
-                  const WIcon(_saveIcon, className: 'size-4'),
+                  // The glyph follows the job. A save icon over a button that navigates away would
+                  // be the same lie the label was telling.
+                  WIcon(
+                    countedLines.isEmpty ? _leaveIcon : _saveIcon,
+                    className: 'size-4',
+                  ),
                   WText(
-                    variances.isEmpty
+                    // `shelf_done_action` rather than a new string, and rather than `finish`. It
+                    // names the NAVIGATION ("Back to overview") instead of claiming the count is
+                    // over, which would be false with twenty-three rows still untouched. `finish`
+                    // is unavailable here anyway: it is what the SAVE button says when every
+                    // counted row matched.
+                    countedLines.isEmpty
+                        ? Lang.get('screens.stock_take.shelf_done_action')
+                        : variances.isEmpty
                         ? Lang.get('screens.stock_take.finish')
                         : plural('screens.stock_take.save_variances', variances.length, {'count': variances.length}),
                   ),

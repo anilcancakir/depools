@@ -121,6 +121,22 @@ class _PageChromeHostState extends State<PageChromeHost> {
   double _clearance(BuildContext context) =>
       wScreenIs(context, 'lg') ? 0 : _navClearance + MediaQuery.viewPaddingOf(context).bottom;
 
+  /// Where the footer's bottom edge actually sits, measured from the bottom of the window.
+  ///
+  /// **One method because two callers, and they were drifting the moment the keyboard arrived.**
+  /// The `Positioned` took the keyboard into account and the published [PageChrome.footerInset] did
+  /// not, so with a 336px keyboard over a 94px clearance a page reserved 242 pixels less than the
+  /// footer occupied and its last row sat underneath the lifted bar. Unreachable rather than merely
+  /// hidden, which is the exact defect [PageChrome.footerInset] exists to prevent, reintroduced one
+  /// layer up.
+  ///
+  /// The keyboard wins over the clearance rather than adding to it, because it covers the
+  /// navigation bar while it is up.
+  double _anchor(BuildContext context) => math.max(
+    _clearance(context),
+    MediaQuery.viewInsetsOf(context).bottom,
+  );
+
   final ValueNotifier<Widget?> _footer = ValueNotifier<Widget?>(null);
   final GlobalKey _footerKey = GlobalKey();
 
@@ -157,7 +173,7 @@ class _PageChromeHostState extends State<PageChromeHost> {
       // Zero until the footer has been measured, and zero again once it is gone, so a page with no
       // footer reserves nothing. The one frame between publishing a footer and measuring it reserves
       // nothing either, which is invisible.
-      footerInset: _footerHeight == 0 ? 0 : _footerHeight + _clearance(context),
+      footerInset: _footerHeight == 0 ? 0 : _footerHeight + _anchor(context),
       child: ValueListenableBuilder<Widget?>(
         valueListenable: _footer,
         builder: (BuildContext context, Widget? footer, Widget? _) {
@@ -195,23 +211,11 @@ class _PageChromeHostState extends State<PageChromeHost> {
                     ? MagicStarter.manager.layoutTheme.sidebarWidth
                     : 0,
                 right: 0,
-                // See [_clearance]: the navigation is a bottom bar only below `lg`, and its own height
-                // grows by the device's safe area, so the pair tracks together on a phone with a home
-                // indicator and collapses to nothing on a desktop window.
-                //
-                // **The keyboard is the other thing anchored to this edge, and it wins.** A footer
-                // at the navigation's clearance sits UNDER an open keyboard, which is the same
-                // overlap defect the clearance exists to prevent, one layer further out. `max`
-                // rather than a sum because the keyboard covers the navigation bar while it is up,
-                // so adding the two would float the footer a nav-height above the keys.
-                //
-                // `viewInsets` is zero on Flutter web, which is correct there (a desktop browser
-                // has no soft keyboard) and is also why this cannot be verified in a dusk run. It
-                // is real on iOS and Android.
-                bottom: math.max(
-                  _clearance(context),
-                  MediaQuery.viewInsetsOf(context).bottom,
-                ),
+                // See [_anchor], which the published `footerInset` reads too so a page reserves
+                // exactly what the footer occupies. `viewInsets` is zero on Flutter web, correctly
+                // (a desktop browser has no soft keyboard), which is also why the keyboard half of
+                // this cannot be verified in a dusk run and has a widget test instead.
+                bottom: _anchor(context),
                 // The `Material` is the same one the assistant overlay needed, for the same
                 // reason: this draws OUTSIDE `layout.app`, which is what was providing the
                 // ancestor every `Text` under a `MaterialApp` resolves its style from. Without

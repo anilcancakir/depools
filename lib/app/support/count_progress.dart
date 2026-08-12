@@ -20,7 +20,19 @@ library;
 /// Floored at zero, because the two inputs come from different places (the server's total and the
 /// screen's own state) and a disagreement has to read as nothing left rather than as a negative
 /// quantity.
-int rowsLeftToCount({required int shelfTotal, required int counted}) {
+///
+/// **Zero while a search narrows the sheet, and the caller reads zero as "say nothing about it".**
+/// The shelf total is the count MATCHING THE QUERY, while the counted figure is the whole visit, so
+/// under a search the two are counting different sets and their difference means nothing: two rows
+/// counted against a one-row result claims the shelf is fully counted, and it has twenty-three rows
+/// left. The same reason [shelfIsFinished] refuses to declare a shelf finished from a slice of it.
+int rowsLeftToCount({
+  required int shelfTotal,
+  required int counted,
+  required bool searching,
+}) {
+  if (searching) return 0;
+
   final int left = shelfTotal - counted;
 
   return left < 0 ? 0 : left;

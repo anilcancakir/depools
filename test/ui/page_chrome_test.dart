@@ -25,6 +25,9 @@ void main() {
   /// Measured from the rendered geometry rather than by reading the `Positioned`, because the
   /// question is where the footer ENDED UP: a `bottom:` that something else overrides would still
   /// read correctly off the widget and be wrong on screen.
+  // The height the probe footer declares. Named because two assertions read it.
+  const double footerHeight = 64;
+
   Future<double> footerGap(
     WidgetTester tester, {
     required double keyboard,
@@ -53,7 +56,7 @@ void main() {
           textDirection: TextDirection.ltr,
           child: WindTheme(
             child: PageChromeHost(
-              child: _PublishingPage(footer: SizedBox(key: footerKey, height: 64)),
+              child: _PublishingPage(footer: SizedBox(key: footerKey, height: footerHeight)),
             ),
           ),
         ),
@@ -100,6 +103,31 @@ void main() {
     );
   });
 
+  testWidgets('the space a page reserves matches what the footer occupies', (
+    WidgetTester tester,
+  ) async {
+    // **Two readers of the same geometry, and they drifted the moment the keyboard arrived.** The
+    // `Positioned` lifted onto the keyboard while the published inset still described the old
+    // anchor, so a page reserved 242 pixels less than the bar covered and its last row sat
+    // underneath, unreachable rather than merely hidden. That is the exact defect `footerInset`
+    // exists to prevent, reintroduced one layer up, which is why they read one method now.
+    const double keyboard = 336;
+
+    // What the host wraps a page's footer in: `py-3` on both edges plus its own hairline, measured
+    // at 25 rather than assumed. It is here instead of folded into the expected number so that
+    // changing the host's padding fails with a cause a reader can see.
+    const double hostChrome = 25;
+
+    await footerGap(tester, keyboard: keyboard, safeArea: 34);
+
+    final BuildContext probe = tester.element(find.byKey(const Key('inset-probe')));
+
+    expect(
+      PageChrome.footerInsetOf(probe),
+      closeTo(keyboard + footerHeight + hostChrome, 0.5),
+    );
+  });
+
   testWidgets('a keyboard shorter than the clearance does not pull the footer down', (
     WidgetTester tester,
   ) async {
@@ -141,5 +169,5 @@ class _PublishingPageState extends State<_PublishingPage> {
   }
 
   @override
-  Widget build(BuildContext context) => const SizedBox.expand();
+  Widget build(BuildContext context) => const SizedBox.expand(key: Key('inset-probe'));
 }
