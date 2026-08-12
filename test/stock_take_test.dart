@@ -289,6 +289,37 @@ void main() {
       expect(perfect.unfinished, isEmpty);
     });
 
+    test('a correction typed over a saved row is still a count to submit', () {
+      // **The silent one.** A settled row leaves the sheet, and `_settled` alone decided that, so
+      // restoring one, typing a new number and hiding again dropped the correction three ways: the
+      // row vanished, the verdict still read `Counted · matched`, and the commit filter excluded it.
+      // No error, and the figure sat in the typed map where nothing would ever read it.
+      //
+      // The predicate is "committed AND not being re-typed", which is the same precedence the FIGURE
+      // already used, so a live value outranks a settled one everywhere.
+      final CountLine milk = fridgeCount.first;
+
+      // What the screen holds after a commit: an outcome, and no live figure.
+      const CountResult landed = CountResult(
+        productId: 'p1',
+        outcome: CountOutcome.matched,
+        delta: 0,
+      );
+
+      expect(landed.isUnfinished, isFalse);
+
+      // And what it holds after the user re-types: a live figure beside that same outcome, which has
+      // to read as a count rather than as a settled row.
+      final CountLine retyped = CountLine(
+        product: milk.product,
+        expected: milk.expected,
+        countedWhole: 9,
+      );
+
+      expect(retyped.isCounted, isTrue);
+      expect(retyped.variance, isNot(0), reason: 'a correction that matches nothing must be written');
+    });
+
     test('only variances write movements', () {
       expect(countedLines.length, 2);
       expect(varianceLines.length, 1);

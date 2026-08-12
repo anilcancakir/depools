@@ -765,8 +765,10 @@
       "commit_title": ":count fark kaydedilsin mi?",
       "commit_description": "Saydığınız ile kaydın arasındaki :count fark düzeltme olarak yazılır. Geçmiş silinemez, yalnız karşıt bir hareketle düzeltilir.",
       "commit_description_skipped": "Saydığınız :count fark düzeltme olarak yazılır. Saymadığınız satırlar olduğu gibi kalır.",
-      "committed_counted": ":counted satır sayıldı · :written hareket yazıldı",
-      "summary": ":counted ürün sayıldı · :variances fark"
+      "committed_counted": ":rows · :changes",
+      "summary": ":counted ürün sayıldı · :variances fark",
+      "committed_rows": ":counted satır sayıldı",
+      "committed_changes": ":written hareket yazıldı"
     },
     "stock_move": {
       "after_note": "Sonrasında :from ve :to güncellenir",

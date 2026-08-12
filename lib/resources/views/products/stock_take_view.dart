@@ -197,6 +197,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _syncSearchField();
 
     final ScrollPosition? position =
         _controller == null ? null : Scrollable.maybeOf(context)?.position;
@@ -206,6 +207,25 @@ class _StockTakeViewState extends State<StockTakeView> {
     _scroll?.removeListener(_onScroll);
     _scroll = position;
     _scroll?.addListener(_onScroll);
+  }
+
+  /// Puts the field back in step with the shelf it is narrowing.
+  ///
+  /// **The controller outlives this screen and the field does not.** `StockTakeController` is keyed
+  /// by type, so leaving the count screen and coming back gives a fresh `State` with an empty input
+  /// while the controller still holds the previous query: the sheet came back narrowed to four rows
+  /// with nothing on screen saying why. Measured by navigating away and back after searching.
+  ///
+  /// Seeded rather than cleared, because the search is the user's and a quick trip to another screen
+  /// is not a reason to throw it away. Guarded on inequality so this is idempotent: it runs whenever
+  /// dependencies change, not once.
+  void _syncSearchField() {
+    final StockTakeController? controller = _controller;
+
+    if (controller == null) return;
+    if (_search.text == controller.query) return;
+
+    _search.text = controller.query;
   }
 
   /// Asks for the next page of the shelf as its bottom comes into reach.
@@ -316,7 +336,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// back with the figure that was entered rather than as a blank row: the point of showing it again
   /// is checking what was counted.
   List<CountLine> get _lines => (widget.lines ?? _fromController())
-      .where((line) => _showSettled || !_settled.containsKey(_keyOf(line)))
+      .where((line) => _showSettled || !_isSettled(line))
       .map(
         (line) => CountLine(
           product: line.product,
@@ -326,6 +346,25 @@ class _StockTakeViewState extends State<StockTakeView> {
         ),
       )
       .toList();
+
+  /// Whether this row is committed AND not being re-typed.
+  ///
+  /// **The second half is what stops a correction from vanishing.** `_settled` alone was the test, so
+  /// restoring a saved row, typing a new number and hiding again dropped that number three ways at
+  /// once: the row left the sheet, the verdict still read `Counted · matched`, and `countedLines`
+  /// excluded it, so the correction was never submitted. Silently: no error, and the figure sat in
+  /// `_whole` where nothing would ever read it.
+  ///
+  /// A live typed value therefore outranks a settled one everywhere, which is the same precedence
+  /// [_typed] already applies to the FIGURE. Re-typing a saved row is how a user corrects a count
+  /// they have already written, and a correction has to behave like any other uncommitted count.
+  bool _isSettled(CountLine line) {
+    final String key = _keyOf(line);
+
+    if (!_settled.containsKey(key)) return false;
+
+    return !_whole.containsKey(key) && !_inner.containsKey(key);
+  }
 
   /// What is in the live map for this row, or in the settled one when it has been committed.
   ///
@@ -348,7 +387,7 @@ class _StockTakeViewState extends State<StockTakeView> {
     final Set<String> counted = <String>{..._settled.keys};
 
     for (final CountLine line in lines) {
-      if (line.isCounted && !_settled.containsKey(_keyOf(line))) counted.add(_keyOf(line));
+      if (line.isCounted && !_isSettled(line)) counted.add(_keyOf(line));
     }
 
     return counted.length;
@@ -495,6 +534,15 @@ class _StockTakeViewState extends State<StockTakeView> {
                   _whole.clear();
                   _inner.clear();
                   _unfinished.clear();
+                  // **And the settled state, which is per SHELF and was leaking across them.** Its
+                  // own docblock says "this shelf and this visit" and nothing enforced it: the bar
+                  // went on reporting the previous shelf's saved rows, and a product that sits at
+                  // two locations was hidden on the second one, so a row that still needed counting
+                  // was invisible there.
+                  _settled.clear();
+                  _settledWhole.clear();
+                  _settledInner.clear();
+                  _showSettled = false;
                 }),
               ),
           ],
@@ -723,7 +771,7 @@ class _StockTakeViewState extends State<StockTakeView> {
     // bar is for checking a saved count, and `line.verdict` would describe a comparison against the
     // balance the commit has already corrected: a matched row would read as matched by luck rather
     // than as saved.
-    final CountResult? landed = _settled[_keyOf(line)];
+    final CountResult? landed = _isSettled(line) ? _settled[_keyOf(line)] : null;
 
     if (landed != null) {
       return landed.outcome == CountOutcome.written
@@ -801,7 +849,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   ) {
     final int skipped = lines.length - counted;
     final List<CountLine> countedLines = lines
-        .where((l) => l.isCounted && !_settled.containsKey(_keyOf(l)))
+        .where((l) => l.isCounted && !_isSettled(l))
         .toList();
 
     // **The shelf is what says the count is over, not the button.** The screen used to leave for the
@@ -966,9 +1014,20 @@ class _StockTakeViewState extends State<StockTakeView> {
       // loud beside it.
       MagicFeedback.success(
         Lang.get('screens.stock_take.title'),
-        plural('screens.stock_take.committed_counted', commit.lines.length, {
-          'counted': commit.lines.length,
-          'written': commit.writtenCount,
+        // **Two fragments and a wrapper, because both nouns inflect independently.** Keying one
+        // string on `counted` left `:written changes written` wrong whenever the two counts differ,
+        // which is the common case here: a matching count writes nothing, so five rows and zero
+        // changes is normal. A single pipe can only ever be right about one of them.
+        //
+        // The wrapper is what keeps this inside the copy rule rather than concatenating in Dart: the
+        // separator lives in the translation, so a translator can move it or reorder the clauses.
+        Lang.get('screens.stock_take.committed_counted', {
+          'rows': plural('screens.stock_take.committed_rows', commit.lines.length, {
+            'counted': commit.lines.length,
+          }),
+          'changes': plural('screens.stock_take.committed_changes', commit.writtenCount, {
+            'written': commit.writtenCount,
+          }),
         }),
       );
 

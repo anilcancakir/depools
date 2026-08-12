@@ -135,6 +135,51 @@ void main() {
       }
     });
 
+    test('a string with two inflecting counts is composed, not piped once', () {
+      // A single pipe can only be right about ONE noun, so a value carrying two independently
+      // varying counts and one pipe is wrong for every case where they differ. `committed_counted`
+      // shipped that way: keyed on the row count while `:written changes written` varied on its own,
+      // and rows-versus-changes differ routinely, because a matching count writes nothing.
+      //
+      // The shape that works is two pluralised fragments and a wrapper holding the separator, which
+      // is also what keeps the composition inside the copy rule. So: a value with a pipe carries at
+      // most one placeholder that a count drives.
+      final RegExp placeholder = RegExp(r':[a-z_]+');
+      const Set<String> countNames = <String>{
+        ':count', ':counted', ':written', ':variances', ':matched', ':skipped', ':unfinished',
+      };
+
+      // **A count followed by a participle drives no inflection, and this test cannot tell.** It
+      // reads placeholder names, not English grammar, so a value where the extra count is followed by
+      // `counted`, `matched`, `skipped` or `left` has to be exempted by hand. Recorded rather than
+      // silently widened, so the exception is a decision instead of a hole:
+      //
+      // - `summary`: `:counted counted · :variances differ`. `counted` is a participle and agrees
+      //   with nothing; `differ` is the verb that inflects, and the pipe is keyed on `:variances`.
+      const Set<String> participleClauses = <String>{'screens.stock_take.summary'};
+
+      for (final MapEntry<String, String> entry in en.entries) {
+        if (!entry.value.contains('|')) continue;
+        if (participleClauses.contains(entry.key)) continue;
+
+        final Set<String> counts = placeholder
+            .allMatches(entry.value)
+            .map((m) => m.group(0)!)
+            .where(countNames.contains)
+            .toSet();
+
+        // `:matched` is a participle in English too, so it may ride along anywhere.
+        counts.remove(':matched');
+
+        expect(
+          counts.length,
+          lessThanOrEqualTo(1),
+          reason: '${entry.key} pipes on one noun while carrying ${counts.length} counts: $counts. '
+              'Split it into fragments and compose them through a wrapper key.',
+        );
+      }
+    });
+
     test('a locale that inflects carries a pipe wherever the other one does', () {
       // Turkish does not inflect after a numeral, so a `tr` value with no pipe is correct rather
       // than incomplete. English is the other way round: a pipe in `tr` and none in `en` means the
