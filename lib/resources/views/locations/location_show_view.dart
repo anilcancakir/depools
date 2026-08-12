@@ -84,10 +84,10 @@ class LocationShowView extends StatelessWidget {
         'products': held.length + children.fold<int>(0, (int a, LocationNode c) => a + c.productCount),
       }),
       backLabel: Lang.get('screens.location.back'),
-      backFallback: '/konumlar',
+      backFallback: '/locations',
       actions: [
         MSButton(
-          onPressed: () => MagicRoute.to('/konumlar/yeni'),
+          onPressed: () => MagicRoute.to('/locations/new'),
           className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: Lang.get('screens.location.add_child'),
           child: const WIcon(_addIcon),
@@ -125,7 +125,7 @@ class LocationShowView extends StatelessWidget {
             parLevel: item.parLevel,
             // The server id when there is one. Every tap on a product now reaches an endpoint, so a
             // route carrying a NAME 404s; the fallback keeps the fixture-only previews navigating.
-            onTap: () => MagicRoute.to('/urunler/${item.id ?? Uri.encodeComponent(item.name)}'),
+            onTap: () => MagicRoute.to('/products/${item.id ?? Uri.encodeComponent(item.name)}'),
           ),
       ],
     );
@@ -147,7 +147,7 @@ class LocationShowView extends StatelessWidget {
             itemSummary: child.summary,
             icon: child.icon,
             // Descending into a child is the whole point of a tree screen.
-            onTap: () => MagicRoute.to('/konumlar/${Uri.encodeComponent(child.path)}'),
+            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(child.path)}'),
           ),
       ],
     );

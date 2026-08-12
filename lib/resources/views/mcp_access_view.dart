@@ -50,7 +50,7 @@ class McpAccessView extends StatelessWidget {
       title: Lang.get('screens.mcp.title'),
       subtitle: Lang.get('screens.mcp.subtitle'),
       backLabel: Lang.get('screens.mcp.back'),
-      backFallback: '/ayarlar',
+      backFallback: '/settings',
       footer: _buildFooter(context),
       children: [
         _buildScope(),

@@ -54,7 +54,7 @@ class PlanView extends StatelessWidget {
       title: Lang.get('screens.plan.title'),
       subtitle: Lang.get('screens.plan.subtitle'),
       backLabel: Lang.get('screens.plan.back'),
-      backFallback: '/ayarlar',
+      backFallback: '/settings',
       footer: _buildFooter(),
       children: [_buildCurrent(), _buildMeters(), _buildSeats()],
     );

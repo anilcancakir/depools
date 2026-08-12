@@ -189,7 +189,7 @@ class LocationIndexView extends StatelessWidget {
           ? const <Widget>[]
           : [
               MSButton(
-                onPressed: () => MagicRoute.to('/konumlar/yeni'),
+                onPressed: () => MagicRoute.to('/locations/new'),
                 className: 'min-h-11 min-w-11 justify-center',
                 semanticLabel: Lang.get('screens.locations.add'),
                 child: const WIcon(_addIcon),
@@ -288,7 +288,16 @@ class LocationIndexView extends StatelessWidget {
             // The tree was browsable and not inspectable: a row said "Kiler, 4 ürün" and had
             // nowhere to go. `inventory-core.md` lists seeing inside a location as one of the
             // seven things the user does.
-            onTap: () => MagicRoute.to('/konumlar/${node.path}'),
+            // **Encoded, because this segment is a materialised PATH and not an id.** A node's path
+            // is `Mutfak › Buzdolabı`: spaces, a `›`, and Turkish letters, none of which survive a
+            // raw interpolation into a URL. It was invisible under the hash strategy, which never
+            // sends the fragment anywhere; with real URLs the address bar now carries it, so an
+            // unencoded space ends the path and the route matches nothing.
+            //
+            // Encoding makes it legal, not correct: the route is `/locations/:id` and this hands it
+            // a path, which is the same fixture-era stand-in `ProductRow` carries for a product
+            // without an id. It resolves when the tree is wired to the endpoint.
+            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(node.path)}'),
           ),
         // Ten locations do not need paging, and pretending otherwise would be a footer
         // that never fires. It states the total instead, which is the number worth having
@@ -365,13 +374,13 @@ class LocationIndexView extends StatelessWidget {
           ),
         ),
         MSButton(
-          onPressed: () => MagicRoute.to('/konumlar/yeni'),
+          onPressed: () => MagicRoute.to('/locations/new'),
           fullWidth: true,
           className: 'justify-center',
           child: WText(Lang.get('screens.locations.add')),
         ),
         MSButton(
-          onPressed: () => MagicRoute.to('/konumlar/yeni'),
+          onPressed: () => MagicRoute.to('/locations/new'),
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',

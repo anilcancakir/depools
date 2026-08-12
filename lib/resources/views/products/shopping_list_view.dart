@@ -166,7 +166,7 @@ class ShoppingListView extends StatelessWidget {
             // come back from the shop with the things on this list, which is exactly when a
             // receipt is in their hand. It was the last dead link between two screens that both
             // already existed.
-            onPressed: () => MagicRoute.to('/fis'),
+            onPressed: () => MagicRoute.to('/receipt'),
             fullWidth: true,
             className: 'justify-center',
             child: WDiv(

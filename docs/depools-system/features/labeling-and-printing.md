@@ -129,7 +129,7 @@ None. Label generation is local computation.
 
 | Screen | Route | States |
 |---|---|---|
-| `LabelPrintView` | `/etiket` | sheet preview with the item list and layout controls |
+| `LabelPrintView` | `/labels` | sheet preview with the item list and layout controls |
 
 ## What the design settled
 

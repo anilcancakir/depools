@@ -100,7 +100,7 @@ class _LocationFormViewState extends State<LocationFormView> {
       title: Lang.get('screens.location_form.title'),
       subtitle: Lang.get('screens.location_form.subtitle'),
       backLabel: Lang.get('screens.location_form.back'),
-      backFallback: '/konumlar',
+      backFallback: '/locations',
       footer: _buildFooter(),
       children: [
         _buildIdentity(),

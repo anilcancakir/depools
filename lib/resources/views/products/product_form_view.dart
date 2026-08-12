@@ -71,7 +71,7 @@ class _ProductFormViewState extends State<ProductFormView> {
       title: Lang.get('screens.product_form.title'),
       subtitle: Lang.get('screens.product_form.subtitle'),
       backLabel: Lang.get('screens.product_form.back'),
-      backFallback: '/urunler',
+      backFallback: '/products',
       footer: _buildFooter(),
       children: [
         _buildIdentity(),

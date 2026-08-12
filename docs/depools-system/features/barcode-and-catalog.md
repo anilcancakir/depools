@@ -141,8 +141,8 @@ order token.
 
 | Screen | Route | States |
 |---|---|---|
-| `BarcodeScanView` | `/tara` | queue with reads, empty |
-| `ProductDraftView` | `/taslak` | draft from the cascade's miss |
+| `BarcodeScanView` | `/scan` | queue with reads, empty |
+| `ProductDraftView` | `/draft` | draft from the cascade's miss |
 
 ## What the design settled
 

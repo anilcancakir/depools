@@ -160,9 +160,9 @@ Phrasing a shopping list into natural language through the assistant consumes a 
 
 | Screen | Route | States |
 |---|---|---|
-| `DatesView` | `/tarihler` | expired + grouped, empty |
-| `RunningLowView` | `/azalanlar` | tiers, empty |
-| `ShoppingListView` | `/alisveris` | pending + checked, empty |
+| `DatesView` | `/dates` | expired + grouped, empty |
+| `RunningLowView` | `/running-low` | tiers, empty |
+| `ShoppingListView` | `/shopping` | pending + checked, empty |
 
 ## What the design settled
 

@@ -156,7 +156,7 @@ conventional screen. If something is only reachable through conversation, that i
 
 | Screen | Route | States |
 |---|---|---|
-| `AssistantView` | `/asistan`, and as a full-screen overlay | fresh, mid-conversation |
+| `AssistantView` | `/assistant`, and as a full-screen overlay | fresh, mid-conversation |
 | `ActivityPanel` | panel over the current screen | recent writes with undo |
 
 ## What the design settled
