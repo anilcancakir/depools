@@ -211,6 +211,39 @@ final class Product extends Model
     }
 
     /**
+     * The barcodes this tenant has pointed at this product.
+     *
+     * Many rather than one, because a product genuinely carries several: a carton has a GTIN and the
+     * shelf it sits on may carry a shop's own Code128 label, and both should reach the same product.
+     * The pivot's `unique(team_id, barcode_id)` runs the other way and is the constraint that matters:
+     * one barcode may not name two of this tenant's products, or every scan becomes a question.
+     */
+    public function barcodes(): BelongsToMany
+    {
+        return $this->belongsToMany(Barcode::class, 'product_barcode')
+            ->using(ProductBarcode::class)
+            ->withTimestamps();
+    }
+
+    /**
+     * Point a scanned code at this product, in the canonical form, without duplicating the link.
+     *
+     * The sanctioned way in, for the reason [syncTags] records: a raw `attach()` writes the pivot row
+     * directly and stamps no `team_id`, which the column refuses. Nothing stamps a pivot automatically
+     * because it is a row in a tenant table rather than a tenant model.
+     *
+     * `syncWithoutDetaching` rather than `attach`, because scanning a code a product already carries is
+     * the normal case, not an error: it happens every time a user re-links a label they have used
+     * before, and an `attach` there would violate the pivot's own uniqueness.
+     */
+    public function linkBarcode(Barcode $barcode): void
+    {
+        $this->barcodes()->syncWithoutDetaching([
+            $barcode->getKey() => ['team_id' => $this->team_id],
+        ]);
+    }
+
+    /**
      * Every individually identified unit, including released ones.
      *
      * Empty for a lot-tracked product, and holding the product's entire quantity for a serial-tracked

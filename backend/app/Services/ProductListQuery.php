@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Barcode;
 use App\Models\Product;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -199,10 +200,31 @@ final class ProductListQuery
         $folded = '%'.$this->escapeLike((string) Product::normaliseName($needle)).'%';
         $raw = '%'.$this->escapeLike($needle).'%';
 
-        $query->where(function (Builder $q) use ($folded, $raw): void {
+        // Resolved once, outside the closure, so a name search costs nothing extra: this only runs a
+        // query when the needle could be a barcode at all, and returns null the moment it cannot.
+        $barcode = Barcode::findForScan($needle);
+
+        $query->where(function (Builder $q) use ($folded, $raw, $barcode): void {
             $q->where('products.name_normalized', 'like', $folded)
                 ->orWhere('products.brand', 'ilike', $raw)
                 ->orWhere('products.sku', 'ilike', $raw);
+
+            // **A barcode matches exactly, while everything beside it matches partially, and that
+            // asymmetry is deliberate.** A desktop barcode reader is an HID keyboard that types the
+            // whole code into whichever field has focus, so the needle is complete by construction. A
+            // partial match would answer `869` with every Turkish product in the catalogue, which is
+            // noise dressed as a search result.
+            //
+            // No tenant filter on the pivot, and it is not missing: the outer query is already scoped
+            // to this tenant's products, and `Product::linkBarcode` stamps the pivot with the
+            // product's own team, so the two cannot name different tenants. A raw attach could not
+            // either, because the column refuses the null it would write.
+            if ($barcode !== null) {
+                $q->orWhereHas(
+                    'barcodes',
+                    static fn (Builder $b): Builder => $b->whereKey($barcode->getKey()),
+                );
+            }
         });
     }
 

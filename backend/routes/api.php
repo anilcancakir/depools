@@ -26,6 +26,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     Route::apiResource('locations', LocationController::class)->only(['index', 'store', 'show']);
+    // **Before the resource, or `by-barcode` is read as a product id.** `products/{id}` matches any
+    // segment, so declared after it this route never runs and the request dies in PostgreSQL instead,
+    // as `invalid input syntax for type uuid: "by-barcode"`. Found by writing the test first.
+    //
+    // The code travels as a query parameter rather than a path segment because a non-GTIN label can be
+    // arbitrary text (a QR carrying a URL), which does not belong in a path.
+    Route::get('products/by-barcode', [ProductController::class, 'byBarcode']);
+
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 
     // Stock is not a resource with an id: it is a set of things that HAPPEN, and each one appends

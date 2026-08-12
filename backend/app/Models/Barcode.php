@@ -46,6 +46,51 @@ final class Barcode extends Model
         return self::firstOrCreate(['code' => $code, 'symbology' => $symbology]);
     }
 
+    /**
+     * The row a scan names, or null when nothing here carries it. Never creates.
+     *
+     * **The counterpart to [forGtin] and [forCode], and the difference is the whole point.** Those two
+     * are for RECORDING a barcode a user has attached to a product. This is for ANSWERING a scan, where
+     * creating is wrong twice over: a mis-scan would leave a permanent global row behind, and a scan
+     * that found nothing has to be distinguishable from one that found something, which a
+     * `firstOrCreate` makes impossible by always succeeding.
+     *
+     * Which regime applies is decided from the code itself rather than trusted from the caller. A GTIN
+     * is digits by definition, so a read that is not digits-only cannot be one however it was labelled,
+     * and a read longer than fourteen digits is not one either. Everything else is a `(code, symbology)`
+     * identity, where the symbology is part of what the label IS: the same digits as Code128 and as a QR
+     * are two different labels.
+     */
+    public static function findForScan(string $raw, ?string $symbology = null): ?self
+    {
+        $trimmed = trim($raw);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d{1,'.self::gtinLength().'}$/', $trimmed) === 1) {
+            return self::query()->where('gtin', (string) Gtin::fromScan($trimmed))->first();
+        }
+
+        if ($symbology === null || $symbology === '') {
+            return null;
+        }
+
+        return self::query()->where('code', $trimmed)->where('symbology', $symbology)->first();
+    }
+
+    /**
+     * How many digits a canonical GTIN holds, read from the value object rather than repeated here.
+     *
+     * The column is `char(14)` and [Gtin] pads to the same width; a literal in a third place is how
+     * those two would drift apart.
+     */
+    private static function gtinLength(): int
+    {
+        return strlen((string) Gtin::fromScan('0'));
+    }
+
     public function scopeGtins(Builder $query): Builder
     {
         return $query->whereNotNull('gtin');

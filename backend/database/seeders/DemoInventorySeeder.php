@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\MovementReason;
+use App\Models\Barcode;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\Scopes\TeamScope;
@@ -66,6 +67,8 @@ class DemoInventorySeeder extends Seeder
 
         $locations = $this->locations();
         $products = $this->products();
+
+        $this->barcodes($products);
         $writer = app(StockWriter::class);
         $today = Carbon::today();
 
@@ -149,6 +152,42 @@ class DemoInventorySeeder extends Seeder
         return collect($this->definitions())->map(
             static fn (array $attributes): Product => Product::create($attributes),
         );
+    }
+
+    /**
+     * Barcodes on SOME of the demo products, deliberately not all of them.
+     *
+     * **A demo where every product scans is a demo that cannot show the interesting cases.** Real
+     * inventories are full of things with no barcode at all: loose vegetables, a shop's own repacks,
+     * anything sold by weight. Leaving those unlinked is what makes the scan flow's harder answers
+     * reachable without inventing data, and it is also the honest picture of a small business's shelf.
+     *
+     * The check digits are correct, and they are correct because they were COMPUTED rather than typed:
+     * the first five I wrote by hand all failed `Gtin::hasValidCheckDigit`, which is the whole argument
+     * for a fixture behaving like the thing it stands for. A number that only has to satisfy a lookup
+     * passes every test here and fails the day anything validates it. The `868` prefix is GS1 Turkey's.
+     *
+     * @param  Collection<string, Product>  $products
+     */
+    private function barcodes(Collection $products): void
+    {
+        $codes = [
+            'milk' => '8680000000013',
+            'cheese' => '8680000000020',
+            'coffee' => '8680000000037',
+            'eggs' => '8680000000044',
+            'sugar' => '8680000000051',
+        ];
+
+        foreach ($codes as $key => $gtin) {
+            $product = $products->get($key);
+
+            if ($product === null) {
+                continue;
+            }
+
+            $product->linkBarcode(Barcode::forGtin($gtin));
+        }
     }
 
     /**
