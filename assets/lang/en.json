@@ -766,7 +766,7 @@
       "commit_description": "The :count difference between what you counted and the record is written as a correction. History cannot be deleted, only corrected with a counter-movement.|The :count differences between what you counted and the record are written as corrections. History cannot be deleted, only corrected with a counter-movement.",
       "commit_description_skipped": "The :count difference is written as a correction. The rows you did not count are left exactly as they are.|The :count differences are written as corrections. The rows you did not count are left exactly as they are.",
       "committed_counted": ":rows · :changes",
-      "summary": ":counted counted · :variances differs|:counted counted · :variances differ",
+      "summary": ":counted counted · :variances difference|:counted counted · :variances differences",
       "committed_rows": ":counted row counted|:counted rows counted",
       "committed_changes": ":written change written|:written changes written"
     },

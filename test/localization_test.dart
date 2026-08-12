@@ -154,8 +154,11 @@ void main() {
       // `counted`, `matched`, `skipped` or `left` has to be exempted by hand. Recorded rather than
       // silently widened, so the exception is a decision instead of a hole:
       //
-      // - `summary`: `:counted counted · :variances differ`. `counted` is a participle and agrees
-      //   with nothing; `differ` is the verb that inflects, and the pipe is keyed on `:variances`.
+      // - `summary`: `:counted counted · :variances differences`. `counted` is a participle and
+      //   agrees with nothing; `difference` is the noun that inflects, and the pipe is keyed on
+      //   `:variances`. It used to end in the VERB `differ`, whose singular half rendered `1 differs`,
+      //   a verb with no subject; the Turkish side had `fark` as a noun all along, so this was the
+      //   English drifting rather than a translation lagging.
       const Set<String> participleClauses = <String>{'screens.stock_take.summary'};
 
       for (final MapEntry<String, String> entry in en.entries) {
