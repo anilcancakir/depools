@@ -182,8 +182,16 @@ class DemoInventorySeeder extends Seeder
         foreach ($codes as $key => $gtin) {
             $product = $products->get($key);
 
+            // **Loudly, because a silent skip here is invisible exactly when it matters.** Rename a
+            // key in `definitions()` and the demo quietly loses a scannable product; the next person
+            // to find out is whoever is debugging why a scan does not resolve, and they would be
+            // reading the scan flow rather than this fixture. The seeder already fails this way for
+            // its other assumptions.
             if ($product === null) {
-                continue;
+                throw new RuntimeException(
+                    "The barcode map names a product `{$key}` that `definitions()` does not have. "
+                    .'Rename it there or here, but do not let the demo lose a scannable product.',
+                );
             }
 
             $product->linkBarcode(Barcode::forGtin($gtin));

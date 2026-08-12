@@ -75,10 +75,15 @@ final class Barcode extends Model
             return null;
         }
 
-        if (preg_match('/^[\d\s-]{1,'.(self::gtinLength() * 2).'}$/', $trimmed) === 1) {
+        $length = self::gtinLength();
+
+        // Twice the length as the outer bound, because separators are allowed inside it: `8690 5040
+        // 10012` is thirteen digits in fifteen characters, and a bound of fourteen would refuse the
+        // formatted form of a code it accepts unformatted. The digits are what the real check counts.
+        if (preg_match('/^[\d\s-]{1,'.($length * 2).'}$/', $trimmed) === 1) {
             $digits = preg_replace('/[\s-]/', '', $trimmed) ?? '';
 
-            if ($digits !== '' && strlen($digits) <= self::gtinLength()) {
+            if ($digits !== '' && strlen($digits) <= $length) {
                 return self::query()->where('gtin', (string) Gtin::fromScan($digits))->first();
             }
         }
