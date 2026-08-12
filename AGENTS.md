@@ -61,7 +61,9 @@ The branch is `master` and not `main`, deliberately, matching `magic` and `uptiz
 - A fresh worktree also has no `.dart_tool`, so `flutter test` re-downloads sqlite3's prebuilt native library, and the whole gate is blocked while that download is failing. It failed here on a documentation-only branch. Seed the built copy from the main worktree instead of waiting it out, which takes a second and needs no network:
 
   ```sh
-  M=/Users/anilcan/Code/fluttersdk/depools
+  # From inside the worktree. `--show-toplevel` is the wrong tool here: it resolves to the WORKTREE,
+  # so it would copy the cache onto itself. The common git dir is the main checkout's.
+  M=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
   mkdir -p .dart_tool/hooks_runner/shared && cp -R "$M/.dart_tool/hooks_runner/shared/sqlite3" .dart_tool/hooks_runner/shared/
   ```
 - The nested layout works here because `pubspec_overrides.yaml` holds ABSOLUTE paths. A relative `../magic` resolves to nothing from `.claude/worktrees/<slug>`, and version solving then fails with an error that blames the wrong thing.

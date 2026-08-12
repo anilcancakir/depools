@@ -194,7 +194,13 @@ run_lockfile() {
         echo "pubspec.lock is not tracked; commit the hosted-only lock (see .gitignore)" >&2
         return 1
     }
-    if printf '%s' "$staged" | grep -q 'path: "\.\.'; then
+    # `source: path` rather than a relative `path: "../`, which is the shape this repo never
+    # produces. `pubspec_overrides.yaml` holds ABSOLUTE paths here on purpose (a relative one
+    # resolves to nothing from `.claude/worktrees/<slug>`), so the poisoned lock reads
+    # `path: "/Users/<you>/Code/fluttersdk/magic"` with `relative: false` and the old pattern
+    # matched it zero times. Measured: 11 `source: path` entries in the poisoned lock against 0 in
+    # the committed one, so the source line is the categorical test and covers both forms.
+    if printf '%s' "$staged" | grep -q 'source: path'; then
         echo "pubspec.lock encodes local sibling paths. Regenerate it hosted-only:" >&2
         echo "  mv pubspec_overrides.yaml /tmp/ && flutter pub get && git add pubspec.lock" >&2
         echo "  mv /tmp/pubspec_overrides.yaml ." >&2
