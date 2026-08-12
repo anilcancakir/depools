@@ -627,6 +627,13 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// to the count. `OptionRow` is the same picker row the move sheet uses, so a location list looks
   /// the same wherever it is offered.
   Future<void> _pickLocation() async {
+    // **Resolved once, because it is a scan and not a field.** With no shelf picked yet
+    // `_activeLocation` walks the options looking for the first one holding stock, so reading it
+    // twice per row inside the loop below turns a list of locations into a quadratic one. Small
+    // today at five shelves and not a reason to write it the wrong way: the same list is what a
+    // warehouse tenant grows.
+    final String active = _activeLocation;
+
     final String? picked = await MSBottomSheet.show<String>(
       context,
       title: Lang.get('screens.stock_take.pick_location_title'),
@@ -643,8 +650,8 @@ class _StockTakeViewState extends State<StockTakeView> {
             for (final FilterOption option in _locationOptions)
               OptionRow(
                 label: option.fullPath,
-                isSelected: option.id == _activeLocation,
-                semanticLabel: option.id == _activeLocation
+                isSelected: option.id == active,
+                semanticLabel: option.id == active
                     ? Lang.get('screens.stock_take.current_location', {'path': option.fullPath})
                     : Lang.get('screens.stock_take.pick_location', {'path': option.fullPath}),
                 onTap: () => Navigator.of(sheetContext).pop(option.id),
