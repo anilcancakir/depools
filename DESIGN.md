@@ -235,6 +235,29 @@ Four candidate pairings were rendered side by side at the real type scale, and a
 - Where the hardware genuinely differs, the app uses what the platform offers instead of dropping the feature. A receipt photo is the camera on a phone, and the camera or a file picker on desktop; the screen, the parse, the review and the result are identical.
 - Never branch the widget tree per platform when a breakpoint prefix expresses the same thing. (The reflow rule above used to be repeated here in full, with a slightly different wording, which is how the truncation exception came to be missing from one copy and not the other.)
 
+### A screen operated with the keyboard open budgets for the keyboard
+
+**On a phone the keyboard is a third of the screen, and a screen whose work happens WHILE typing has to be laid out against what is left, not against the full height.** The count screen was drawn against 844 and measured like this at 390x844:
+
+| band | height |
+|---|---|
+| location chip wall | 235 |
+| search field | 48 |
+| settled bar | 81 |
+| count list, the actual work | **66** |
+
+The list began at y=621. So **any keyboard taller than 223px pushed every row off screen**, and every phone keyboard is far above that. Searching a shelf while looking at it was not slow, it was impossible, and nothing in a desktop browser can show this: Flutter web reports `viewInsets.bottom` as 0, so the layout looks fine in the only place the E2E driver can reach.
+
+Three rules come out of it, and the first two are Apple's rather than ours.
+
+**Search goes at the bottom when the screen is operated through it.** The HIG (search fields, June 2026) is explicit: "Place search at the bottom if there's room... it keeps the search experience easy to reach", and when tapped it "animates into a search field above the keyboard so they can begin typing". Settings, Mail and Notes ship it. Search stays at the top only when covering the bottom would interfere with the screen's primary function, which is the Wallet case.
+
+**It can share that bar with the screen's primary action.** The HIG names both arrangements, its own toolbar (Settings) or alongside other controls (Mail, Notes). Prefer the second where a screen has one primary action, so the bar carries exactly one live action at all times rather than trading one out-of-reach control for another.
+
+**Material 3's "docked search bar" is NOT this**, and reading it as support for bottom placement is a mistake worth naming once. M3 says a search bar is "typically placed at the top of a screen", and its docked-versus-full-screen split is about BREAKPOINT: a bounded results panel at medium and expanded widths against full-screen at compact. It says nothing about the bottom edge on a phone.
+
+**Anything a screen exists for gets counted against the keyboard band, not the viewport.** Chrome above the work is the budget: on the count screen, collapsing a 235px picker to a 43px row and moving the field into the pinned bar took the list's start from 621 to 255, which is the difference between one visible row while typing and none. A pinned bar is anchored to the larger of its navigation clearance and the keyboard inset, never to their sum, since the keyboard covers the navigation while it is up.
+
 ## What to avoid
 
 - Elevation shadows standing in for hierarchy.
