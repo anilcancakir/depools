@@ -130,6 +130,18 @@ class DemoVolumeSeeder extends Seeder
                 'product_category_id' => $i % 5 === 0 ? null : $categories[$i % $categories->count()]->getKey(),
                 'tracks_expiry' => $i % 4 !== 0,
                 'default_shelf_life_days' => $i % 4 !== 0 ? 7 + ($i % 60) : null,
+                // **An opened clock without a printed date is deliberate, not a contradiction.**
+                // `data-model.md` defines `tracks_expiry` as "when true, capture asks for an expiry
+                // date", so it is about what capture PROMPTS for, not about whether a product can ever
+                // have a deadline. A jar with nothing printed on it that has to be used within five
+                // days of opening is exactly this shape, and `StockLot::bindingDate()` returning the
+                // opened deadline when `expires_at` is null is that case working rather than leaking.
+                //
+                // It is also the only place the fixture reaches that branch: measured, 8 products here
+                // have it and 3 of them carry an opened lot whose binding date comes from the clock
+                // alone, against 0 of the curated eleven. A review flagged it as skewing the expiry
+                // filters; those products genuinely have a deadline, so the filter including them is
+                // correct.
                 'opened_shelf_life_days' => $hasContent ? 3 + ($i % 5) : null,
                 'content_amount' => $hasContent ? ($i % 2 === 0 ? 500 : 1000) : null,
                 'content_unit' => $hasContent ? ($i % 2 === 0 ? 'g' : 'ml') : null,
