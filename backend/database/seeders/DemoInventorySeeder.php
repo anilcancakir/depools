@@ -157,15 +157,27 @@ class DemoInventorySeeder extends Seeder
     private function definitions(): array
     {
         return [
+            // **The base unit is what you COUNT, and the content is what one of them holds.** Six
+            // products here declared the base unit as the content measure and then a content of the
+            // same unit: `base_unit: 'l'` with `content_amount: 1, content_unit: 'l'`, which says a
+            // litre contains a litre. Anılcan caught it on the count sheet, where the cheese read
+            // "2 g" for two 500 g packs and the left field of a split quantity has to be the
+            // countable one: "1 pack + 250 g", never "2 g + 250 g".
+            //
+            // It also made the app look wrong where it was not: the stock list said "3 ml" for three
+            // bottles, and `CountLine.hasFinerContent` correctly refused to split a quantity whose
+            // content unit was its own base unit, so the milk lost its opened-amount field.
             'milk' => [
                 'name' => 'Whole Milk 1 L',
                 'brand' => 'Meadow',
-                'base_unit' => 'l',
+                'base_unit' => 'piece',
                 'tracks_expiry' => true,
                 'default_shelf_life_days' => 7,
                 'opened_shelf_life_days' => 3,
-                'content_amount' => 1,
-                'content_unit' => 'l',
+                // Millilitres rather than `1 l`, so an opened carton has something finer to be
+                // measured in. That is the whole point of the second field (D26).
+                'content_amount' => 1000,
+                'content_unit' => 'ml',
                 'par_level' => 6,
                 'reorder_point' => 2,
             ],
@@ -175,7 +187,7 @@ class DemoInventorySeeder extends Seeder
             'cheese' => [
                 'name' => 'Pınar Süzme Peynir 500 g',
                 'brand' => 'Pınar',
-                'base_unit' => 'g',
+                'base_unit' => 'piece',
                 'tracks_expiry' => true,
                 'default_shelf_life_days' => 21,
                 'content_amount' => 500,
@@ -186,7 +198,7 @@ class DemoInventorySeeder extends Seeder
             // the row that shows whether it does or whether it overflows instead.
             'oliveOil' => [
                 'name' => 'Extra Virgin Olive Oil, Cold Pressed, 750 ml Bottle',
-                'base_unit' => 'ml',
+                'base_unit' => 'piece',
                 'tracks_expiry' => true,
                 'default_shelf_life_days' => 540,
                 'content_amount' => 750,
@@ -195,12 +207,12 @@ class DemoInventorySeeder extends Seeder
             ],
             'sugar' => [
                 'name' => 'Şeker (Toz) 1 kg',
-                'base_unit' => 'kg',
+                'base_unit' => 'piece',
                 // No expiry, so the trailing date column has to be RESERVED and empty on this row
                 // rather than absent, or every field beside it shifts.
                 'tracks_expiry' => false,
-                'content_amount' => 1,
-                'content_unit' => 'kg',
+                'content_amount' => 1000,
+                'content_unit' => 'g',
                 'par_level' => 2,
             ],
             'eggs' => [
@@ -221,7 +233,7 @@ class DemoInventorySeeder extends Seeder
             'coffee' => [
                 'name' => 'Ground Coffee 250 g',
                 'brand' => 'Kronotrop',
-                'base_unit' => 'g',
+                'base_unit' => 'piece',
                 'tracks_expiry' => true,
                 'default_shelf_life_days' => 180,
                 'opened_shelf_life_days' => 21,
@@ -244,11 +256,11 @@ class DemoInventorySeeder extends Seeder
             ],
             'sunflowerOil' => [
                 'name' => 'Sunflower Oil 1 L',
-                'base_unit' => 'l',
+                'base_unit' => 'piece',
                 'tracks_expiry' => true,
                 'default_shelf_life_days' => 365,
-                'content_amount' => 1,
-                'content_unit' => 'l',
+                'content_amount' => 1000,
+                'content_unit' => 'ml',
                 'par_level' => 4,
             ],
             // Serial-tracked, so it never gets a lot. See the note in `run()`.

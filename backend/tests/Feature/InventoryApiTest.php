@@ -362,6 +362,29 @@ final class InventoryApiTest extends TestCase
         $this->assertSame('0.000', $unrecorded->fresh()->quantityFromLedger());
     }
 
+    public function test_a_content_unit_cannot_be_the_base_unit(): void
+    {
+        $this->tenant('Birinci');
+
+        // A litre does not contain a litre. The base unit is what you COUNT and the content is what
+        // one of them holds, so declaring both as `l` leaves the split-quantity field with nothing
+        // finer to measure: half a base unit becomes half of the same unit rather than a count of
+        // smaller ones. Six demo products shipped in that shape and a 500 g pack read as "2 g".
+        $this->postJson('/api/v1/products', [
+            'name' => 'Süt',
+            'base_unit' => 'l',
+            'content_amount' => 1,
+            'content_unit' => 'l',
+        ])->assertStatus(422)->assertJsonValidationErrors('content_unit');
+
+        $this->postJson('/api/v1/products', [
+            'name' => 'Süt',
+            'base_unit' => 'piece',
+            'content_amount' => 1000,
+            'content_unit' => 'ml',
+        ])->assertCreated();
+    }
+
     public function test_a_count_resolves_its_products_in_one_query(): void
     {
         [, $location, $first] = $this->tenant('Birinci');

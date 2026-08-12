@@ -49,7 +49,14 @@ final class ProductController extends Controller
             'default_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
             'opened_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'content_amount' => ['nullable', 'numeric', 'min:0'],
-            'content_unit' => ['nullable', 'string', 'max:16'],
+            // **A content unit has to be FINER than the base unit, so it cannot be the same one.**
+            // The base unit is what you count and the content is what one of them holds: a carton is
+            // `piece` holding `1000 ml`. `base_unit: 'l'` with `content_unit: 'l'` says a litre
+            // contains a litre, and the demo seeder shipped six products in exactly that shape. It
+            // made the app look wrong where it was not: a 500 g pack read as "2 g" on the count sheet,
+            // and the split-quantity field cannot work at all, because half of a base unit is then
+            // half of the same unit rather than a count of smaller ones (D26).
+            'content_unit' => ['nullable', 'string', 'max:16', 'different:base_unit'],
             'par_level' => ['nullable', 'numeric', 'min:0'],
         ]);
 
