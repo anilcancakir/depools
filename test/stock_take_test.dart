@@ -1,3 +1,4 @@
+import 'package:depools/app/support/count_progress.dart';
 import 'package:depools/resources/views/products/count_fixtures.dart';
 import 'package:depools/resources/views/products/count_line.dart';
 import 'package:depools/resources/views/products/product_fixtures.dart';
@@ -318,6 +319,45 @@ void main() {
 
       expect(retyped.isCounted, isTrue);
       expect(retyped.variance, isNot(0), reason: 'a correction that matches nothing must be written');
+    });
+
+    test('skipped is what the shelf has left, not what the sheet is showing', () {
+      // **It printed a negative number.** `skipped` was `lines.length - counted`, and the sheet
+      // excludes settled rows while the count deliberately includes them. Four saved rows hidden on a
+      // shelf of twenty-five reported seventeen instead of twenty-one; a whole shelf settled
+      // reported `-25` at the user.
+      expect(rowsLeftToCount(shelfTotal: 25, counted: 4), 21);
+      expect(rowsLeftToCount(shelfTotal: 25, counted: 25), 0);
+
+      // The two inputs come from different places, so a disagreement has to read as nothing left.
+      expect(rowsLeftToCount(shelfTotal: 4, counted: 25), 0);
+    });
+
+    test('a search cannot declare a shelf finished', () {
+      // The shelf total is the count MATCHING THE QUERY, so searching two rows out of twenty-five and
+      // saving both made settled >= total true. The footer then announced the shelf finished over
+      // twenty-three untouched rows, which is the class of lie this screen exists to avoid.
+      expect(
+        shelfIsFinished(searching: true, settled: 2, shelfTotal: 2, pendingCounts: 0),
+        isFalse,
+        reason: 'a slice of a shelf cannot say the shelf is done',
+      );
+
+      expect(
+        shelfIsFinished(searching: false, settled: 2, shelfTotal: 25, pendingCounts: 0),
+        isFalse,
+      );
+
+      // Something typed and not yet committed is not finished either, however many rows are settled.
+      expect(
+        shelfIsFinished(searching: false, settled: 25, shelfTotal: 25, pendingCounts: 1),
+        isFalse,
+      );
+
+      expect(
+        shelfIsFinished(searching: false, settled: 25, shelfTotal: 25, pendingCounts: 0),
+        isTrue,
+      );
     });
 
     test('only variances write movements', () {

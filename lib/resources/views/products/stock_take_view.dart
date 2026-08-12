@@ -8,6 +8,7 @@ import 'package:magic_starter/magic_starter.dart'
 
 import '../../../app/controllers/product_controller.dart';
 import '../../../app/controllers/stock_take_controller.dart';
+import '../../../app/support/count_progress.dart';
 import '../../../app/support/plural.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 
@@ -847,7 +848,10 @@ class _StockTakeViewState extends State<StockTakeView> {
     int counted,
     List<CountLine> variances,
   ) {
-    final int skipped = lines.length - counted;
+    // Both figures are arithmetic this screen reports about itself, and both shipped wrong in ways
+    // nothing could see, so they live in `count_progress.dart` where a test can call the same code
+    // rather than re-implement it.
+    final int skipped = rowsLeftToCount(shelfTotal: _shelfTotal(lines), counted: counted);
     final List<CountLine> countedLines = lines
         .where((l) => l.isCounted && !_isSettled(l))
         .toList();
@@ -857,8 +861,14 @@ class _StockTakeViewState extends State<StockTakeView> {
     // shelf being settled is the only thing that means finished, and the exit is offered here rather
     // than taken automatically: leaving is the user's call.
     final int total = _shelfTotal(lines);
-    final bool finished =
-        _controller != null && total > 0 && _settled.length >= total && countedLines.isEmpty;
+
+    final bool finished = _controller != null &&
+        shelfIsFinished(
+          searching: _controller!.query.isNotEmpty,
+          settled: _settled.length,
+          shelfTotal: total,
+          pendingCounts: countedLines.length,
+        );
 
     if (finished) {
       return WDiv(
