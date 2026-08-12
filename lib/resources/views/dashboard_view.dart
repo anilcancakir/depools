@@ -175,7 +175,7 @@ class DashboardView extends StatelessWidget {
               description: Lang.get('screens.dashboard.step_products_note'),
               // **The label names where it goes.** It read "Ürün ekle" and opened the barcode
               // scanner, which promises a product form and delivers a camera; now that
-              // `/urunler/yeni` exists that promise has somewhere real to point, which made the
+              // `/products/new` exists that promise has somewhere real to point, which made the
               // mismatch worse rather than better.
               //
               // The destination stays the scanner because `inventory-core.md` is explicit that a

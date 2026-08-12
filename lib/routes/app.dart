@@ -109,8 +109,8 @@ void registerAppRoutes() {
       // Stock itself.
       MagicRoute.page('/products', () => const ProductIndexView()).name('products');
       // **Before `:id`, and the order is load-bearing.** A path parameter matches any segment, so
-      // registering the literal second would send `/urunler/yeni` to the detail screen looking for
-      // a product whose id is the word "yeni".
+      // registering the literal second would send `/products/new` to the detail screen looking for
+      // a product whose id is the word "new".
       MagicRoute.page('/products/new', () => const ProductFormView()).name('product-create');
       MagicRoute.page(
         '/products/:id',
@@ -119,7 +119,7 @@ void registerAppRoutes() {
         (String id) => ProductShowView(id: id),
       ).name('product');
       MagicRoute.page('/locations', () => const LocationIndexView()).name('locations');
-      // Literal before the parameter, for the reason `/urunler/yeni` states.
+      // Literal before the parameter, for the reason `/products/new` states.
       MagicRoute.page('/locations/new', () => const LocationFormView()).name('location-create');
       MagicRoute.page('/locations/:id', () => LocationShowView()).name('location');
       MagicRoute.page('/stock-take', () => const StockTakeView()).name('stock-take');

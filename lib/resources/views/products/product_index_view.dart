@@ -787,7 +787,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       expiryLabel: item.expiryLabel,
       daysUntilExpiry: item.daysUntilExpiry,
       parLevel: item.parLevel,
-      // **The product detail screen was registered and unreachable.** `/urunler/:id` existed as a
+      // **The product detail screen was registered and unreachable.** `/products/:id` existed as a
       // route and nothing in the app navigated to it: tapping a product in the stock list did
       // nothing at all. That is D61's defect in its quietest form, because the screen is not
       // missing and the route is not missing, only the one line that joins them.

@@ -777,10 +777,19 @@ and Settings. A screen nobody can navigate to is not shipped however green its p
 gap was invisible because every review happened inside the catalog, which reaches a screen by class
 rather than by URL.
 
-`lib/routes/app.dart` now registers ten routes under the authenticated shell, with Turkish plural
-paths (`/dates`, `/running-low`, `/products`) because a URL is user-facing on web and `/products`
-reads as a scaffold's while `/products` reads as this product's. The sidebar carries nine entries and
-the bottom bar five.
+`lib/routes/app.dart` now registers ten routes under the authenticated shell. The sidebar carries
+nine entries and the bottom bar five.
+
+**Superseded on the path LANGUAGE, and the original argument is kept because it is instructive.** It
+read: "with Turkish plural paths (`/tarihler`, `/azalanlar`, `/urunler`) because a URL is user-facing
+on web and `/products` reads as a scaffold's while `/urunler` reads as this product's."
+
+The premise held and the conclusion did not follow. A URL is user-facing, which is why it cannot be
+in a language the reader does not have: this file's own opening says the primary market is outside
+Turkey and the default locale is English, so `/urunler` reads as this product's own only to a Turkish
+speaker and as a typo to everyone else. The paths are English now, matching the route NAMES they were
+always registered under, and `test/routes/route_paths_test.dart` keeps them that way. The web URL
+strategy moved to `path` in the same change, so those paths are what a user actually sees.
 
 The views still render fixtures rather than controller state, and routing them BEFORE wiring
 controllers is deliberate: it puts every screen inside the shell it will actually live in, which is
