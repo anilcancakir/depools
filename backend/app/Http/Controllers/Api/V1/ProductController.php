@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
+use App\Models\Barcode;
 use App\Models\Product;
+use App\Models\ProductBarcode;
+use App\Models\Scopes\TeamScope;
 use App\Services\ProductListQuery;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -127,6 +130,71 @@ final class ProductController extends Controller
         ]);
 
         return new ProductResource(Product::create($data));
+    }
+
+    /**
+     * The tenant's product carrying a scanned barcode, or a 404.
+     *
+     * ### Why this is not the search endpoint with a different argument
+     *
+     * A barcode is an identity, not a search term, and the count screen needs three answers apart:
+     * the product is here, the product is the tenant's but not on this shelf, and the tenant has no
+     * such product. The list endpoint scopes by location, so the second and third both come back as an
+     * empty page and the screen cannot tell a misplaced product from an unknown one. This answers about
+     * the product alone and lets the client compare against the shelf it is counting.
+     *
+     * ### The 404 is about the LINK, not the barcode
+     *
+     * Barcode rows are global on purpose: one tenant's scan is what makes the next tenant's lookup
+     * possible. So the row for a carton of milk is one an attacker can obtain by walking into a shop,
+     * and finding it must say nothing about anybody's inventory. The answer comes from
+     * `product_barcode`, which is a tenant table under the same scope as everything else, and a miss is
+     * a 404 rather than a 403 because 403 would confirm the link exists.
+     */
+    public function byBarcode(Request $request): ProductResource
+    {
+        $data = $request->validate([
+            // 128 because `barcodes.code` is `string(128)`, so anything longer could never have been
+            // stored and therefore can never resolve. Accepting it would answer a 404 that means
+            // "no such product" when the truth is "this API cannot hold that value", and those are
+            // two different things for a client deciding whether to offer the user a draft product.
+            'code' => ['required', 'string', 'max:128'],
+            // Part of the identity for a non-GTIN label rather than a hint: the same characters as
+            // Code128 and as a QR are two different labels. Absent for a GTIN, which needs no help.
+            'symbology' => ['nullable', 'string', 'max:16'],
+        ]);
+
+        $barcode = Barcode::findForScan($data['code'], $data['symbology'] ?? null);
+
+        // Two different misses, one answer. Nothing anywhere carries this code, or something does and
+        // it is not this tenant's; telling those apart would leak the second one.
+        abort_if($barcode === null, 404);
+
+        // **Straight at the pivot, which is what the pivot was built for.** Its own migration says so:
+        // "a scan asks which of MY products is this barcode, and that has to be one index lookup rather
+        // than a join into products to find out whether the answer was even ours". A `whereHas` here
+        // asks it the other way round, as an EXISTS correlated on `products.id`, so the planner starts
+        // from the tenant's catalogue and probes the pivot per row. `unique(team_id, barcode_id)` is
+        // exactly this pair and cannot be used at all without the team, because it leads on it.
+        //
+        // The team comes from the auth context, never from the request, which is the same source
+        // `TeamScope` reads. And the scope is still the guarantee rather than this filter: the product
+        // is fetched through a scoped query below, so a pivot row belonging to somebody else could not
+        // produce a product even if this narrowing were wrong.
+        $productId = ProductBarcode::query()
+            ->where('team_id', TeamScope::currentTeamId())
+            ->where('barcode_id', $barcode->getKey())
+            ->value('product_id');
+
+        abort_if($productId === null, 404);
+
+        $product = Product::query()
+            ->with(['stock', 'tags'])
+            ->find($productId);
+
+        abort_if($product === null, 404);
+
+        return new ProductResource($product);
     }
 
     public function show(string $id): ProductResource
