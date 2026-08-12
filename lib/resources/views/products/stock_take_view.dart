@@ -8,6 +8,7 @@ import 'package:magic_starter/magic_starter.dart'
 
 import '../../../app/controllers/product_controller.dart';
 import '../../../app/controllers/stock_take_controller.dart';
+import '../../../app/support/plural.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 
 import '../../../ui/components/choice_chip/choice_chip.dart';
@@ -521,27 +522,72 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// a user who wants to check the figure they entered gets it back in one tap, and the count they
   /// see is the one they typed rather than a blank row.
   Widget _buildSettledBar() {
+    final int matched = _settled.values
+        .where((r) => r.outcome != CountOutcome.written)
+        .length;
+    final int written = _settled.values
+        .where((r) => r.outcome == CountOutcome.written)
+        .length;
+
     return WDiv(
-      // Card tone plus a hairline, like every other pressable surface here. Not a fill: elevation
-      // direction inverts between appearances, so no fill can mean "tappable" in both.
+      // `rounded-lg` and `px-4 py-3`, which are `Callout`'s own base and `SectionCard`'s rhythm.
+      // It was `rounded-md px-3 py-2` and that disagreed with every card it sits between: DESIGN.md
+      // asks for concentric corners, and a 12px radius beside a 16px one reads as a different kind
+      // of thing rather than as a sibling.
+      //
+      // Card tone plus a hairline rather than a fill, because elevation direction inverts between
+      // appearances and no fill can mean "pressable" in both.
+      //
+      // Not a `Callout`, and that was checked rather than assumed: it covers title + message +
+      // action, but it stacks the action UNDER the message, which turns a two-line state into a
+      // four-line box. Its geometry is borrowed so the two still read as the same material.
       className:
-          'flex flex-row items-center justify-between gap-3 min-h-11 px-3 py-2 rounded-md '
+          'flex flex-row items-center justify-between gap-3 px-4 py-3 rounded-lg '
           'bg-surface-container border border-color-border',
       children: [
-        WText(
-          Lang.get('screens.stock_take.settled', {'count': _settled.length}),
-          className: 'text-sm text-fg-muted flex-1 min-w-0',
+        WDiv(
+          className: 'flex flex-col gap-0.5 flex-1 min-w-0',
+          children: [
+            // Nominal, not imperative: this states what happened rather than asking for anything,
+            // which is what `flutter-app.md` says a state reads like.
+            WText(
+              plural('screens.stock_take.settled', _settled.length, {'count': _settled.length}),
+              className: 'text-sm text-fg',
+            ),
+            // **The detail line is the same honest pair the toast states**, and it is why the box
+            // earns its height: `2 rows saved` alone left a wide strip with nothing in the middle.
+            // A matching count writes nothing by design (D59), so the two numbers differ routinely
+            // and stating only one of them is what made a whole shelf of confirmations read as `0`.
+            // **One key holding both clauses, not two joined in Dart.** The first draft concatenated
+            // two translated strings with a ` · ` in between, which breaks `flutter-app.md`'s rule
+            // that interpolation goes through `:placeholder` and never through concatenation: the
+            // separator would have been punctuation no translator could move, and the clause order
+            // would have been fixed in code. The pair is keyed on the WRITTEN count, which is the
+            // only clause that inflects, because `matched` is a participle and agrees with nothing.
+            WText(
+              plural('screens.stock_take.settled_detail', written, {
+                'matched': matched,
+                'written': written,
+              }),
+              className: 'text-xs text-fg-muted',
+            ),
+          ],
         ),
         MSButton(
           onPressed: () => setState(() => _showSettled = !_showSettled),
           intent: ButtonIntent.ghost,
           size: ButtonSize.sm,
+          // `py-3.5` reaches the 44pt target on an `sm` button, where `py-3` lands at 40 and
+          // `min-h-11` would grow the box without re-centring the label.
           className: 'py-3.5 axis-min shrink-0',
           child: WText(
             Lang.get(
               _showSettled ? 'screens.stock_take.settled_hide' : 'screens.stock_take.settled_show',
             ),
-            className: 'text-sm font-medium text-fg',
+            // Muted like `FilterBar`'s own text actions, deliberately. That component records why:
+            // a bright one beside a muted one reads as an accident rather than a hierarchy, and
+            // these are the same kind of thing, a text action on the end of a row.
+            className: 'text-sm font-medium text-fg-muted',
           ),
         ),
       ],
@@ -566,7 +612,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   Widget _buildLines(List<CountLine> lines) {
     return SectionCard(
       label: Lang.get('screens.stock_take.list_group'),
-      count: Lang.get('screens.stock_take.product_count', {'count': _shelfTotal(lines)}),
+      count: plural('screens.stock_take.product_count', _shelfTotal(lines), {'count': _shelfTotal(lines)}),
       children: [
         for (final CountLine line in lines)
           CountRow(
@@ -791,7 +837,7 @@ class _StockTakeViewState extends State<StockTakeView> {
         // about: the rows they skipped stay exactly as they were.
         WText(
           skipped == 0
-              ? Lang.get('screens.stock_take.summary', {
+              ? plural('screens.stock_take.summary', variances.length, {
                   'counted': counted,
                   'variances': variances.length,
                 })
@@ -803,7 +849,7 @@ class _StockTakeViewState extends State<StockTakeView> {
         ),
         if (variances.isNotEmpty)
           WText(
-            Lang.get('screens.stock_take.will_write', {'count': variances.length}),
+            plural('screens.stock_take.will_write', variances.length, {'count': variances.length}),
             className: 'text-xs text-fg-muted',
           ),
         if (_unfinished.isNotEmpty)
@@ -833,14 +879,13 @@ class _StockTakeViewState extends State<StockTakeView> {
               ? () => _commit(countedLines)
               : () => MagicStarterConfirmDialog.show(
                   context,
-                  title: Lang.get('screens.stock_take.commit_title', {'count': variances.length}),
+                  title: plural('screens.stock_take.commit_title', variances.length, {'count': variances.length}),
                   description: skipped == 0
-                      ? Lang.get('screens.stock_take.commit_description', {
+                      ? plural('screens.stock_take.commit_description', variances.length, {
                           'count': variances.length,
                         })
-                      : Lang.get('screens.stock_take.commit_description_skipped', {
+                      : plural('screens.stock_take.commit_description_skipped', variances.length, {
                           'count': variances.length,
-                          'skipped': skipped,
                         }),
                   confirmLabel: Lang.get('screens.stock_take.commit_confirm'),
                   onConfirm: () => _commit(countedLines),
@@ -854,7 +899,7 @@ class _StockTakeViewState extends State<StockTakeView> {
               WText(
                 variances.isEmpty
                     ? Lang.get('screens.stock_take.finish')
-                    : Lang.get('screens.stock_take.save_variances', {'count': variances.length}),
+                    : plural('screens.stock_take.save_variances', variances.length, {'count': variances.length}),
               ),
             ],
           ),
@@ -921,7 +966,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       // loud beside it.
       MagicFeedback.success(
         Lang.get('screens.stock_take.title'),
-        Lang.get('screens.stock_take.committed_counted', {
+        plural('screens.stock_take.committed_counted', commit.lines.length, {
           'counted': commit.lines.length,
           'written': commit.writtenCount,
         }),

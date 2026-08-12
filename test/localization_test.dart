@@ -82,4 +82,72 @@ void main() {
     expect(en['app.name'], 'Depools');
     expect(tr['app.name'], 'Depools');
   });
+
+  group('plural forms', () {
+    // `magic`'s `Lang` has no `choice`, so `lib/app/support/plural.dart` reads Laravel's own
+    // `singular|plural` pipe out of the VALUE. Two ways that goes wrong are silent, and both render
+    // text at the user rather than throwing.
+    final RegExp placeholder = RegExp(r':[a-z_]+');
+
+    test('a pipe splits into exactly two halves', () {
+      // Three halves means one is unreachable, and a trailing pipe means one count renders nothing
+      // at all. Neither is visible until somebody hits that count.
+      for (final MapEntry<String, Map<String, String>> catalogue
+          in <String, Map<String, String>>{'en': en, 'tr': tr}.entries) {
+        for (final MapEntry<String, String> entry in catalogue.value.entries) {
+          if (!entry.value.contains('|')) continue;
+
+          final List<String> halves = entry.value.split('|');
+
+          expect(
+            halves.length,
+            2,
+            reason: '${catalogue.key}: ${entry.key} has ${halves.length} halves',
+          );
+
+          for (final String half in halves) {
+            expect(
+              half.trim(),
+              isNotEmpty,
+              reason: '${catalogue.key}: ${entry.key} has an empty half, so one count renders nothing',
+            );
+          }
+        }
+      }
+    });
+
+    test('both halves interpolate the same names', () {
+      // The halves are interchangeable at runtime, so a placeholder in one and not the other prints
+      // a literal `:count` for exactly one count and reads correctly for every other.
+      for (final MapEntry<String, Map<String, String>> catalogue
+          in <String, Map<String, String>>{'en': en, 'tr': tr}.entries) {
+        for (final MapEntry<String, String> entry in catalogue.value.entries) {
+          if (!entry.value.contains('|')) continue;
+
+          final List<String> halves = entry.value.split('|');
+
+          expect(
+            placeholder.allMatches(halves.last).map((m) => m.group(0)!).toSet(),
+            placeholder.allMatches(halves.first).map((m) => m.group(0)!).toSet(),
+            reason: '${catalogue.key}: ${entry.key} halves do not interpolate the same names',
+          );
+        }
+      }
+    });
+
+    test('a locale that inflects carries a pipe wherever the other one does', () {
+      // Turkish does not inflect after a numeral, so a `tr` value with no pipe is correct rather
+      // than incomplete. English is the other way round: a pipe in `tr` and none in `en` means the
+      // English string agrees with nothing, which is the defect this whole helper exists for.
+      for (final String key in tr.keys) {
+        if (!tr[key]!.contains('|')) continue;
+
+        expect(
+          en[key]!.contains('|'),
+          isTrue,
+          reason: '$key inflects in Turkish and not in English, which is backwards',
+        );
+      }
+    });
+  });
 }
