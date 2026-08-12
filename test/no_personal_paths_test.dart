@@ -8,21 +8,40 @@ import 'package:flutter_test/flutter_test.dart';
 /// author's filesystem layout, and it makes a documented command fail for everyone who copies it,
 /// silently: a `cp` from a path that does not exist reports an error nobody reads, and a `grep`
 /// against one matches nothing and reads as a clean result. The second failure is the one that has
-/// actually happened here, in `component-visual-reviewer.md`, where a path one segment short of the
-/// project made every visual review pass its own check without running it.
+/// actually happened here, in `.claude/agents/component-visual-reviewer.md`, where a path one segment
+/// short of the project made every visual review pass its own check without running it.
 ///
 /// The paths that legitimately hold one are all gitignored (`pubspec_overrides.yaml` needs ABSOLUTE
 /// sibling paths, and `ios/Flutter/flutter_export_environment.sh`, `build/` and `.dart_tool/` are
 /// generated), so tracking is exactly the right filter. `git ls-files` gives that, rather than a
 /// hand-maintained skip list that would drift.
+/// A home directory on each platform an agent might work from.
+///
+/// **`/home/runner` is excluded, and the exclusion is in the pattern rather than in a comment.** A
+/// pasted CI log is legitimate content for a doc here, and every path in one begins
+/// `/home/runner/work/depools/depools/`. A comment claiming the exclusion while the pattern matched
+/// it anyway is what the review round caught, so the behaviour is pinned by the test below.
+final RegExp _homeDirectory = RegExp(
+  r'(/Users/[a-z][a-z0-9._-]*|/home/(?!runner(/|\b))[a-z][a-z0-9._-]*|C:\\Users\\)',
+);
+
 void main() {
+  test('the pattern spares CI and catches a developer', () {
+    // Pinned rather than described, because the description was wrong once already.
+    expect(_homeDirectory.hasMatch('/home/runner/work/depools/depools/.dart_tool'), isFalse);
+    expect(_homeDirectory.hasMatch('cd /home/runner'), isFalse);
+    expect(_homeDirectory.hasMatch('/home/anilcan/Code'), isTrue);
+    expect(_homeDirectory.hasMatch('/home/runnerx/Code'), isTrue);
+    expect(_homeDirectory.hasMatch('/Users/somebody/Code'), isTrue);
+    expect(_homeDirectory.hasMatch(r'C:\Users\somebody'), isTrue);
+    expect(_homeDirectory.hasMatch('/usr/local/bin'), isFalse);
+  });
+
   test('no tracked file carries a home directory path', () {
     final ProcessResult listed = Process.runSync('git', <String>['ls-files', '-z']);
     expect(listed.exitCode, 0, reason: 'git ls-files failed: ${listed.stderr}');
 
-    // A home directory on each platform an agent might work from. `/home/runner` is deliberately
-    // absent: CI's own checkout path is what the workflow files legitimately talk about.
-    final RegExp home = RegExp(r'(/Users/[a-z][a-z0-9._-]*|/home/[a-z][a-z0-9._-]*|C:\\Users\\)');
+    final RegExp home = _homeDirectory;
 
     final List<String> offenders = <String>[];
     for (final String path in (listed.stdout as String).split('\u0000')) {
