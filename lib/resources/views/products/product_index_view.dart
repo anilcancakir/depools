@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
@@ -132,6 +133,12 @@ class _ProductIndexViewState extends State<ProductIndexView> {
   /// a product name. 350ms is the pause that reads as "finished typing a word" without the user
   /// noticing they waited.
   static const Duration _searchDelay = Duration(milliseconds: 350);
+
+  /// How many pages a shared link may ask a cold client to fetch.
+  ///
+  /// The URL is editable by whoever holds it, and each page is a request, so this is a ceiling on
+  /// what a stranger's link can cost rather than a limit anybody legitimately reaches.
+  static const int _maxSharedPages = 50;
 
   /// How close to the bottom, in logical pixels, the next page is asked for.
   ///
@@ -280,9 +287,14 @@ class _ProductIndexViewState extends State<ProductIndexView> {
 
       await controller.apply(fromUrl);
 
-      // Clamped, because `pages` arrives from a URL a stranger can edit. Fifty pages is the shelf
-      // sweep's own ceiling and far past anything a shared link should ask a cold client to fetch.
-      if (pages > 1) await controller.loadPages(pages.clamp(1, 50));
+      // Capped, because `pages` arrives from a URL a stranger can edit, and fifty is far past
+      // anything a shared link should ask a cold client to fetch.
+      //
+      // `math.min` rather than `clamp`, for the same legibility reason recorded on the other side of
+      // this file: `clamp` type-checks here only because the analyzer special-cases `num.clamp` to
+      // return `int` when the receiver and both bounds are `int`, and a reviewer read it as a type
+      // error. The lower bound was redundant anyway, since this line is already inside `pages > 1`.
+      if (pages > 1) await controller.loadPages(math.min(pages, _maxSharedPages));
     });
   }
 
