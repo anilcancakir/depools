@@ -401,7 +401,9 @@
       "filtered_hint": ":total konumun hepsi stok tutuyor. Boş bir yer için önce konum eklenir.",
       "empty_title": "Henüz konum yok",
       "empty_description": "Stok bir konuma girer, o yüzden en az bir konum gerekir. Mutfak ve Kiler gibi ana konumlarla başlanır, rafları sonra eklenir.",
-      "empty_template": "Hazır şablonla başla"
+      "empty_template": "Hazır şablonla başla",
+      "node_count": ":count konum",
+      "all_of_them": ":count konumun hepsi"
     },
     "dashboard": {
       "title": "Genel bakış",
@@ -654,6 +656,7 @@
       "scan": "Barkod tara",
       "search": "Ara: ürün, konum, barkod",
       "subtitle": ":team · :count ürün",
+      "subtitle_filtered": ":team · :total üründen :count tanesi",
       "title": "Stok"
     },
     "scan": {
@@ -1074,6 +1077,7 @@
     "count_row": {
       "opened": "açık",
       "confirm_recorded": "kayıtla aynı",
+      "confirm_recorded_figure": "kayıtla aynı: :figure",
       "confirm_recorded_for": ":name için kayıttaki miktarı gir"
     }
   }

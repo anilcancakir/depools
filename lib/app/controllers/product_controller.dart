@@ -68,6 +68,8 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
 
   bool _loadingMore = false;
 
+  int _loadedPages = 0;
+
   bool _refreshing = false;
 
   /// Which request the newest one is, so an older answer cannot overwrite it.
@@ -116,9 +118,22 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
   /// How many products the tenant holds with nothing narrowing the list.
   ///
   /// Held separately because it answers a question the current page cannot: "none of your 101
-  /// products match" needs the catalogue size while a filter is applied. Set on every unfiltered
-  /// load, and the first load is always unfiltered, so it is known before any filter can be applied.
+  /// products match" needs the catalogue size while a filter is applied.
+  ///
+  /// **It used to say "the first load is always unfiltered, so it is known before any filter can be
+  /// applied", and URL state made that false.** A shared link mounts the screen with a filter
+  /// already on, so the first load is filtered and this was never written: the subtitle read
+  /// `11 of 0 products` and the no-matches panel would have claimed the tenant owned nothing. So
+  /// [load] fetches it on its own when a filtered load finds it unknown.
   int get catalogueTotal => _catalogueTotal;
+
+  /// How many pages are currently loaded.
+  ///
+  /// The screen writes this into its own URL so a shared link reproduces the same ROWS rather than a
+  /// cursor. A cursor names a position in one ordered result: shared, it drops the reader into the
+  /// middle of a list with nothing above it, and points nowhere once that row is renamed or consumed.
+  /// A count re-fetches pages one to N, which is the same rows with the top intact.
+  int get loadedPages => _loadedPages;
 
   /// Whether another page exists.
   bool get hasMore => _cursor != null;
@@ -198,8 +213,15 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
 
     _cursor = _cursorOf(response);
     _total = _totalOf(response) ?? rows.length;
+    _loadedPages = 1;
 
-    if (_filter.isEmpty) _catalogueTotal = _total;
+    if (_filter.isEmpty) {
+      _catalogueTotal = _total;
+    } else if (_catalogueTotal == 0) {
+      // One extra count, once, and only on the path that cannot get it for free: a screen mounted
+      // straight from a filtered link. An ordinary visit loads unfiltered first and never comes here.
+      _catalogueTotal = await countFor(const ProductFilter()) ?? 0;
+    }
 
     // `setEmpty` rather than a success with no rows, because the view shows a different screen
     // for "this tenant has no products yet" than for "the filter matched none of them", and it
@@ -252,8 +274,22 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
     }
 
     _cursor = _cursorOf(response);
+    _loadedPages++;
 
     setSuccess(<ProductListItem>[...items, ..._map(response['data'])]);
+  }
+
+  /// Loads the first page and then [count] minus one more, for a link that was shared mid-list.
+  ///
+  /// Sequential rather than parallel, because each page needs the cursor the previous one answered
+  /// with. Stops early when the list runs out, so a link written against a longer list still lands
+  /// on a complete one rather than hanging on a page that no longer exists.
+  Future<void> loadPages(int count) async {
+    await load();
+
+    for (int i = 1; i < count && hasMore; i++) {
+      await loadMore();
+    }
   }
 
   /// How many rows a draft filter would match, without applying it.

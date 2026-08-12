@@ -124,6 +124,26 @@ void main() {
       expect(controller.total, 3);
     });
 
+    test('a filtered first load still learns the catalogue size', () async {
+      // **A shared link mounts this screen with a filter already on**, so the first load is filtered
+      // and the unfiltered total is never free. It used to be written only on an empty filter, so
+      // the subtitle read "11 of 0 products" and the no-matches panel would have told a tenant with
+      // a hundred products that they owned none.
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+        if (request.url.contains('stock_state=')) return page(<String>['a'], total: 11);
+
+        return page(<String>['a'], total: 101);
+      });
+
+      final ProductController controller = ProductController();
+
+      await controller.apply(const ProductFilter(stockState: StockStateFilter.outOfStock));
+
+      expect(controller.total, 11);
+      expect(controller.catalogueTotal, 101, reason: 'the unfiltered count has to be fetched here');
+    });
+
     test('the filter travels as query parameters rather than being applied here', () async {
       final List<String> asked = <String>[];
 

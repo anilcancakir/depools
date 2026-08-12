@@ -401,7 +401,9 @@
       "filtered_hint": "All :total locations hold stock. An empty place needs a location first.",
       "empty_title": "No locations yet",
       "empty_description": "Stock goes into a location, so you need at least one. Start with top-level places like Kitchen and Pantry, and add shelves later.",
-      "empty_template": "Start from a template"
+      "empty_template": "Start from a template",
+      "node_count": ":count locations",
+      "all_of_them": "all :count of them"
     },
     "dashboard": {
       "title": "Overview",
@@ -654,6 +656,7 @@
       "scan": "Scan a barcode",
       "search": "Search: product, location, barcode",
       "subtitle": ":team · :count products",
+      "subtitle_filtered": ":team · :count of :total products",
       "title": "Stock"
     },
     "scan": {
@@ -1074,6 +1077,7 @@
     "count_row": {
       "opened": "opened",
       "confirm_recorded": "same as record",
+      "confirm_recorded_figure": "same as :figure",
       "confirm_recorded_for": "Count :name as the record says"
     }
   }

@@ -273,7 +273,7 @@ class LocationIndexView extends StatelessWidget {
 
     return SectionCard(
       label: _isWholeTree ? Lang.get('screens.locations.layout_group') : Lang.get('screens.locations.matches_group'),
-      count: '${nodes.length} konum',
+      count: Lang.get('screens.locations.node_count', {'count': nodes.length}),
       children: [
         for (final LocationNode node in nodes)
           LocationRow(
@@ -302,7 +302,10 @@ class LocationIndexView extends StatelessWidget {
         // Ten locations do not need paging, and pretending otherwise would be a footer
         // that never fires. It states the total instead, which is the number worth having
         // at the bottom of a list.
-        ListFooter(state: ListFooterState.end, totalLabel: '${nodes.length} konumun hepsi'),
+        ListFooter(
+          state: ListFooterState.end,
+          totalLabel: Lang.get('screens.locations.all_of_them', {'count': nodes.length}),
+        ),
       ],
     );
   }

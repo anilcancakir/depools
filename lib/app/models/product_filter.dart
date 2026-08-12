@@ -371,6 +371,46 @@ class ProductFilter {
     return pairs.join('&');
   }
 
+  /// Rebuilds a filter from a URL's query parameters.
+  ///
+  /// **The URL carries the same shape as the API request, deliberately.** [toQueryString] writes
+  /// `location_ids[]=a&location_ids[]=b`, and this reads exactly that back, so a filter has ONE wire
+  /// encoding rather than one for the server and a prettier one for the address bar. A second
+  /// spelling would be a second parser, and the two would drift on the first axis somebody added.
+  ///
+  /// Takes `queryParametersAll` and not `queryParameters`: the collapsed map keeps only the LAST
+  /// value for a repeated key, so three selected shelves would come back as one and the list would
+  /// silently be wider than the URL said.
+  ///
+  /// An unknown value falls back to `any`, like [fromMap], because a shared link outlives the
+  /// release that wrote it and a renamed option should widen the filter rather than break the screen.
+  factory ProductFilter.fromQueryParameters(Map<String, List<String>> params) {
+    Set<String> setOf(String key) =>
+        (params['$key[]'] ?? params[key] ?? const <String>[]).where((v) => v.isNotEmpty).toSet();
+
+    String? first(String key) {
+      final List<String>? values = params[key];
+
+      return values == null || values.isEmpty ? null : values.first;
+    }
+
+    return ProductFilter(
+      query: first('query') ?? '',
+      locationIds: setOf('location_ids'),
+      categoryIds: setOf('category_ids'),
+      tags: setOf('tags'),
+      brands: setOf('brands'),
+      stockState: StockStateFilter.values.firstWhere(
+        (s) => _stockStateWire[s] == first('stock_state'),
+        orElse: () => StockStateFilter.any,
+      ),
+      expiry: ExpiryFilter.values.firstWhere(
+        (e) => _expiryWire[e] == first('expiry'),
+        orElse: () => ExpiryFilter.any,
+      ),
+    );
+  }
+
   /// Rebuilds a filter from [toMap]'s output.
   ///
   /// An unrecognised enum value falls back to `any` rather than throwing: a saved

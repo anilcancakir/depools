@@ -678,6 +678,19 @@ systems do, and it is wrong here because our user is often the same person who p
 there; making them walk back to the fridge to resolve a variance they could have seen
 immediately is friction that ends with counts not being done.
 
+**Amended: the one-tap "same as record" control states the figure it would write.** This looks like
+a hole in the blind count and is the opposite. The control commits the recorded quantity without the
+user typing it, so with the figure hidden it asked for agreement with a number that was not on
+screen: consent without disclosure, which is the pre-ticked-box shape this decision objects to in
+the first place. A user who cannot see what they are accepting is not counting, and is not
+confirming either.
+
+The blindness this decision is about belongs to the FIELD, and that is unchanged: nothing states the
+expected quantity beside an empty input, so a user who counts by looking at the shelf is still not
+anchored. What changed is that the button which SKIPS counting now says what skipping means. Reading
+`same as 1 piece + 200 g` and choosing it is a deliberate act; reading `same as record` and choosing
+it was a guess.
+
 **An empty field means NOT COUNTED, never zero**, and the placeholder is a dash to say so. An
 uncounted row is left completely alone at commit; a zero writes the whole balance off. A sheet
 whose empty field meant zero would zero out every product the user did not reach, which is the
