@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Models\Barcode;
 use App\Models\Product;
+use App\Models\ProductBarcode;
+use App\Models\Scopes\TeamScope;
 use App\Services\ProductListQuery;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -168,10 +170,27 @@ final class ProductController extends Controller
         // it is not this tenant's; telling those apart would leak the second one.
         abort_if($barcode === null, 404);
 
+        // **Straight at the pivot, which is what the pivot was built for.** Its own migration says so:
+        // "a scan asks which of MY products is this barcode, and that has to be one index lookup rather
+        // than a join into products to find out whether the answer was even ours". A `whereHas` here
+        // asks it the other way round, as an EXISTS correlated on `products.id`, so the planner starts
+        // from the tenant's catalogue and probes the pivot per row. `unique(team_id, barcode_id)` is
+        // exactly this pair and cannot be used at all without the team, because it leads on it.
+        //
+        // The team comes from the auth context, never from the request, which is the same source
+        // `TeamScope` reads. And the scope is still the guarantee rather than this filter: the product
+        // is fetched through a scoped query below, so a pivot row belonging to somebody else could not
+        // produce a product even if this narrowing were wrong.
+        $productId = ProductBarcode::query()
+            ->where('team_id', TeamScope::currentTeamId())
+            ->where('barcode_id', $barcode->getKey())
+            ->value('product_id');
+
+        abort_if($productId === null, 404);
+
         $product = Product::query()
-            ->whereHas('barcodes', static fn ($query) => $query->whereKey($barcode->getKey()))
             ->with(['stock', 'tags'])
-            ->first();
+            ->find($productId);
 
         abort_if($product === null, 404);
 

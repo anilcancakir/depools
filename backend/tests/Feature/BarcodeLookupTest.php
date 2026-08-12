@@ -73,6 +73,25 @@ final class BarcodeLookupTest extends TestCase
         $this->assertNotSame($mine->getKey(), $theirs->getKey());
     }
 
+    public function test_two_tenants_holding_one_barcode_each_get_their_own_product(): void
+    {
+        // **The ordinary case for a shared identity, and the one a tenancy test alone does not cover.**
+        // Two shops stock the same carton of milk, so both link the same barcode; the pivot then has
+        // two rows for it. Reading one without saying whose takes whichever the database offers first
+        // and 404s a product the caller owns, which is a false miss rather than a leak, so the
+        // isolation test stays green while the feature is broken for both of them.
+        [, $theirs] = $this->tenant('Beta');
+        $theirs->linkBarcode(Barcode::forGtin('8690504010012'));
+
+        [, $mine] = $this->tenant('Alpha');
+        $mine->linkBarcode(Barcode::forGtin('8690504010012'));
+
+        $this->getJson('/api/v1/products/by-barcode?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.id', $mine->getKey())
+            ->assertJsonPath('data.name', 'Alpha Süt');
+    }
+
     public function test_the_same_product_answers_a_upc_and_an_ean_read_of_one_label(): void
     {
         // The same carton read by two scanners: twelve digits from a UPC-A, thirteen with the leading
