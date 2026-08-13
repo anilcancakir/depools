@@ -26,10 +26,22 @@ use Throwable;
  * cannot see: a 200 whose JSON our schema rejects is a successful request to it. Crossing an entry
  * also crosses a provider boundary, which its array cannot do.
  *
- * ### A schema failure retries with a stricter instruction, once
+ * ### A schema failure asks the NEXT entry more strictly
  *
- * `ai-design.md` asks for exactly that, and this is where it fits: the next entry is asked with a
- * suffix naming the failure. It is not a third mechanism, it is what the second entry is FOR.
+ * `ai-design.md` asks for a stricter retry after a malformed response, and this is where it fits: the
+ * next entry is asked with a suffix naming the failure. It is not a third mechanism, it is what the
+ * second entry is FOR.
+ *
+ * **The suffix applies to every attempt that follows a schema failure, not to one of them.** This
+ * said "once" and the code has never done that: `$lastFailedSchema` is a flag about the PREVIOUS
+ * attempt, so with three entries and two schema failures the third is asked strictly too. That is
+ * the behaviour worth having, since there is no argument for asking a third model less carefully
+ * than the second, and capping it would discard a provider-fallback attempt for a schema reason.
+ * Unreachable today either way, because every configured chain has two entries.
+ *
+ * What IS once per action is the total: the chain length bounds the attempts, so a malformed
+ * response cannot loop, which is the property `ai-design.md` is protecting when it says "once, then
+ * fall back to the manual path".
  */
 final class GatewayRunner
 {

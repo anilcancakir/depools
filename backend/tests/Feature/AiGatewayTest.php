@@ -275,6 +275,34 @@ final class AiGatewayTest extends TestCase
         $this->assertNotNull(AiUsageEvent::query()->where('attempt', 1)->sole()->cost_micro_usd);
     }
 
+    public function test_every_attempt_after_a_schema_failure_is_asked_strictly(): void
+    {
+        // Pins what the code does rather than what its docblock used to say. With three entries and
+        // two schema failures, the third is asked strictly too: there is no argument for asking a
+        // third model less carefully than the second, and capping it would discard a
+        // provider-fallback attempt for a schema reason. Unreachable on the configured chains, which
+        // have two entries, so the category is widened here on purpose.
+        $this->tenant();
+        $this->credits(10);
+        config(['ai_gateways.categories.enrichment_text.chain' => [
+            ['provider' => 'openrouter', 'models' => ['a/one']],
+            ['provider' => 'openrouter', 'models' => ['b/two']],
+            ['provider' => 'openrouter', 'models' => ['c/three']],
+        ]]);
+        $caller = $this->model([
+            ['name' => '', 'brand' => null, 'description' => null],
+            ['name' => '', 'brand' => null, 'description' => null],
+            ['name' => 'Yarım yağlı süt', 'brand' => 'Lactel', 'description' => 'UHT süt.'],
+        ]);
+
+        $this->assertNotNull($this->gateway()->translate($this->card(), 'tr'));
+
+        $strict = 'did not match the required schema';
+        $this->assertStringNotContainsString($strict, $caller->calls[0]['instructions']);
+        $this->assertStringContainsString($strict, $caller->calls[1]['instructions']);
+        $this->assertStringContainsString($strict, $caller->calls[2]['instructions']);
+    }
+
     public function test_the_second_entry_crosses_to_a_different_pair_of_models(): void
     {
         // Our loop crosses a PROVIDER boundary, which OpenRouter's array cannot; the visible half of
