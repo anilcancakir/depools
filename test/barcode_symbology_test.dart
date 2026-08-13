@@ -23,7 +23,7 @@ void main() {
     }
   });
 
-  group('a format that does not carries its own name', () {
+  group('a format that does not carry a GTIN sends its own name', () {
     test('code128 is part of the label identity', () {
       // The same characters as Code128 and as a QR are two different labels, which is why the
       // server treats the symbology as part of the identity rather than as a hint.

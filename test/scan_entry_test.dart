@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// value renders, and a row claiming more trust than the stage earned reads as a confident answer.
 void main() {
   group('the stage a cascade answer names', () {
-    test('the tenant own product is authoritative', () {
+    test('the tenant\'s own product is authoritative', () {
       expect(ScanEntry.sourceOf('own'), ScanSource.own);
     });
 

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// When a code in front of the camera is a new carton.
 ///
-/// The defect these pin was reported from a real scan: one carton, held steady, counted twice.
+/// The defect these tests pin was reported from a real scan: one carton, held steady, counted twice.
 /// `detectionTimeoutMs` is a timer, and on a screen whose camera never closes a held label is the
 /// ordinary case, so the timer fires again and again over one presentation.
 void main() {

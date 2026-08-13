@@ -368,7 +368,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
                 className: 'flex-1 min-w-0',
                 child: MSInput(
                   className: 'bg-surface-container px-3 py-3.5',
-                  placeholder: '13 hane',
+                  placeholder: Lang.get('screens.scan.barcode_placeholder'),
                   type: InputType.number,
                   controller: _manual,
                   // Kept, because a desktop barcode reader is an HID keyboard that types digits and

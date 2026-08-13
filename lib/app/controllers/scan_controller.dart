@@ -29,14 +29,8 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// The batch, most recently scanned first.
   final List<ScanEntry> _entries = <ScanEntry>[];
 
-  /// Whether a lookup is in flight, so the view can say the camera is working.
-  bool _resolving = false;
-
   /// The batch as the view reads it.
   List<ScanEntry> get entries => List<ScanEntry>.unmodifiable(_entries);
-
-  /// Whether a lookup is in flight.
-  bool get isResolving => _resolving;
 
   /// Whether anything has been scanned yet.
   bool get hasScans => _entries.isNotEmpty;
@@ -72,12 +66,16 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       return;
     }
 
-    _resolving = true;
-    _publish();
-
+    // **No in-flight flag, and the review was right that the one here was broken.** It could be
+    // cleared by whichever resolve finished first while another was still running, and a throw
+    // would have left it stuck on. What made it harmless is worse than the bug: nothing read it.
+    // So it is gone rather than fixed, which is also what removes the defect.
+    //
+    // Overlapping resolves are otherwise fine: each appends its own row when it lands, and the
+    // order the answers arrive in is the order the reads happened in closely enough that a bench
+    // scanning two cartons a second cannot tell.
     final ScanEntry entry = await _resolve(code, symbology);
 
-    _resolving = false;
     _entries.insert(0, entry);
     _publish();
   }

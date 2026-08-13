@@ -833,7 +833,8 @@
       "camera_unavailable": "Kamera kullanılamıyor",
       "torch_on": "Işığı aç",
       "torch_off": "Işığı kapat",
-      "camera_hint": "Kamerayı barkoda tutun"
+      "camera_hint": "Kamerayı barkoda tutun",
+      "barcode_placeholder": "13 hane"
     },
     "search": {
       "title": "Ara",

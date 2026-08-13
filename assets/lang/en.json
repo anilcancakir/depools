@@ -833,7 +833,8 @@
       "camera_unavailable": "Camera unavailable",
       "torch_on": "Turn on the torch",
       "torch_off": "Turn off the torch",
-      "camera_hint": "Point the camera at a barcode"
+      "camera_hint": "Point the camera at a barcode",
+      "barcode_placeholder": "13 digits"
     },
     "search": {
       "title": "Search",
