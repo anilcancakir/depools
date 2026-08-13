@@ -780,7 +780,9 @@ Assumption until answered: design the email pipeline to parse JSON-LD when prese
 
 A tenant-contributed shared catalog is the moat, but it needs an opt-in, a moderation path, a takedown mechanism and a licence the contributor actually grants us.
 
-Assumption until answered: contribution is opt-in per tenant and off by default, contributed rows carry `source = community` with the contributing team recorded privately, and the terms grant us a licence to redistribute the contributed fields but not the tenant's photos.
+~~Assumption until answered: contribution is opt-in per tenant and off by default~~, contributed rows carry `source = community` with the contributing team recorded privately, and the terms grant us a licence to redistribute the contributed fields but not the tenant's photos.
+
+**The opt-in half is settled and it went the other way (D117): per product, ticked by default, no tenant switch.** The rest of this assumption held and is now built. What remains open here is moderation and the takedown path.
 
 ### D61. Every built screen is routed, and the dashboard is the app's own
 
@@ -2252,3 +2254,46 @@ widest. Against that: the receipt pipeline keeps the capability, ARPU is no long
 price sensitivity, and Stripe stops being blocked by the entity question. Measured before deciding:
 only four migrations and twenty-three lines of schema are Turkey-specific, so the code barely cared and
 the documents were carrying the whole assumption.
+
+### D117. Contribution is per product and ticked by default, and the ODbL guard is server-side
+
+O5 assumed contribution would be opt-in per tenant and off by default. That was a holding position
+nobody had argued for, and it contradicts the thing the catalogue is for.
+
+**A moat that most users never notice filling does not fill.** `market.md`'s argument is that Turkish
+barcode coverage in commercial databases is weak and that every Turkish user who confirms a product
+makes the next Turkish user's scan work. A tenant-level switch, default off, means the number of
+people who ever contribute is the number who went looking through settings for a feature they have no
+reason to know exists.
+
+So the box lives on the product being saved, where the user can see what is being shared, and it is
+ticked. The case the tenant switch was reaching for, a private recipe or an own-brand SKU, is served
+better by unticking that one product than by a global setting somebody sets once and then forgets in
+both directions. There is no master switch: one mechanism, at the moment of the decision.
+
+Anılcan's call, and it is a real trade. What it costs is that a user who does not read the box
+contributes text they might not have chosen to; what it buys is the only mechanism by which the
+catalogue ever becomes worth having. The mitigations are that photos are never contributed, the
+contributing team is recorded privately so a takedown can be executed precisely, and the row carries
+`source = community` so its provenance is visible to everyone reading it.
+
+**The ODbL guard is the part that cannot be left to the client.** An Open Food Facts card the user
+accepts and saves would launder ODbL text into a table we redistribute under our own terms, and ODbL
+is share-alike. `BarcodeResolver` already returns `contributable: false` for an OFF candidate, but a
+licence boundary that an edited request can cross is not a boundary: the server compares the
+submitted name's fold against the `off_products` row for that GTIN and skips the contribution when
+they match.
+
+Deliberately a match on the FOLD rather than a refusal on the barcode. A user who retypes the name in
+their own words still contributes, because correcting a bad or English OFF record is exactly the case
+where a Turkish catalogue beats a global one, and refusing every barcode OFF happens to know would
+throw away the most valuable contributions there are.
+
+A product with no barcode contributes as well. It answers no scan today, since the cascade reaches
+this table through the barcode pivot; the receipt-line matching in `ai-design.md`'s resolution ladder
+is what will read it, and a catalogue already filling by then beats one starting empty on that day.
+
+Not decided, and named so it does not read as an oversight: a second tenant confirming the same
+product is corroboration and is currently dropped rather than raising `confidence`. That needs a rule
+for how much and a ceiling, and D31 already warns about what an unexplained number in that column
+invites.

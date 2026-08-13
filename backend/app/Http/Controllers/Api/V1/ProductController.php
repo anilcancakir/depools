@@ -8,10 +8,16 @@ use App\Models\Barcode;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\Scopes\TeamScope;
+use App\Services\CatalogueContributor;
 use App\Services\ProductListQuery;
+use App\Support\Gtin;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Products.
@@ -21,6 +27,8 @@ use Illuminate\Validation\Rule;
  */
 final class ProductController extends Controller
 {
+    public function __construct(private readonly CatalogueContributor $contributor) {}
+
     /**
      * How many rows a page holds when the caller does not say.
      *
@@ -127,9 +135,143 @@ final class ProductController extends Controller
             // half of the same unit rather than a count of smaller ones (D26).
             'content_unit' => ['nullable', 'string', 'max:16', 'different:base_unit'],
             'par_level' => ['nullable', 'numeric', 'min:0'],
+
+            // **Stage 6 of the cascade arrives here.** A scan that resolved to nothing sends the
+            // user to type the card, and the code they scanned has to travel with it or the next
+            // scan of the same carton misses again. Absent when a product is added by hand.
+            'barcode' => ['nullable', 'string', 'max:128'],
+            // Part of a non-GTIN label's identity rather than a hint, same rule as the resolve
+            // endpoint: the same characters as Code128 and as a QR are two different labels.
+            'symbology' => ['nullable', 'string', 'max:16'],
+
+            // **Default TRUE, which is Anılcan's call and the one the moat depends on.** Turkish
+            // barcode coverage in commercial databases is weak, so the catalogue is built out of
+            // confirmations, and a contribution model most people never notice contributes nothing.
+            // `barcode-and-catalog.md` used to say opt-in per tenant and off by default; that is
+            // superseded there, with the argument, rather than quietly contradicted here.
+            'contribute' => ['boolean'],
         ]);
 
-        return new ProductResource(Product::create($data));
+        $barcode = $this->barcodeFrom($data);
+
+        $this->refuseIfAlreadyLinked($barcode);
+
+        // **Atomic, so a losing race cannot leave a half-written product.** Without this the product
+        // row was written and the pivot insert then threw, and the client got a 500 for a product
+        // that exists: the worst of both answers.
+        //
+        // Atomicity alone does NOT make the race a 422, and this comment used to claim it did. The
+        // check above closes the ordinary case; the catch below is what turns the concurrent one
+        // into the same answer instead of a rolled-back 500.
+        try {
+            $product = DB::transaction(function () use ($data, $barcode): Product {
+                $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
+
+                if ($barcode !== null) {
+                    $product->linkBarcode($barcode);
+                }
+
+                return $product;
+            });
+        } catch (QueryException $e) {
+            // Both, because either alone is a guess: `23505` is PostgreSQL's unique-violation code
+            // and is stable in a way message text is not, and the index name is what says it was OUR
+            // rule rather than some other constraint on the same insert.
+            if ($e->getCode() !== '23505'
+                || ! str_contains($e->getMessage(), 'product_barcode_team_id_barcode_id_unique')) {
+                throw $e;
+            }
+
+            // The transaction rolled back, so nothing of ours survives and the row that won the race
+            // is now visible: re-running the check produces the same 422 the sequential case gets.
+            $this->refuseIfAlreadyLinked($barcode);
+
+            // Only reachable if the winner vanished between the violation and this read, which the
+            // constraint that just fired makes impossible. Rethrown rather than papered over.
+            throw $e;
+        }
+
+        // The contribution is a side effect of a create the user asked for, so every refusal inside
+        // it is silent: the licence guard, an existing row, or the write itself failing must not turn
+        // "your product was saved" into an error about something else. ("A missing locale" was in
+        // this list and is not a real branch; it is named in `CatalogueContributor` for the same
+        // reason it is corrected here.)
+        if (($data['contribute'] ?? true) === true) {
+            $this->contributor->contribute($product, $barcode);
+        }
+
+        return new ProductResource($product);
+    }
+
+    /**
+     * Refuses a barcode this tenant has already pointed at a different product.
+     *
+     * `product_barcode` is `unique(team_id, barcode_id)` and the constraint is right: one tenant
+     * pointing one code at two products makes `products/by-barcode` unanswerable, so it is genuinely
+     * ambiguous rather than merely awkward. What was wrong was WHERE the refusal happened. The
+     * constraint fired after `Product::create()`, so the client received a 500 for a product that had
+     * already been written, and the message named a pivot table rather than the field they filled in.
+     */
+    private function refuseIfAlreadyLinked(?Barcode $barcode): void
+    {
+        if ($barcode === null) {
+            return;
+        }
+
+        $existing = ProductBarcode::query()
+            ->where('team_id', TeamScope::currentTeamId())
+            ->where('barcode_id', $barcode->getKey())
+            ->value('product_id');
+
+        if ($existing === null) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            // Names the product it collides with, because "already in use" without saying where
+            // leaves the user searching their own catalogue for it.
+            'barcode' => 'This barcode already belongs to '
+                .(Product::query()->whereKey($existing)->value('name') ?? 'another product').'.',
+        ]);
+    }
+
+    /**
+     * The barcode row a create names, or null when it names none.
+     *
+     * A GTIN identifies itself and a non-GTIN label does not, which is why the symbology is required
+     * for one and meaningless for the other. A code that is neither is dropped rather than refused:
+     * the product is what the user asked for, and failing the whole create over a barcode we cannot
+     * model would lose the card they just typed.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function barcodeFrom(array $data): ?Barcode
+    {
+        $code = trim((string) ($data['barcode'] ?? ''));
+
+        if ($code === '') {
+            return null;
+        }
+
+        $symbology = trim((string) ($data['symbology'] ?? ''));
+
+        // **The SHAPE decides, not whether a symbology arrived, because that is what the reader
+        // does.** `Barcode::findForScan()` tests the shape first and sends anything digits-only to
+        // the `gtin` column whatever symbology it was given. Writing a GTIN through `forCode()`
+        // because the client helpfully reported `ean13` therefore stored a row the cascade could
+        // never find again: the scan that created the product would miss on every later scan, which
+        // is the one thing this feature exists to prevent. A scanner SDK reporting the format is the
+        // ordinary case, not an odd one.
+        //
+        // `Gtin::couldBe` and not a bare try/catch, because `fromScan` strips letters rather than
+        // refusing them: `SHELF-A-0042` came through it as `00000000000042`.
+        if (Gtin::couldBe($code)) {
+            return Barcode::forGtin($code);
+        }
+
+        // A non-GTIN label needs its symbology, because the same characters as Code128 and as a QR
+        // are two different labels. Without one there is nothing to record.
+        return $symbology === '' ? null : Barcode::forCode($code, $symbology);
     }
 
     /**
