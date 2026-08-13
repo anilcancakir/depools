@@ -253,14 +253,23 @@ final class ProductController extends Controller
 
         $symbology = trim((string) ($data['symbology'] ?? ''));
 
-        if ($symbology !== '') {
-            return Barcode::forCode($code, $symbology);
+        // **The SHAPE decides, not whether a symbology arrived, because that is what the reader
+        // does.** `Barcode::findForScan()` tests the shape first and sends anything digits-only to
+        // the `gtin` column whatever symbology it was given. Writing a GTIN through `forCode()`
+        // because the client helpfully reported `ean13` therefore stored a row the cascade could
+        // never find again: the scan that created the product would miss on every later scan, which
+        // is the one thing this feature exists to prevent. A scanner SDK reporting the format is the
+        // ordinary case, not an odd one.
+        //
+        // `Gtin::couldBe` and not a bare try/catch, because `fromScan` strips letters rather than
+        // refusing them: `SHELF-A-0042` came through it as `00000000000042`.
+        if (Gtin::couldBe($code)) {
+            return Barcode::forGtin($code);
         }
 
-        // **`Gtin::couldBe` and not a bare try/catch**, because `fromScan` strips letters rather
-        // than refusing them: `SHELF-A-0042` came through it as the GTIN `00000000000042`, so an
-        // internal shelf label became a barcode row that a real product could later collide with.
-        return Gtin::couldBe($code) ? Barcode::forGtin($code) : null;
+        // A non-GTIN label needs its symbology, because the same characters as Code128 and as a QR
+        // are two different labels. Without one there is nothing to record.
+        return $symbology === '' ? null : Barcode::forCode($code, $symbology);
     }
 
     /**

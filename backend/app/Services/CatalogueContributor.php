@@ -8,6 +8,7 @@ use App\Models\OffProduct;
 use App\Models\Product;
 use App\Models\Scopes\TeamScope;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -69,19 +70,27 @@ final class CatalogueContributor
         }
 
         try {
-            $row = GlobalProduct::create([
-                'name' => $product->name,
-                'brand' => $product->brand,
-                'locale' => $locale,
-                'source' => 'community',
-                'confidence' => self::CONFIDENCE,
-                // **Photos are never contributed** (`barcode-and-catalog.md`). The terms grant a
-                // licence over the text fields only, so `image_path` stays null however good the
-                // photograph is.
-                'contributed_by_team_id' => $teamId,
-            ]);
+            // **One transaction, because the row and its link are one fact.** The cascade reaches
+            // this table through the pivot, so a row whose link failed is unreachable AND invisible
+            // to `alreadyContributed()`, which checks that same pivot: the next confirmation would
+            // write a second orphan, and so would the one after it.
+            $row = DB::transaction(function () use ($product, $locale, $teamId, $barcode): GlobalProduct {
+                $row = GlobalProduct::create([
+                    'name' => $product->name,
+                    'brand' => $product->brand,
+                    'locale' => $locale,
+                    'source' => 'community',
+                    'confidence' => self::CONFIDENCE,
+                    // **Photos are never contributed** (`barcode-and-catalog.md`). The terms grant a
+                    // licence over the text fields only, so `image_path` stays null however good the
+                    // photograph is.
+                    'contributed_by_team_id' => $teamId,
+                ]);
 
-            $barcode?->globalProducts()->syncWithoutDetaching([$row->getKey()]);
+                $barcode?->globalProducts()->syncWithoutDetaching([$row->getKey()]);
+
+                return $row;
+            });
         } catch (Throwable $e) {
             // **Deliberate, and logged rather than swallowed.** The class promises that failing to
             // contribute never fails the product, and a promise the code does not keep is worse than

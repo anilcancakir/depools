@@ -245,6 +245,27 @@ final class CatalogueContributionTest extends TestCase
         $this->assertSame(0, Barcode::query()->count());
     }
 
+    public function test_a_gtin_reported_with_its_symbology_is_still_found_by_the_next_scan(): void
+    {
+        // **The defect this closes made the whole feature pointless in the ordinary case.**
+        // `mobile_scanner` reports the format, so a client sending `ean13` alongside a GTIN is
+        // normal. Storing that through `forCode()` put it in `(code, symbology)` while
+        // `Barcode::findForScan()` tests the SHAPE first and sends anything digits-only to the
+        // `gtin` column: the row created by the scan was unreachable by every later scan.
+        //
+        // The assertion is deliberately made through the resolve endpoint rather than against the
+        // `barcodes` row, because "the writer and the reader agree" is the property, and a test that
+        // checked which column was written could pass while they still disagreed.
+        $this->tenant();
+
+        $this->create(['barcode' => '8690504010012', 'symbology' => 'ean13'])->assertCreated();
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.source', 'own')
+            ->assertJsonPath('data.name', 'Pınar Süt 1 L');
+    }
+
     public function test_the_same_label_with_its_symbology_is_recorded(): void
     {
         // The other half: with a symbology it IS identifiable, so it is a barcode like any other.
