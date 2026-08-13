@@ -48,7 +48,10 @@ use InvalidArgumentException;
  */
 final class BarcodeResolver
 {
-    public function __construct(private readonly OpenFoodFacts $openFoodFacts) {}
+    public function __construct(
+        private readonly OpenFoodFacts $openFoodFacts,
+        private readonly CatalogueTranslator $translator,
+    ) {}
 
     /** The tenant's own products are the only authoritative answer. */
     private const OWN_CONFIDENCE = 100;
@@ -132,9 +135,16 @@ final class BarcodeResolver
      * multilingual. The user's own locale wins, then confidence, then the oldest row: the last of
      * those exists only so two rows that tie cannot swap places between requests.
      *
-     * A miss on the user's locale is still a hit here, in another language, which is deliberate: a
-     * product they can recognise beats no product at all, and filling the gap is what the translation
-     * step will do once the AI gateway exists.
+     * A miss on the user's locale is still a hit here, in another language, and it is now also the
+     * LAST time that happens for this barcode: [CatalogueTranslator] writes the translation back as a
+     * catalogue row, so the next scan finds it without a model.
+     *
+     * **The translation is synchronous and it is allowed to lose.** A user standing at a shelf gets
+     * whichever arrives first: the translated card if the model answers inside the category's
+     * timeout, the foreign-language one otherwise. That is Anılcan's call over the alternative of
+     * answering instantly in the wrong language and translating in a queue, and the reasoning was
+     * that the first person to scan a product is exactly the person who should not be the one who
+     * pays for it being new. What it costs is a bounded wait, and `ai_gateways` owns that bound.
      */
     private function fromCommunityCatalogue(Barcode $barcode): ?ProductCandidate
     {
@@ -150,6 +160,16 @@ final class BarcodeResolver
         if ($global === null) {
             return null;
         }
+
+        // Called unconditionally, and the same-locale early-out lives in the translator rather than
+        // here. It used to be in both, which is one guard too many in the literal sense: a mutation
+        // test removing either one left the behaviour correct, so neither was load-bearing and
+        // neither could be shown to be. The one that stayed is the one that protects EVERY caller.
+        //
+        // The ordering above put a row in the user's own locale first, so a row arriving in another
+        // language proves none exists: the locale check IS the cache (`ai-design.md` asks for exactly
+        // that), and no separate cache can drift from it.
+        $global = $this->translator->translate($global, $locale, $barcode) ?? $global;
 
         return new ProductCandidate(
             source: 'community',

@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Contracts\ModelCaller;
+use App\Models\AiCreditGrant;
+use App\Models\AiUsageEvent;
 use App\Models\Barcode;
 use App\Models\GlobalProduct;
 use App\Models\OffProduct;
@@ -12,6 +15,7 @@ use App\Support\Gtin;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\FakeModelCaller;
 use Tests\TestCase;
 
 /**
@@ -419,6 +423,118 @@ final class BarcodeCascadeTest extends TestCase
 
         // A miss, which is the point: it got past the refusal and through the whole cascade.
         $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertNotFound();
+    }
+
+    public function test_a_foreign_catalogue_row_is_translated_and_written_back(): void
+    {
+        // **The gap this closes compounds.** Without the write-back, every Turkish scan of a French
+        // contribution spends a credit and produces nothing durable; with it, the first scan pays and
+        // every later one is free, instant and needs no model at all.
+        $this->tenant('Alpha');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([
+            ['name' => 'Yarım yağlı UHT süt 1L', 'brand' => 'Lactel', 'description' => 'UHT süt.'],
+        ]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait demi-écrémé UHT 1L', 'brand' => 'Lactel',
+            'description' => 'Lait de vache stérilisé UHT.', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Yarım yağlı UHT süt 1L');
+
+        $written = GlobalProduct::query()->where('locale', 'en')->sole();
+        $this->assertSame('ai_generated', $written->source);
+        // Points at the row it was made from, so a bad translation can be traced to its original.
+        $this->assertSame((string) $french->getKey(), $written->source_ref);
+        // **Linked, or it is unreachable**: the cascade answers through the barcode pivot, so an
+        // unlinked row would be rewritten on every scan and found by none of them.
+        $this->assertTrue($written->barcodes()->whereKey($barcode->getKey())->exists());
+    }
+
+    public function test_a_second_scan_of_a_translated_row_costs_nothing(): void
+    {
+        // The locale check IS the cache (`ai-design.md` asks for exactly that), so this needs no
+        // cache layer to assert: the resolver orders by locale, so once the row exists it wins and
+        // the translator is never reached. The fake is scripted with ONE answer, so a second call
+        // would fail loudly rather than quietly costing a credit.
+        $this->tenant('Alpha');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([
+            ['name' => 'Yarım yağlı UHT süt 1L', 'brand' => 'Lactel', 'description' => 'UHT süt.'],
+        ]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait demi-écrémé UHT 1L', 'brand' => 'Lactel', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertOk();
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Yarım yağlı UHT süt 1L');
+
+        // One model call, so one usage row, for two scans.
+        $this->assertSame(1, AiUsageEvent::query()->count());
+    }
+
+    public function test_a_translation_failure_answers_in_the_other_language_rather_than_not_at_all(): void
+    {
+        // A translation failure costs a LANGUAGE, never an answer. The cascade's whole argument for
+        // returning a foreign row is that a product the user can recognise beats none, and that
+        // argument does not stop applying because a model was down.
+        $this->tenant('Alpha');
+        config(['ai_gateways.live' => true]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait demi-écrémé UHT 1L', 'brand' => 'Lactel', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Lait demi-écrémé UHT 1L');
+
+        // And nothing half-written was left behind for the next scan to find.
+        $this->assertSame(1, GlobalProduct::query()->count());
+    }
+
+    public function test_a_row_already_in_the_users_locale_never_reaches_a_model(): void
+    {
+        // The guard on the cheap path. An empty script means any call at all throws, so this fails
+        // loudly if the locale comparison is ever inverted or dropped.
+        $this->tenant('Alpha');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $english = GlobalProduct::create([
+            'name' => 'Semi-skimmed UHT milk 1L', 'brand' => 'Lactel', 'locale' => 'en',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $english->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Semi-skimmed UHT milk 1L');
+
+        $this->assertSame(0, AiUsageEvent::query()->count());
     }
 
     public function test_a_case_code_is_never_asked_of_open_food_facts(): void

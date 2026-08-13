@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.3",
         "fluttersdk/magic-starter-laravel": "^0.0.5",
+        "laravel/ai": "v0.10.3",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0"
     },
