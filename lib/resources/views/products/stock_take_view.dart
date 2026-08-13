@@ -17,6 +17,7 @@ import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'count_fixtures.dart';
+import 'count_scanner_sheet.dart';
 import 'count_line.dart';
 import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
@@ -101,6 +102,8 @@ class _StockTakeViewState extends State<StockTakeView> {
   static const IconData _searchIcon = Icons.search_outlined;
   static const IconData _changeIcon = Icons.unfold_more;
   static const IconData _leaveIcon = Icons.check;
+  static const IconData _scanIcon = Icons.qr_code_scanner_outlined;
+  static const IconData _unmatchedIcon = Icons.help_center_outlined;
 
   /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
   /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a request
@@ -164,6 +167,14 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   /// What the server did with each committed row, so a restored row can say so.
   final Map<String, CountResult> _settled = <String, CountResult>{};
+
+  /// Codes the scanner read that match no product of this tenant.
+  ///
+  /// Kept rather than acted on, because defining a product takes a name, a unit and a shelf life,
+  /// and that is a form rather than something to fill in at a shelf with a phone in one hand.
+  /// Interrupting a count of twenty for the three of them that are unrecognised is how a count
+  /// stops being finished. They are offered once, afterwards, on the screen with room for it.
+  final List<String> _unmatchedCodes = <String>[];
 
   /// The ROW behind every figure typed on this shelf, keyed the same way as the figures.
   ///
@@ -366,17 +377,51 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// A settled row leaves unless [_showSettled] brought it back, and when it comes back it comes
   /// back with the figure that was entered rather than as a blank row: the point of showing it again
   /// is checking what was counted.
-  List<CountLine> get _lines => (widget.lines ?? _fromController())
-      .where((line) => _showSettled || !_isSettled(line))
-      .map(
-        (line) => CountLine(
-          product: line.product,
-          expected: line.expected,
-          countedWhole: _typed(_whole, _settledWhole, line) ?? line.countedWhole,
-          countedRemainder: _typed(_inner, _settledInner, line) ?? line.countedRemainder,
-        ),
-      )
-      .toList();
+  List<CountLine> get _lines {
+    final List<CountLine> rows = (widget.lines ?? _fromController())
+        .where((line) => _showSettled || !_isSettled(line))
+        .map(
+          (line) => CountLine(
+            product: line.product,
+            expected: line.expected,
+            countedWhole: _typed(_whole, _settledWhole, line) ?? line.countedWhole,
+            countedRemainder: _typed(_inner, _settledInner, line) ?? line.countedRemainder,
+          ),
+        )
+        .toList();
+
+    return <CountLine>[...rows, ..._touchedButUnloaded(rows)];
+  }
+
+  /// Rows this visit has touched that the loaded page does not contain.
+  ///
+  /// **A scan can name a product no page has fetched, and without this it was counted invisibly.**
+  /// The shelf pages at fifty and a scan resolves against the whole tenant, so reading a label for
+  /// something further down the list put a figure into [_whole] that the commit honoured and the list
+  /// never showed. The user counts a thing and watches nothing happen, which is indistinguishable
+  /// from a scan that failed.
+  ///
+  /// Appended rather than merged in place, so the loaded order is untouched: these are rows the
+  /// server has not offered yet, and putting them where they will eventually sort would move a row
+  /// under the user's thumb when the page they belong to lands.
+  List<CountLine> _touchedButUnloaded(List<CountLine> rows) {
+    if (_touched.isEmpty) return const <CountLine>[];
+
+    final Set<String> shown = <String>{
+      for (final CountLine row in rows) _keyOf(row),
+    };
+
+    return <CountLine>[
+      for (final MapEntry<String, CountLine> entry in _touched.entries)
+        if (!shown.contains(entry.key))
+          CountLine(
+            product: entry.value.product,
+            expected: entry.value.expected,
+            countedWhole: _whole[entry.key],
+            countedRemainder: _inner[entry.key],
+          ),
+    ];
+  }
 
   /// Whether this row is committed AND not being re-typed.
   ///
@@ -566,6 +611,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       children: [
         _buildLocation(),
         if (!loading && !failed && _settled.isNotEmpty) _buildSettledBar(),
+        if (_unmatchedCodes.isNotEmpty) _buildUnmatched(),
         if (loading)
           _buildLoading()
         else if (failed)
@@ -684,6 +730,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       _whole.clear();
       _inner.clear();
       _touched.clear();
+      _unmatchedCodes.clear();
       _unfinished.clear();
       // **And the settled state, which is per SHELF and was leaking across them.** Its own docblock
       // says "this shelf and this visit" and nothing enforced it: the bar went on reporting the
@@ -818,10 +865,144 @@ class _StockTakeViewState extends State<StockTakeView> {
         className: 'h-11 bg-surface-container',
         placeholder: Lang.get('screens.stock_take.search'),
         prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+        // **Inside the field rather than beside it**, which is the arrangement inFlow ships and the
+        // one that keeps the bar to two controls at 390px. The two are one question anyway: find the
+        // product in front of me, by its name or by its label.
+        suffix: WAnchor(
+          onTap: _openScanner,
+          semanticLabel: Lang.get('screens.stock_take.scan'),
+          child: const WDiv(
+            // 44 square inside a 44-tall field, so the target is the whole right end of it rather
+            // than the glyph.
+            className: 'flex items-center justify-center size-11',
+            child: WIcon(_scanIcon, className: 'size-5 text-fg-muted'),
+          ),
+        ),
         controller: _search,
         onChanged: _onSearchChanged,
       ),
     );
+  }
+
+  /// The codes the scanner could not match, once the panel is closed.
+  ///
+  /// **Written and never read is what this was**, which is worse than not collecting them: the
+  /// panel's own docblock promised they would be offered afterwards, so the promise was in the code
+  /// while the surface was not, and a reader had no way to tell. A scanned label that matches
+  /// nothing is the one thing a count cannot resolve on its own, so dropping it silently loses the
+  /// only record that the user held something the system has never seen.
+  ///
+  /// Above the list rather than below it, because a list that grows without bound has no bottom
+  /// (D70), and dismissable because the user may already know: a shop's own repacks carry labels
+  /// this app was never going to recognise.
+  Widget _buildUnmatched() {
+    return WDiv(
+      className: 'flex flex-col gap-2 px-4 py-3 rounded-lg '
+          'bg-surface-container border border-color-border',
+      children: [
+        WDiv(
+          className: 'flex flex-row items-center gap-2',
+          children: [
+            const WIcon(_unmatchedIcon, className: 'size-4 text-fg-muted shrink-0'),
+            WText(
+              plural('screens.count_scanner.unknown_title', _unmatchedCodes.length, {
+                'count': _unmatchedCodes.length,
+              }),
+              className: 'flex-1 min-w-0 text-sm font-medium text-fg',
+            ),
+            MSButton(
+              onPressed: () => setState(_unmatchedCodes.clear),
+              intent: ButtonIntent.ghost,
+              size: ButtonSize.sm,
+              className: 'shrink-0',
+              child: WText(Lang.get('screens.count_scanner.unknown_dismiss')),
+            ),
+          ],
+        ),
+        WText(
+          Lang.get('screens.count_scanner.unknown_body'),
+          className: 'text-xs text-fg-muted',
+        ),
+        // The codes themselves, because the number alone is not actionable: what the user needs in
+        // order to do anything about one is the digits printed under the label they were holding.
+        WDiv(
+          className: 'flex flex-row wrap items-center gap-2',
+          children: [
+            for (final String code in _unmatchedCodes)
+              WText(code, className: 'font-mono text-xs text-fg-muted'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Opens the scanning panel and applies what it reads.
+  ///
+  /// The counts go through [_edit] like every other write, so a scanned row is recorded exactly as a
+  /// typed one: the row is remembered beside its figure and survives a search, which is the property
+  /// the whole sheet would otherwise quietly break.
+  Future<void> _openScanner() async {
+    final StockTakeController? controller = _controller;
+
+    if (controller == null) return;
+
+    final List<String>? unmatched = await CountScannerSheet.show(
+      context,
+      shelfLabel: _pathOf(_activeLocation),
+      resolve: controller.resolveScan,
+      onCounted: _countScanned,
+    );
+
+    if (!mounted || unmatched == null || unmatched.isEmpty) return;
+
+    setState(() => _unmatchedCodes
+      ..clear()
+      ..addAll(unmatched));
+  }
+
+  /// Adds [quantity] to a scanned product's row, creating the row when the shelf has not loaded it.
+  ///
+  /// **The row may not be on screen, and that is the ordinary case rather than an edge.** The shelf
+  /// is paginated at fifty, so scanning something from further down the list finds nothing loaded.
+  /// The lookup already returned the product, and the expected figure comes from the same helper the
+  /// sheet's own rows use, so a row can be built for it rather than refusing the count.
+  void _countScanned(ProductListItem product, num quantity) {
+    // Matched on the id the server sent, never on the name: this catalogue holds duplicate names by
+    // design, and the count screen keys its figures by id for the same reason.
+    final CountLine line = _lines.firstWhere(
+      (CountLine l) => l.product.id != null && l.product.id == product.id,
+      orElse: () => CountLine(
+        product: product,
+        expected: expectedAt(product, _activeLocation),
+      ),
+    );
+
+    setState(() {
+      _edit(line, () {
+        // **Select mode records the KEY with no figure, and dropping that made the switch a no-op.**
+        // Returning here left `_whole` and `_inner` without the key, so `_edit`'s own cleanup then
+        // removed the row from `_touched` on the way out: the scan resolved, the log said the product
+        // was ready for a number, and nothing anywhere held it. The row would not even appear.
+        //
+        // A null value rather than a zero, because zero is a COUNT: it writes the balance off, and
+        // `CountLine.isCounted` reads a null as untouched, which is exactly what a row waiting for a
+        // number is. Absence and zero are different facts here (D58) and this is the third place that
+        // distinction has had to be spelled out.
+        if (quantity == 0) {
+          final String key = _keyOf(line);
+
+          // Only when the row holds nothing yet: scanning something already counted must not wipe
+          // the figure that is there.
+          if (!_whole.containsKey(key)) _whole[key] = null;
+
+          return;
+        }
+
+        final num current = _typed(_whole, _settledWhole, line) ?? 0;
+
+        _whole[_keyOf(line)] = current + quantity;
+      });
+    });
   }
 
   Widget _buildLines(List<CountLine> lines) {

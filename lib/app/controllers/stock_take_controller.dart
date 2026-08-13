@@ -4,6 +4,7 @@ import '../../resources/views/products/count_line.dart';
 import '../../resources/views/products/product_filter_sheet.dart';
 import '../../resources/views/products/product_fixtures.dart';
 import '../models/product_filter.dart';
+import '../support/scan_outcome.dart';
 import 'product_controller.dart';
 
 /// One shelf being counted, and the commit that turns what was found into ledger entries.
@@ -178,6 +179,51 @@ class StockTakeController extends MagicController with MagicStateMixin<List<Prod
   /// The counts are keyed by product id, not by name. Two products can share a name, and with real
   /// data one pair does, so keying by name would let a count of one write itself onto the other.
   ///
+  /// Asks the server what a scanned code is, and classifies the answer against this shelf.
+  ///
+  /// **A dedicated endpoint rather than the search, because a miss has two meanings.** Narrowing the
+  /// list by the code would scope the answer to this location, so a product the tenant owns but keeps
+  /// elsewhere and a product nobody has ever owned would both come back empty, and those call for
+  /// opposite responses. `by-barcode` answers about the product alone.
+  ///
+  /// A 404 is an answer rather than a failure: it means the tenant has no product carrying this code,
+  /// which is [ScanVerdict.unknown]. Anything else that goes wrong is a failure and says so, because
+  /// a network error silently reported as "unknown product" would send the user to create a product
+  /// they already have.
+  Future<ScanOutcome?> resolveScan(String code, {String? symbology}) async {
+    final Map<String, String> params = <String, String>{
+      'code': code,
+      if (symbology != null && symbology.isNotEmpty) 'symbology': symbology,
+    };
+
+    final String query = params.entries
+        .map((MapEntry<String, String> e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+
+    final dynamic response = await Http.get('/products/by-barcode?$query');
+
+    if (response.statusCode == 404) {
+      return ScanOutcome.of(code: code, product: null, shelfId: _locationId);
+    }
+
+    // Null rather than an outcome, so the caller can tell "the server says no such product" from
+    // "the question never got an answer". Reporting the second as the first is how a user ends up
+    // creating a duplicate of a product they already own.
+    if (!response.successful) {
+      return null;
+    }
+
+    return ScanOutcome.of(
+      code: code,
+      product: ProductListItem.fromApi(
+        response['data'] as Map<String, dynamic>,
+        locationLabels: ProductController.instance.locationLabels,
+        today: DateTime.now(),
+      ),
+      shelfId: _locationId,
+    );
+  }
+
   /// A per-line refusal is not a failure. The endpoint commits every writable line and names the
   /// rest, so this returns the whole answer and lets the screen decide what is still unfinished.
   Future<CountCommit> commit(String locationId, Map<String, num> counted) async {

@@ -59,6 +59,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- The camera is only ever opened by a deliberate tap on a scan control, so the sentence names
+	     that rather than asking in the abstract: iOS shows this string in the permission prompt and a
+	     vague one is the most common reason a user refuses. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Depools uses the camera to read barcodes when you scan a product.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
