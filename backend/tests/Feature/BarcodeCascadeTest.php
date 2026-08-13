@@ -44,6 +44,7 @@ final class BarcodeCascadeTest extends TestCase
         // of these tests passed a status-1 response and got the default's status-0 back. Each test
         // now declares what it expects to leave the building, and a test that expects nothing to
         // leave fails loudly if something does.
+        Http::preventStrayRequests();
     }
 
     /** Open Food Facts answers with a product. */
@@ -270,6 +271,50 @@ final class BarcodeCascadeTest extends TestCase
         Barcode::forGtin('8690504010012');
 
         $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertNotFound();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_a_gtin_nothing_here_has_ever_recorded_still_reaches_open_food_facts(): void
+    {
+        // **The case every other test in this file accidentally set up around.** They all call
+        // `Barcode::forGtin()` first, which creates the row stages 1 and 2 link through, so they
+        // verified a path that a real scan of a new product never takes. Stage 3 keys on the GTIN
+        // itself, and it sat behind that row: the import and the top-up were unreachable in
+        // production while the suite was green.
+        $this->tenant('Alpha');
+
+        $this->offRow('08690504010012', 'Never Seen Milk');
+
+        $this->assertSame(0, Barcode::query()->count(), 'the point of this test is that no row exists');
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.source', 'off')
+            ->assertJsonPath('data.name', 'Never Seen Milk');
+    }
+
+    public function test_an_unrecorded_gtin_asks_open_food_facts_live(): void
+    {
+        // Same shape one layer out: with nothing local either, the top-up is the only thing that can
+        // answer, and it could not be reached at all before.
+        $this->offReturns(['product_name' => 'Live Unseen Milk', 'lang' => 'en']);
+
+        $this->tenant('Alpha');
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Live Unseen Milk');
+    }
+
+    public function test_a_non_gtin_label_with_no_row_does_not_ask_open_food_facts(): void
+    {
+        // OFF keys on GTINs, so asking it about an internal Code128 shelf tag is a request that
+        // cannot hit. It is a miss without leaving the building.
+        $this->tenant('Alpha');
+
+        $this->getJson('/api/v1/barcode/resolve?code=SHELF-A-0042&symbology=code128')
+            ->assertNotFound();
 
         Http::assertNothingSent();
     }

@@ -8,7 +8,9 @@ use App\Models\OffProduct;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\Scopes\TeamScope;
+use App\Support\Gtin;
 use App\Support\ProductCandidate;
+use InvalidArgumentException;
 
 /**
  * Turns a scanned barcode into a product candidate, cheapest and most trustworthy source first.
@@ -65,16 +67,20 @@ final class BarcodeResolver
     {
         $barcode = Barcode::findForScan($code, $symbology);
 
-        // Nothing has ever recorded this code, so no stage can match it: every stage keys on a
-        // barcode row. A GTIN that is structurally fine but unknown lands here, which is the ordinary
-        // case for a Turkish product today.
-        if ($barcode === null) {
-            return null;
-        }
+        // **Stages 1 and 2 need a barcode row; stage 3 does not, and putting them behind one made
+        // Open Food Facts unreachable.** Those two answer through links (`product_barcode`,
+        // `global_product_barcode`), so with no row there is nothing to link to. `off_products` is
+        // keyed on the GTIN itself, which is the whole point of it: a code nobody here has ever
+        // recorded is exactly the case OFF exists to answer, and it is the ORDINARY case for a real
+        // scan of something new.
+        //
+        // The tests missed it because every one of them called `Barcode::forGtin()` first, so they
+        // set up a state a real scan does not have and then verified the path that state unlocked.
+        $linked = $barcode === null
+            ? null
+            : ($this->fromOwnProducts($barcode) ?? $this->fromCommunityCatalogue($barcode));
 
-        return $this->fromOwnProducts($barcode)
-            ?? $this->fromCommunityCatalogue($barcode)
-            ?? $this->fromOpenFoodFacts($barcode);
+        return $linked ?? $this->fromOpenFoodFacts($code);
     }
 
     /**
@@ -144,15 +150,37 @@ final class BarcodeResolver
     }
 
     /**
+     * The canonical GTIN a raw read names, or null when it cannot be one.
+     *
+     * Taken from the code rather than from a `barcodes` row, because stage 3 has to answer for a
+     * code nothing here has recorded. Non-GTIN labels (a Code128 shelf tag, a QR) resolve to null:
+     * OFF keys on GTINs and asking it about an internal label would be a request that cannot hit.
+     */
+    private function gtinOf(string $code): ?string
+    {
+        $digits = preg_replace('/[\s-]/', '', trim($code)) ?? '';
+
+        if ($digits === '' || preg_match('/^\d+$/', $digits) !== 1) {
+            return null;
+        }
+
+        try {
+            return (string) Gtin::fromScan($digits);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+    }
+
+    /**
      * Stage 3: Open Food Facts.
      *
      * Keyed on the GTIN rather than through the barcode row, because `off_products` is deliberately
      * isolated from the shared catalogue and carries no pivot into it. That isolation is a licence
      * boundary (ODbL share-alike), which is also why the candidate is not contributable.
      */
-    private function fromOpenFoodFacts(Barcode $barcode): ?ProductCandidate
+    private function fromOpenFoodFacts(string $code): ?ProductCandidate
     {
-        $gtin = $barcode->gtin;
+        $gtin = $this->gtinOf($code);
 
         if ($gtin === null) {
             return null;
