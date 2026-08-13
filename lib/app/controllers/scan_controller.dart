@@ -29,6 +29,9 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// The batch, most recently scanned first.
   final List<ScanEntry> _entries = <ScanEntry>[];
 
+  /// Increments once per read, so a row's place is decided by when it was SCANNED.
+  int _sequence = 0;
+
   /// The batch as the view reads it.
   List<ScanEntry> get entries => List<ScanEntry>.unmodifiable(_entries);
 
@@ -58,9 +61,13 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       (ScanEntry e) => e.barcode == code && e.symbology == symbology,
     );
 
+    // The read's place in the queue is decided HERE, before the lookup, because a lookup's
+    // duration is not a fact about when the user scanned.
+    final int sequence = ++_sequence;
+
     if (existing >= 0) {
-      final ScanEntry row = _entries.removeAt(existing).incremented();
-      _entries.insert(0, row);
+      _entries[existing] = _entries[existing].incremented(sequence: sequence);
+      _sort();
       _publish();
 
       return;
@@ -70,14 +77,26 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
     // cleared by whichever resolve finished first while another was still running, and a throw
     // would have left it stuck on. What made it harmless is worse than the bug: nothing read it.
     // So it is gone rather than fixed, which is also what removes the defect.
-    //
-    // Overlapping resolves are otherwise fine: each appends its own row when it lands, and the
-    // order the answers arrive in is the order the reads happened in closely enough that a bench
-    // scanning two cartons a second cannot tell.
-    final ScanEntry entry = await _resolve(code, symbology);
+    final ScanEntry entry = await _resolve(code, symbology, sequence);
 
-    _entries.insert(0, entry);
+    _entries.add(entry);
+    _sort();
     _publish();
+  }
+
+  /// Newest scan first, by sequence.
+  ///
+  /// **Sorted rather than inserted at the front, because arrival order is not scan order.** A local
+  /// hit answers in about five milliseconds and an OFF lookup in five hundred, so inserting on
+  /// arrival put the older scan above the newer one and the user watched a row jump to the top for a
+  /// carton two cartons ago.
+  ///
+  /// Not done, and named so it does not read as an oversight: the row still APPEARS only when its
+  /// answer lands, so a stage-3 read shows nothing for half a second. Fixing that means a pending
+  /// state on `ScanRow`, which is component work with its own preview and visual review rather than
+  /// a line here.
+  void _sort() {
+    _entries.sort((ScanEntry a, ScanEntry b) => b.sequence.compareTo(a.sequence));
   }
 
   /// Removes a row from the batch.
@@ -100,11 +119,12 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// error. A 422 means the code cannot be identified at all, which for a scanner read means a
   /// non-GTIN label arrived with no symbology; that is also a row the user has to finish, so it
   /// lands in the same place rather than as a message about a field they never filled in.
-  Future<ScanEntry> _resolve(String code, String? symbology) async {
+  Future<ScanEntry> _resolve(String code, String? symbology, int sequence) async {
     final ScanEntry unmatched = ScanEntry(
       barcode: code,
       symbology: symbology,
       count: 1,
+      sequence: sequence,
       source: ScanSource.unmatched,
     );
 
@@ -142,6 +162,7 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       barcode: code,
       symbology: symbology,
       count: 1,
+      sequence: sequence,
       productName: name,
       source: ScanEntry.sourceOf(data['source'] as String?),
       productId: productId is String ? productId : null,

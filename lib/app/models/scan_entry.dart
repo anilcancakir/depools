@@ -32,10 +32,23 @@ class ScanEntry {
   /// The unit the count is in.
   final String unit;
 
+  /// When this code was SCANNED, as a monotonic counter rather than a clock.
+  ///
+  /// **The queue is ordered by this and not by arrival, because the two differ.** A local hit
+  /// answers in about five milliseconds and an Open Food Facts lookup in five hundred, so a row
+  /// inserted when its answer lands puts the OLDER scan above the newer one: the user reads a row
+  /// jumping to the top for a carton they scanned two cartons ago. D40's reason for newest-first is
+  /// feedback, and feedback that points at the wrong row is worse than none.
+  ///
+  /// A counter rather than a `DateTime` because it only has to order, and two reads inside one
+  /// millisecond are ordinary on a camera stream.
+  final int sequence;
+
   /// Creates a [ScanEntry].
   const ScanEntry({
     required this.barcode,
     required this.count,
+    this.sequence = 0,
     this.symbology,
     this.productName,
     this.source = ScanSource.unmatched,
@@ -46,19 +59,25 @@ class ScanEntry {
   /// Whether this row will be written to stock as it stands.
   bool get isSettled => source != ScanSource.unmatched;
 
-  /// The same row scanned once more.
-  ScanEntry incremented() => copyWith(count: count + 1);
+  /// The same row scanned once more, taking the new read's place in the queue.
+  ///
+  /// The sequence moves because a repeat IS a scan: the row has to come back to the front or the
+  /// sixth yoghurt increments a row that has already scrolled away (D40).
+  ScanEntry incremented({required int sequence}) =>
+      copyWith(count: count + 1, sequence: sequence);
 
   /// A copy with the named fields replaced.
   ScanEntry copyWith({
     String? productName,
     ScanSource? source,
     int? count,
+    int? sequence,
     String? productId,
     String? unit,
   }) => ScanEntry(
     barcode: barcode,
     symbology: symbology,
+    sequence: sequence ?? this.sequence,
     productName: productName ?? this.productName,
     source: source ?? this.source,
     count: count ?? this.count,
