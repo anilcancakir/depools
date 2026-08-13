@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\BarcodeController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\StockController;
@@ -33,6 +34,13 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // The code travels as a query parameter rather than a path segment because a non-GTIN label can be
     // arbitrary text (a QR carrying a URL), which does not belong in a path.
     Route::get('products/by-barcode', [ProductController::class, 'byBarcode']);
+
+    // **A different question from `products/by-barcode`, which is why it is a different route.**
+    // That one answers "is this MY product", which a count screen needs: a hit is a row to count.
+    // This runs the resolution cascade and answers "what is this thing", which a scan screen needs,
+    // and may legitimately return a product the tenant does not own. Folding them would let the
+    // count screen offer to count somebody else's catalogue entry.
+    Route::get('barcode/resolve', [BarcodeController::class, 'resolve']);
 
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 
