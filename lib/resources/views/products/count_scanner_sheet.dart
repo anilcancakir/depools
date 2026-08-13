@@ -88,10 +88,16 @@ class _CountScannerSheetState extends State<CountScannerSheet> {
   /// for a mode whose whole point is that scanning twice records two.
   static const Duration _sameCodeWindow = Duration(milliseconds: 1200);
 
+  /// Every format the platform can read, which is the package's own default.
+  ///
+  /// **No `formats:` argument, deliberately.** Passing `const <BarcodeFormat>[]` says the same thing
+  /// (`mobile_scanner`'s own doc comment: "If this is empty, all supported formats are detected") and
+  /// reads like the opposite, which a reviewer took it for twice. Narrowing the list would be wrong
+  /// here anyway: a shelf carries EAN-13 on the groceries, Code128 on a shop's own repacks and the
+  /// occasional QR, and a count cannot know in advance which one is in front of the camera.
   late final MobileScannerController _scanner = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
     detectionTimeoutMs: _sameCodeWindow.inMilliseconds,
-    formats: const <BarcodeFormat>[],
   );
 
   final TextEditingController _typed = TextEditingController();
