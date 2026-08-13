@@ -17,6 +17,7 @@ import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'count_fixtures.dart';
+import 'count_scanner_sheet.dart';
 import 'count_line.dart';
 import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
@@ -101,6 +102,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   static const IconData _searchIcon = Icons.search_outlined;
   static const IconData _changeIcon = Icons.unfold_more;
   static const IconData _leaveIcon = Icons.check;
+  static const IconData _scanIcon = Icons.qr_code_scanner_outlined;
 
   /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
   /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a request
@@ -164,6 +166,14 @@ class _StockTakeViewState extends State<StockTakeView> {
 
   /// What the server did with each committed row, so a restored row can say so.
   final Map<String, CountResult> _settled = <String, CountResult>{};
+
+  /// Codes the scanner read that match no product of this tenant.
+  ///
+  /// Kept rather than acted on, because defining a product takes a name, a unit and a shelf life,
+  /// and that is a form rather than something to fill in at a shelf with a phone in one hand.
+  /// Interrupting a count of twenty for the three of them that are unrecognised is how a count
+  /// stops being finished. They are offered once, afterwards, on the screen with room for it.
+  final List<String> _unmatchedCodes = <String>[];
 
   /// The ROW behind every figure typed on this shelf, keyed the same way as the figures.
   ///
@@ -684,6 +694,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       _whole.clear();
       _inner.clear();
       _touched.clear();
+      _unmatchedCodes.clear();
       _unfinished.clear();
       // **And the settled state, which is per SHELF and was leaking across them.** Its own docblock
       // says "this shelf and this visit" and nothing enforced it: the bar went on reporting the
@@ -818,10 +829,77 @@ class _StockTakeViewState extends State<StockTakeView> {
         className: 'h-11 bg-surface-container',
         placeholder: Lang.get('screens.stock_take.search'),
         prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
+        // **Inside the field rather than beside it**, which is the arrangement inFlow ships and the
+        // one that keeps the bar to two controls at 390px. The two are one question anyway: find the
+        // product in front of me, by its name or by its label.
+        suffix: WAnchor(
+          onTap: _openScanner,
+          semanticLabel: Lang.get('screens.stock_take.scan'),
+          child: const WDiv(
+            // 44 square inside a 44-tall field, so the target is the whole right end of it rather
+            // than the glyph.
+            className: 'flex items-center justify-center size-11',
+            child: WIcon(_scanIcon, className: 'size-5 text-fg-muted'),
+          ),
+        ),
         controller: _search,
         onChanged: _onSearchChanged,
       ),
     );
+  }
+
+  /// Opens the scanning panel and applies what it reads.
+  ///
+  /// The counts go through [_edit] like every other write, so a scanned row is recorded exactly as a
+  /// typed one: the row is remembered beside its figure and survives a search, which is the property
+  /// the whole sheet would otherwise quietly break.
+  Future<void> _openScanner() async {
+    final StockTakeController? controller = _controller;
+
+    if (controller == null) return;
+
+    final List<String>? unmatched = await CountScannerSheet.show(
+      context,
+      shelfLabel: _pathOf(_activeLocation),
+      resolve: controller.resolveScan,
+      onCounted: _countScanned,
+    );
+
+    if (!mounted || unmatched == null || unmatched.isEmpty) return;
+
+    setState(() => _unmatchedCodes
+      ..clear()
+      ..addAll(unmatched));
+  }
+
+  /// Adds [quantity] to a scanned product's row, creating the row when the shelf has not loaded it.
+  ///
+  /// **The row may not be on screen, and that is the ordinary case rather than an edge.** The shelf
+  /// is paginated at fifty, so scanning something from further down the list finds nothing loaded.
+  /// The lookup already returned the product, and the expected figure comes from the same helper the
+  /// sheet's own rows use, so a row can be built for it rather than refusing the count.
+  void _countScanned(ProductListItem product, num quantity) {
+    // Matched on the id the server sent, never on the name: this catalogue holds duplicate names by
+    // design, and the count screen keys its figures by id for the same reason.
+    final CountLine line = _lines.firstWhere(
+      (CountLine l) => l.product.id != null && l.product.id == product.id,
+      orElse: () => CountLine(
+        product: product,
+        expected: expectedAt(product, _activeLocation),
+      ),
+    );
+
+    setState(() {
+      _edit(line, () {
+        // Zero means the sheet is in select mode: the row is opened for a typed number rather than
+        // incremented, so it is recorded as touched with no figure of its own yet.
+        if (quantity == 0) return;
+
+        final num current = _typed(_whole, _settledWhole, line) ?? 0;
+
+        _whole[_keyOf(line)] = current + quantity;
+      });
+    });
   }
 
   Widget _buildLines(List<CountLine> lines) {

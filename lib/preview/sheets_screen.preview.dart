@@ -61,7 +61,7 @@ class SheetsScreenPreview extends StatelessWidget {
         // The three shapes the field editor takes, because which one it picks is the decision
         // `ai-enrichment.md` spends a section on and they are indistinguishable from a call site.
         SheetPreviewFrame(
-          title: Lang.get('screens.field_editor.title'),
+          title: Lang.get('screens.product_form.brand'),
           child: FieldEditorSheet(
             label: Lang.get('screens.product_form.brand'),
             value: 'Pınar',
@@ -69,7 +69,7 @@ class SheetsScreenPreview extends StatelessWidget {
           ),
         ),
         SheetPreviewFrame(
-          title: Lang.get('screens.field_editor.title'),
+          title: Lang.get('screens.product_form.shelf_life'),
           child: FieldEditorSheet(
             label: Lang.get('screens.product_form.shelf_life'),
             value: '7',
