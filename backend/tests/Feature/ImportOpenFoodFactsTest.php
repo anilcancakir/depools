@@ -50,6 +50,27 @@ final class ImportOpenFoodFactsTest extends TestCase
         ]);
     }
 
+    public function test_the_stored_pointer_is_the_code_open_food_facts_itself_issued(): void
+    {
+        // **`source_ref` is provenance, not a label of our own.** The migration says it holds OFF's
+        // own code and `OffProduct::offCode()` returns it verbatim, because `legal-and-privacy.md`
+        // requires a per-row pointer precise enough to execute a takedown against. A prefixed
+        // internal string (`off:export:<gtin>`, which this wrote) points at nothing OFF ever issued,
+        // and the column would still look populated while being useless for the one job it has.
+        $path = $this->export($this->tsv([
+            ['code', 'product_name', 'brands', 'lang', 'image_url', 'main_category'],
+            ['8690504010012', 'Süt 1 L', 'Pınar', 'tr', 'https://img/1.jpg', 'en:milk'],
+        ]));
+
+        $this->artisan('depools:import-off', ['file' => $path])->assertSuccessful();
+
+        $row = OffProduct::where('gtin', '08690504010012')->sole();
+
+        // OFF's 13, not our padded 14 and not a prefix: this is the string that addresses the product
+        // on their side.
+        $this->assertSame('8690504010012', $row->offCode());
+    }
+
     public function test_a_row_with_no_name_is_skipped_rather_than_stored_empty(): void
     {
         // **A named row is the whole point.** Storing a nameless one would make the live top-up skip

@@ -79,9 +79,9 @@ final class OpenFoodFacts
                 ->get(sprintf('https://world.openfoodfacts.org/api/v2/product/%s', urlencode($code)));
 
             if (! $response->successful()) {
-                // Logged, because the docblock promises failures are and a 429 or a 5xx is exactly
-                // the failure worth seeing: a rate limit that persists presents as OFF "having
-                // nothing" for every scan, which is indistinguishable from an honest miss.
+                // Logged, because the docblock promises that failures are, and a 429 or a 5xx is
+                // exactly the failure worth seeing: a rate limit that persists presents as OFF
+                // "having nothing" for every scan, indistinguishable from an honest miss.
                 Log::warning('Open Food Facts answered with an error', [
                     'gtin' => $gtin,
                     'status' => $response->status(),
@@ -99,7 +99,7 @@ final class OpenFoodFacts
                 return null;
             }
 
-            return $this->store($gtin, $body['product']);
+            return $this->store($gtin, $code, $body['product']);
         } catch (Throwable $e) {
             // Logged rather than swallowed, because a persistent failure here is a real operational
             // fact (a blocked IP, a changed contract) that would otherwise present only as OFF
@@ -111,9 +111,10 @@ final class OpenFoodFacts
     }
 
     /**
+     * @param  string  $offCode  the code OFF itself answered on, 8 or 13 digits
      * @param  array<string, mixed>  $product
      */
-    private function store(string $gtin, array $product): ?OffProduct
+    private function store(string $gtin, string $offCode, array $product): ?OffProduct
     {
         $name = $this->text($product, ['product_name', 'product_name_en', 'generic_name']);
 
@@ -131,7 +132,11 @@ final class OpenFoodFacts
                 'locale' => $this->locale($product),
                 'off_category' => $this->text($product, ['categories']),
                 'image_url' => $this->text($product, ['image_front_url', 'image_url']),
-                'source_ref' => 'off:api:'.$gtin,
+                // **OFF's own code, because this column is PROVENANCE.** The migration says so and
+                // `OffProduct::offCode()` returns it verbatim: `legal-and-privacy.md` requires a
+                // per-row pointer back to the origin so a takedown can be executed precisely. A
+                // prefixed internal string made that method return something OFF never issued.
+                'source_ref' => $offCode,
                 'imported_at' => now(),
             ],
         );

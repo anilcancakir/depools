@@ -159,6 +159,19 @@ final class ImportOpenFoodFacts extends Command
             return null;
         }
 
+        // OFF's own code, which is what `source_ref` is for: provenance precise enough to execute a
+        // takedown against. Null only for a case code, which OFF does not model and which is skipped
+        // above by `Gtin::fromScan` succeeding and this returning nothing to point at.
+        $offCode = Gtin::fromScan($gtin)->toOpenFoodFacts();
+
+        if ($offCode === null) {
+            return null;
+        }
+
+        // Once per row rather than three times, so a row's own timestamps agree with each other and a
+        // large import does not build a clock reading per column.
+        $now = Carbon::now();
+
         return [
             // **The key is generated here because `upsert` writes rows directly.** It fires no model
             // event, so `ConditionallyUsesUuids` never runs and PostgreSQL refuses the null id. Same
@@ -177,10 +190,10 @@ final class ImportOpenFoodFacts extends Command
             'locale' => $this->locale($this->value($row, $columns, 'lang')),
             'off_category' => $this->value($row, $columns, 'main_category'),
             'image_url' => $this->value($row, $columns, 'image_url'),
-            'source_ref' => 'off:export:'.$gtin,
-            'imported_at' => Carbon::now(),
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now(),
+            'source_ref' => $offCode,
+            'imported_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
         ];
     }
 

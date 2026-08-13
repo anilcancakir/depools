@@ -371,6 +371,51 @@ final class BarcodeCascadeTest extends TestCase
             ->assertJsonPath('data.name', 'Strong French');
     }
 
+    public function test_a_live_answer_records_the_code_open_food_facts_answered_on(): void
+    {
+        // Same provenance rule as the bulk import: `source_ref` is the pointer a takedown is executed
+        // against, so it holds the code OFF addressed the product by. The live path stored
+        // `off:api:<gtin>` and `OffProduct::offCode()` then returned something OFF never issued.
+        $this->offReturns(['product_name' => 'Live Milk', 'lang' => 'en']);
+
+        $this->tenant('Alpha');
+        Barcode::forGtin('8690504010012');
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertOk();
+
+        // The 13 OFF answered on, not our stored 14 and not a prefix.
+        $this->assertSame('8690504010012', OffProduct::where('gtin', '08690504010012')->sole()->offCode());
+    }
+
+    public function test_an_unidentifiable_code_is_refused_rather_than_reported_as_unknown(): void
+    {
+        // **404 means "no source knows this product" and starts stage 6**, where the client offers to
+        // create one carrying the code. A non-GTIN read with no symbology can never become that row,
+        // because `Barcode::forCode()` takes the symbology as part of the identity: the same
+        // characters as Code128 and as a QR are two different labels. Answering 404 would send the
+        // user into a flow that cannot finish, so this is a 422 naming the field that is missing.
+        $this->tenant('Alpha');
+
+        $this->getJson('/api/v1/barcode/resolve?code=SHELF-A-0042')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('symbology');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_a_gtin_still_needs_no_symbology(): void
+    {
+        // The other half of the rule, and the one that would break first: a GTIN identifies itself,
+        // so the refusal above must not reach the case that is 99% of scans. `test_a_non_gtin_label_
+        // with_no_row_does_not_ask_open_food_facts` pins the third case, a non-GTIN that has one.
+        $this->offHasNothing();
+
+        $this->tenant('Alpha');
+
+        // A miss, which is the point: it got past the refusal and through the whole cascade.
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertNotFound();
+    }
+
     public function test_a_case_code_is_never_asked_of_open_food_facts(): void
     {
         // `Gtin::toOpenFoodFacts()` returns null for a 14-significant-digit code: that is a case
