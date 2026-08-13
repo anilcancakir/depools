@@ -250,7 +250,14 @@ class _CountScannerSheetState extends State<CountScannerSheet> {
   Future<void> _submitTyped() async {
     final String code = _typed.text.trim();
 
-    if (code.isEmpty) return;
+    // **Guarded BEFORE the field is cleared, or a typed code disappears with no feedback.** The
+    // clear used to come first and `_handle` returns early while a lookup is in flight, so a second
+    // entry during that window emptied the field and did nothing else. Silent, and reachable from
+    // the keyboard rather than only from the button: `onSubmitted` has no disabled state to respect.
+    //
+    // Leaving the text in place is itself the feedback. The user's entry is still there to send
+    // again, which is what they would want anyway, and it needs no message to say so.
+    if (code.isEmpty || _resolving) return;
 
     _typed.clear();
 
@@ -360,6 +367,10 @@ class _CountScannerSheetState extends State<CountScannerSheet> {
           ),
         ),
         MSButton(
+          // Both, and the second is the one that shows. `MSButton` takes `disabled` separately from
+          // `onPressed`, so a null callback alone leaves a button that looks live and does nothing,
+          // which is how a user ends up tapping it twice and believing the app is stuck.
+          disabled: _resolving,
           onPressed: _resolving ? null : _submitTyped,
           size: ButtonSize.sm,
           className: 'h-11 justify-center shrink-0',
