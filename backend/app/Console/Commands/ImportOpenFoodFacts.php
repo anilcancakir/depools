@@ -73,6 +73,8 @@ final class ImportOpenFoodFacts extends Command
         $header = fgetcsv($handle, 0, $separator);
 
         if ($header === false) {
+            fclose($handle);
+
             $this->error('The file is empty.');
 
             return self::FAILURE;
@@ -83,6 +85,8 @@ final class ImportOpenFoodFacts extends Command
 
         foreach (self::REQUIRED as $name) {
             if (! isset($columns[$name])) {
+                fclose($handle);
+
                 $this->error("The export has no `{$name}` column. OFF changed its shape; this import needs updating rather than guessing.");
 
                 return self::FAILURE;

@@ -62,15 +62,31 @@ final class OpenFoodFacts
             return null;
         }
 
+        // **The boundary rule lives on the value object, and reimplementing it here was wrong twice
+        // over.** `Gtin::toOpenFoodFacts()` implements OFF's own convention (8 or 13 digits) and
+        // returns null for a 14-significant-digit case code, which OFF does not model at all because
+        // it holds consumer items. Stripping leading zeros by hand, as this did, sent OFF a request
+        // it could never satisfy and called the empty answer a miss.
+        $code = Gtin::fromScan($gtin)->toOpenFoodFacts();
+
+        if ($code === null) {
+            return null;
+        }
+
         try {
             $response = Http::withUserAgent(self::USER_AGENT)
                 ->timeout(self::TIMEOUT_SECONDS)
-                ->get(sprintf(
-                    'https://world.openfoodfacts.org/api/v2/product/%s',
-                    urlencode($this->apiCode($gtin)),
-                ));
+                ->get(sprintf('https://world.openfoodfacts.org/api/v2/product/%s', urlencode($code)));
 
             if (! $response->successful()) {
+                // Logged, because the docblock promises failures are and a 429 or a 5xx is exactly
+                // the failure worth seeing: a rate limit that persists presents as OFF "having
+                // nothing" for every scan, which is indistinguishable from an honest miss.
+                Log::warning('Open Food Facts answered with an error', [
+                    'gtin' => $gtin,
+                    'status' => $response->status(),
+                ]);
+
                 return null;
             }
 
@@ -92,20 +108,6 @@ final class OpenFoodFacts
 
             return null;
         }
-    }
-
-    /**
-     * The code OFF itself keys on, which is not the one we store.
-     *
-     * We hold GTIN-14 because GS1 says so; OFF's own normalisation pads to 8 or 13 and does not
-     * address 14, so asking it for `08690504010012` misses a product it has under `8690504010012`.
-     * Stripping our left padding is the translation between the two conventions.
-     */
-    private function apiCode(string $gtin): string
-    {
-        $trimmed = ltrim($gtin, '0');
-
-        return $trimmed === '' ? '0' : $trimmed;
     }
 
     /**

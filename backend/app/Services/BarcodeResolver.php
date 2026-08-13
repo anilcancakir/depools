@@ -10,6 +10,7 @@ use App\Models\ProductBarcode;
 use App\Models\Scopes\TeamScope;
 use App\Support\Gtin;
 use App\Support\ProductCandidate;
+use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
 
 /**
@@ -124,11 +125,27 @@ final class BarcodeResolver
      *
      * The row carries its own confidence, so a contribution nobody has corroborated presents as
      * unverified without this method deciding anything about it.
+     *
+     * **One barcode can name several rows, because the catalogue holds one row per LOCALE.** A bare
+     * `first()` therefore returned whichever the database offered, so the same scan could answer in
+     * Turkish for one request and English for the next, and the screen would look broken rather than
+     * multilingual. The user's own locale wins, then confidence, then the oldest row: the last of
+     * those exists only so two rows that tie cannot swap places between requests.
+     *
+     * A miss on the user's locale is still a hit here, in another language, which is deliberate: a
+     * product they can recognise beats no product at all, and filling the gap is what the translation
+     * step will do once the AI gateway exists.
      */
     private function fromCommunityCatalogue(Barcode $barcode): ?ProductCandidate
     {
+        $locale = (string) (Auth::user()?->locale ?? config('app.locale', 'en'));
+
         /** @var GlobalProduct|null $global */
-        $global = $barcode->globalProducts()->first();
+        $global = $barcode->globalProducts()
+            ->orderByRaw('CASE WHEN global_products.locale = ? THEN 0 ELSE 1 END', [$locale])
+            ->orderByDesc('global_products.confidence')
+            ->orderBy('global_products.created_at')
+            ->first();
 
         if ($global === null) {
             return null;

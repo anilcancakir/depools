@@ -318,4 +318,69 @@ final class BarcodeCascadeTest extends TestCase
 
         Http::assertNothingSent();
     }
+
+    public function test_the_community_answer_is_in_the_users_own_locale(): void
+    {
+        // **One barcode names several rows, because the catalogue holds one per locale.** A bare
+        // `first()` returned whichever the database offered, so the same scan could answer in Turkish
+        // for one request and English for the next: a screen that looks broken rather than
+        // multilingual.
+        [$user] = $this->tenant('Alpha');
+        $user->forceFill(['locale' => 'tr'])->save();
+
+        $barcode = Barcode::forGtin('8690504010012');
+
+        foreach ([['en', 'English Milk', 90], ['tr', 'Türk Sütü', 50]] as [$locale, $name, $confidence]) {
+            $row = GlobalProduct::create([
+                'name' => $name,
+                'locale' => $locale,
+                'source' => 'community',
+                'confidence' => $confidence,
+            ]);
+            $row->barcodes()->attach($barcode->getKey());
+        }
+
+        // Turkish wins despite the LOWER confidence, because a product the user can read beats a
+        // more-corroborated one they cannot.
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Türk Sütü');
+    }
+
+    public function test_a_locale_the_catalogue_lacks_still_gets_an_answer(): void
+    {
+        // A hit in another language beats no product at all, and filling the gap is what the
+        // translation step will do once the AI gateway exists. Confidence decides among the rest.
+        [$user] = $this->tenant('Alpha');
+        $user->forceFill(['locale' => 'de'])->save();
+
+        $barcode = Barcode::forGtin('8690504010012');
+
+        foreach ([['en', 'Weak English', 40], ['fr', 'Strong French', 95]] as [$locale, $name, $confidence]) {
+            $row = GlobalProduct::create([
+                'name' => $name,
+                'locale' => $locale,
+                'source' => 'community',
+                'confidence' => $confidence,
+            ]);
+            $row->barcodes()->attach($barcode->getKey());
+        }
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Strong French');
+    }
+
+    public function test_a_case_code_is_never_asked_of_open_food_facts(): void
+    {
+        // `Gtin::toOpenFoodFacts()` returns null for a 14-significant-digit code: that is a case
+        // rather than a consumer item, and OFF does not model it. Asking would be a request that
+        // cannot hit.
+        $this->tenant('Alpha');
+
+        $this->getJson('/api/v1/barcode/resolve?code=10614141999993')
+            ->assertNotFound();
+
+        Http::assertNothingSent();
+    }
 }
