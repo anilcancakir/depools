@@ -304,6 +304,27 @@ final class AiGatewayTest extends TestCase
         $this->assertSame(0, AiUsageEvent::query()->count());
     }
 
+    public function test_a_malformed_chain_entry_is_skipped_without_consuming_an_attempt(): void
+    {
+        // A configuration mistake is not a model failure. Counting it as an attempt would leave a
+        // `provider_error` row implying a provider was reached, and the `catch` reads `$entry` too,
+        // so the mistake would surface from inside the error path rather than before it.
+        $this->tenant();
+        $this->credits(10);
+        config(['ai_gateways.categories.enrichment_text.chain' => [
+            ['models' => ['a/b']],
+            ['provider' => 'openrouter', 'models' => ['google/gemini-2.5-flash-lite']],
+        ]]);
+        $caller = $this->model([['name' => 'Yarım yağlı süt', 'brand' => 'Lactel', 'description' => 'UHT süt.']]);
+
+        $this->assertNotNull($this->gateway()->translate($this->card(), 'tr'));
+
+        // The good entry was reached, and it was the FIRST attempt rather than the second.
+        $this->assertCount(1, $caller->calls);
+        $this->assertSame([1], AiUsageEvent::query()->pluck('attempt')->all());
+        $this->assertSame(AiOutcome::Succeeded->value, AiUsageEvent::query()->sole()->outcome);
+    }
+
     public function test_the_kill_switch_stops_every_call_leaving_the_process(): void
     {
         // `legal-and-privacy.md` asks every external source to be disableable without a deploy, and

@@ -68,10 +68,16 @@ final class BarcodeCascadeTest extends TestCase
     }
 
     /** @return array{0: User, 1: Team} */
-    private function tenant(string $name): array
+    /**
+     * @param  string  $locale  stated rather than inherited: `users.locale` defaults to `en`, so a
+     *                          test describing a Turkish scan while leaving it alone asks for `en`,
+     *                          gets Turkish text from its own fake, and stores it in an `en` row.
+     *                          It passes, and it certifies a world the running system never produces.
+     */
+    private function tenant(string $name, string $locale = 'en'): array
     {
         /** @var User $user */
-        $user = User::factory()->createOne();
+        $user = User::factory()->createOne(['locale' => $locale]);
         $team = Team::create(['name' => $name, 'user_id' => $user->getKey()]);
         $user->forceFill(['current_team_id' => $team->getKey()])->save();
         $user->refresh();
@@ -430,7 +436,7 @@ final class BarcodeCascadeTest extends TestCase
         // **The gap this closes compounds.** Without the write-back, every Turkish scan of a French
         // contribution spends a credit and produces nothing durable; with it, the first scan pays and
         // every later one is free, instant and needs no model at all.
-        $this->tenant('Alpha');
+        $this->tenant('Alpha', 'tr');
         config(['ai_gateways.live' => true]);
         AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
             'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
@@ -450,7 +456,7 @@ final class BarcodeCascadeTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.name', 'Yarım yağlı UHT süt 1L');
 
-        $written = GlobalProduct::query()->where('locale', 'en')->sole();
+        $written = GlobalProduct::query()->where('locale', 'tr')->sole();
         $this->assertSame('ai_generated', $written->source);
         // Points at the row it was made from, so a bad translation can be traced to its original.
         $this->assertSame((string) $french->getKey(), $written->source_ref);
@@ -465,7 +471,7 @@ final class BarcodeCascadeTest extends TestCase
         // cache layer to assert: the resolver orders by locale, so once the row exists it wins and
         // the translator is never reached. The fake is scripted with ONE answer, so a second call
         // would fail loudly rather than quietly costing a credit.
-        $this->tenant('Alpha');
+        $this->tenant('Alpha', 'tr');
         config(['ai_gateways.live' => true]);
         AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
             'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
@@ -494,7 +500,7 @@ final class BarcodeCascadeTest extends TestCase
         // A translation failure costs a LANGUAGE, never an answer. The cascade's whole argument for
         // returning a foreign row is that a product the user can recognise beats none, and that
         // argument does not stop applying because a model was down.
-        $this->tenant('Alpha');
+        $this->tenant('Alpha', 'tr');
         config(['ai_gateways.live' => true]);
         $this->app->instance(ModelCaller::class, new FakeModelCaller([]));
 

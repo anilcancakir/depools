@@ -104,6 +104,15 @@ final class GatewayRunner
         $lastFailedSchema = false;
 
         foreach ($chain as $entry) {
+            // **Checked before the attempt is counted, not inside it.** A malformed entry is a
+            // configuration mistake rather than a model failure, so it must not consume an attempt
+            // ordinal or leave a `provider_error` row implying a provider was reached. The `catch`
+            // below reads `$entry` too, which is what would have turned a half-edited config into a
+            // warning raised from inside the error path.
+            if (! is_array($entry) || ! is_string($entry['provider'] ?? null) || ! is_array($entry['models'] ?? null)) {
+                continue;
+            }
+
             $attempt++;
             $startedAt = (int) (microtime(true) * 1000);
 
