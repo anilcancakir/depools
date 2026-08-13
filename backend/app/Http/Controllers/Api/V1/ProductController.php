@@ -11,6 +11,7 @@ use App\Models\Scopes\TeamScope;
 use App\Services\CatalogueContributor;
 use App\Services\ProductListQuery;
 use App\Support\Gtin;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Arr;
@@ -155,21 +156,44 @@ final class ProductController extends Controller
 
         $this->refuseIfAlreadyLinked($barcode);
 
-        // **Atomic, because the link can still lose a race with a concurrent create.** Without this
-        // the product row was written and the pivot insert then threw, so the client got a 500 for a
-        // product that exists: the worst of both answers. `product_barcode` is `unique(team_id,
-        // barcode_id)` and the check above closes the ordinary case; this closes the other one.
-        $product = DB::transaction(function () use ($data, $barcode): Product {
-            $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
+        // **Atomic, so a losing race cannot leave a half-written product.** Without this the product
+        // row was written and the pivot insert then threw, and the client got a 500 for a product
+        // that exists: the worst of both answers.
+        //
+        // Atomicity alone does NOT make the race a 422, and this comment used to claim it did. The
+        // check above closes the ordinary case; the catch below is what turns the concurrent one
+        // into the same answer instead of a rolled-back 500.
+        try {
+            $product = DB::transaction(function () use ($data, $barcode): Product {
+                $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
 
-            $barcode !== null && $product->linkBarcode($barcode);
+                $barcode !== null && $product->linkBarcode($barcode);
 
-            return $product;
-        });
+                return $product;
+            });
+        } catch (QueryException $e) {
+            // Both, because either alone is a guess: `23505` is PostgreSQL's unique-violation code
+            // and is stable in a way message text is not, and the index name is what says it was OUR
+            // rule rather than some other constraint on the same insert.
+            if ($e->getCode() !== '23505'
+                || ! str_contains($e->getMessage(), 'product_barcode_team_id_barcode_id_unique')) {
+                throw $e;
+            }
+
+            // The transaction rolled back, so nothing of ours survives and the row that won the race
+            // is now visible: re-running the check produces the same 422 the sequential case gets.
+            $this->refuseIfAlreadyLinked($barcode);
+
+            // Only reachable if the winner vanished between the violation and this read, which the
+            // constraint that just fired makes impossible. Rethrown rather than papered over.
+            throw $e;
+        }
 
         // The contribution is a side effect of a create the user asked for, so every refusal inside
-        // it is silent: a licence guard, an existing row or a missing locale must not turn "your
-        // product was saved" into an error about something else.
+        // it is silent: the licence guard, an existing row, or the write itself failing must not turn
+        // "your product was saved" into an error about something else. ("A missing locale" was in
+        // this list and is not a real branch; it is named in `CatalogueContributor` for the same
+        // reason it is corrected here.)
         if (($data['contribute'] ?? true) === true) {
             $this->contributor->contribute($product, $barcode);
         }
