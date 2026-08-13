@@ -158,5 +158,21 @@ return new class extends Migration
             ADD CONSTRAINT global_products_confidence_is_a_percentage
             CHECK (confidence BETWEEN 0 AND 100)
         ');
+
+        // **"One row per product per locale" was prose until now, and prose does not refuse a write.**
+        // A translation is the one source whose product identity is expressible as a column: it is
+        // made FROM a row, so `source_ref` names that row and this pair is exactly the contract. Two
+        // scans of the same foreign-locale barcode that both look before either writes produced two
+        // rows and spent two credits, which was measured rather than feared.
+        //
+        // Partial, and only over `ai_generated`, because it is the only source where the pair is a
+        // key: a contributed row's `source_ref` points at somebody else's identifier, a scraped one's
+        // at a URL, and neither promises uniqueness. Constraining what we cannot honour would refuse
+        // legitimate rows later.
+        DB::statement("
+            CREATE UNIQUE INDEX global_products_one_translation_per_locale
+            ON global_products (source_ref, locale)
+            WHERE source = 'ai_generated'
+        ");
     }
 };

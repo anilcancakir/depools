@@ -9,6 +9,7 @@ use App\Ai\ProductCard;
 use App\Enums\AiOutcome;
 use App\Models\AiCreditGrant;
 use App\Models\AiUsageEvent;
+use App\Models\Scopes\TeamScope;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -323,6 +324,23 @@ final class AiGatewayTest extends TestCase
         $this->assertCount(1, $caller->calls);
         $this->assertSame([1], AiUsageEvent::query()->pluck('attempt')->all());
         $this->assertSame(AiOutcome::Succeeded->value, AiUsageEvent::query()->sole()->outcome);
+    }
+
+    public function test_no_auth_context_declines_without_writing_anything(): void
+    {
+        // **`TeamScope` fails closed, and the accounting has to fail closed with it.** With no
+        // authenticated user the balance is zero, so this took the no-credit path and tried to write
+        // an attempt row whose `team_id` is null, which the column refuses: SQLSTATE 23502, a 500
+        // where the contract promises null. A queued job or a console command is exactly the caller
+        // that arrives here without a request.
+        $caller = $this->model([['name' => 'unreachable', 'brand' => null, 'description' => null]]);
+
+        $this->assertNull($this->gateway()->translate($this->card(), 'tr'));
+
+        $this->assertSame([], $caller->calls);
+        // Nothing to attribute it to, so nothing is written. The row exists to say WHICH tenant hit
+        // their limit, and a row with no tenant answers nobody's question.
+        $this->assertSame(0, AiUsageEvent::query()->withoutGlobalScope(TeamScope::class)->count());
     }
 
     public function test_the_kill_switch_stops_every_call_leaving_the_process(): void

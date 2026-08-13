@@ -4,6 +4,7 @@ namespace App\Ai;
 
 use App\Ai\Contracts\ModelCaller;
 use App\Enums\AiOutcome;
+use App\Models\Scopes\TeamScope;
 use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Str;
@@ -80,6 +81,18 @@ final class GatewayRunner
         $chain = is_array($config) ? ($config['chain'] ?? []) : [];
 
         if ($chain === []) {
+            return null;
+        }
+
+        // **No tenant, no call, and no row either.** `TeamScope` fails closed, so with no auth
+        // context the balance reads zero and this would take the no-credit path below and try to
+        // write an attempt row whose `team_id` is null: the column refuses it and a path that
+        // promises null throws SQLSTATE 23502 instead. A queued job or a console command is exactly
+        // the caller that arrives here without a request.
+        //
+        // Nothing is recorded rather than something being recorded anonymously, because the row
+        // exists to say WHICH tenant is hitting their limit and a row with no tenant answers nobody.
+        if (TeamScope::currentTeamId() === null) {
             return null;
         }
 

@@ -6,6 +6,8 @@ use App\Ai\Contracts\ProductEnrichmentGateway;
 use App\Ai\ProductCard;
 use App\Models\Barcode;
 use App\Models\GlobalProduct;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Fills the community catalogue's locale gaps, one scan at a time.
@@ -48,6 +50,19 @@ final class CatalogueTranslator
             return $source;
         }
 
+        // **Before the model, because a translation we already have is the cheapest one.** The
+        // resolver's locale ordering means this normally misses, but "normally" is not "never": two
+        // scans of the same unknown barcode that both LOOK before either WRITES both arrive here,
+        // and without this they produce two rows and spend two credits for one translation. Measured
+        // rather than reasoned about: driving this method twice wrote two `tr` rows.
+        $existing = $this->existingTranslation($source, $targetLocale);
+
+        if ($existing !== null) {
+            $this->link($existing, $barcode);
+
+            return $existing;
+        }
+
         $translated = $this->gateway->translate(
             new ProductCard(
                 name: $source->name,
@@ -61,7 +76,60 @@ final class CatalogueTranslator
             return null;
         }
 
-        $row = GlobalProduct::create([
+        $row = $this->write($source, $translated, $targetLocale);
+
+        $this->link($row, $barcode);
+
+        return $row;
+    }
+
+    /**
+     * A translation of this row into this locale that somebody has already written.
+     *
+     * Keyed on `source_ref` rather than on the barcode, because the source row is what the
+     * translation was made FROM: two barcodes on one product must not each buy their own copy.
+     */
+    private function existingTranslation(GlobalProduct $source, string $targetLocale): ?GlobalProduct
+    {
+        return GlobalProduct::query()
+            ->where('source', 'ai_generated')
+            ->where('source_ref', (string) $source->getKey())
+            ->where('locale', $targetLocale)
+            ->first();
+    }
+
+    /**
+     * Writes the row, or returns the one a concurrent caller wrote first.
+     *
+     * The lookup above closes the sequential case; this closes the genuinely concurrent one, where
+     * both callers miss the lookup and both insert. A partial unique index refuses the second, and
+     * the refusal is HANDLED rather than swallowed: the only thing that can raise it is the other
+     * caller having already written what we were about to, so re-reading returns exactly that.
+     *
+     * The insert is wrapped in its own transaction because PostgreSQL aborts the enclosing one on a
+     * constraint violation, so without a savepoint the caught error would poison every later query in
+     * the same request. That is `backend.md`'s documented pattern for an expected refusal.
+     */
+    private function write(GlobalProduct $source, ProductCard $translated, string $targetLocale): GlobalProduct
+    {
+        try {
+            return DB::transaction(fn (): GlobalProduct => $this->create($source, $translated, $targetLocale));
+        } catch (QueryException $e) {
+            if (! str_contains($e->getMessage(), 'global_products_one_translation_per_locale')) {
+                throw $e;
+            }
+
+            return $this->existingTranslation($source, $targetLocale)
+                // Unreachable in practice and thrown rather than papered over: the index that
+                // refused the insert is the same one this reads back through, so a miss here would
+                // mean the row vanished between the two statements.
+                ?? throw $e;
+        }
+    }
+
+    private function create(GlobalProduct $source, ProductCard $translated, string $targetLocale): GlobalProduct
+    {
+        return GlobalProduct::create([
             'product_category_id' => $source->product_category_id,
             'name' => $translated->name,
             'brand' => $translated->brand,
@@ -77,12 +145,21 @@ final class CatalogueTranslator
             'source_ref' => (string) $source->getKey(),
             'confidence' => $source->confidence,
         ]);
+    }
 
-        // **Without this the row is unreachable.** The cascade answers through the barcode pivot, so
-        // a translated card nothing links to would be written on every single scan and found by none
-        // of them: a credit spent per scan, forever, with no visible effect.
+    /**
+     * Links the translation to the barcode that led to it.
+     *
+     * **Without this the row is unreachable.** The cascade answers through the barcode pivot, so a
+     * translated card nothing links to would be written on every scan and found by none of them: a
+     * credit spent per scan, forever, with no visible effect.
+     *
+     * Called for a reused row too, not only a fresh one, because one product legitimately carries
+     * several barcodes: the second one arriving must reach the translation the first one bought
+     * rather than buy its own.
+     */
+    private function link(GlobalProduct $row, Barcode $barcode): void
+    {
         $row->barcodes()->syncWithoutDetaching([$barcode->getKey()]);
-
-        return $row;
     }
 }

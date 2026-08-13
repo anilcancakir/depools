@@ -11,9 +11,12 @@ use App\Models\OffProduct;
 use App\Models\Product;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\CatalogueTranslator;
 use App\Support\Gtin;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\FakeModelCaller;
 use Tests\TestCase;
@@ -541,6 +544,67 @@ final class BarcodeCascadeTest extends TestCase
             ->assertJsonPath('data.name', 'Semi-skimmed UHT milk 1L');
 
         $this->assertSame(0, AiUsageEvent::query()->count());
+    }
+
+    public function test_two_callers_that_both_miss_buy_one_translation_between_them(): void
+    {
+        // **Measured, not feared: this wrote two `tr` rows and spent two credits.** The resolver's
+        // locale ordering makes the second caller normally impossible, and "normally" is not "never":
+        // two scans of the same foreign-locale barcode that both LOOK before either WRITES both
+        // arrive here. A lookup closes that, and a partial unique index closes the concurrent case
+        // the lookup cannot, so the contract the table's docblock states is now one it enforces.
+        $this->tenant('Alpha', 'tr');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $answer = ['name' => 'Yarım yağlı süt', 'brand' => 'Lactel', 'description' => 'UHT süt.'];
+        // Scripted twice: a second model call would succeed rather than fail, so the assertion below
+        // is about this method declining to make one and not about the fake running out.
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([$answer, $answer]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait 1L', 'brand' => 'Lactel', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $translator = $this->app->make(CatalogueTranslator::class);
+        $first = $translator->translate($french, 'tr', $barcode);
+        $second = $translator->translate($french, 'tr', $barcode);
+
+        $this->assertSame(1, GlobalProduct::query()->where('locale', 'tr')->count());
+        $this->assertTrue($first?->is($second));
+        // One credit, so one usage row, for one translation.
+        $this->assertSame(1, AiUsageEvent::query()->count());
+    }
+
+    public function test_the_database_refuses_a_second_translation_of_one_row_into_one_locale(): void
+    {
+        // **The index, pinned directly, because no test above reaches it.** The reuse lookup handles
+        // the sequential case, so a mutation making this index non-unique left every other test
+        // green: what it actually protects is two concurrent callers that both miss the lookup, and
+        // that race cannot be staged in one process. So the constraint is asserted rather than the
+        // race, which is the honest half that can be.
+        //
+        // Wrapped in its own transaction because PostgreSQL aborts the enclosing one on a violation,
+        // and under RefreshDatabase that would fail every later query in this test with 25P02.
+        $this->tenant('Alpha', 'tr');
+
+        $french = GlobalProduct::create([
+            'name' => 'Lait 1L', 'locale' => 'fr', 'source' => 'community', 'confidence' => 70,
+        ]);
+        $attributes = [
+            'name' => 'Süt 1L', 'locale' => 'tr', 'source' => 'ai_generated',
+            'source_ref' => (string) $french->getKey(), 'confidence' => 70,
+        ];
+        GlobalProduct::create($attributes);
+
+        $this->expectException(QueryException::class);
+
+        DB::transaction(static function () use ($attributes): void {
+            GlobalProduct::create($attributes);
+        });
     }
 
     public function test_a_case_code_is_never_asked_of_open_food_facts(): void
