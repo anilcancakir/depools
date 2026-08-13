@@ -1,5 +1,5 @@
 import 'package:depools/app/models/scan_entry.dart';
-import 'package:depools/ui/components/scan_row/scan_row.dart';
+import 'package:depools/app/models/scan_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// How a cascade answer becomes a row.
@@ -33,16 +33,29 @@ void main() {
   group('a row in a batch', () {
     test('an unmatched row is the only one that is not settled', () {
       for (final ScanSource source in ScanSource.values) {
-        final ScanEntry entry = ScanEntry(barcode: '1', count: 1, source: source);
+        final ScanEntry entry = ScanEntry(
+          barcode: '1',
+          count: 1,
+          source: source,
+        );
 
-        expect(entry.isSettled, source != ScanSource.unmatched, reason: source.name);
+        expect(
+          entry.isSettled,
+          source != ScanSource.unmatched,
+          reason: source.name,
+        );
       }
     });
 
     test('scanning the same carton again is a second unit', () {
       // The prior Anılcan set: two reads of one barcode mean two cartons, which is the whole
       // reason a receiving bench scans at all.
-      const ScanEntry entry = ScanEntry(barcode: '869', count: 1, sequence: 3, productName: 'Süt');
+      const ScanEntry entry = ScanEntry(
+        barcode: '869',
+        count: 1,
+        sequence: 3,
+        productName: 'Süt',
+      );
 
       final ScanEntry twice = entry.incremented(sequence: 7);
 

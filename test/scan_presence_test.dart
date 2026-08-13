@@ -20,7 +20,9 @@ void main() {
     int counted = 0;
 
     for (int ms = 0; ms <= 3000; ms += 100) {
-      if (gate.shouldCount('869', null, t0.add(Duration(milliseconds: ms)))) counted++;
+      if (gate.shouldCount('869', null, t0.add(Duration(milliseconds: ms)))) {
+        counted++;
+      }
     }
 
     expect(counted, 1);
@@ -33,7 +35,10 @@ void main() {
 
     expect(gate.shouldCount('869', null, t0), isTrue);
     // Out of frame for a second: longer than the grace, so this is a new presentation.
-    expect(gate.shouldCount('869', null, t0.add(const Duration(milliseconds: 1000))), isTrue);
+    expect(
+      gate.shouldCount('869', null, t0.add(const Duration(milliseconds: 1000))),
+      isTrue,
+    );
   });
 
   test('a decode dropout of a few frames is not a new carton', () {
@@ -42,7 +47,10 @@ void main() {
     final ScanPresence gate = ScanPresence();
 
     expect(gate.shouldCount('869', null, t0), isTrue);
-    expect(gate.shouldCount('869', null, t0.add(const Duration(milliseconds: 300))), isFalse);
+    expect(
+      gate.shouldCount('869', null, t0.add(const Duration(milliseconds: 300))),
+      isFalse,
+    );
   });
 
   test('two different codes in one frame both count', () {
@@ -53,31 +61,34 @@ void main() {
     expect(gate.shouldCount('870', null, t0), isTrue);
   });
 
-  test('a code held in view keeps its sighting recorded even while it does not count', () {
-    // The subtle one. If a non-counting sighting were not recorded, a held label would look absent
-    // as soon as its own gap elapsed and would count again: the bug, with extra steps.
-    final ScanPresence gate = ScanPresence();
-
-    gate.shouldCount('869', null, t0);
-
-    for (int ms = 100; ms <= 2000; ms += 100) {
-      expect(
-        gate.shouldCount('869', null, t0.add(Duration(milliseconds: ms))),
-        isFalse,
-        reason: 'at ${ms}ms',
-      );
-    }
-  });
-
-  test('the same text under two symbologies is two labels', () {
-      // The batch keys on `(code, symbology)` because the server does, and a gate keyed on the code
-      // alone suppressed the second: a QR swallowed by a Code128 of the same text, while the batch
-      // was busy keeping them apart. One identity, one builder.
+  test(
+    'a code held in view keeps its sighting recorded even while it does not count',
+    () {
+      // The subtle one. If a non-counting sighting were not recorded, a held label would look absent
+      // as soon as its own gap elapsed and would count again: the bug, with extra steps.
       final ScanPresence gate = ScanPresence();
 
-      expect(gate.shouldCount('SHELF-1', 'code128', t0), isTrue);
-      expect(gate.shouldCount('SHELF-1', 'qrcode', t0), isTrue);
-    });
+      gate.shouldCount('869', null, t0);
+
+      for (int ms = 100; ms <= 2000; ms += 100) {
+        expect(
+          gate.shouldCount('869', null, t0.add(Duration(milliseconds: ms))),
+          isFalse,
+          reason: 'at ${ms}ms',
+        );
+      }
+    },
+  );
+
+  test('the same text under two symbologies is two labels', () {
+    // The batch keys on `(code, symbology)` because the server does, and a gate keyed on the code
+    // alone suppressed the second: a QR swallowed by a Code128 of the same text, while the batch
+    // was busy keeping them apart. One identity, one builder.
+    final ScanPresence gate = ScanPresence();
+
+    expect(gate.shouldCount('SHELF-1', 'code128', t0), isTrue);
+    expect(gate.shouldCount('SHELF-1', 'qrcode', t0), isTrue);
+  });
 
   test('codes long gone are forgotten', () {
     final ScanPresence gate = ScanPresence();
