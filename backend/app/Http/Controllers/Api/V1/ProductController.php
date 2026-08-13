@@ -14,7 +14,9 @@ use App\Support\Gtin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Products.
@@ -151,11 +153,19 @@ final class ProductController extends Controller
 
         $barcode = $this->barcodeFrom($data);
 
-        $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
+        $this->refuseIfAlreadyLinked($barcode);
 
-        if ($barcode !== null) {
-            $product->linkBarcode($barcode);
-        }
+        // **Atomic, because the link can still lose a race with a concurrent create.** Without this
+        // the product row was written and the pivot insert then threw, so the client got a 500 for a
+        // product that exists: the worst of both answers. `product_barcode` is `unique(team_id,
+        // barcode_id)` and the check above closes the ordinary case; this closes the other one.
+        $product = DB::transaction(function () use ($data, $barcode): Product {
+            $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
+
+            $barcode !== null && $product->linkBarcode($barcode);
+
+            return $product;
+        });
 
         // The contribution is a side effect of a create the user asked for, so every refusal inside
         // it is silent: a licence guard, an existing row or a missing locale must not turn "your
@@ -165,6 +175,38 @@ final class ProductController extends Controller
         }
 
         return new ProductResource($product);
+    }
+
+    /**
+     * Refuses a barcode this tenant has already pointed at a different product.
+     *
+     * `product_barcode` is `unique(team_id, barcode_id)` and the constraint is right: one tenant
+     * pointing one code at two products makes `products/by-barcode` unanswerable, so it is genuinely
+     * ambiguous rather than merely awkward. What was wrong was WHERE the refusal happened. The
+     * constraint fired after `Product::create()`, so the client received a 500 for a product that had
+     * already been written, and the message named a pivot table rather than the field they filled in.
+     */
+    private function refuseIfAlreadyLinked(?Barcode $barcode): void
+    {
+        if ($barcode === null) {
+            return;
+        }
+
+        $existing = ProductBarcode::query()
+            ->where('team_id', TeamScope::currentTeamId())
+            ->where('barcode_id', $barcode->getKey())
+            ->value('product_id');
+
+        if ($existing === null) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            // Names the product it collides with, because "already in use" without saying where
+            // leaves the user searching their own catalogue for it.
+            'barcode' => 'This barcode already belongs to '
+                .(Product::query()->whereKey($existing)->value('name') ?? 'another product').'.',
+        ]);
     }
 
     /**

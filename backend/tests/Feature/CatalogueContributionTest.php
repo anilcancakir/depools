@@ -52,6 +52,48 @@ final class CatalogueContributionTest extends TestCase
         ], $overrides));
     }
 
+    public function test_a_locale_the_column_cannot_hold_does_not_break_the_create(): void
+    {
+        // Measured before it was fixed: a user set to `zh-Hant-TW` overflowed
+        // `global_products.locale`, which is `string(5)`, and the create returned 500. The class
+        // promises that failing to contribute never fails the product, and that promise was false.
+        $this->tenant('Alpha', 'zh-Hant-TW');
+
+        $this->create()->assertCreated();
+
+        // The primary subtag rather than a blind truncation: `zh-Ha` is not a language and `zh` is.
+        $this->assertSame('zh', GlobalProduct::query()->sole()->locale);
+    }
+
+    public function test_a_barcode_this_tenant_already_uses_is_refused_before_anything_is_written(): void
+    {
+        // `product_barcode` is `unique(team_id, barcode_id)` and the constraint is right: one tenant
+        // pointing one code at two products makes `products/by-barcode` unanswerable. What was wrong
+        // was where it fired. The product row was written and the pivot insert then threw, so the
+        // client got a 500 for a product that exists.
+        $this->tenant();
+        $this->create(['name' => 'First'])->assertCreated();
+
+        $this->create(['name' => 'Second'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('barcode');
+
+        // Nothing half-written: the refusal happens before the create, not after it.
+        $this->assertSame(1, Product::query()->count());
+        $this->assertSame(['First'], Product::query()->pluck('name')->all());
+    }
+
+    public function test_the_same_barcode_in_another_tenant_is_not_a_conflict(): void
+    {
+        // The uniqueness is per tenant on purpose: a barcode is global and two businesses stocking
+        // the same carton is the ordinary case, not a collision.
+        $this->tenant('Alpha');
+        $this->create(['name' => 'Alpha milk'])->assertCreated();
+
+        $this->tenant('Beta');
+        $this->create(['name' => 'Beta milk'])->assertCreated();
+    }
+
     public function test_a_confirmed_product_reaches_the_catalogue_without_being_asked(): void
     {
         // The default is the whole feature. Turkish barcode coverage in commercial databases is weak,
