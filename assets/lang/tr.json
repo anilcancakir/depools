@@ -829,7 +829,11 @@
       "shelf_note": "Raf dolusu · her ürün için bir bölge",
       "shelf_label": "Raf fotoğrafından ürünleri tanıt",
       "subtitle_empty": "Sürekli tarama",
-      "add": "Ekle"
+      "add": "Ekle",
+      "camera_unavailable": "Kamera kullanılamıyor",
+      "torch_on": "Işığı aç",
+      "torch_off": "Işığı kapat",
+      "camera_hint": "Kamerayı barkoda tutun"
     },
     "search": {
       "title": "Ara",
