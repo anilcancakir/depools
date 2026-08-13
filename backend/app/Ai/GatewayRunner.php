@@ -74,7 +74,12 @@ final class GatewayRunner
         /** @var array<string, mixed> $config */
         $config = config("ai_gateways.categories.{$category}");
 
-        if (! is_array($config) || $config['chain'] === []) {
+        // `?? []` rather than a bare index: a category configured with a timeout and no chain is a
+        // plausible half-edit, and reading the missing key would warn twice and then `foreach` over
+        // null. Fail closed and silent is the behaviour this method promises everywhere else.
+        $chain = is_array($config) ? ($config['chain'] ?? []) : [];
+
+        if ($chain === []) {
             return null;
         }
 
@@ -98,7 +103,7 @@ final class GatewayRunner
         $attempt = 0;
         $lastFailedSchema = false;
 
-        foreach ($config['chain'] as $entry) {
+        foreach ($chain as $entry) {
             $attempt++;
             $startedAt = (int) (microtime(true) * 1000);
 
@@ -130,6 +135,24 @@ final class GatewayRunner
 
             $durationMs = (int) (microtime(true) * 1000) - $startedAt;
             $cost = $this->costMicroUsd($answer);
+
+            if ($answer->refused) {
+                // **Moved on from, never retried more strictly.** A moderation filter will decline
+                // the same content however the envelope is described, so treating this as a schema
+                // failure would spend a second call to be told the same thing. A different model may
+                // well answer, which is exactly what the next entry is.
+                $this->usage->attempt(
+                    $actionId, $attempt, $category, AiOutcome::Refused,
+                    provider: $answer->provider, model: $answer->model,
+                    inputTokens: $answer->inputTokens, outputTokens: $answer->outputTokens,
+                    costMicroUsd: $cost, durationMs: $durationMs,
+                );
+
+                $lastFailedSchema = false;
+
+                continue;
+            }
+
             $validated = $validate($answer->structured);
 
             if ($validated === null) {

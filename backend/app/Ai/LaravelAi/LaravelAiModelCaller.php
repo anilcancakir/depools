@@ -5,6 +5,7 @@ namespace App\Ai\LaravelAi;
 use App\Ai\Contracts\ModelCaller;
 use App\Ai\ModelAnswer;
 use Closure;
+use Laravel\Ai\Enums\FinishReason;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 
@@ -50,6 +51,12 @@ final class LaravelAiModelCaller implements ModelCaller
 
         return new ModelAnswer(
             structured: $response->structured,
+            // **A refusal is a 200 with nothing in it**, so without this it would arrive as a schema
+            // failure and be retried with a stricter instruction: precisely the wrong response to a
+            // moderation filter, which will decline the same content however strictly it is asked.
+            // The reason lives on the last STEP rather than on the response, which is why the enum
+            // had a `refused` case nothing could ever write.
+            refused: $response->steps->last()?->finishReason === FinishReason::ContentFilter,
             // From the response's own meta, never from `$models[0]`: OpenRouter may have served this
             // from the second or third entry and the bill follows whichever answered.
             provider: $response->meta->provider,

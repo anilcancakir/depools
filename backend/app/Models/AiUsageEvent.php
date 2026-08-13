@@ -25,7 +25,16 @@ final class AiUsageEvent extends Model
     use BelongsToTeam;
     use ConditionallyUsesUuids;
 
-    /** `created_at` is a database default and there is no `updated_at`: a row is never modified. */
+    /**
+     * `created_at` is a database default and there is no `updated_at` column to maintain.
+     *
+     * **The row is written once and updated exactly once more, by [UsageRecorder::charge].** This
+     * comment used to claim it was never modified, which was the tidier sentence and not the true
+     * one. The update is deliberate: a charge belongs to an ACTION and lands on its first attempt,
+     * and it lands only after the action has succeeded, because `ai-enrichment.md` promises a failed
+     * read spends no credit and says so on screen. Writing the charge up front and reversing it would
+     * be a refund the user watches happen.
+     */
     public $timestamps = false;
 
     protected $fillable = [

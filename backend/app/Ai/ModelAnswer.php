@@ -14,6 +14,10 @@ final readonly class ModelAnswer
 {
     /**
      * @param  array<string, mixed>  $structured
+     * @param  bool  $refused  the provider declined rather than answered, and the difference is not
+     *                         cosmetic: a refusal costs tokens, produces nothing, and a rate of it
+     *                         rising means a prompt is tripping a moderation filter rather than an
+     *                         outage. Reported as its own outcome so those two never look alike.
      */
     public function __construct(
         public array $structured,
@@ -21,5 +25,6 @@ final readonly class ModelAnswer
         public ?string $model,
         public int $inputTokens,
         public int $outputTokens,
+        public bool $refused = false,
     ) {}
 }

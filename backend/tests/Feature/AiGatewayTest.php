@@ -264,6 +264,46 @@ final class AiGatewayTest extends TestCase
         $this->assertNotSame($caller->calls[0]['models'], $caller->calls[1]['models']);
     }
 
+    public function test_a_refusal_is_its_own_outcome_and_is_not_asked_again_more_strictly(): void
+    {
+        // A moderation filter declines the CONTENT, so restating the envelope more strictly buys a
+        // second identical decline. It is a distinct outcome for the same reason: a refusal rate
+        // rising means a prompt is tripping a filter, which reads nothing like an outage, and
+        // collapsing the two would make that invisible in the usage report.
+        $this->tenant();
+        $this->credits(10);
+        $caller = $this->model([
+            ['__refused' => true],
+            ['name' => 'Yarım yağlı süt', 'brand' => 'Lactel', 'description' => 'UHT süt.'],
+        ]);
+
+        $this->assertNotNull($this->gateway()->translate($this->card(), 'tr'));
+
+        $this->assertSame(
+            [AiOutcome::Refused->value, AiOutcome::Succeeded->value],
+            AiUsageEvent::query()->orderBy('attempt')->pluck('outcome')->all(),
+        );
+        // The stricter suffix belongs to a schema failure and to nothing else.
+        $this->assertStringNotContainsString('did not match the required schema', $caller->calls[1]['instructions']);
+        // It still cost tokens, so it carries its cost rather than a null.
+        $this->assertNotNull(AiUsageEvent::query()->where('attempt', 1)->sole()->cost_micro_usd);
+    }
+
+    public function test_a_category_with_no_chain_fails_closed_without_warnings(): void
+    {
+        // A half-edited category (a timeout, no chain) must decline like every other refusal path
+        // rather than warn twice and then iterate over null.
+        $this->tenant();
+        $this->credits(10);
+        config(['ai_gateways.categories.enrichment_text' => ['timeout_ms' => 3000]]);
+        $caller = $this->model([['name' => 'unreachable', 'brand' => null, 'description' => null]]);
+
+        $this->assertNull($this->gateway()->translate($this->card(), 'tr'));
+
+        $this->assertSame([], $caller->calls);
+        $this->assertSame(0, AiUsageEvent::query()->count());
+    }
+
     public function test_the_kill_switch_stops_every_call_leaving_the_process(): void
     {
         // `legal-and-privacy.md` asks every external source to be disableable without a deploy, and

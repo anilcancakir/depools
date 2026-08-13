@@ -53,8 +53,14 @@ final class FakeModelCaller implements ModelCaller
             throw $next;
         }
 
+        // A scripted refusal, which a provider reports as a 200 carrying nothing rather than as an
+        // error. Spelled as a key in the answer so a test reads like the wire does.
+        $refused = ($next['__refused'] ?? false) === true;
+        unset($next['__refused']);
+
         return new ModelAnswer(
             structured: $next,
+            refused: $refused,
             provider: $provider,
             // Defaults to the SECOND model of the entry when one is not named, because that is the
             // case worth exercising: OpenRouter answering from its own fallback array means the
