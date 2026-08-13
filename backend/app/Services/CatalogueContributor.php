@@ -87,7 +87,9 @@ final class CatalogueContributor
                     'contributed_by_team_id' => $teamId,
                 ]);
 
-                $barcode?->globalProducts()->syncWithoutDetaching([$row->getKey()]);
+                if ($barcode !== null) {
+                    $barcode->globalProducts()->syncWithoutDetaching([$row->getKey()]);
+                }
 
                 return $row;
             });

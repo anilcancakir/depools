@@ -167,7 +167,9 @@ final class ProductController extends Controller
             $product = DB::transaction(function () use ($data, $barcode): Product {
                 $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
 
-                $barcode !== null && $product->linkBarcode($barcode);
+                if ($barcode !== null) {
+                    $product->linkBarcode($barcode);
+                }
 
                 return $product;
             });
