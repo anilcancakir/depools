@@ -377,17 +377,51 @@ class _StockTakeViewState extends State<StockTakeView> {
   /// A settled row leaves unless [_showSettled] brought it back, and when it comes back it comes
   /// back with the figure that was entered rather than as a blank row: the point of showing it again
   /// is checking what was counted.
-  List<CountLine> get _lines => (widget.lines ?? _fromController())
-      .where((line) => _showSettled || !_isSettled(line))
-      .map(
-        (line) => CountLine(
-          product: line.product,
-          expected: line.expected,
-          countedWhole: _typed(_whole, _settledWhole, line) ?? line.countedWhole,
-          countedRemainder: _typed(_inner, _settledInner, line) ?? line.countedRemainder,
-        ),
-      )
-      .toList();
+  List<CountLine> get _lines {
+    final List<CountLine> rows = (widget.lines ?? _fromController())
+        .where((line) => _showSettled || !_isSettled(line))
+        .map(
+          (line) => CountLine(
+            product: line.product,
+            expected: line.expected,
+            countedWhole: _typed(_whole, _settledWhole, line) ?? line.countedWhole,
+            countedRemainder: _typed(_inner, _settledInner, line) ?? line.countedRemainder,
+          ),
+        )
+        .toList();
+
+    return <CountLine>[...rows, ..._touchedButUnloaded(rows)];
+  }
+
+  /// Rows this visit has touched that the loaded page does not contain.
+  ///
+  /// **A scan can name a product no page has fetched, and without this it was counted invisibly.**
+  /// The shelf pages at fifty and a scan resolves against the whole tenant, so reading a label for
+  /// something further down the list put a figure into [_whole] that the commit honoured and the list
+  /// never showed. The user counts a thing and watches nothing happen, which is indistinguishable
+  /// from a scan that failed.
+  ///
+  /// Appended rather than merged in place, so the loaded order is untouched: these are rows the
+  /// server has not offered yet, and putting them where they will eventually sort would move a row
+  /// under the user's thumb when the page they belong to lands.
+  List<CountLine> _touchedButUnloaded(List<CountLine> rows) {
+    if (_touched.isEmpty) return const <CountLine>[];
+
+    final Set<String> shown = <String>{
+      for (final CountLine row in rows) _keyOf(row),
+    };
+
+    return <CountLine>[
+      for (final MapEntry<String, CountLine> entry in _touched.entries)
+        if (!shown.contains(entry.key))
+          CountLine(
+            product: entry.value.product,
+            expected: entry.value.expected,
+            countedWhole: _whole[entry.key],
+            countedRemainder: _inner[entry.key],
+          ),
+    ];
+  }
 
   /// Whether this row is committed AND not being re-typed.
   ///
@@ -945,9 +979,24 @@ class _StockTakeViewState extends State<StockTakeView> {
 
     setState(() {
       _edit(line, () {
-        // Zero means the sheet is in select mode: the row is opened for a typed number rather than
-        // incremented, so it is recorded as touched with no figure of its own yet.
-        if (quantity == 0) return;
+        // **Select mode records the KEY with no figure, and dropping that made the switch a no-op.**
+        // Returning here left `_whole` and `_inner` without the key, so `_edit`'s own cleanup then
+        // removed the row from `_touched` on the way out: the scan resolved, the log said the product
+        // was ready for a number, and nothing anywhere held it. The row would not even appear.
+        //
+        // A null value rather than a zero, because zero is a COUNT: it writes the balance off, and
+        // `CountLine.isCounted` reads a null as untouched, which is exactly what a row waiting for a
+        // number is. Absence and zero are different facts here (D58) and this is the third place that
+        // distinction has had to be spelled out.
+        if (quantity == 0) {
+          final String key = _keyOf(line);
+
+          // Only when the row holds nothing yet: scanning something already counted must not wipe
+          // the figure that is there.
+          if (!_whole.containsKey(key)) _whole[key] = null;
+
+          return;
+        }
 
         final num current = _typed(_whole, _settledWhole, line) ?? 0;
 
