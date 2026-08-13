@@ -34,5 +34,13 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!--
+            No test reaches a model by accident. The suite ran green against a real provider once
+            already for Open Food Facts, and the only reason it did not here is that the credit
+            balance happens to be zero in a fresh database: the first test to grant a credit would
+            have started billing a live account from CI. A test that wants the gateway turns this on
+            and binds a fake ModelCaller, which is one deliberate line rather than a default.
+        -->
+        <env name="AI_LIVE" value="false"/>
     </php>
 </phpunit>

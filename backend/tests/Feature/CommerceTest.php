@@ -245,7 +245,7 @@ final class CommerceTest extends TestCase
 
         $allowance = fn (): bool => DB::table('ai_credit_grants')->insert([
             'id' => (string) Str::uuid7(), 'team_id' => $this->teamId, 'kind' => 'plan_allowance',
-            'credits' => 200, 'period_start' => $period,
+            'credits' => 200, 'period_start' => $period, 'expires_at' => $period->copy()->endOfMonth(),
             'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -313,7 +313,10 @@ final class CommerceTest extends TestCase
     {
         DB::table('ai_credit_grants')->insert([
             'id' => (string) Str::uuid7(), 'team_id' => $this->teamId, 'kind' => 'plan_allowance',
-            'credits' => 200, 'period_start' => now()->startOfMonth(),
+            // An expiry, because an allowance now has to have one: null means "never expires", which
+            // is a top-up's state, and an allowance that never expires cannot age out at the end of
+            // its period, which is the whole mechanism of the monthly reset.
+            'credits' => 200, 'period_start' => now()->startOfMonth(), 'expires_at' => now()->endOfMonth(),
             'created_at' => now(), 'updated_at' => now(),
         ]);
 

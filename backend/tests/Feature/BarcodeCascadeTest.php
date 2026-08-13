@@ -2,16 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Contracts\ModelCaller;
+use App\Models\AiCreditGrant;
+use App\Models\AiUsageEvent;
 use App\Models\Barcode;
 use App\Models\GlobalProduct;
 use App\Models\OffProduct;
 use App\Models\Product;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\CatalogueTranslator;
 use App\Support\Gtin;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\FakeModelCaller;
 use Tests\TestCase;
 
 /**
@@ -64,10 +71,16 @@ final class BarcodeCascadeTest extends TestCase
     }
 
     /** @return array{0: User, 1: Team} */
-    private function tenant(string $name): array
+    /**
+     * @param  string  $locale  stated rather than inherited: `users.locale` defaults to `en`, so a
+     *                          test describing a Turkish scan while leaving it alone asks for `en`,
+     *                          gets Turkish text from its own fake, and stores it in an `en` row.
+     *                          It passes, and it certifies a world the running system never produces.
+     */
+    private function tenant(string $name, string $locale = 'en'): array
     {
         /** @var User $user */
-        $user = User::factory()->createOne();
+        $user = User::factory()->createOne(['locale' => $locale]);
         $team = Team::create(['name' => $name, 'user_id' => $user->getKey()]);
         $user->forceFill(['current_team_id' => $team->getKey()])->save();
         $user->refresh();
@@ -419,6 +432,179 @@ final class BarcodeCascadeTest extends TestCase
 
         // A miss, which is the point: it got past the refusal and through the whole cascade.
         $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertNotFound();
+    }
+
+    public function test_a_foreign_catalogue_row_is_translated_and_written_back(): void
+    {
+        // **The gap this closes compounds.** Without the write-back, every Turkish scan of a French
+        // contribution spends a credit and produces nothing durable; with it, the first scan pays and
+        // every later one is free, instant and needs no model at all.
+        $this->tenant('Alpha', 'tr');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([
+            ['name' => 'Yarım yağlı UHT süt 1L', 'brand' => 'Lactel', 'description' => 'UHT süt.'],
+        ]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait demi-écrémé UHT 1L', 'brand' => 'Lactel',
+            'description' => 'Lait de vache stérilisé UHT.', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Yarım yağlı UHT süt 1L');
+
+        $written = GlobalProduct::query()->where('locale', 'tr')->sole();
+        $this->assertSame('ai_generated', $written->source);
+        // Points at the row it was made from, so a bad translation can be traced to its original.
+        $this->assertSame((string) $french->getKey(), $written->source_ref);
+        // **Linked, or it is unreachable**: the cascade answers through the barcode pivot, so an
+        // unlinked row would be rewritten on every scan and found by none of them.
+        $this->assertTrue($written->barcodes()->whereKey($barcode->getKey())->exists());
+    }
+
+    public function test_a_second_scan_of_a_translated_row_costs_nothing(): void
+    {
+        // The locale check IS the cache (`ai-design.md` asks for exactly that), so this needs no
+        // cache layer to assert: the resolver orders by locale, so once the row exists it wins and
+        // the translator is never reached. The fake is scripted with ONE answer, so a second call
+        // would fail loudly rather than quietly costing a credit.
+        $this->tenant('Alpha', 'tr');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([
+            ['name' => 'Yarım yağlı UHT süt 1L', 'brand' => 'Lactel', 'description' => 'UHT süt.'],
+        ]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait demi-écrémé UHT 1L', 'brand' => 'Lactel', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertOk();
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Yarım yağlı UHT süt 1L');
+
+        // One model call, so one usage row, for two scans.
+        $this->assertSame(1, AiUsageEvent::query()->count());
+    }
+
+    public function test_a_translation_failure_answers_in_the_other_language_rather_than_not_at_all(): void
+    {
+        // A translation failure costs a LANGUAGE, never an answer. The cascade's whole argument for
+        // returning a foreign row is that a product the user can recognise beats none, and that
+        // argument does not stop applying because a model was down.
+        $this->tenant('Alpha', 'tr');
+        config(['ai_gateways.live' => true]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait demi-écrémé UHT 1L', 'brand' => 'Lactel', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Lait demi-écrémé UHT 1L');
+
+        // And nothing half-written was left behind for the next scan to find.
+        $this->assertSame(1, GlobalProduct::query()->count());
+    }
+
+    public function test_a_row_already_in_the_users_locale_never_reaches_a_model(): void
+    {
+        // The guard on the cheap path. An empty script means any call at all throws, so this fails
+        // loudly if the locale comparison is ever inverted or dropped.
+        $this->tenant('Alpha');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $english = GlobalProduct::create([
+            'name' => 'Semi-skimmed UHT milk 1L', 'brand' => 'Lactel', 'locale' => 'en',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $english->barcodes()->attach($barcode->getKey());
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Semi-skimmed UHT milk 1L');
+
+        $this->assertSame(0, AiUsageEvent::query()->count());
+    }
+
+    public function test_two_callers_that_both_miss_buy_one_translation_between_them(): void
+    {
+        // **Measured, not feared: this wrote two `tr` rows and spent two credits.** The resolver's
+        // locale ordering makes the second caller normally impossible, and "normally" is not "never":
+        // two scans of the same foreign-locale barcode that both LOOK before either WRITES both
+        // arrive here. A lookup closes that, and a partial unique index closes the concurrent case
+        // the lookup cannot, so the contract the table's docblock states is now one it enforces.
+        $this->tenant('Alpha', 'tr');
+        config(['ai_gateways.live' => true]);
+        AiCreditGrant::create(['kind' => 'plan_allowance', 'credits' => 10,
+            'period_start' => Carbon::now()->startOfMonth(), 'expires_at' => Carbon::now()->endOfMonth()]);
+        $answer = ['name' => 'Yarım yağlı süt', 'brand' => 'Lactel', 'description' => 'UHT süt.'];
+        // Scripted twice: a second model call would succeed rather than fail, so the assertion below
+        // is about this method declining to make one and not about the fake running out.
+        $this->app->instance(ModelCaller::class, new FakeModelCaller([$answer, $answer]));
+
+        $barcode = Barcode::forGtin('8690504010012');
+        $french = GlobalProduct::create([
+            'name' => 'Lait 1L', 'brand' => 'Lactel', 'locale' => 'fr',
+            'source' => 'community', 'confidence' => 70,
+        ]);
+        $french->barcodes()->attach($barcode->getKey());
+
+        $translator = $this->app->make(CatalogueTranslator::class);
+        $first = $translator->translate($french, 'tr', $barcode);
+        $second = $translator->translate($french, 'tr', $barcode);
+
+        $this->assertSame(1, GlobalProduct::query()->where('locale', 'tr')->count());
+        $this->assertTrue($first?->is($second));
+        // One credit, so one usage row, for one translation.
+        $this->assertSame(1, AiUsageEvent::query()->count());
+    }
+
+    public function test_the_database_refuses_a_second_translation_of_one_row_into_one_locale(): void
+    {
+        // **The index, pinned directly, because no test above reaches it.** The reuse lookup handles
+        // the sequential case, so a mutation making this index non-unique left every other test
+        // green: what it actually protects is two concurrent callers that both miss the lookup, and
+        // that race cannot be staged in one process. So the constraint is asserted rather than the
+        // race, which is the honest half that can be.
+        //
+        // Wrapped in its own transaction because PostgreSQL aborts the enclosing one on a violation,
+        // and under RefreshDatabase that would fail every later query in this test with 25P02.
+        $this->tenant('Alpha', 'tr');
+
+        $french = GlobalProduct::create([
+            'name' => 'Lait 1L', 'locale' => 'fr', 'source' => 'community', 'confidence' => 70,
+        ]);
+        $attributes = [
+            'name' => 'Süt 1L', 'locale' => 'tr', 'source' => 'ai_generated',
+            'source_ref' => (string) $french->getKey(), 'confidence' => 70,
+        ];
+        GlobalProduct::create($attributes);
+
+        $this->expectException(QueryException::class);
+
+        DB::transaction(static function () use ($attributes): void {
+            GlobalProduct::create($attributes);
+        });
     }
 
     public function test_a_case_code_is_never_asked_of_open_food_facts(): void

@@ -88,6 +88,21 @@ return new class extends Migration
             CHECK (kind <> 'plan_allowance' OR period_start IS NOT NULL)
         ");
 
+        // **The other half of that sentence, and it was missing.** The period said WHICH month an
+        // allowance belongs to; nothing said it ends. A `plan_allowance` written with a null `expires_at`
+        // was accepted, and since null legitimately means "never expires" for a top-up, the balance query
+        // counted it forever: measured at 999 credits surviving a month it had no claim on. The monthly
+        // reset is the grant ageing out, so an allowance that cannot age out is not one.
+        //
+        // Constrained here rather than worked around in the balance scope, because the scope's rule is
+        // correct once this row cannot exist: tolerating bad data in a query leaves it in the table for
+        // the next reader to be surprised by.
+        DB::statement("
+            ALTER TABLE ai_credit_grants
+            ADD CONSTRAINT ai_credit_grants_allowances_expire
+            CHECK (kind <> 'plan_allowance' OR expires_at IS NOT NULL)
+        ");
+
         DB::statement('
             CREATE UNIQUE INDEX ai_credit_grants_one_allowance_per_period
             ON ai_credit_grants (team_id, period_start)
