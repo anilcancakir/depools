@@ -8,6 +8,7 @@ use App\Models\OffProduct;
 use App\Models\Product;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\Gtin;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -83,7 +84,11 @@ final class BarcodeCascadeTest extends TestCase
             'name' => $name,
             'brand' => 'Off Brand',
             'locale' => 'en',
-            'source_ref' => 'off:'.$gtin,
+            // The code OFF issued, exactly as both writers now store it. A fixture that builds a row
+            // the running system cannot produce is worse than no fixture: every test sharing it
+            // certifies a world that does not exist, which is how the OFF stage in this very file was
+            // unreachable in production while sixteen tests passed.
+            'source_ref' => Gtin::fromScan($gtin)->toOpenFoodFacts(),
             'imported_at' => Carbon::now(),
         ]);
     }

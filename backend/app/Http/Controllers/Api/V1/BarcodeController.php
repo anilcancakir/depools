@@ -49,10 +49,15 @@ final class BarcodeController extends Controller
     /**
      * Resolves a scan through the cascade, or 404 when nothing anywhere carries the code.
      *
-     * **404 is the answer that starts stage 6**, so it has to mean exactly one thing: no source knows
-     * this code. It is what tells the client to offer a photo or a typed entry, and reporting a
-     * transport failure the same way would send a user to create a product they already own. A code
-     * that cannot be identified at all is 422 for the same reason: it is not a product nobody knows.
+     * **404 is the answer that starts stage 6**: it tells the client to offer a photo or a typed
+     * entry. It means "no source ANSWERED", which is deliberately weaker than "no source knows",
+     * because `OpenFoodFacts::fetch()` collapses a timeout, a 429 and a 5xx into a miss on purpose
+     * (a user is holding a carton; an error they cannot act on is worse than a create flow they can).
+     * The log line there is the compensating signal, since a persistent outage would otherwise be
+     * indistinguishable from OFF genuinely having nothing.
+     *
+     * A code that cannot be IDENTIFIED is 422 rather than 404, because that one is not a weaker
+     * answer to the same question: the create flow behind a 404 cannot be completed for it at all.
      */
     public function resolve(Request $request): JsonResponse
     {
