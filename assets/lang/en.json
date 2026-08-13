@@ -409,6 +409,7 @@
       "type_code": "Type a barcode",
       "type_submit": "Find",
       "unknown_body": "These were read but match nothing in your products. They are not counted.",
+      "unknown_dismiss": "Dismiss",
       "unknown_title": ":count unmatched code|:count unmatched codes"
     },
     "dashboard": {
@@ -1004,7 +1005,7 @@
       "committed": ":count recorded",
       "committed_partly": ":count recorded · :unfinished left for stock entry",
       "commit_failed": "The count could not be saved",
-      "search": "Search this shelf",
+      "search": "Search",
       "all_of_them": "all :count of them",
       "settled_show": "Show",
       "settled_hide": "Hide",

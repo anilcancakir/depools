@@ -103,6 +103,7 @@ class _StockTakeViewState extends State<StockTakeView> {
   static const IconData _changeIcon = Icons.unfold_more;
   static const IconData _leaveIcon = Icons.check;
   static const IconData _scanIcon = Icons.qr_code_scanner_outlined;
+  static const IconData _unmatchedIcon = Icons.help_center_outlined;
 
   /// Created in [initState] rather than read through a getter, because `Magic.findOrPut`
   /// INSTANTIATES on first read and the controller loads in `onInit`: a getter would fire a request
@@ -576,6 +577,7 @@ class _StockTakeViewState extends State<StockTakeView> {
       children: [
         _buildLocation(),
         if (!loading && !failed && _settled.isNotEmpty) _buildSettledBar(),
+        if (_unmatchedCodes.isNotEmpty) _buildUnmatched(),
         if (loading)
           _buildLoading()
         else if (failed)
@@ -845,6 +847,58 @@ class _StockTakeViewState extends State<StockTakeView> {
         controller: _search,
         onChanged: _onSearchChanged,
       ),
+    );
+  }
+
+  /// The codes the scanner could not match, once the panel is closed.
+  ///
+  /// **Written and never read is what this was**, which is worse than not collecting them: the
+  /// panel's own docblock promised they would be offered afterwards, so the promise was in the code
+  /// while the surface was not, and a reader had no way to tell. A scanned label that matches
+  /// nothing is the one thing a count cannot resolve on its own, so dropping it silently loses the
+  /// only record that the user held something the system has never seen.
+  ///
+  /// Above the list rather than below it, because a list that grows without bound has no bottom
+  /// (D70), and dismissable because the user may already know: a shop's own repacks carry labels
+  /// this app was never going to recognise.
+  Widget _buildUnmatched() {
+    return WDiv(
+      className: 'flex flex-col gap-2 px-4 py-3 rounded-lg '
+          'bg-surface-container border border-color-border',
+      children: [
+        WDiv(
+          className: 'flex flex-row items-center gap-2',
+          children: [
+            const WIcon(_unmatchedIcon, className: 'size-4 text-fg-muted shrink-0'),
+            WText(
+              plural('screens.count_scanner.unknown_title', _unmatchedCodes.length, {
+                'count': _unmatchedCodes.length,
+              }),
+              className: 'flex-1 min-w-0 text-sm font-medium text-fg',
+            ),
+            MSButton(
+              onPressed: () => setState(_unmatchedCodes.clear),
+              intent: ButtonIntent.ghost,
+              size: ButtonSize.sm,
+              className: 'shrink-0',
+              child: WText(Lang.get('screens.count_scanner.unknown_dismiss')),
+            ),
+          ],
+        ),
+        WText(
+          Lang.get('screens.count_scanner.unknown_body'),
+          className: 'text-xs text-fg-muted',
+        ),
+        // The codes themselves, because the number alone is not actionable: what the user needs in
+        // order to do anything about one is the digits printed under the label they were holding.
+        WDiv(
+          className: 'flex flex-row wrap items-center gap-2',
+          children: [
+            for (final String code in _unmatchedCodes)
+              WText(code, className: 'font-mono text-xs text-fg-muted'),
+          ],
+        ),
+      ],
     );
   }
 

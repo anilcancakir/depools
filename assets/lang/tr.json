@@ -409,6 +409,7 @@
       "type_code": "Barkodu yaz",
       "type_submit": "Bul",
       "unknown_body": "Bunlar okundu ama ürünlerinizde karşılığı yok. Sayıma girmediler.",
+      "unknown_dismiss": "Kapat",
       "unknown_title": ":count eşleşmeyen kod"
     },
     "dashboard": {
@@ -1004,7 +1005,7 @@
       "committed": ":count hareket yazıldı",
       "committed_partly": ":count hareket yazıldı · :unfinished satır tamamlanmadı",
       "commit_failed": "Sayım kaydedilemedi",
-      "search": "Bu rafta ara",
+      "search": "Ara",
       "all_of_them": ":count ürünün hepsi",
       "settled_show": "Göster",
       "settled_hide": "Gizle",
