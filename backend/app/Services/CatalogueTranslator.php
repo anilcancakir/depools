@@ -115,7 +115,13 @@ final class CatalogueTranslator
         try {
             return DB::transaction(fn (): GlobalProduct => $this->create($source, $translated, $targetLocale));
         } catch (QueryException $e) {
-            if (! str_contains($e->getMessage(), 'global_products_one_translation_per_locale')) {
+            // **Both, because either alone is a guess.** `23505` is PostgreSQL's unique-violation
+            // code and is stable in a way message text is not; the index name is what distinguishes
+            // OUR uniqueness rule from any other the row might break. Measured rather than assumed:
+            // a real violation here carries `getCode() === '23505'` and names the index in its
+            // message. Anything else is a different failure and is rethrown.
+            if ($e->getCode() !== '23505'
+                || ! str_contains($e->getMessage(), 'global_products_one_translation_per_locale')) {
                 throw $e;
             }
 

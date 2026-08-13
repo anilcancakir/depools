@@ -12,8 +12,10 @@ use App\Models\AiUsageEvent;
 use App\Models\Scopes\TeamScope;
 use App\Models\Team;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\Support\FakeModelCaller;
@@ -176,6 +178,30 @@ final class AiGatewayTest extends TestCase
 
         $this->assertNull($this->gateway()->translate($this->card(), 'tr'));
         $this->assertSame(AiOutcome::NoCredit->value, AiUsageEvent::query()->sole()->outcome);
+    }
+
+    public function test_a_plan_allowance_cannot_be_written_without_an_expiry(): void
+    {
+        // **The monthly reset is the grant ageing out, so an allowance that cannot age out is not
+        // one.** Null `expires_at` legitimately means "never expires" for a top-up, so an allowance
+        // written with one was counted forever: measured at 999 credits surviving a month they had
+        // no claim on. Refused by the database rather than filtered out in the balance query, because
+        // a query that tolerates bad data leaves it there for the next reader.
+        //
+        // Its own transaction: PostgreSQL aborts the enclosing one on a violation, and under
+        // RefreshDatabase that fails every later query in the test with 25P02.
+        $this->tenant();
+
+        $this->expectException(QueryException::class);
+
+        DB::transaction(static function (): void {
+            AiCreditGrant::create([
+                'kind' => 'plan_allowance',
+                'credits' => 999,
+                'period_start' => Carbon::now()->startOfMonth(),
+                'expires_at' => null,
+            ]);
+        });
     }
 
     public function test_a_top_up_never_expires(): void
