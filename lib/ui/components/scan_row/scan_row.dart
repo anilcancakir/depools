@@ -1,34 +1,14 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
+
+import '../../../app/models/scan_source.dart';
+
+export '../../../app/models/scan_source.dart';
 import 'package:magic/magic.dart';
 
 import '../quantity/quantity.dart';
 import 'scan_row.recipe.dart';
 
-/// Which stage of `barcode-and-catalog.md`'s resolution cascade answered a scan.
-///
-/// Five values rather than a confidence number, for the reason `open-decisions.md` D31
-/// already settled for enrichment: a percentage invites arithmetic the user cannot do
-/// anything with, while a named source tells them exactly how much to trust the row.
-enum ScanSource {
-  /// Stage 1: the tenant's own products. Authoritative, and the case the MVP broke.
-  own,
-
-  /// Stages 2 to 4: community catalog, Open Food Facts, or a paid lookup. Trustworthy
-  /// enough to write without a mark.
-  catalog,
-
-  /// Stage 5: scraped, or a community row nobody has confirmed. Written, but presented
-  /// as unverified because criterion 7 requires it.
-  unverified,
-
-  /// This barcode missed the whole cascade before and the user typed the product in.
-  /// Their own past answer, replayed.
-  recalled,
-
-  /// Stage 6: nothing anywhere. Needs a photo or typing.
-  unmatched,
-}
 
 /// **ScanRow**
 ///

@@ -32,6 +32,25 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// Increments once per read, so a row's place is decided by when it was SCANNED.
   int _sequence = 0;
 
+  /// Which batch is being built. Bumped by [clear].
+  ///
+  /// **A lookup started before a clear must not land after it.** The user emptying the queue is
+  /// saying the batch is done or abandoned; a stage-3 answer arriving half a second later would drop
+  /// a row nobody scanned into the fresh batch. Found by mutation-testing `clear`, which stayed
+  /// green because no test had a resolve in flight when it ran.
+  int _generation = 0;
+
+  /// Reads that arrived for a code whose lookup had not returned yet.
+  ///
+  /// **The row does not exist during its own lookup, so there is nothing to increment.** A second
+  /// read of the same carton while a stage-3 lookup is in flight found no existing row and started
+  /// a second one: two rows for one product, and a second HTTP request for an answer already on its
+  /// way. The camera cannot do this inside its 800ms gate, but a typed entry has no gate at all and
+  /// a slow lookup outlasts the gate anyway.
+  ///
+  /// Counted here and applied when the answer lands, keyed the same way the batch is.
+  final Map<String, int> _pendingRepeats = <String, int>{};
+
   /// The batch as the view reads it.
   List<ScanEntry> get entries => List<ScanEntry>.unmodifiable(_entries);
 
@@ -73,16 +92,48 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       return;
     }
 
+    final String key = _keyOf(code, symbology);
+
+    // Already being looked up: bank the read rather than starting a second lookup for an answer
+    // that is already in flight.
+    if (_pendingRepeats.containsKey(key)) {
+      _pendingRepeats[key] = _pendingRepeats[key]! + 1;
+
+      return;
+    }
+
+    _pendingRepeats[key] = 0;
+
     // **No in-flight flag, and the review was right that the one here was broken.** It could be
     // cleared by whichever resolve finished first while another was still running, and a throw
     // would have left it stuck on. What made it harmless is worse than the bug: nothing read it.
     // So it is gone rather than fixed, which is also what removes the defect.
-    final ScanEntry entry = await _resolve(code, symbology, sequence);
+    // `finally` rather than a catch: nothing is swallowed, and the key MUST come out whatever
+    // happens. Left behind by a throw it would bank every later read of that code forever, against
+    // a row that never arrives, which is the same shape as the flag defect the last round found.
+    final int generation = _generation;
 
-    _entries.add(entry);
-    _sort();
-    _publish();
+    try {
+      final ScanEntry resolved = await _resolve(code, symbology, sequence);
+
+      // The batch this read belongs to is gone.
+      if (generation != _generation) {
+        return;
+      }
+
+      // Whatever arrived while this was in flight belongs to this row.
+      final int banked = _pendingRepeats[key] ?? 0;
+
+      _entries.add(banked == 0 ? resolved : resolved.copyWith(count: 1 + banked));
+      _sort();
+      _publish();
+    } finally {
+      _pendingRepeats.remove(key);
+    }
   }
+
+  /// The batch's identity for a read: a code means one thing per symbology.
+  String _keyOf(String code, String? symbology) => '$code|${symbology ?? ''}';
 
   /// Newest scan first, by sequence.
   ///
@@ -110,6 +161,12 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// Empties the batch, after it has been written or abandoned.
   void clear() {
     _entries.clear();
+    // Banked reads belong to the batch that is going away. Left behind, they would land on the next
+    // batch's first row for a carton nobody scanned into it.
+    _pendingRepeats.clear();
+    // And a lookup already in flight belongs to it too, so its answer is dropped rather than
+    // appended to the fresh batch.
+    _generation++;
     _publish();
   }
 
