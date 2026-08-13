@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Requested at runtime by mobile_scanner when the user taps a scan control, never at launch.
+         `required="false"` because the app is a full product without a camera: manual barcode entry
+         is a first-class control rather than a fallback, and a desktop or a tablet with no camera
+         must still be able to install this. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:label="depools"
         android:name="${applicationName}"

@@ -58,6 +58,13 @@ dependencies:
   # saveFile params break magic.
   file_picker: ^11.0.2
 
+  # Barcode scanning on all three platforms, which is why this one rather than the ML Kit package:
+  # that is Android and iOS only, and `AGENTS.md` allows no mobile-only feature. Web goes through a
+  # selectable `BarcodeDetector` or `zxing-wasm` backend. `barcode-and-catalog.md` records the
+  # comparison and the two capabilities that are missing on web (`scanWindow` and reliable autofocus),
+  # which is why manual digit entry stays a first-class control rather than a fallback.
+  mobile_scanner: ^7.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

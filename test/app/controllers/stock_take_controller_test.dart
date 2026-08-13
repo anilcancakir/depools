@@ -1,5 +1,6 @@
 import 'package:depools/app/controllers/stock_take_controller.dart';
 import 'package:depools/app/models/product_filter.dart';
+import 'package:depools/app/support/scan_outcome.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic/magic.dart';
 
@@ -258,5 +259,109 @@ void main() {
     // and on a count the difference decides whether the user believes the shelf is empty.
     expect(controller.failed, isTrue);
     expect(controller.rows, isEmpty);
+  });
+
+  group('resolving a scan', () {
+    MagicResponse product(String id, List<String> locationIds) => MagicResponse(
+      statusCode: 200,
+      data: <String, dynamic>{
+        'data': <String, dynamic>{
+          'id': id,
+          'name': 'Süt',
+          'base_unit': 'adet',
+          'quantity': '3.000',
+          'locations': <Map<String, dynamic>>[
+            for (final String locationId in locationIds)
+              <String, dynamic>{'location_id': locationId, 'quantity': '3.000'},
+          ],
+        },
+      },
+    );
+
+    test('a code on this shelf comes back ready to count', () async {
+      final List<String> asked = <String>[];
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+        if (request.url.contains('by-barcode')) {
+          asked.add(request.url);
+
+          return product('p1', <String>['shelf']);
+        }
+
+        return page(<String>[]);
+      });
+
+      final StockTakeController controller = StockTakeController();
+      await controller.open('shelf');
+
+      final ScanOutcome? outcome = await controller.resolveScan('8690504010012');
+
+      expect(asked.single, contains('code=8690504010012'));
+      expect(outcome?.verdict, ScanVerdict.onShelf);
+    });
+
+    test('a code the tenant owns elsewhere is not counted here', () async {
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+        if (request.url.contains('by-barcode')) return product('p1', <String>['pantry']);
+
+        return page(<String>[]);
+      });
+
+      final StockTakeController controller = StockTakeController();
+      await controller.open('shelf');
+
+      expect((await controller.resolveScan('8690504010012'))?.verdict, ScanVerdict.elsewhere);
+    });
+
+    test('a 404 is an answer and anything else is a failure', () async {
+      // **The distinction the whole flow rests on.** A 404 means the tenant has no product carrying
+      // this code, which is what sends the user to the catalog. A network fault reported as the same
+      // thing would have them create a duplicate of a product they already own.
+      int status = 404;
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+        if (request.url.contains('by-barcode')) {
+          return MagicResponse(statusCode: status, data: <String, dynamic>{});
+        }
+
+        return page(<String>[]);
+      });
+
+      final StockTakeController controller = StockTakeController();
+      await controller.open('shelf');
+
+      expect((await controller.resolveScan('5060337502900'))?.verdict, ScanVerdict.unknown);
+
+      status = 500;
+
+      expect(await controller.resolveScan('5060337502900'), isNull);
+    });
+
+    test('a symbology travels only when there is one', () async {
+      final List<String> asked = <String>[];
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('/locations')) return locations();
+        if (request.url.contains('by-barcode')) {
+          asked.add(request.url);
+
+          return product('p1', <String>['shelf']);
+        }
+
+        return page(<String>[]);
+      });
+
+      final StockTakeController controller = StockTakeController();
+      await controller.open('shelf');
+
+      await controller.resolveScan('SHELF-A-0042', symbology: 'code128');
+      await controller.resolveScan('8690504010012');
+
+      expect(asked.first, contains('symbology=code128'));
+      expect(asked.last, isNot(contains('symbology')));
+    });
   });
 }
