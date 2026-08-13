@@ -1,12 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSPageScaffold, MSButton, ButtonIntent, MSEmptyState, MSInput;
 
+import '../../../app/controllers/scan_controller.dart';
+import '../../../app/models/scan_entry.dart';
 import '../../../ui/components/scan_row/scan_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
-import 'scan_fixtures.dart';
 
 /// Continuous barcode scanning, and the batch it accumulates.
 ///
@@ -45,26 +48,29 @@ import 'scan_fixtures.dart';
 /// scanner and it is already pointed at a label. At desktop width the digit field leads,
 /// because a desktop barcode reader is an HID keyboard that types digits and presses enter,
 /// while a laptop webcam points at the operator's face. Same widgets, `lg:order-first`.
+/// ### The fixture is REPLACED, not shadowed
+///
+/// `flutter-app.md` is explicit that a screen reading both a fixture and an endpoint diverges the
+/// moment the API changes, so `scanBatch` is gone from this file rather than kept behind a flag. The
+/// two constructors it fed are gone with it: "has scans" is now a fact about the batch rather than a
+/// variant chosen at construction, and the empty state is what the controller publishes before the
+/// first read.
 @immutable
-class BarcodeScanView extends StatelessWidget {
+class BarcodeScanView extends StatefulWidget {
+
+  /// Creates the [BarcodeScanView].
+  const BarcodeScanView({super.key});
+
+  @override
+  State<BarcodeScanView> createState() => _BarcodeScanViewState();
+}
+
+class _BarcodeScanViewState extends State<BarcodeScanView> {
   static const IconData _torchIcon = Icons.flashlight_on_outlined;
   static const IconData _cameraIcon = Icons.qr_code_scanner_outlined;
   static const IconData _emptyIcon = Icons.inventory_2_outlined;
   static const IconData _photoIcon = Icons.photo_camera_outlined;
   static const IconData _shelfIcon = Icons.grid_view_outlined;
-
-  /// Whether anything has been scanned yet.
-  ///
-  /// Two variants rather than one, because the empty queue is not a rare state: it is what
-  /// every scanning session starts as, and it is the moment a user decides whether the
-  /// screen is working.
-  final bool hasScans;
-
-  /// Creates the [BarcodeScanView] with a batch in progress.
-  const BarcodeScanView({super.key}) : hasScans = true;
-
-  /// Creates the view as it opens, camera live and nothing read yet.
-  const BarcodeScanView.empty({super.key}) : hasScans = false;
 
   /// The batch destination: the last location used for receiving.
   ///
@@ -76,12 +82,55 @@ class BarcodeScanView extends StatelessWidget {
   /// one used is both the better guess and an honest one.
   static const String _destination = 'Depo › Raf A';
 
+  final ScanController _controller = ScanController.instance;
+  final TextEditingController _manual = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onChanged);
+    _manual.dispose();
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The batch, from the controller rather than from a fixture.
+  List<ScanEntry> get _scans => _controller.entries;
+
+  /// Rows that will be written as they stand.
+  List<ScanEntry> get _settled => _scans.where((ScanEntry e) => e.isSettled).toList();
+
+  bool get hasScans => _controller.hasScans;
+
+  /// Reads whatever the user typed, then clears the field for the next one.
+  ///
+  /// **Cleared after the call is dispatched, not after it returns.** A receiving bench types the
+  /// next code while the last one is still resolving, and a field that clears late eats the first
+  /// digits of the next read.
+  void _submitManual() {
+    final String code = _manual.text.trim();
+
+    if (code.isEmpty) return;
+
+    _manual.clear();
+    unawaited(_controller.scan(code));
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return MSPageScaffold(
       title: Lang.get('screens.scan.title'),
       subtitle: hasScans
-          ? Lang.get('screens.scan.subtitle', {'scans': scanBatch.length, 'ready': settledScans.length})
+          ? Lang.get('screens.scan.subtitle', {'scans': _scans.length, 'ready': _settled.length})
           : Lang.get('screens.scan.subtitle_empty'),
       children: [
         // items-start so the capture column keeps its own height at lg instead of
@@ -182,10 +231,12 @@ class BarcodeScanView extends StatelessWidget {
       child: SectionCard(
         label: Lang.get('screens.scan.barcode'),
         children: [
-          const MSInput(
+          MSInput(
             className: 'bg-surface-container',
             placeholder: '13 hane',
             type: InputType.number,
+            controller: _manual,
+            onSubmitted: (_) => _submitManual(),
           ),
           // Checksum validation is the reason this field is not just a shortcut: a
           // mistyped EAN-13 is caught here rather than becoming a product nobody can
@@ -215,16 +266,20 @@ class BarcodeScanView extends StatelessWidget {
   Widget _buildQueue() {
     return SectionCard(
       label: Lang.get('screens.scan.scanned_group'),
-      count: Lang.get('screens.scan.scan_count', {'count': scanBatch.length}),
+      count: Lang.get('screens.scan.scan_count', {'count': _scans.length}),
       children: [
-        for (final ScanFixture scan in scanBatch)
+        for (final ScanEntry scan in _scans)
           ScanRow(
             barcode: scan.barcode,
             productName: scan.productName,
             source: scan.source,
             count: scan.count,
             unit: scan.unit,
-            onHandFormatted: scan.onHandFormatted,
+            // **No on-hand figure on a live row, and its absence is a decision.** The fixture
+            // carried one because it could invent it. The resolve endpoint answers what a code IS
+            // and deliberately not what the tenant holds, so printing a stock figure here would
+            // need a second request per scanned row, at a bench, while the camera is running.
+            onHandFormatted: null,
             // Stage 6 of the cascade found nothing anywhere, and typing or photographing the
             // product is the only way forward. That is exactly what `ProductDraftView` is,
             // and it had no entry point until now. A settled row goes nowhere yet.
@@ -267,8 +322,8 @@ class BarcodeScanView extends StatelessWidget {
       return _buildPhotoPaths();
     }
 
-    final int ready = settledScans.length;
-    final int unmatched = unmatchedScans.length;
+    final int ready = _settled.length;
+    final int unmatched = _controller.unmatchedCount;
 
     return WDiv(
       className: 'flex flex-col gap-2 pb-2',
