@@ -71,6 +71,10 @@ final class BarcodeController extends Controller
             'symbology' => ['nullable', 'string', 'max:16'],
         ]);
 
+        // The `''` arm is belt-and-braces rather than the live path: Laravel's GLOBAL stack runs
+        // `TrimStrings` then `ConvertEmptyStringsToNull` (Configuration\Middleware::getGlobalMiddleware,
+        // which this app does not override), so a symbology of "   " arrives here already null. Kept
+        // because it costs nothing and states the intent where the guard is.
         $symbology = $data['symbology'] ?? null;
 
         // **An unidentifiable code is not an unknown product, and 404 here means the second one.**
