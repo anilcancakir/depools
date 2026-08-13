@@ -140,7 +140,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   /// can have two labels in view at once, and taking `first` would make which one counts depend on
   /// the decoder's ordering. The gate is per code, so both can be new and neither suppresses the
   /// other.
-  Future<void> _onDetect(BarcodeCapture capture) async {
+  void _onDetect(BarcodeCapture capture) {
     final DateTime now = DateTime.now();
 
     for (final Barcode read in capture.barcodes) {
@@ -150,7 +150,11 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
 
       if (!_presence.shouldCount(value, now)) continue;
 
-      await _controller.scan(value, symbology: symbologyOf(read.format));
+      // **Dispatched rather than awaited.** Awaiting made the second label in one capture wait for
+      // the first one's lookup, so two labels in frame together resolved half a second apart while
+      // the camera went on delivering frames. The controller already orders by scan sequence rather
+      // than by arrival, which is what makes firing them together safe.
+      unawaited(_controller.scan(value, symbology: symbologyOf(read.format)));
     }
 
     _presence.prune(now);

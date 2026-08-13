@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
+import 'package:magic/magic.dart';
 
 import '../../../app/models/scan_source.dart';
 
+// Re-exported so a widget that already reached `ScanSource` through this component keeps working.
+// The enum itself lives in the app layer, because a model naming it must not import a widget.
 export '../../../app/models/scan_source.dart';
-import 'package:magic/magic.dart';
 
 import '../quantity/quantity.dart';
 import 'scan_row.recipe.dart';

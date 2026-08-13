@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../ui/components/scan_row/scan_row.dart';
+import 'scan_source.dart';
 
 /// One barcode in a scan batch, as the cascade answered it.
 ///

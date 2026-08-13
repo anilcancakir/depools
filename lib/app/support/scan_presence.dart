@@ -46,7 +46,7 @@ class ScanPresence {
   /// Forgets codes not seen for longer than the gap, so a long session does not accumulate every
   /// label it ever saw.
   ///
-  /// **At the gap exactly, and it used to be ten times it while this comment claimed the gap.** The
+  /// **Longer than the gap, and it used to be ten times it while this comment claimed the gap.** The
   /// two are behaviourally identical: once a code has been absent for the gap, keeping its entry
   /// answers "count it" and dropping it answers "count it", because an unseen code counts. So the
   /// 10x bought nothing and cost the reader a discrepancy to reconcile.

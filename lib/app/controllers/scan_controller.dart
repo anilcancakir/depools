@@ -1,7 +1,7 @@
 import 'package:magic/magic.dart';
 
-import '../../ui/components/scan_row/scan_row.dart';
 import '../models/scan_entry.dart';
+import '../models/scan_source.dart';
 
 /// The batch a scanning session accumulates, and the cascade call behind each row.
 ///
@@ -49,7 +49,12 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// a slow lookup outlasts the gate anyway.
   ///
   /// Counted here and applied when the answer lands, keyed the same way the batch is.
-  final Map<String, int> _pendingRepeats = <String, int>{};
+  ///
+  /// **The SEQUENCE travels with the count, and the first version dropped it.** A row that banked a
+  /// repeat kept the first scan's sequence, so it could sit below rows scanned between the two
+  /// reads: the newest-first invariant broken by the very fix that closed the duplicate row.
+  final Map<String, ({int repeats, int lastSequence})> _pendingRepeats =
+      <String, ({int repeats, int lastSequence})>{};
 
   /// The batch as the view reads it.
   List<ScanEntry> get entries => List<ScanEntry>.unmodifiable(_entries);
@@ -96,13 +101,17 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
 
     // Already being looked up: bank the read rather than starting a second lookup for an answer
     // that is already in flight.
-    if (_pendingRepeats.containsKey(key)) {
-      _pendingRepeats[key] = _pendingRepeats[key]! + 1;
+    final ({int repeats, int lastSequence})? pending = _pendingRepeats[key];
+
+    if (pending != null) {
+      // This read's own sequence, because a repeat IS a scan and the row it lands on has to come
+      // back to the front.
+      _pendingRepeats[key] = (repeats: pending.repeats + 1, lastSequence: sequence);
 
       return;
     }
 
-    _pendingRepeats[key] = 0;
+    _pendingRepeats[key] = (repeats: 0, lastSequence: sequence);
 
     // **No in-flight flag, and the review was right that the one here was broken.** It could be
     // cleared by whichever resolve finished first while another was still running, and a throw
@@ -121,10 +130,16 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
         return;
       }
 
-      // Whatever arrived while this was in flight belongs to this row.
-      final int banked = _pendingRepeats[key] ?? 0;
+      // Whatever arrived while this was in flight belongs to this row, including its place in the
+      // queue: the last read is what decides where the row sits.
+      final ({int repeats, int lastSequence}) banked =
+          _pendingRepeats[key] ?? (repeats: 0, lastSequence: sequence);
 
-      _entries.add(banked == 0 ? resolved : resolved.copyWith(count: 1 + banked));
+      _entries.add(
+        banked.repeats == 0
+            ? resolved
+            : resolved.copyWith(count: 1 + banked.repeats, sequence: banked.lastSequence),
+      );
       _sort();
       _publish();
     } finally {

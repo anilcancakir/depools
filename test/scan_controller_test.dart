@@ -134,6 +134,29 @@ void main() {
     expect(controller.entries.single.count, 2, reason: 'two cartons, two units');
   });
 
+  test('a repeat during a lookup takes the row to the front', () async {
+    // The invariant the banking fix broke on its way in: a banked repeat kept the FIRST scan's
+    // sequence, so the row could sit below a code scanned between the two reads. Three scans, and
+    // the repeat is LAST, so the row it lands on has to lead.
+    answers('slow', 'Slow Product', delay: const Duration(milliseconds: 140));
+    answers('quick', 'Quick Product');
+
+    final ScanController controller = ScanController.instance;
+
+    final Future<void> first = controller.scan('slow');
+    await controller.scan('quick');
+    final Future<void> repeat = controller.scan('slow');
+
+    await Future.wait<void>(<Future<void>>[first, repeat]);
+
+    expect(
+      controller.entries.map((ScanEntry e) => e.productName).toList(),
+      <String>['Slow Product', 'Quick Product'],
+      reason: 'the repeat was the last read, so its row leads',
+    );
+    expect(controller.entries.first.count, 2);
+  });
+
   test('a repeat after the lookup increments too', () async {
     // The plain case, which is the one Anılcan asked for: scanning the same carton twice records
     // two, and it must keep working now that the in-flight path exists beside it.
