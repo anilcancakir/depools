@@ -828,7 +828,13 @@
       "shelf": "Scan a shelf",
       "shelf_note": "A whole shelf · one region per product",
       "shelf_label": "Identify products from a shelf photo",
-      "subtitle_empty": "Keep scanning"
+      "subtitle_empty": "Keep scanning",
+      "add": "Add",
+      "camera_unavailable": "Camera unavailable",
+      "torch_on": "Turn on the torch",
+      "torch_off": "Turn off the torch",
+      "camera_hint": "Point the camera at a barcode",
+      "barcode_placeholder": "13 digits"
     },
     "search": {
       "title": "Search",

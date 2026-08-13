@@ -5,6 +5,7 @@ import 'package:magic_starter/magic_starter.dart'
     show ButtonIntent, ButtonSize, MSBottomSheet, MSButton, MSInput, MSSwitch;
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../app/support/barcode_symbology.dart';
 import '../../../app/support/scan_outcome.dart';
 import 'product_fixtures.dart' show ProductListItem;
 
@@ -121,23 +122,6 @@ class _CountScannerSheetState extends State<CountScannerSheet> {
     super.dispose();
   }
 
-  /// The symbology name the API expects, or null for a format that carries a GTIN.
-  ///
-  /// Lower-cased because the server stores it that way; the enum's own name is camelCase. It is only
-  /// sent for the formats where it is part of the identity, since a GTIN needs no help: the same
-  /// digits as an EAN-13 and as a UPC-A are one product, and saying which reader saw it would split
-  /// them.
-  String? _symbologyOf(BarcodeFormat format) {
-    const Set<BarcodeFormat> gtinBearing = <BarcodeFormat>{
-      BarcodeFormat.ean8,
-      BarcodeFormat.ean13,
-      BarcodeFormat.upcA,
-      BarcodeFormat.upcE,
-      BarcodeFormat.itf14,
-    };
-
-    return gtinBearing.contains(format) ? null : format.name.toLowerCase();
-  }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     final Barcode? read = capture.barcodes.firstOrNull;
@@ -145,7 +129,7 @@ class _CountScannerSheetState extends State<CountScannerSheet> {
 
     if (read == null || value == null || value.isEmpty) return;
 
-    await _handle(value, symbology: _symbologyOf(read.format));
+    await _handle(value, symbology: symbologyOf(read.format));
   }
 
   Future<void> _handle(String code, {String? symbology}) async {

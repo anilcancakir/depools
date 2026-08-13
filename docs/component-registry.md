@@ -49,7 +49,7 @@ location with a depth.
 | `quantity_stepper/` | `QuantityStepper` | - | yes | yes | A typed quantity with a minus and a plus beside it. |
 | `quota_meter/` | `QuotaMeter` | - | yes | yes | One metered axis: how much of it is used, how much there is, and what happens at the end. |
 | `receipt_line_row/` | `ReceiptLineRow` | LineResolution | yes | yes | One line off a receipt: what the paper said, what it became, how much, and what it |
-| `scan_row/` | `ScanRow` | ScanSource | yes | yes | One barcode in a continuous scan batch: what was read, what it resolved to, how far to |
+| `scan_row/` | `ScanRow` | - | yes | yes | One barcode in a continuous scan batch: what was read, what it resolved to, how far to |
 | `section_card/` | `SectionCard` | - | yes | yes | One titled group of rows on a screen: the card surface, its [SectionHeader], |
 | `section_header/` | `SectionHeader` | - | yes | yes | The label above a group of rows, with an optional count and an optional |
 | `serial_row/` | `SerialRow` | - | yes | yes | One individually identified unit: its serial, its warranty, and where it came from. |

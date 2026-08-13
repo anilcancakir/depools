@@ -6,7 +6,6 @@
 import 'package:magic_devtools/preview.dart';
 import 'preview/assistant_fresh_screen.preview.dart';
 import 'preview/assistant_screen.preview.dart';
-import 'preview/barcode_scan_empty_screen.preview.dart';
 import 'preview/barcode_scan_screen.preview.dart';
 import 'preview/bottom_menu.preview.dart';
 import 'preview/dashboard_failed_screen.preview.dart';
@@ -94,11 +93,6 @@ List<PreviewEntry> previewEntries() {
       label: 'AssistantScreen',
       slug: 'assistant_screen',
       builder: (_) => const AssistantScreenPreview(),
-    ),
-    PreviewEntry(
-      label: 'BarcodeScanEmptyScreen',
-      slug: 'barcode_scan_empty_screen',
-      builder: (_) => const BarcodeScanEmptyScreenPreview(),
     ),
     PreviewEntry(
       label: 'BarcodeScanScreen',
