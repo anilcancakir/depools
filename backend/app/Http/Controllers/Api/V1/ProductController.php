@@ -8,9 +8,12 @@ use App\Models\Barcode;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\Scopes\TeamScope;
+use App\Services\CatalogueContributor;
 use App\Services\ProductListQuery;
+use App\Support\Gtin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 
 /**
@@ -21,6 +24,8 @@ use Illuminate\Validation\Rule;
  */
 final class ProductController extends Controller
 {
+    public function __construct(private readonly CatalogueContributor $contributor) {}
+
     /**
      * How many rows a page holds when the caller does not say.
      *
@@ -127,9 +132,69 @@ final class ProductController extends Controller
             // half of the same unit rather than a count of smaller ones (D26).
             'content_unit' => ['nullable', 'string', 'max:16', 'different:base_unit'],
             'par_level' => ['nullable', 'numeric', 'min:0'],
+
+            // **Stage 6 of the cascade arrives here.** A scan that resolved to nothing sends the
+            // user to type the card, and the code they scanned has to travel with it or the next
+            // scan of the same carton misses again. Absent when a product is added by hand.
+            'barcode' => ['nullable', 'string', 'max:128'],
+            // Part of a non-GTIN label's identity rather than a hint, same rule as the resolve
+            // endpoint: the same characters as Code128 and as a QR are two different labels.
+            'symbology' => ['nullable', 'string', 'max:16'],
+
+            // **Default TRUE, which is Anılcan's call and the one the moat depends on.** Turkish
+            // barcode coverage in commercial databases is weak, so the catalogue is built out of
+            // confirmations, and a contribution model most people never notice contributes nothing.
+            // `barcode-and-catalog.md` used to say opt-in per tenant and off by default; that is
+            // superseded there, with the argument, rather than quietly contradicted here.
+            'contribute' => ['boolean'],
         ]);
 
-        return new ProductResource(Product::create($data));
+        $barcode = $this->barcodeFrom($data);
+
+        $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
+
+        if ($barcode !== null) {
+            $product->linkBarcode($barcode);
+        }
+
+        // The contribution is a side effect of a create the user asked for, so every refusal inside
+        // it is silent: a licence guard, an existing row or a missing locale must not turn "your
+        // product was saved" into an error about something else.
+        if (($data['contribute'] ?? true) === true) {
+            $this->contributor->contribute($product, $barcode);
+        }
+
+        return new ProductResource($product);
+    }
+
+    /**
+     * The barcode row a create names, or null when it names none.
+     *
+     * A GTIN identifies itself and a non-GTIN label does not, which is why the symbology is required
+     * for one and meaningless for the other. A code that is neither is dropped rather than refused:
+     * the product is what the user asked for, and failing the whole create over a barcode we cannot
+     * model would lose the card they just typed.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function barcodeFrom(array $data): ?Barcode
+    {
+        $code = trim((string) ($data['barcode'] ?? ''));
+
+        if ($code === '') {
+            return null;
+        }
+
+        $symbology = trim((string) ($data['symbology'] ?? ''));
+
+        if ($symbology !== '') {
+            return Barcode::forCode($code, $symbology);
+        }
+
+        // **`Gtin::couldBe` and not a bare try/catch**, because `fromScan` strips letters rather
+        // than refusing them: `SHELF-A-0042` came through it as the GTIN `00000000000042`, so an
+        // internal shelf label became a barcode row that a real product could later collide with.
+        return Gtin::couldBe($code) ? Barcode::forGtin($code) : null;
     }
 
     /**

@@ -152,9 +152,10 @@ final class Barcode extends Model
             ->withTimestamps();
     }
 
-    /** The GTIN as a value object, or null for a non-GTIN row. */
-    public function gtin(): ?Gtin
-    {
-        return $this->gtin === null ? null : Gtin::fromScan($this->gtin);
-    }
+    // **A `gtin(): ?Gtin` accessor used to live here and it is gone rather than fixed.** It had no
+    // caller anywhere, and it SHADOWED the column it was named after: Eloquent resolves an unloaded
+    // attribute by looking for a method of that name and treating it as a relation, so on a row
+    // created through [forCode] (where `gtin` is not among the attributes) reading `$barcode->gtin`
+    // raised `Undefined property` instead of returning null. Every real caller in this codebase
+    // already treats `gtin` as a plain column, which is what it is now.
 }

@@ -63,11 +63,21 @@ Confidence matters at presentation. A hit from the tenant's own products is auth
 
 The moat, and the part that compounds.
 
-When a user confirms a product that came from a lookup, a photo, or their own typing, they can contribute the text fields (not their photos) to the shared catalog. Opt-in per tenant, off by default.
+When a user confirms a product that came from a lookup, a photo, or their own typing, the text fields (not their photos) go to the shared catalog. **Per product, with the box ticked by default** (D117).
+
+This line used to read "opt-in per tenant, off by default", which was O5's holding assumption and not a decision anybody defended. It is superseded rather than deleted, because the argument is the point: a contribution model most users never notice is a moat that never fills. Turkish barcode coverage in commercial databases is weak, and the whole thesis here is that every Turkish user who confirms a product makes the next Turkish user's scan work; a default-off tenant switch means almost nobody ever does. The box is per product and it is visible, so the user who wants to keep a private recipe or an own-brand SKU unticks that one, which is the case the switch actually existed for.
+
+There is no tenant-level master switch, deliberately. One mechanism, at the moment the user is looking at the thing being shared.
 
 Why it matters: Turkish product barcode coverage in commercial databases is weak. Every Turkish user who confirms a product makes the next Turkish user's scan work. No global competitor will assemble this, because they have no reason to care about Turkish grocery barcodes.
 
-Contribution rules: the contributing team is recorded privately for audit, contributed rows carry `source = community`, photos are never contributed, and the terms grant a redistribution licence on the contributed fields only. Open questions in O5.
+Contribution rules: the contributing team is recorded privately for audit (`global_products.contributed_by_team_id`, which is NOT tenancy and carries no scope), contributed rows carry `source = community`, photos are never contributed, and the terms grant a redistribution licence on the contributed fields only.
+
+**Open Food Facts text can never become a contribution, and the check runs on the server.** ODbL is share-alike, so a database combined with OFF data has to be released as open data; that is why `off_products` is isolated and why an OFF candidate comes back as not contributable. The client's flag is not the guard, because a licence boundary an edited request can cross is not one. The server compares the submitted name's fold against the `off_products` row for that GTIN and skips the contribution when they match. A user who retypes the name in their own words still contributes, deliberately: correcting a bad or English OFF record is exactly where a Turkish catalogue beats a global one, and refusing every barcode OFF happens to know would throw that away.
+
+A product with no barcode contributes too. The cascade reaches this table through the barcode pivot, so such a row answers no scan today; it is the receipt-line matching in `ai-design.md`'s resolution ladder that will read it, and a catalogue already filling when that lands beats one starting empty.
+
+Not built, and named so it is not mistaken for an oversight: a second tenant confirming the same product is corroboration and is currently dropped rather than raising the row's `confidence`. That needs a rule for how much and a ceiling, and an invented number is what D31 warns that column attracts.
 
 ## The shared taxonomy
 

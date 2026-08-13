@@ -26,6 +26,12 @@ final class GlobalProduct extends Model
 
     /** @var list<string> */
     protected $fillable = [
+        // **Fillable, and that is not the `team_id` rule being broken.** `team_id` is never fillable
+        // because it decides who can READ a row, so a request that could set it could read across
+        // tenants. This column decides nothing: every tenant reads every row here, and it records
+        // who typed the text for an audit and a takedown. No route accepts it either way; it is set
+        // by `CatalogueContributor` from the auth context, same as tenancy is everywhere else.
+        'contributed_by_team_id',
         'product_category_id',
         'name',
         'brand',

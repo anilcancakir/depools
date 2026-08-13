@@ -34,6 +34,36 @@ final readonly class Gtin
     private function __construct(public string $value) {}
 
     /**
+     * Whether a raw read could be a GTIN at all, as opposed to a label of another kind.
+     *
+     * **Separators yes, letters no, and the difference is not pedantry.** [self::fromScan] strips
+     * every non-digit, which is the right normalisation for the space or hyphen a scanner and a
+     * spreadsheet produce, and the wrong one for a letter: `SHELF-A-0042` came through it as the
+     * GTIN `00000000000042`, so an internal shelf label became a barcode row that could collide with
+     * a real product. That was reachable from product creation until this existed.
+     *
+     * Here rather than in `fromScan` because a caller holding a code from a TSV column already knows
+     * it is meant to be a GTIN, while a caller holding whatever a user scanned does not, and those
+     * are two different questions over one value.
+     */
+    public static function couldBe(string $raw): bool
+    {
+        $digits = preg_replace('/[\s-]/', '', trim($raw)) ?? '';
+
+        if ($digits === '' || preg_match('/^\d+$/', $digits) !== 1) {
+            return false;
+        }
+
+        try {
+            self::fromScan($digits);
+
+            return true;
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    /**
      * Build a canonical GTIN from whatever a scanner, a receipt or an import produced.
      *
      * Strips everything that is not a digit first, because a scanner can return a code with spaces or

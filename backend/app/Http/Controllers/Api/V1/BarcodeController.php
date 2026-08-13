@@ -9,7 +9,6 @@ use App\Support\ProductCandidate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
 
 /**
  * What a scanned barcode is.
@@ -21,30 +20,6 @@ use InvalidArgumentException;
 final class BarcodeController extends Controller
 {
     public function __construct(private readonly BarcodeResolver $resolver) {}
-
-    /**
-     * Whether a raw read could be a GTIN at all.
-     *
-     * Digits and separators only: `Gtin::fromScan` strips spaces and hyphens because a scanner and a
-     * spreadsheet both produce them, so refusing a formatted read here would contradict it. A letter
-     * anywhere means it is an internal label rather than a GTIN, whatever its digits would spell.
-     */
-    private function isGtin(string $code): bool
-    {
-        $digits = preg_replace('/[\s-]/', '', trim($code)) ?? '';
-
-        if ($digits === '' || preg_match('/^\d+$/', $digits) !== 1) {
-            return false;
-        }
-
-        try {
-            Gtin::fromScan($digits);
-
-            return true;
-        } catch (InvalidArgumentException) {
-            return false;
-        }
-    }
 
     /**
      * Resolves a scan through the cascade, or 404 when nothing anywhere carries the code.
@@ -85,7 +60,7 @@ final class BarcodeController extends Controller
         //
         // 422 rather than 400, so it arrives in the same shape as every other validation failure and
         // the client can read the field name.
-        if (! $this->isGtin($data['code']) && ($symbology === null || $symbology === '')) {
+        if (! Gtin::couldBe($data['code']) && ($symbology === null || $symbology === '')) {
             throw ValidationException::withMessages([
                 'symbology' => 'A code that is not a GTIN needs its symbology to be identified.',
             ]);

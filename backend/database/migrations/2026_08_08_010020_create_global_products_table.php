@@ -47,7 +47,16 @@ return new class extends Migration
 
             // No `team_id`. This table is the shared layer, and the contributing team is recorded
             // privately for audit rather than as an owner (D11), which is a different column with a
-            // different meaning and arrives with the contribution flow.
+            // different meaning: here it is, arriving with the contribution flow as promised.
+            //
+            // **`contributed_by_team_id` is NOT tenancy and must never be read as it.** There is no
+            // `BelongsToTeam` on this model and no scope over this column, deliberately: a row here
+            // is readable by every tenant, which is the entire point of a shared catalogue. What the
+            // column answers is "who typed this", for an audit and for a takedown, and O5 asks for
+            // exactly that. Nullable because a row from a lookup or an import was typed by nobody.
+            MigrationHelper::foreignKey($table, 'contributed_by_team_id')->nullable()
+                ->constrained('teams')->nullOnDelete();
+
             MigrationHelper::foreignKey($table, 'product_category_id')->nullable()
                 ->constrained('product_categories')->nullOnDelete();
 
