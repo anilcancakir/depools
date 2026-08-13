@@ -828,7 +828,8 @@
       "shelf": "Rafı tara",
       "shelf_note": "Raf dolusu · her ürün için bir bölge",
       "shelf_label": "Raf fotoğrafından ürünleri tanıt",
-      "subtitle_empty": "Sürekli tarama"
+      "subtitle_empty": "Sürekli tarama",
+      "add": "Ekle"
     },
     "search": {
       "title": "Ara",

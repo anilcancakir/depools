@@ -231,12 +231,42 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
       child: SectionCard(
         label: Lang.get('screens.scan.barcode'),
         children: [
-          MSInput(
-            className: 'bg-surface-container',
-            placeholder: '13 hane',
-            type: InputType.number,
-            controller: _manual,
-            onSubmitted: (_) => _submitManual(),
+          // **Both halves are sized by PADDING, and `h-11` on the field is what broke it.**
+          // `design.md` names this for MSButton ("min-height grows the box downward without
+          // re-centring the label") and it is just as true of MSInput: with `h-11` the placeholder
+          // and the caret measured 6 logical px above the button's label in the same row. Anılcan
+          // caught it on screen; `items-center` did not fix it, which the same measurement showed.
+          //
+          // The second half is a wind trap worth knowing. `MSInput`'s recipe declares NO padding of
+          // its own, so a bare `py-3.5` in the caller's className replaces the whole inset rather
+          // than the vertical part: the left gap went from 12 logical px to zero and the text sat
+          // against the border. Both axes have to be written together.
+          WDiv(
+            className: 'flex flex-row items-center gap-2',
+            children: [
+              WDiv(
+                className: 'flex-1 min-w-0',
+                child: MSInput(
+                  className: 'bg-surface-container px-3 py-3.5',
+                  placeholder: '13 hane',
+                  type: InputType.number,
+                  controller: _manual,
+                  // Kept, because a desktop barcode reader is an HID keyboard that types digits and
+                  // presses enter, and that is the path this field was designed for.
+                  onSubmitted: (_) => _submitManual(),
+                ),
+              ),
+              // **Added because the field had no other way to be submitted.** On a phone the
+              // keyboard's own action fires `onSubmitted`; at desktop width, where this column
+              // LEADS by design, a person typing with a mouse in their hand had nothing to press.
+              // Found by driving the screen rather than by reading it.
+              MSButton(
+                onPressed: _submitManual,
+                intent: ButtonIntent.secondary,
+                className: 'shrink-0 px-4 py-3 justify-center',
+                child: WText(Lang.get('screens.scan.add')),
+              ),
+            ],
           ),
           // Checksum validation is the reason this field is not just a shortcut: a
           // mistyped EAN-13 is caught here rather than becoming a product nobody can

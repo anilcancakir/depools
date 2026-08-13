@@ -828,7 +828,8 @@
       "shelf": "Scan a shelf",
       "shelf_note": "A whole shelf · one region per product",
       "shelf_label": "Identify products from a shelf photo",
-      "subtitle_empty": "Keep scanning"
+      "subtitle_empty": "Keep scanning",
+      "add": "Add"
     },
     "search": {
       "title": "Search",
