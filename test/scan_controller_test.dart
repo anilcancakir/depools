@@ -68,6 +68,11 @@ void main() {
     Magic.singleton('network', () => wire);
   });
 
+  // `flutter test` gives each FILE its own isolate, so this cannot currently leak into another one.
+  // Kept anyway: it costs a line, and the day two files share a process the absence of it would be
+  // a failure nobody could place.
+  tearDown(Magic.flush);
+
   test('a resolved scan lands in the batch with what the cascade said', () {
     answers('869', 'Whole Milk 1 L');
 

@@ -97,7 +97,7 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       return;
     }
 
-    final String key = _keyOf(code, symbology);
+    final String key = ScanEntry.keyOf(code, symbology);
 
     // Already being looked up: bank the read rather than starting a second lookup for an answer
     // that is already in flight.
@@ -146,9 +146,6 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       _pendingRepeats.remove(key);
     }
   }
-
-  /// The batch's identity for a read: a code means one thing per symbology.
-  String _keyOf(String code, String? symbology) => '$code|${symbology ?? ''}';
 
   /// Newest scan first, by sequence.
   ///

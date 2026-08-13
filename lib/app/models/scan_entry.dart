@@ -56,6 +56,18 @@ class ScanEntry {
     this.unit = 'adet',
   });
 
+  /// What makes two reads the same read.
+  ///
+  /// **The symbology is part of it, because the server says so**: the same characters as Code128 and
+  /// as a QR are two different labels, and `Barcode::forCode()` keys on the pair. Defined once and
+  /// used by both the batch and the camera's presence gate, which is what stops them disagreeing:
+  /// the gate keyed on the code alone would suppress a QR because a Code128 of the same text had
+  /// just been seen, while the batch was busy keeping them apart.
+  static String keyOf(String code, String? symbology) => '$code|${symbology ?? ''}';
+
+  /// This row's identity.
+  String get key => keyOf(barcode, symbology);
+
   /// Whether this row will be written to stock as it stands.
   bool get isSettled => source != ScanSource.unmatched;
 

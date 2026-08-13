@@ -10,7 +10,7 @@ void main() {
   final DateTime t0 = DateTime.utc(2026, 8, 13, 12);
 
   test('the first sighting counts', () {
-    expect(ScanPresence().shouldCount('869', t0), isTrue);
+    expect(ScanPresence().shouldCount('869', null, t0), isTrue);
   });
 
   test('a label held in view counts once, however long it is held', () {
@@ -20,7 +20,7 @@ void main() {
     int counted = 0;
 
     for (int ms = 0; ms <= 3000; ms += 100) {
-      if (gate.shouldCount('869', t0.add(Duration(milliseconds: ms)))) counted++;
+      if (gate.shouldCount('869', null, t0.add(Duration(milliseconds: ms)))) counted++;
     }
 
     expect(counted, 1);
@@ -31,9 +31,9 @@ void main() {
     // milk are two units, and a rule that cannot see the gap cannot see the second one.
     final ScanPresence gate = ScanPresence();
 
-    expect(gate.shouldCount('869', t0), isTrue);
+    expect(gate.shouldCount('869', null, t0), isTrue);
     // Out of frame for a second: longer than the grace, so this is a new presentation.
-    expect(gate.shouldCount('869', t0.add(const Duration(milliseconds: 1000))), isTrue);
+    expect(gate.shouldCount('869', null, t0.add(const Duration(milliseconds: 1000))), isTrue);
   });
 
   test('a decode dropout of a few frames is not a new carton', () {
@@ -41,16 +41,16 @@ void main() {
     // Without the grace period that flicker is the double-count arriving by the other road.
     final ScanPresence gate = ScanPresence();
 
-    expect(gate.shouldCount('869', t0), isTrue);
-    expect(gate.shouldCount('869', t0.add(const Duration(milliseconds: 300))), isFalse);
+    expect(gate.shouldCount('869', null, t0), isTrue);
+    expect(gate.shouldCount('869', null, t0.add(const Duration(milliseconds: 300))), isFalse);
   });
 
   test('two different codes in one frame both count', () {
     // A shelf can show two labels at once, and neither suppresses the other: the gate is per code.
     final ScanPresence gate = ScanPresence();
 
-    expect(gate.shouldCount('869', t0), isTrue);
-    expect(gate.shouldCount('870', t0), isTrue);
+    expect(gate.shouldCount('869', null, t0), isTrue);
+    expect(gate.shouldCount('870', null, t0), isTrue);
   });
 
   test('a code held in view keeps its sighting recorded even while it does not count', () {
@@ -58,21 +58,31 @@ void main() {
     // as soon as its own gap elapsed and would count again: the bug, with extra steps.
     final ScanPresence gate = ScanPresence();
 
-    gate.shouldCount('869', t0);
+    gate.shouldCount('869', null, t0);
 
     for (int ms = 100; ms <= 2000; ms += 100) {
       expect(
-        gate.shouldCount('869', t0.add(Duration(milliseconds: ms))),
+        gate.shouldCount('869', null, t0.add(Duration(milliseconds: ms))),
         isFalse,
         reason: 'at ${ms}ms',
       );
     }
   });
 
+  test('the same text under two symbologies is two labels', () {
+      // The batch keys on `(code, symbology)` because the server does, and a gate keyed on the code
+      // alone suppressed the second: a QR swallowed by a Code128 of the same text, while the batch
+      // was busy keeping them apart. One identity, one builder.
+      final ScanPresence gate = ScanPresence();
+
+      expect(gate.shouldCount('SHELF-1', 'code128', t0), isTrue);
+      expect(gate.shouldCount('SHELF-1', 'qrcode', t0), isTrue);
+    });
+
   test('codes long gone are forgotten', () {
     final ScanPresence gate = ScanPresence();
 
-    gate.shouldCount('869', t0);
+    gate.shouldCount('869', null, t0);
     expect(gate.trackedCount, 1);
 
     gate.prune(t0.add(const Duration(minutes: 1)));

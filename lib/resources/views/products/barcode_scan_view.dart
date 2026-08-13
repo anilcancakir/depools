@@ -148,13 +148,15 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
 
       if (value == null || value.isEmpty) continue;
 
-      if (!_presence.shouldCount(value, now)) continue;
+      final String? symbology = symbologyOf(read.format);
+
+      if (!_presence.shouldCount(value, symbology, now)) continue;
 
       // **Dispatched rather than awaited.** Awaiting made the second label in one capture wait for
       // the first one's lookup, so two labels in frame together resolved half a second apart while
       // the camera went on delivering frames. The controller already orders by scan sequence rather
       // than by arrival, which is what makes firing them together safe.
-      unawaited(_controller.scan(value, symbology: symbologyOf(read.format)));
+      unawaited(_controller.scan(value, symbology: symbology));
     }
 
     _presence.prune(now);

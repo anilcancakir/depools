@@ -1,3 +1,5 @@
+import '../models/scan_entry.dart';
+
 /// Decides when a code in front of the camera is a NEW presentation rather than the same one.
 ///
 /// **A timer cannot answer this and that is what shipped first.** `mobile_scanner`'s
@@ -31,10 +33,16 @@ class ScanPresence {
   /// Called for every capture the camera produces, including the ones that change nothing: the
   /// sighting has to be recorded even when it does not count, or a code held in view would look
   /// absent as soon as its own gap elapsed.
-  bool shouldCount(String code, DateTime now) {
-    final DateTime? seen = _lastSeen[code];
+  ///
+  /// **Keyed on the code AND its symbology, through the same builder the batch uses.** Keyed on the
+  /// code alone this gate suppressed a QR because a Code128 of the same text had just been seen,
+  /// while the batch was correctly keeping the two apart: two definitions of one identity, which is
+  /// how they came to disagree.
+  bool shouldCount(String code, String? symbology, DateTime now) {
+    final String key = ScanEntry.keyOf(code, symbology);
+    final DateTime? seen = _lastSeen[key];
 
-    _lastSeen[code] = now;
+    _lastSeen[key] = now;
 
     if (seen == null) {
       return true;
