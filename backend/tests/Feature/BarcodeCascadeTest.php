@@ -10,6 +10,7 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
@@ -27,6 +28,38 @@ use Tests\TestCase;
 final class BarcodeCascadeTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // **No test may reach Open Food Facts, and this is the line that guarantees it.** Stage 3
+        // falls through to a live lookup when the local table misses, so several cases here would
+        // otherwise make a real request: slow, dependent on somebody else's uptime, and rate-limited
+        // at 15 a minute for everyone sharing the IP. `preventStrayRequests` turns an unfaked call
+        // into a failure naming the URL rather than into a mysteriously slow green run.
+        //
+        // No default stub beside it, deliberately. `Http::fake()` MERGES rather than replaces and the
+        // first matching stub wins, so a default here would silently shadow every per-test one: two
+        // of these tests passed a status-1 response and got the default's status-0 back. Each test
+        // now declares what it expects to leave the building, and a test that expects nothing to
+        // leave fails loudly if something does.
+    }
+
+    /** Open Food Facts answers with a product. */
+    private function offReturns(array $product): void
+    {
+        Http::fake(['world.openfoodfacts.org/*' => Http::response([
+            'status' => 1,
+            'product' => $product,
+        ], 200)]);
+    }
+
+    /** Open Food Facts answers that it has nothing, which is a 200 with `status: 0`. */
+    private function offHasNothing(): void
+    {
+        Http::fake(['world.openfoodfacts.org/*' => Http::response(['status' => 0], 200)]);
+    }
 
     /** @return array{0: User, 1: Team} */
     private function tenant(string $name): array
@@ -138,6 +171,10 @@ final class BarcodeCascadeTest extends TestCase
 
         $this->tenant('Alpha');
 
+        // Own misses because the scope hides Beta's product, community has nothing, and the local
+        // OFF table is empty, so this case genuinely reaches the live lookup.
+        $this->offHasNothing();
+
         $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
             ->assertNotFound();
     }
@@ -162,5 +199,78 @@ final class BarcodeCascadeTest extends TestCase
         $this->getJson('/api/v1/barcode/resolve?code=0614141999996')
             ->assertOk()
             ->assertJsonPath('data.name', 'Normalised Milk');
+    }
+
+    public function test_a_local_miss_asks_open_food_facts_once_and_keeps_the_answer(): void
+    {
+        // The top-up exists for the gap the bulk import cannot close: a product added to OFF after
+        // the dump was taken. Storing the answer is the point of it, since that turns one user's
+        // miss into everybody's hit and the second scan never leaves the building.
+        $this->offReturns([
+            'product_name' => 'Live Milk',
+            'brands' => 'Live Brand',
+            'lang' => 'tr',
+        ]);
+
+        $this->tenant('Alpha');
+        Barcode::forGtin('8690504010012');
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.source', 'off')
+            ->assertJsonPath('data.name', 'Live Milk');
+
+        $this->assertDatabaseHas('off_products', [
+            'gtin' => '08690504010012',
+            'name' => 'Live Milk',
+            'locale' => 'tr',
+        ]);
+
+        // The stored row is what answers next time, so the second scan makes no request at all.
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Live Milk');
+    }
+
+    public function test_the_lookup_strips_our_padding_because_off_keys_on_thirteen(): void
+    {
+        // We hold GTIN-14 because GS1 says so; OFF pads to 13 and does not address 14, so asking it
+        // for `08690504010012` misses a product it has under `8690504010012`.
+        $this->offReturns(['product_name' => 'Live Milk', 'lang' => 'en']);
+
+        $this->tenant('Alpha');
+        Barcode::forGtin('8690504010012');
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertOk();
+
+        Http::assertSent(static fn ($request): bool => str_contains($request->url(), '/8690504010012'));
+    }
+
+    public function test_a_failing_lookup_is_a_miss_rather_than_an_error(): void
+    {
+        // **A user is holding a carton.** A timeout, a rate-limit answer or an outage all have to
+        // read as "OFF does not have it", because an error here is one they cannot act on and the
+        // next stage costs nothing. What it trades away is that a transient failure looks like a
+        // miss for that one scan.
+        Http::fake(['world.openfoodfacts.org/*' => Http::response('rate limited', 429)]);
+
+        $this->tenant('Alpha');
+        Barcode::forGtin('8690504010012');
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertNotFound();
+    }
+
+    public function test_the_kill_switch_stops_the_lookup_leaving_the_building(): void
+    {
+        // `legal-and-privacy.md` asks every external source to be disableable without a deploy.
+        config(['services.openfoodfacts.live' => false]);
+
+        $this->tenant('Alpha');
+        Barcode::forGtin('8690504010012');
+
+        $this->getJson('/api/v1/barcode/resolve?code=8690504010012')->assertNotFound();
+
+        Http::assertNothingSent();
     }
 }

@@ -45,6 +45,8 @@ use App\Support\ProductCandidate;
  */
 final class BarcodeResolver
 {
+    public function __construct(private readonly OpenFoodFacts $openFoodFacts) {}
+
     /** The tenant's own products are the only authoritative answer. */
     private const OWN_CONFIDENCE = 100;
 
@@ -156,7 +158,15 @@ final class BarcodeResolver
             return null;
         }
 
-        $off = OffProduct::query()->where('gtin', $gtin)->first();
+        $off = OffProduct::query()->where('gtin', $gtin)->first()
+            // **The top-up, and it runs only after the local table has missed.** The bulk import is
+            // the base and this closes the gap it cannot: a product added to OFF after the dump was
+            // taken. One request on a miss the user is standing in front of, which is the shape OFF
+            // asks for ("1 API call = 1 real scan by a user") rather than a crawl.
+            //
+            // A failure returns null and reads as a miss, so a timeout costs the next stage rather
+            // than an error a user holding a carton cannot act on.
+            ?? $this->openFoodFacts->fetch($gtin);
 
         if ($off === null) {
             return null;

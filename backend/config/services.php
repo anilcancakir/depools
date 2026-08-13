@@ -28,6 +28,13 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // The live top-up behind the bulk import. A kill switch rather than a credential: OFF needs no
+    // key, and what an operator needs is the ability to stop calling out at all, which
+    // `legal-and-privacy.md` asks of every external source.
+    'openfoodfacts' => [
+        'live' => (bool) env('OPENFOODFACTS_LIVE', true),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
