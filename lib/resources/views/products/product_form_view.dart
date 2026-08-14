@@ -7,6 +7,7 @@ import 'package:magic_starter/magic_starter.dart'
     show ButtonIntent, MSBottomSheet, MSButton, MSCombobox, MSInput, MSSwitch;
 
 import '../../../app/models/scan_entry.dart' show ScanEntry;
+import '../../../app/support/merge_unit_codes.dart';
 import '../../../app/support/unit_label.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
@@ -110,8 +111,15 @@ class _ProductFormViewState extends State<ProductFormView> {
 
   /// Loads the units this tenant may pick.
   ///
-  /// A failure leaves the countable unit as the only chip, which is the honest degradation: every
+  /// A failure leaves the countable unit as the only option, which is the honest degradation: every
   /// product can be counted in pieces.
+  ///
+  /// **The answer is MERGED rather than assigned, and overwriting was a real race.** This request is
+  /// started in `initState`, and a user can register a unit of their own before it lands: the late
+  /// response would then replace the list, drop the code they just created, and leave the combobox
+  /// holding a `value` that is no longer among its `options`. Server order leads, because that is the
+  /// order the picker is meant to read in, and anything the screen knows about and the server did not
+  /// mention follows it.
   Future<void> _loadUnits() async {
     final dynamic response = await Http.get('/units');
 
@@ -128,7 +136,9 @@ class _ProductFormViewState extends State<ProductFormView> {
 
     if (codes.isEmpty) return;
 
-    setState(() => _units = codes);
+    setState(() {
+      _units = mergeUnitCodes(fromServer: codes, known: _units, selected: _unit);
+    });
   }
 
   @override
@@ -194,7 +204,14 @@ class _ProductFormViewState extends State<ProductFormView> {
               ],
               searchPlaceholder: Lang.get('screens.product_form.unit_search'),
               onChange: (String? next) {
-                if (next != null) setState(() => _unit = next);
+                // Clears its own complaint, the same way the name field does: a refusal about the unit
+                // stops being true the moment a different one is chosen.
+                if (next != null) {
+                  setState(() {
+                    _unit = next;
+                    _errors = _without('base_unit');
+                  });
+                }
               },
             ),
             // The one deliberate way out of a closed vocabulary. Nineteen codes cover a lot and not
@@ -287,6 +304,8 @@ class _ProductFormViewState extends State<ProductFormView> {
                 placeholder: Lang.get('screens.product_form.shelf_life_placeholder'),
                 type: InputType.number,
                 controller: _shelfLife,
+                onChanged: (String _) =>
+                    setState(() => _errors = _without('default_shelf_life_days')),
               ),
               if (_errors['default_shelf_life_days'] != null)
                 WText(
@@ -343,6 +362,7 @@ class _ProductFormViewState extends State<ProductFormView> {
                 // an input that accepts text and discards it is worse than one that does not accept it.
                 // `enabled`, which is what `MSInput` calls it.
                 enabled: controller != null,
+                onChanged: (String _) => setState(() => _errors = _without(key)),
               ),
               if (_errors[key] != null)
                 WText(_errors[key]!, className: 'text-xs text-expired'),

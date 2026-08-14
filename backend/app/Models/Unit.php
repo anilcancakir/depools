@@ -51,14 +51,41 @@ final class Unit extends Model
         return mb_strtoupper(trim($code));
     }
 
-    /** @var list<string> */
+    /**
+     * **`team_id` is deliberately absent**, which `backend.md` states as a rule for every model and
+     * which matters more here than anywhere: on this table a null `team_id` does not mean "unstamped",
+     * it means SHARED. So a mass-assigned `team_id` silently dropped would not fail on a NOT NULL
+     * column, it would publish one tenant's word to every tenant. `ProductCategory` does list it, and
+     * that is the shape this followed at first; the rule is right and the precedent is not.
+     *
+     * Writers set it explicitly with `setAttribute` before saving, the same way `BelongsToTeam`,
+     * `StockWriter` and `StockLedger` all do.
+     *
+     * @var list<string>
+     */
     protected $fillable = [
-        'team_id',
         'reference_unit_id',
         'code',
         'name',
         'factor',
     ];
+
+    /**
+     * A unit belonging to a team, with the owner set the one way this model accepts.
+     *
+     * Named rather than left to each caller, because "set `team_id` outside `fill`" is exactly the
+     * instruction that gets followed nine times out of ten, and the tenth creates a shared unit.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function createFor(string $teamId, array $attributes): self
+    {
+        $unit = new self($attributes);
+        $unit->setAttribute('team_id', $teamId);
+        $unit->save();
+
+        return $unit;
+    }
 
     protected function casts(): array
     {

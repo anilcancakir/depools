@@ -183,8 +183,7 @@ final class UnitVocabularyTest extends TestCase
     {
         // What `team_id` on this table is for: a tenant who genuinely counts in cases adds one, and it
         // is theirs. The seeded set stays small precisely because this exists.
-        $case = Unit::create([
-            'team_id' => $this->team->getKey(),
+        $case = Unit::createFor($this->team->getKey(), [
             'code' => 'KOLI',
             'name' => 'Koli',
             'reference_unit_id' => Unit::query()->shared()->where('code', Unit::DEFAULT_CODE)->value('id'),
@@ -224,13 +223,13 @@ final class UnitVocabularyTest extends TestCase
 
     public function test_the_index_shows_a_tenant_their_own_units_and_nobody_elses(): void
     {
-        Unit::create(['team_id' => $this->team->getKey(), 'code' => 'KOLI', 'name' => 'Koli']);
+        Unit::createFor($this->team->getKey(), ['code' => 'KOLI', 'name' => 'Koli']);
 
         /** @var User $other */
         $other = User::factory()->createOne(['locale' => 'en']);
         $otherTeam = Team::create(['name' => 'Beta', 'user_id' => $other->getKey()]);
         $other->forceFill(['current_team_id' => $otherTeam->getKey()])->save();
-        Unit::create(['team_id' => $otherTeam->getKey(), 'code' => 'BIDON', 'name' => 'Bidon']);
+        Unit::createFor($otherTeam->getKey(), ['code' => 'BIDON', 'name' => 'Bidon']);
 
         $codes = collect($this->getJson('/api/v1/units')->assertOk()->json('data'))->pluck('code');
 
@@ -258,6 +257,23 @@ final class UnitVocabularyTest extends TestCase
         $this->storeProduct(['base_unit' => 'KOLI'])->assertCreated();
 
         $this->assertSame(12.0, Unit::findByCode('koli')->factorToRoot(), 'twelve pieces, folded lookup');
+    }
+
+    public function test_mass_assigning_a_team_does_nothing_and_that_is_the_point(): void
+    {
+        // `backend.md` states it as a rule and this table is where it bites hardest: a null `team_id`
+        // here does not mean "unstamped", it means SHARED. So a writer who passes it through `fill` gets
+        // it dropped, and the row they think belongs to one tenant is published to every tenant.
+        //
+        // The guard is that it is not fillable, and this is what would notice if somebody added it back.
+        $unit = Unit::create(['code' => 'SLIPPED', 'name' => 'Slipped', 'team_id' => $this->team->getKey()]);
+
+        $this->assertNull($unit->refresh()->team_id, 'fill must not be able to set the owner');
+
+        // And the sanctioned way, which is the one the controller uses.
+        $owned = Unit::createFor($this->team->getKey(), ['code' => 'OWNED', 'name' => 'Owned']);
+
+        $this->assertSame($this->team->getKey(), $owned->refresh()->team_id);
     }
 
     public function test_an_account_with_no_team_cannot_extend_the_global_vocabulary(): void

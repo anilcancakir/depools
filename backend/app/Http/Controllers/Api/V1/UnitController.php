@@ -124,8 +124,10 @@ final class UnitController extends Controller
 
         $reference = Unit::findByCode($data['reference_code'] ?? null);
 
-        $unit = Unit::create([
-            'team_id' => $teamId,
+        // `createFor` rather than `create`, because `team_id` is not fillable on this model: passing it
+        // through `fill` would be silently dropped, and a null `team_id` here does not mean unstamped,
+        // it means SHARED.
+        $unit = Unit::createFor($teamId, [
             'code' => $code,
             'name' => trim($data['name']),
             'reference_unit_id' => $reference?->getKey(),
