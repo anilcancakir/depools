@@ -165,34 +165,56 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   }
 
   /// Loads the locations and the shelves recent deliveries went to.
+  ///
+  /// **The two answers are kept apart, and folding them put a lie on screen.** They are separate
+  /// requests: the ledger says WHERE the batch will land, and `/locations` says what that place is
+  /// called. Returning early when only the second failed left the controller holding a real
+  /// destination while the bar read "Choose a location", so the screen denied knowing something it
+  /// was about to act on. The commit would have written to that shelf regardless.
   Future<void> _loadDestination() async {
     await _controller.loadDestination();
 
     final dynamic response = await Http.get('/locations');
 
-    if (!mounted || !response.successful) return;
+    if (!mounted) return;
 
-    final dynamic rows = response['data'];
-
-    if (rows is! List) return;
+    final dynamic rows = response.successful ? response['data'] : null;
 
     setState(() {
       _locations = <DestinationOption>[
-        for (final dynamic row in rows)
-          if (row is Map && row['id'] is String)
-            DestinationOption(
-              id: row['id'] as String,
-              name: (row['name'] as String?) ?? '',
-              // `full_path` is the hierarchy the picker's description line shows; it falls back to
-              // the name for a root, where there are no ancestors to print.
-              fullPath: (row['full_path'] as String?) ?? (row['name'] as String?) ?? '',
-              depth: (row['depth'] as num?)?.toInt() ?? 0,
-              productCount: (row['stock_count'] as num?)?.toInt() ?? 0,
-            ),
+        if (rows is List)
+          for (final dynamic row in rows)
+            if (row is Map && row['id'] is String)
+              DestinationOption(
+                id: row['id'] as String,
+                name: (row['name'] as String?) ?? '',
+                // `full_path` is the hierarchy the picker's description line shows; it falls back to
+                // the name for a root, where there are no ancestors to print.
+                fullPath: (row['full_path'] as String?) ?? (row['name'] as String?) ?? '',
+                depth: (row['depth'] as num?)?.toInt() ?? 0,
+                productCount: (row['stock_count'] as num?)?.toInt() ?? 0,
+              ),
       ];
       _recentIds = _controller.recentDestinationIds;
       _destinationPath = _pathOf(_controller.destinationId);
     });
+  }
+
+  /// What the "where" row says, which is three states rather than two.
+  ///
+  /// A destination with no name is its own state: the batch has somewhere to go and this screen could
+  /// not find out what it is called. Reusing "Choose a location" there asks for something that is
+  /// already chosen, and reusing the path would mean inventing one.
+  String get _destinationLabel {
+    final String? path = _destinationPath;
+
+    if (path != null) return path;
+
+    return Lang.get(
+      _controller.destinationId == null
+          ? 'screens.scan.no_destination'
+          : 'screens.scan.destination_unnamed',
+    );
   }
 
   /// The path of a location id, or null when it names none of them.
@@ -412,6 +434,9 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
         // linked to their product.
         editable: entry.productId == null,
         confirming: found,
+        // The row's OWN unit, so reopening a card does not hand back the default and quietly undo a
+        // unit the user already chose.
+        baseUnit: entry.unit,
       ),
     );
 
@@ -867,9 +892,9 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
               className: 'flex flex-row items-center justify-between gap-3 py-1',
               children: [
                 WText(
-                  // Null means this tenant has never received anything, which is a first delivery
-                  // rather than a failure: the copy asks for a location instead of naming one.
-                  _destinationPath ?? Lang.get('screens.scan.no_destination'),
+                  // Three states, not two: a named shelf, a first delivery with nothing chosen yet,
+                  // and a shelf the ledger knows whose name this screen could not load.
+                  _destinationLabel,
                   className: 'flex-1 min-w-0 truncate text-sm text-fg',
                 ),
                 MSButton(

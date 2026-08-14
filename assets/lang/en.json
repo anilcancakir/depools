@@ -855,7 +855,8 @@
       "added_plain": ":what added to stock",
       "confirm_title": "Is this it?",
       "mode_camera": "Camera",
-      "mode_manual": "By hand"
+      "mode_manual": "By hand",
+      "destination_unnamed": "Location name unavailable"
     },
     "search": {
       "title": "Search",

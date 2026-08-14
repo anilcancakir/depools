@@ -855,7 +855,8 @@
       "added_plain": ":what stoğa eklendi",
       "confirm_title": "Bu mu?",
       "mode_camera": "Kamera",
-      "mode_manual": "Elle"
+      "mode_manual": "Elle",
+      "destination_unnamed": "Konum adı alınamadı"
     },
     "search": {
       "title": "Ara",

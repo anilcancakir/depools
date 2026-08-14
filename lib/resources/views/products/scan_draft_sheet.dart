@@ -70,6 +70,15 @@ class ScanDraftSheet extends StatefulWidget {
   /// The brand the cascade found, when it found one.
   final String? brand;
 
+  /// The unit this row is already counted in.
+  ///
+  /// **Passed rather than defaulted, because reopening the card was overwriting it.** The field always
+  /// started at the default, so somebody who had set a row to `kg`, tapped it again to check, and
+  /// pressed the button got `piece` back with no warning. That is silent loss on the one field D54
+  /// says reinterprets every quantity in the ledger once a movement exists, which makes it the worst
+  /// field in this sheet to get wrong.
+  final String baseUnit;
+
   /// Where the answer came from, already localised, or null when nothing answered.
   final String? provenance;
 
@@ -98,6 +107,7 @@ class ScanDraftSheet extends StatefulWidget {
     this.provenance,
     this.editable = true,
     this.confirming = false,
+    this.baseUnit = ScanEntry.defaultUnit,
     super.key,
   });
 
@@ -112,6 +122,9 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
   /// this sheet had its own copy, so the client held two unit vocabularies at once and a draft saved
   /// untouched sent a unit the rest of the app did not use. One constant, and the server writes the
   /// same value when a line omits it.
+  ///
+  /// It is the fallback for an EMPTY field now rather than the field's starting value, which is
+  /// [ScanDraftSheet.baseUnit].
   static const String _defaultUnit = ScanEntry.defaultUnit;
 
   late final TextEditingController _name = TextEditingController(
@@ -121,7 +134,7 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
     text: widget.brand ?? '',
   );
   late final TextEditingController _unit = TextEditingController(
-    text: _defaultUnit,
+    text: widget.baseUnit,
   );
 
   bool _contribute = true;

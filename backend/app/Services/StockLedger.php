@@ -58,7 +58,10 @@ final class StockLedger
      * the list would fill with wherever the last cartons were carried rather than where deliveries
      * arrive.
      *
-     * @return list<int|string>
+     * `list<string>` rather than Eloquent's own `list<int|string>`: every key in this schema is a
+     * native `uuid` (D73), so the int half describes a table this application does not have.
+     *
+     * @return list<string>
      */
     public function recentReceivingLocationIds(int $limit = 3): array
     {
