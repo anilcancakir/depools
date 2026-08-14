@@ -67,6 +67,14 @@ class ProductThumb extends StatelessWidget {
     return trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
   }
 
+  /// The letter, in a box of its own, for a url that would not load.
+  Widget _fallback(Map<String, String> slots) {
+    return WDiv(
+      className: slots['fallback'],
+      child: WText(_initial),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final slots = productThumbRecipe()(
@@ -89,12 +97,19 @@ class ProductThumb extends StatelessWidget {
         src: url,
         alt: name,
         className: slots['image'],
-        // Both of these land on the initial rather than on a spinner or a broken glyph. A row is small
-        // and short-lived: something flickering in a 40pt box while a list scrolls is worse than a
-        // letter that simply becomes a picture.
-        placeholder: WText(_initial, className: slots['initial']),
-        errorBuilder: (BuildContext context, Object error, StackTrace? stack) =>
-            WText(_initial, className: slots['initial']),
+        // **The loading state is the root's own fill, deliberately, and there is no `placeholder`.**
+        // Wind routes that parameter to `Image.network`'s `loadingBuilder`, which on Flutter web is
+        // never called with progress: measured here as an empty box on the frame before the picture
+        // appeared. Wiring it would therefore show the letter on mobile and nothing on web, and the
+        // mobile half is the worse of the two anyway, since a letter that is replaced by a photograph
+        // a moment later is a flicker in a 40pt box. A tonal square that becomes a picture is what an
+        // iOS list does.
+        //
+        // A failure is different: it is permanent, so it lands on the initial rather than on Flutter's
+        // broken-image glyph. The `fallback` slot rather than `initial`, because a builder's widget is
+        // laid out inside the image's own sized box: the bare text sat in the top-left corner while
+        // the same letter centred correctly on a thumb that never had a url.
+        errorBuilder: (BuildContext context, Object error, StackTrace? stack) => _fallback(slots),
       ),
     );
   }

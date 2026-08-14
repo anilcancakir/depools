@@ -23,8 +23,28 @@ class ProductThumbPreview extends StatelessWidget {
   static const String _other = 'Zeytinyağı';
   // demo-data-end
 
+  /// The product the photograph below actually shows.
+  ///
+  /// Named separately rather than reusing `_named`, because a picture of a jar of hazelnut spread
+  /// under the word `Süt` makes the one state this preview exists to check unreadable: a reviewer
+  /// cannot tell a wrong image from a wrong fixture. Turkish barcodes are thin on Open Food Facts,
+  /// so the choice is a foreign name with its own photograph or a local name with none.
+  // demo-data-start
+  static const String _photographed = 'Nutella 400 g';
+  // demo-data-end
+
   /// A real Open Food Facts url, so the loaded state is the one users get rather than a local asset.
-  static const String _url = 'https://images.openfoodfacts.org/images/products/869/050/400/4073/front_en.4.400.jpg';
+  ///
+  /// Checked rather than invented: the first version of this preview made a plausible-looking path up,
+  /// it 404'd, and the box rendered blank while every other state looked right. That is also why the
+  /// missing case below uses a 404 on the SAME host rather than an unresolvable one: a removed
+  /// photograph is the realistic failure and a dead domain is not.
+  static const String _url =
+      'https://images.openfoodfacts.org/images/products/301/762/042/2003/front_en.879.200.jpg';
+
+  /// A url on the real host that is not there.
+  static const String _missing =
+      'https://images.openfoodfacts.org/images/products/000/000/000/0000/front_en.1.200.jpg';
 
   @override
   Widget build(BuildContext context) {
@@ -38,12 +58,13 @@ class ProductThumbPreview extends StatelessWidget {
             WDiv(
               className: 'flex flex-row items-center gap-3',
               children: [
-                ProductThumb(name: _named, imageUrl: _url),
+                ProductThumb(name: _photographed, imageUrl: _url),
                 ProductThumb(name: _named),
                 ProductThumb(name: _other),
                 // Nothing knew this barcode yet, so the row has no name either.
                 ProductThumb(name: ''),
-                ProductThumb(name: _named, imageUrl: 'https://example.invalid/missing.jpg'),
+                ProductThumb(name: _named, imageUrl: _missing),
+                ProductThumb(name: _named, imageUrl: 'https://example.invalid/unresolvable.jpg'),
               ],
             ),
           ],
@@ -55,7 +76,7 @@ class ProductThumbPreview extends StatelessWidget {
             WDiv(
               className: 'flex flex-row items-center gap-3',
               children: [
-                ProductThumb(name: _named, imageUrl: _url, size: ProductThumbSize.md),
+                ProductThumb(name: _photographed, imageUrl: _url, size: ProductThumbSize.md),
                 ProductThumb(name: _named, size: ProductThumbSize.md),
                 ProductThumb(name: '', size: ProductThumbSize.md),
               ],

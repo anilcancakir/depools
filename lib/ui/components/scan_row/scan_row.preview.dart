@@ -34,13 +34,18 @@ class ScanRowPreview extends StatelessWidget {
         WDiv(
           className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
           children: [
+            // The one row with a photograph, so its barcode, its name and its picture are the same
+            // product. They were not at first: a jar of hazelnut spread sat under the word `Süt`,
+            // which makes a wrong image and a wrong fixture look alike to whoever reviews this.
             ScanRow(
-              barcode: '8690504004073',
-              productName: 'Pınar Süt Tam Yağlı 1 lt',
+              barcode: '3017620422003',
+              productName: 'Nutella 400 g',
               count: 6,
               onHandFormatted: '2',
-              // A real Open Food Facts url, so the loaded state previewed here is the one users get.
-              imageUrl: 'https://images.openfoodfacts.org/images/products/869/050/400/4073/front_en.4.400.jpg',
+              // A CHECKED url, not a plausible-looking one. The first version invented a path, it
+              // 404'd, and the row previewed its fallback letter while claiming to show a picture.
+              imageUrl:
+                  'https://images.openfoodfacts.org/images/products/301/762/042/2003/front_en.879.200.jpg',
             onTap: _noop),
             ScanRow(
               barcode: '8691234567890',
