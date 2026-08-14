@@ -120,6 +120,10 @@ final class BarcodeResolver
             categoryId: $product->product_category_id,
             unitHint: $product->base_unit,
             productId: $product->getKey(),
+            // **Stage 1 sent no image at all**, so a scan of the tenant's OWN product showed nothing
+            // while a catalogue hit showed a picture: the one row we know most about looked like the
+            // one we knew least about.
+            imageUrl: $product->image_url,
         );
     }
 
@@ -178,7 +182,10 @@ final class BarcodeResolver
             brand: $global->brand,
             description: $global->description,
             categoryId: $global->product_category_id,
-            imageUrl: $global->image_path,
+            // The accessor rather than the column: `image_path` is a path on our disk and this field is
+            // a url a client loads. `off_products.image_url` below is already remote, deliberately, so
+            // the two arrive here as one kind of thing.
+            imageUrl: $global->image_url,
             // No unit hint from this table: it holds no unit column, deliberately. What a product is
             // COUNTED in is the tenant's decision (a shop counts cartons, a cafe counts litres of the
             // same milk), so a shared catalogue has no business asserting it.

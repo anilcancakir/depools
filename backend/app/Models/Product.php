@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
+use App\Models\Concerns\HasStoredImage;
 use App\Models\Concerns\NormalisesName;
 use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
@@ -26,6 +27,7 @@ final class Product extends Model
     use BelongsToTeam;
     use ConditionallyUsesUuids;
     use HasFactory;
+    use HasStoredImage;
     use NormalisesName;
     use SoftDeletes;
 
