@@ -46,7 +46,12 @@ return new class extends Migration
             $table->string('brand')->nullable();
             $table->text('description')->nullable();
             $table->string('sku', 64)->nullable();
-            $table->string('image_path')->nullable();
+
+            // No `image_path` here. A product's pictures are `product_images` rows, one of them
+            // primary, because one photograph rarely settles what a thing is. This column was a
+            // single nullable string; keeping it beside the gallery would have made it a
+            // materialised copy of the primary, which backend.md allows only with a guard and a
+            // drift check and which buys nothing here. `Product::image_url` reads the primary row.
 
             // The fold PHP writes (D82, D88), trigram-indexed below. This is the cascade's first step
             // against the tenant's OWN products, which is the most common hit and the cheapest.
