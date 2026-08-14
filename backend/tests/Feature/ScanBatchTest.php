@@ -306,10 +306,46 @@ final class ScanBatchTest extends TestCase
             ['product_id' => $milk->getKey(), 'quantity' => 2],
             ['name' => 'Yeni Ürün', 'barcode' => '8690504010012', 'quantity' => 5],
             ['product_id' => $serialised->getKey(), 'quantity' => 1],
-        ])->assertStatus(422);
+        ])
+            ->assertStatus(422)
+            // **The WRITER's sentence, not just a 422**, which a review round was right to ask for. A
+            // bare status assertion is satisfied by any early refusal, and this file already records one
+            // version of this test that passed on validation while proving nothing about the rollback.
+            // Naming the refusal is what pins the 422 to a transaction that actually ran.
+            ->assertJsonPath('message', 'A serial-tracked product does not receive into a lot: register '
+                .'the individual units instead, because its quantity is the count of them.');
 
         $this->assertSame(0, StockMovement::query()->count(), 'the two lines before it rolled back');
         $this->assertSame(2, Product::query()->count(), 'and so did the product the batch created');
+        $this->assertFalse(
+            Product::query()->where('name', 'Yeni Ürün')->exists(),
+            'by name as well as by count, so a future line cannot make the count agree by accident',
+        );
+    }
+
+    public function test_a_mixed_batch_writes_both_kinds_of_line(): void
+    {
+        // **The shape this endpoint is actually for, and nothing covered it.** A real delivery is some
+        // things the tenant already stocks and some the catalogue named, in one batch. The gap mattered
+        // most right after `prohibits` went in: that rule names sibling fields through `lines.*.name`,
+        // so a wildcard resolving across indices instead of within one would refuse every mixed batch,
+        // which is the ordinary case rather than an edge.
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+
+        $this->receive([
+            ['product_id' => $milk->getKey(), 'quantity' => 2],
+            ['name' => 'Yeni Ürün', 'barcode' => '8690504010012', 'quantity' => 5],
+        ])->assertCreated();
+
+        $this->assertSame(2, StockMovement::query()->count(), 'both lines wrote');
+        $this->assertSame(2, Product::query()->count(), 'and the catalogue line created its product');
+
+        $created = Product::query()->where('name', 'Yeni Ürün')->sole();
+
+        $this->assertSame(
+            5.0,
+            (float) StockMovement::query()->where('product_id', $created->getKey())->sole()->delta,
+        );
     }
 
     public function test_every_line_lands_as_a_purchase(): void
