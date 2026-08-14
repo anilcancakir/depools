@@ -3,6 +3,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSButton, ButtonIntent, MSInput, MSSwitch;
 
+import '../../../app/models/scan_entry.dart' show ScanEntry;
 import '../../../ui/components/section_header/section_header.dart';
 
 /// What the sheet came back with: the card the user confirmed.
@@ -107,9 +108,11 @@ class ScanDraftSheet extends StatefulWidget {
 class _ScanDraftSheetState extends State<ScanDraftSheet> {
   /// The unit a delivery is overwhelmingly counted in.
   ///
-  /// The server defaults to the same value when a line omits it; sending it anyway makes the default
-  /// a decision this file records rather than one that lives only in PHP.
-  static const String _defaultUnit = 'piece';
+  /// **Taken from [ScanEntry] rather than declared here**, which was a review finding worth keeping:
+  /// this sheet had its own copy, so the client held two unit vocabularies at once and a draft saved
+  /// untouched sent a unit the rest of the app did not use. One constant, and the server writes the
+  /// same value when a line omits it.
+  static const String _defaultUnit = ScanEntry.defaultUnit;
 
   late final TextEditingController _name = TextEditingController(
     text: widget.name ?? '',

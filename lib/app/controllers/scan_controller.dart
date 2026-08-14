@@ -274,6 +274,16 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       return Lang.get('screens.scan.nothing_to_write');
     }
 
+    // **What was posted, keyed and counted, because the batch keeps moving while the request is out.**
+    // Sweeping `isSettled` on the way back removed whatever happened to be settled by THEN, which is
+    // not the same set: a row still being looked up when the button was pressed becomes settled when
+    // its answer lands mid-request, and left with the others it would be deleted without ever having
+    // been written. The count is here for the narrower half of the same problem, a repeat read landing
+    // during the request, where the row was written N times and now says N+1.
+    final Map<String, int> posted = <String, int>{
+      for (final ScanEntry entry in settled) entry.key: entry.count,
+    };
+
     _committing = true;
     notifyListeners();
 
@@ -297,9 +307,20 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
             : Lang.get('screens.scan.write_failed');
       }
 
-      // **Only the rows that were written leave the batch.** An unmatched row still needs the user,
-      // and clearing everything would silently discard the work of finding it.
-      _entries.removeWhere((ScanEntry e) => e.isSettled);
+      // **Only what was written leaves the batch, and only as much of it as was written.** An
+      // unmatched row still needs the user, and clearing everything would silently discard the work
+      // of finding it. A row scanned again while the request was out keeps the difference, so the
+      // carton that arrived too late to be in this batch is still in the next one.
+      _entries.removeWhere((ScanEntry e) => (posted[e.key] ?? 0) >= e.count);
+
+      for (int i = 0; i < _entries.length; i++) {
+        final int sent = posted[_entries[i].key] ?? 0;
+
+        if (sent > 0) {
+          _entries[i] = _entries[i].copyWith(count: _entries[i].count - sent);
+        }
+      }
+
       _publish();
 
       return null;

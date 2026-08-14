@@ -46,6 +46,9 @@ class _SlowWire extends FakeNetworkDriver {
   /// Any earlier destinations behind it, for the picker's recent section.
   List<String> otherRecents = const <String>[];
 
+  /// How long a POST takes, so a test can act on the batch WHILE the write is out.
+  Duration postDelay = Duration.zero;
+
   @override
   Future<MagicResponse> post(
     String url, {
@@ -53,6 +56,8 @@ class _SlowWire extends FakeNetworkDriver {
     Map<String, String>? headers,
   }) async {
     posts.add((url, data));
+
+    await Future<void>.delayed(postDelay);
 
     return postResponse;
   }
@@ -550,6 +555,64 @@ void main() {
       // second one.
       expect(line['product_id'], 'p-869');
       expect(line.containsKey('name'), isFalse);
+    });
+  });
+
+  group('the batch keeps moving while the write is out', () {
+    test('a row whose lookup lands during the write is not swept with the written ones', () async {
+      // The review finding, and the loss is silent: the sweep removed whatever was settled when the
+      // response came back rather than what was actually posted, so a row still being looked up when
+      // the button was pressed was deleted without ever having been written. Reachable at a bench:
+      // scan five things, the fifth is new so it goes to Open Food Facts, press Add straight away.
+      wire.lastLocation = 'loc-1';
+      wire.postDelay = const Duration(milliseconds: 120);
+      answers('written', 'Already Known');
+      answers('late', 'Answered Late', delay: const Duration(milliseconds: 60));
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('written');
+
+      // Started but NOT awaited, so it is still in flight when the commit goes out.
+      final Future<void> late = controller.scan('late');
+      final Future<String?> commit = controller.commit();
+
+      await Future.wait<void>(<Future<void>>[late, commit]);
+
+      expect(
+        controller.entries.map((ScanEntry e) => e.barcode).toList(),
+        <String>['late'],
+        reason: 'the row that was never posted survives, the posted one leaves',
+      );
+      expect(
+        (wire.posts.single.$2['lines'] as List<dynamic>),
+        hasLength(1),
+        reason: 'and it really was not in the request',
+      );
+    });
+
+    test('a repeat read during the write keeps the count that was not written', () async {
+      // The narrower half. The row was posted as N and is N+1 by the time the response lands, so
+      // deleting it by key would drop the carton that arrived too late for this batch.
+      wire.lastLocation = 'loc-1';
+      wire.postDelay = const Duration(milliseconds: 120);
+      answers('869', 'Whole Milk 1 L');
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+      await controller.scan('869');
+
+      final Future<String?> commit = controller.commit();
+      await controller.scan('869');
+      await commit;
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      expect(line['quantity'], 2, reason: 'two were posted');
+      expect(controller.entries, hasLength(1));
+      expect(controller.entries.single.count, 1, reason: 'the third carton is still waiting');
     });
   });
 

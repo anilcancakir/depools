@@ -133,6 +133,26 @@ final class ScanBatchTest extends TestCase
         $this->assertSame(0, StockMovement::query()->count());
     }
 
+    public function test_a_line_carrying_both_a_product_and_a_card_is_refused(): void
+    {
+        // The contract this endpoint documents is EITHER an id the tenant owns OR the card to create,
+        // never both, because a line carrying both is a client that has not decided. `required_without`
+        // on its own only says "at least one", so a line with both was accepted and then silently took
+        // the id path: the card was dropped without a word, which is contract drift that costs a day to
+        // find from the client side.
+        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+
+        $this->receive([[
+            'product_id' => $mine->getKey(),
+            'name' => 'Something Else Entirely',
+            'quantity' => 1,
+        ]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['lines.0.product_id']);
+
+        $this->assertSame(0, StockMovement::query()->count());
+    }
+
     public function test_another_tenants_product_is_a_404_that_wrote_nothing(): void
     {
         // Tenancy rule 2, and it has to stay a 404: a 403 confirms the identifier is real, which is

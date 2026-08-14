@@ -53,7 +53,11 @@ class ScanRow extends StatelessWidget {
   /// How many times this barcode was scanned in this batch.
   final int count;
 
-  /// The unit the count is in.
+  /// The unit the count is in, already in the form it should be read.
+  ///
+  /// The default matches the one the client and the server both write for a product nobody named a
+  /// unit for. It is a stored CODE rather than copy, which is why an English screen has been reading
+  /// `1 adet`: a code is not a word, and the vocabulary that fixes it is a change of its own.
   final String unit;
 
   /// The already-formatted stock the tenant already holds, when [source] is own. `'0'` is
@@ -83,7 +87,7 @@ class ScanRow extends StatelessWidget {
     required this.count,
     this.productName,
     this.source = ScanSource.own,
-    this.unit = 'adet',
+    this.unit = 'piece',
     this.onHandFormatted,
     this.onTap,
     this.pending = false,

@@ -94,9 +94,16 @@ class ScanEntry {
   ///
   /// Named rather than repeated, because three places compared against the literal and a fourth wrote
   /// it: the constructor's default, the batch line deciding whether the unit was CHOSEN, and the row
-  /// widget. It is also the value that is wrong on an English screen, so when the vocabulary changes
-  /// this is the one place that has to.
-  static const String defaultUnit = 'adet';
+  /// widget.
+  ///
+  /// **`piece` and not `adet`, because that is what the server actually stores.** The batch endpoint
+  /// writes `piece` when a line omits the unit, so a client saying `adet` was describing a product the
+  /// database would record differently, and a draft saved untouched created one whose unit is not even
+  /// in the product form's own chips. The two halves disagreed in three places at once.
+  ///
+  /// It is still not the final answer: the vocabulary becomes a seeded `units` table on UN/ECE Rec 20
+  /// codes, so this constant is the one place that changes when it does.
+  static const String defaultUnit = 'piece';
 
   /// What makes two reads the same read.
   ///
