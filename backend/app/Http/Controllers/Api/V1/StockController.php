@@ -277,15 +277,17 @@ final class StockController extends Controller
             'lines' => ['required', 'array', 'min:1', 'max:200'],
             'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
 
-            // One or the other, enforced in BOTH directions. `required_without` alone only says "at
-            // least one", so a line carrying both was accepted and then silently took the id path:
-            // the card was dropped without a word, which is the shape of contract drift that costs a
-            // day to find. `prohibits` closes it, and a line with neither is still a 422 naming both
-            // fields, which is what the client needs to see.
+            // One or the other, enforced in BOTH directions and across the WHOLE card. `required_without`
+            // alone only says "at least one", so a line carrying both was accepted and then silently
+            // took the id path: everything meant for the product it would have created was dropped
+            // without a word, which is the shape of contract drift that costs a day to find from the
+            // client side. Prohibiting only `name` left the same hole for the other five.
+            //
+            // A line with neither is still a 422 naming both fields, which is what the client needs.
             'lines.*.product_id' => [
                 'nullable',
                 'required_without:lines.*.name',
-                'prohibits:lines.*.name',
+                'prohibits:lines.*.name,lines.*.brand,lines.*.base_unit,lines.*.barcode,lines.*.symbology,lines.*.contribute',
             ],
             'lines.*.name' => ['nullable', 'required_without:lines.*.product_id', 'string', 'max:255'],
             'lines.*.brand' => ['nullable', 'string', 'max:255'],

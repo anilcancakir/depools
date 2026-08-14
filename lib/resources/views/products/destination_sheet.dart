@@ -62,9 +62,9 @@ class DestinationOption {
 /// absent, so the path is the only context". Indentation would also break the moment a search matched
 /// a leaf six levels down and rendered six levels of nothing above it.
 ///
-/// **Not read while designing this**, and said plainly rather than implied: Apple's lists-and-tables
-/// page and Material's lists guidance are both JavaScript-only and the rendering fetch timed out, so
-/// this rests on the repo's own canon and on the measured data shape rather than on a citation.
+/// **No external citation stands behind this**, said plainly rather than implied: it rests on the
+/// repo's own canon and on the measured shape of the data, which is a flat list of up to a thousand
+/// nodes whose leaf names repeat across parents.
 @immutable
 class DestinationSheet extends StatefulWidget {
   /// Every location the tenant has, flattened in reading order.

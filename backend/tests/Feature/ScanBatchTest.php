@@ -12,6 +12,7 @@ use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -28,6 +29,17 @@ final class ScanBatchTest extends TestCase
     use RefreshDatabase;
 
     private Location $shelf;
+
+    /**
+     * The tenant every test starts as, kept so a test can come BACK to it.
+     *
+     * **`tenant('Alpha')` a second time does not return here, it builds a second Alpha**, because the
+     * helper below creates a fresh user and a fresh team on every call. A test that used it to switch
+     * back was then authenticated as a tenant that owned nothing it had created, which quietly turned
+     * "one valid line and one foreign line" into two foreign lines: the assertion still passed and the
+     * case in its own comment was never exercised.
+     */
+    private User $alpha;
 
     /** @return array{0: User, 1: Team} */
     private function tenant(string $name = 'Alpha'): array
@@ -47,8 +59,14 @@ final class ScanBatchTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant();
+        [$this->alpha] = $this->tenant();
         $this->shelf = Location::create(['name' => 'Raf A']);
+    }
+
+    /** Re-authenticates the tenant the test started as, rather than minting another one. */
+    private function backToAlpha(): void
+    {
+        $this->actingAs($this->alpha, 'sanctum');
     }
 
     /**
@@ -153,6 +171,32 @@ final class ScanBatchTest extends TestCase
         $this->assertSame(0, StockMovement::query()->count());
     }
 
+    public function test_a_product_id_refuses_every_other_card_field_too(): void
+    {
+        // Prohibiting `name` alone left the same hole for the other five: a line could carry an id plus
+        // a brand, a unit, a barcode, a symbology or a contribution flag, all of which describe a
+        // product this line is NOT creating, and every one of them was swallowed in silence.
+        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+
+        foreach ([
+            'brand' => 'Pınar',
+            'base_unit' => 'kg',
+            'barcode' => '8690000000017',
+            'symbology' => 'code128',
+            'contribute' => true,
+        ] as $field => $value) {
+            $this->receive([[
+                'product_id' => $mine->getKey(),
+                $field => $value,
+                'quantity' => 1,
+            ]])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['lines.0.product_id']);
+        }
+
+        $this->assertSame(0, StockMovement::query()->count());
+    }
+
     public function test_another_tenants_product_is_a_404_that_wrote_nothing(): void
     {
         // Tenancy rule 2, and it has to stay a 404: a 403 confirms the identifier is real, which is
@@ -162,13 +206,28 @@ final class ScanBatchTest extends TestCase
         $this->tenant('Beta');
         $theirs = Product::create(['name' => 'Beta Süt', 'base_unit' => 'adet']);
 
-        $this->tenant('Alpha');
-        $shelf = Location::create(['name' => 'Raf B']);
+        // Back to the tenant that owns `$mine`, and NOT `tenant('Alpha')`, which mints a second Alpha
+        // owning nothing: with that, both lines were foreign and the case below was never exercised.
+        $this->backToAlpha();
+
+        // **The precondition this test rests on, asserted rather than assumed.** Without it the whole
+        // thing passes while proving something weaker, and that is how it shipped: the interesting case
+        // is one VALID line ahead of a foreign one, so the first line being mine has to be a fact.
+        //
+        // Read from the AUTH CONTEXT rather than from `$this->alpha`, and the first version got that
+        // wrong in the same shape as the bug it guards: a captured user object still holds the old team
+        // after another `tenant()` call, so comparing it against the product compared two stale values
+        // and passed. Mutation testing is what showed it; reading it did not.
+        $this->assertSame(
+            Auth::user()?->current_team_id,
+            $mine->team_id,
+            'the first line must belong to the authenticated tenant, or this proves nothing',
+        );
 
         $this->receive([
             ['product_id' => $mine->getKey(), 'quantity' => 1],
             ['product_id' => $theirs->getKey(), 'quantity' => 1],
-        ], $shelf->getKey())->assertNotFound();
+        ], $this->shelf->getKey())->assertNotFound();
 
         // **Nothing at all, including the line BEFORE the foreign one.** The resolve happens before
         // the transaction opens, so a batch naming somebody else's product writes no movement rather
