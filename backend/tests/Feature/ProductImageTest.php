@@ -95,13 +95,21 @@ final class ProductImageTest extends TestCase
         $product = Product::create(['name' => 'Süt']);
 
         $this->assertNull($product->image_url);
+    }
 
-        // A blank path is the same as none. The CHECK cannot catch this one: an empty string is not
-        // NULL, so the row satisfies "exactly one of the two is set" while carrying nothing loadable.
-        $image = $product->images()->create(['path' => '   ', 'source' => 'upload']);
-        $product->makeImagePrimary($image);
+    public function test_the_database_refuses_a_blank_path(): void
+    {
+        // **A blank is not a source of bytes**, and the first version of the CHECK let it through: an
+        // empty string is not NULL, so `path = '   '` satisfied "exactly one is set" while being as
+        // unloadable as nothing at all. The constraint folds the whitespace now, so this is refused
+        // rather than stored and rendered as a broken box.
+        $product = Product::create(['name' => 'Süt']);
 
-        $this->assertNull($product->refresh()->image_url);
+        $this->expectException(QueryException::class);
+
+        DB::transaction(function () use ($product): void {
+            $product->images()->create(['path' => '   ', 'source' => 'upload']);
+        });
     }
 
     public function test_the_product_resource_carries_the_primary_url_and_the_gallery(): void
@@ -350,6 +358,24 @@ final class ProductImageTest extends TestCase
 
         $response->assertNoContent();
         $this->assertSame('', $response->getContent());
+    }
+
+    public function test_a_new_picture_lands_after_the_last_one_rather_than_at_the_count(): void
+    {
+        // The two are the same number only while the sequence is dense. `update` accepts any position
+        // up to the ceiling, so a gallery of two whose second picture was moved to 7 would otherwise
+        // take 2 for its next upload and put an appended picture in the middle.
+        $product = $this->productWithPicture();
+        $second = $product->images()->create(['path' => 'product-images/back.jpg', 'source' => 'upload', 'position' => 1]);
+
+        $this->patchJson("/api/v1/products/{$product->getKey()}/images/{$second->getKey()}", ['position' => 7])
+            ->assertOk();
+
+        $body = $this->postJson("/api/v1/products/{$product->getKey()}/images", [
+            'url' => 'https://example.com/third.jpg',
+        ])->assertCreated()->json('data');
+
+        $this->assertSame(8, $body['position']);
     }
 
     public function test_the_gallery_stops_at_its_ceiling(): void

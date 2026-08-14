@@ -104,7 +104,9 @@ names it while the back carries the ingredients and a shelf photo says where it 
 Unique: (`product_id`) where `is_primary`, as a PARTIAL index. A plain unique on
 (`product_id`, `is_primary`) would forbid two non-primary pictures, which is the point of a gallery.
 
-CHECK: `(path IS NULL) <> (remote_url IS NULL)`. Ours or theirs, never both and never neither.
+CHECK: `(NULLIF(btrim(path), '') IS NULL) <> (NULLIF(btrim(remote_url), '') IS NULL)`. Ours or theirs,
+never both and never neither. The fold is load-bearing rather than decorative: a bare NULL test lets
+`path = '   '` satisfy "exactly one is set" while being as unloadable as nothing at all.
 
 `Product::image_url` reads the primary row, so every caller of that field (the barcode resolver,
 `ProductResource`, the list row, the detail header) kept working when the storage moved underneath it.

@@ -99,11 +99,16 @@ return new class extends Migration
 
         // Ours or theirs, never both and never neither. A row with neither would render as a broken
         // box, and a row with both would leave the reader to guess which one wins.
-        DB::statement('
+        //
+        // **`NULLIF(btrim(...), '')` rather than a bare NULL test**, because an empty string is not
+        // NULL and would otherwise satisfy "exactly one is set" while being exactly as unloadable as
+        // nothing at all. The first version of this constraint said "never neither" in its comment and
+        // allowed `path = '   '`, which the model's own accessor already had to trim away.
+        DB::statement("
             ALTER TABLE product_images
             ADD CONSTRAINT product_images_one_source_of_bytes
-            CHECK ((path IS NULL) <> (remote_url IS NULL))
-        ');
+            CHECK ((NULLIF(btrim(path), '') IS NULL) <> (NULLIF(btrim(remote_url), '') IS NULL))
+        ");
 
         DB::statement("
             ALTER TABLE product_images

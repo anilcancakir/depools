@@ -71,7 +71,13 @@ final class ProductImageController extends Controller
 
             $image = $model->images()->create([
                 ...$this->bytesFor($request, $model, $data),
-                'position' => $held,
+                // **The next position after the LAST one, not the count.** They are the same number
+                // only while the sequence is dense, and `update` lets a client set any position up to
+                // the ceiling: move one picture to 7 while two exist and the next upload takes 2,
+                // landing in the middle of a gallery it was appended to. Reading the maximum says what
+                // "append" means whatever the ordering has become, and the ceiling check above is what
+                // keeps this inside the range `update` accepts.
+                'position' => ($model->images()->max('position') ?? -1) + 1,
             ]);
 
             if ($held === 0) {
@@ -95,7 +101,11 @@ final class ProductImageController extends Controller
 
         $data = $request->validate([
             'is_primary' => ['sometimes', 'boolean'],
-            'position' => ['sometimes', 'integer', 'min:0', 'max:'.(ProductImage::MAX_PER_PRODUCT - 1)],
+            // **Bounded by the COLUMN, not by the gallery's size.** `position` is a sort key rather
+            // than an index: it is not renumbered on insert, so a picture appended after one that was
+            // moved to 7 legitimately takes 8, and a `max:MAX_PER_PRODUCT - 1` here would refuse a
+            // value `store` had just written. `unsignedSmallInteger` is what actually constrains it.
+            'position' => ['sometimes', 'integer', 'min:0', 'max:65535'],
         ]);
 
         if (array_key_exists('position', $data)) {
