@@ -80,6 +80,15 @@ class ScanDraftSheet extends StatefulWidget {
   /// for an edit that belongs on the product screen. The sheet says where instead of failing.
   final bool editable;
 
+  /// Whether the card arrived with an answer to confirm rather than an empty form to fill.
+  ///
+  /// **Only the primary button's word changes, and the word is the whole point.** `Save` on a card the
+  /// user has not typed a character into describes the wrong act: they are agreeing with a name a
+  /// shared catalogue supplied, and `Confirm` says that. The fields stay editable either way, because
+  /// a catalogue answer can be wrong or in the wrong language and the person holding the carton is the
+  /// one who can see it.
+  final bool confirming;
+
   /// Creates the [ScanDraftSheet].
   const ScanDraftSheet({
     required this.barcode,
@@ -87,6 +96,7 @@ class ScanDraftSheet extends StatefulWidget {
     this.brand,
     this.provenance,
     this.editable = true,
+    this.confirming = false,
     super.key,
   });
 
@@ -269,7 +279,13 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
             onPressed: _save,
             fullWidth: true,
             className: 'justify-center',
-            child: WText(Lang.get('components.scan_draft.save')),
+            child: WText(
+              Lang.get(
+                widget.confirming
+                    ? 'components.scan_draft.confirm'
+                    : 'components.scan_draft.save',
+              ),
+            ),
           ),
         MSButton(
           onPressed: () => Navigator.of(context).pop(),

@@ -819,7 +819,7 @@
       "change": "Değiştir",
       "where_note": "Tüm parti buraya girer, sonrasında konumlar arası taşınabilir",
       "will_write": ":count ürün stoğa yazılacak",
-      "will_write_partial": ":count ürün stoğa yazılacak, :unmatched barkod eşleştirilemedi",
+      "will_write_partial": ":ready, :unmatched",
       "submit": ":count ürünü ekle",
       "other_ways": "Kamerayla başka yollar",
       "from_photo": "Fotoğraftan tanıt",
@@ -846,7 +846,16 @@
       "draft_title": "Bu nedir?",
       "from_catalog": "Paylaşılan katalogdan",
       "from_unverified": "Open Food Facts, doğrulanmamış",
-      "from_recalled": "Kendi önceki cevabınız"
+      "from_recalled": "Kendi önceki cevabınız",
+      "unmatched_count": ":unmatched barkod eşleştirilemedi",
+      "added_title": "Stoğa eklendi",
+      "added_one": ":count × :product",
+      "added_many": ":count ürün",
+      "added_to": ":location konumuna :what eklendi",
+      "added_plain": ":what stoğa eklendi",
+      "confirm_title": "Bu mu?",
+      "mode_camera": "Kamera",
+      "mode_manual": "Elle"
     },
     "search": {
       "title": "Ara",
@@ -1106,7 +1115,9 @@
       "new_unverified": "Yeni ürün · Doğrulanmadı",
       "new_manual": "Yeni ürün · Elle girildi",
       "unmatched": "Eşleştirilemedi",
-      "unmatched_label": ":barcode eşleştirilemedi, düzeltmek için dokunun"
+      "unmatched_label": ":barcode eşleştirilemedi, düzeltmek için dokunun",
+      "pending": "Aranıyor",
+      "pending_label": ":barcode aranıyor"
     },
     "shelf_candidate_row": {
       "unrecognised": "Tanınamadı",
@@ -1163,7 +1174,8 @@
       "save": "Kaydet",
       "cancel": "Vazgeç",
       "owned_note": "Ürünlerinizde zaten var. Adını ürün ekranından değiştirin.",
-      "done": "Tamam"
+      "done": "Tamam",
+      "confirm": "Onayla"
     }
   }
 }

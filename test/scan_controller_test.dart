@@ -16,6 +16,12 @@ class _SlowWire extends FakeNetworkDriver {
   /// Code to the name it resolves to and how long the wire takes.
   final Map<String, (String, Duration, String?)> answers = <String, (String, Duration, String?)>{};
 
+  /// The brand the cascade knows for a code, when it knows one.
+  final Map<String, String> brands = <String, String>{};
+
+  /// The unit a source suggests for a code. In practice only stage 1 sends one.
+  final Map<String, String> unitHints = <String, String>{};
+
   /// Every POST body this wire was handed, so a test can assert what was SENT rather than only what
   /// came back. The batch's shape is the contract with the endpoint, and it is the half a green
   /// response cannot check.
@@ -26,6 +32,13 @@ class _SlowWire extends FakeNetworkDriver {
     statusCode: 201,
     data: <String, dynamic>{'data': <String, dynamic>{'lines': <dynamic>[]}},
   );
+
+  /// Codes whose lookup throws rather than answering.
+  ///
+  /// A failed RESPONSE already resolves to an unmatched row, so it cannot exercise the path where the
+  /// wire itself gives out: a socket dropped mid-request, which at a receiving bench on shop wifi is
+  /// not exotic. Without this the row left holding the place for that answer would stay there forever.
+  final Set<String> throwOn = <String>{};
 
   /// The location the last delivery went to, or null for a tenant with no history.
   String? lastLocation;
@@ -62,6 +75,12 @@ class _SlowWire extends FakeNetworkDriver {
       );
     }
 
+    for (final String code in throwOn) {
+      if (url.contains('code=$code')) {
+        throw StateError('the wire gave out');
+      }
+    }
+
     for (final MapEntry<String, (String, Duration, String?)> entry in answers.entries) {
       if (!url.contains('code=${entry.key}')) continue;
 
@@ -76,6 +95,8 @@ class _SlowWire extends FakeNetworkDriver {
             // tenant has never held one. A non-null id is stage 1, their own product.
             'source': entry.value.$3 == null ? 'community' : 'own',
             'product_id': entry.value.$3,
+            'brand': brands[entry.key],
+            'unit_hint': unitHints[entry.key],
           },
         },
       );
@@ -529,6 +550,174 @@ void main() {
       // second one.
       expect(line['product_id'], 'p-869');
       expect(line.containsKey('name'), isFalse);
+    });
+  });
+
+  group('a lookup that has not answered yet', () {
+    test('a read is in the batch before its answer is', () async {
+      // The gap the pending row closes. A stage-3 read is an Open Food Facts round trip and a
+      // community hit is translated synchronously on the way back, so the queue used to sit unchanged
+      // for as long as that took: indistinguishable, at a bench, from a scan the app missed.
+      answers('869', 'Whole Milk 1 L', delay: const Duration(milliseconds: 120));
+
+      final ScanController controller = ScanController.instance;
+      final Future<void> scan = controller.scan('869');
+
+      expect(controller.entries, hasLength(1), reason: 'the row holds its own place');
+      expect(controller.entries.single.pending, isTrue);
+      expect(controller.entries.single.productName, isNull, reason: 'there is no answer yet to show');
+
+      await scan;
+
+      expect(controller.entries.single.pending, isFalse);
+      expect(controller.entries.single.productName, 'Whole Milk 1 L');
+    });
+
+    test('a lookup still out is not a barcode that could not be matched', () async {
+      // `unmatchedCount` read `!isSettled`, which is true of a pending row as well as of a failed one,
+      // so the line above the commit button accused the cascade of failing a question it had not
+      // finished answering.
+      answers('869', 'Whole Milk 1 L', delay: const Duration(milliseconds: 120));
+
+      final ScanController controller = ScanController.instance;
+      final Future<void> scan = controller.scan('869');
+
+      expect(controller.unmatchedCount, 0);
+      expect(controller.entries.single.isSettled, isFalse, reason: 'nor is it writable yet');
+
+      await scan;
+
+      expect(controller.unmatchedCount, 0);
+    });
+
+    test('an answer given while the lookup is out is not overwritten by it', () async {
+      // The race the `!row.pending` guard exists for. The user can open the card and type while the
+      // question is still out, and the late answer would then replace what they wrote with what a
+      // catalogue guessed. The person holding the carton outranks the cascade.
+      answers(
+        '869',
+        'Catalogue Name',
+        productId: null,
+        delay: const Duration(milliseconds: 120),
+      );
+
+      final ScanController controller = ScanController.instance;
+      final Future<void> scan = controller.scan('869');
+
+      controller.fill('869', name: 'What The Carton Says', unit: 'piece');
+
+      await scan;
+
+      expect(controller.entries.single.productName, 'What The Carton Says');
+      expect(controller.entries.single.pending, isFalse);
+    });
+
+    test('a lookup that throws leaves a row the user can finish', () async {
+      // Only reachable when the wire itself gives out, since a failed response already resolves to an
+      // unmatched row. Without the `finally`, the row stays pending forever: it cannot be committed,
+      // and it cannot be opened either, because the view withholds the tap while a lookup is out.
+      wire.throwOn.add('869');
+
+      final ScanController controller = ScanController.instance;
+
+      await expectLater(controller.scan('869'), throwsA(isA<StateError>()));
+
+      expect(controller.entries, hasLength(1), reason: 'the batch survives a failed lookup');
+      expect(controller.entries.single.pending, isFalse);
+      expect(controller.entries.single.needsUser, isTrue);
+    });
+  });
+
+  group('asking about a row once', () {
+    test('a catalogue find asks, a product the tenant already owns does not', () async {
+      // The line this screen draws, and it is drawn at the product id rather than at the stage that
+      // answered: a find becomes a NEW product in this tenant's inventory, and one they already hold
+      // becomes nothing but a movement.
+      answers('own', 'Their Own Milk');
+      answers('cat', 'Catalogue Milk', productId: null);
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('own');
+      await controller.scan('cat');
+
+      final ScanEntry own = controller.entries.firstWhere((ScanEntry e) => e.barcode == 'own');
+      final ScanEntry found = controller.entries.firstWhere((ScanEntry e) => e.barcode == 'cat');
+
+      expect(own.needsAsking, isFalse, reason: 'it is already theirs, there is nothing to confirm');
+      expect(found.needsAsking, isTrue, reason: 'a name nobody here has confirmed gets one look');
+    });
+
+    test('a confirmed find does not ask again on the next carton', () async {
+      // Otherwise the second box of the same thing reopens the card, which is the modal-per-read the
+      // feature document rejects outright.
+      answers('cat', 'Catalogue Milk', productId: null);
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('cat');
+      controller.markAsked('cat');
+      await controller.scan('cat');
+
+      expect(controller.entries.single.count, 2, reason: 'two cartons still count as two');
+      expect(controller.entries.single.needsAsking, isFalse);
+      expect(
+        controller.entries.single.productName,
+        'Catalogue Milk',
+        reason: 'closing the card leaves the answer alone rather than clearing it',
+      );
+    });
+
+    test('the unit a tenant keeps their own product in reaches the row', () async {
+      // Dropped the same way the brand was, and more visibly: the row for a product they already own
+      // printed the model's default rather than the unit that product is actually kept in. The shared
+      // catalogue sends no unit at all, deliberately, so this only ever comes from stage 1.
+      answers('own', 'Tomatoes');
+      wire.unitHints['own'] = 'kg';
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('own');
+
+      expect(controller.entries.single.unit, 'kg');
+    });
+
+    test('a find with no unit keeps the default rather than an empty one', () async {
+      answers('cat', 'Ayran 250 ml', productId: null);
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('cat');
+
+      expect(controller.entries.single.unit, ScanEntry.defaultUnit);
+    });
+
+    test('the brand the cascade knew reaches the card', () async {
+      // It was dropped on the floor between the response and the row, so a find whose brand the
+      // catalogue held presented as one with no brand: the user retypes what we already had, or the
+      // product is created without it. Driving the screen found this; reading the controller did not.
+      answers('cat', 'Ayran 250 ml', productId: null);
+      wire.brands['cat'] = 'Sütaş';
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('cat');
+
+      expect(controller.entries.single.brand, 'Sütaş');
+    });
+
+    test('filling a row records that it was asked', () async {
+      // The other way out of the card. Without this the row a user typed would be asked about again on
+      // the next read, which is the same defect as the cancel path wearing different clothes.
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('unknown-code');
+
+      expect(controller.entries.single.needsAsking, isTrue);
+
+      controller.fill('unknown-code', name: 'Typed By Hand', unit: 'piece');
+
+      expect(controller.entries.single.needsAsking, isFalse);
     });
   });
 }
