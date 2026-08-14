@@ -151,6 +151,27 @@ final class ScanBatchTest extends TestCase
         $this->assertSame(0, StockMovement::query()->count());
     }
 
+    public function test_a_blank_unit_falls_back_to_the_default_rather_than_being_stored(): void
+    {
+        // A review round asked whether `?? 'piece'` is enough, since `??` only catches null and an
+        // empty string passes `['nullable', 'string', 'max:16']`. Measured through the HTTP stack
+        // rather than reasoned about, because the answer lives in middleware: Laravel's
+        // `ConvertEmptyStringsToNull` is global, so `''` arrives as null and the default applies.
+        //
+        // Kept as a test rather than closed as a non-issue, because it is the middleware that makes it
+        // true and nothing in this controller says so. Remove that middleware and this goes red, which
+        // is exactly the warning the next person needs.
+        $this->receive([[
+            'name' => 'Blank Unit',
+            'base_unit' => '',
+            'quantity' => 1,
+        ]])->assertCreated();
+
+        $product = Product::query()->where('name', 'Blank Unit')->sole();
+
+        $this->assertSame('piece', $product->base_unit);
+    }
+
     public function test_a_line_carrying_both_a_product_and_a_card_is_refused(): void
     {
         // The contract this endpoint documents is EITHER an id the tenant owns OR the card to create,
