@@ -161,15 +161,21 @@ final class ScanBatchTest extends TestCase
         // Kept as a test rather than closed as a non-issue, because it is the middleware that makes it
         // true and nothing in this controller says so. Remove that middleware and this goes red, which
         // is exactly the warning the next person needs.
-        $this->receive([[
-            'name' => 'Blank Unit',
-            'base_unit' => '',
-            'quantity' => 1,
-        ]])->assertCreated();
+        // Whitespace as well as empty, because a second round asked about it separately and the answer
+        // is a DIFFERENT middleware: `TrimStrings` runs first and turns `'  '` into `''`, which
+        // `ConvertEmptyStringsToNull` then turns into null. Two of them in a row is exactly the kind of
+        // chain nobody should have to reconstruct from memory.
+        foreach (['empty' => '', 'whitespace' => "  \t "] as $label => $blank) {
+            $this->receive([[
+                'name' => "Blank Unit {$label}",
+                'base_unit' => $blank,
+                'quantity' => 1,
+            ]])->assertCreated();
 
-        $product = Product::query()->where('name', 'Blank Unit')->sole();
+            $product = Product::query()->where('name', "Blank Unit {$label}")->sole();
 
-        $this->assertSame('piece', $product->base_unit);
+            $this->assertSame('piece', $product->base_unit, "a {$label} unit should fall back");
+        }
     }
 
     public function test_a_line_carrying_both_a_product_and_a_card_is_refused(): void

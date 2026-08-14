@@ -479,6 +479,37 @@ void main() {
       expect(line.containsKey('product_id'), isFalse);
     });
 
+    test('a brand alone does not make the line claim a unit', () async {
+      // The condition carried `brand != null ||` as a proxy for "the user filled the card", from
+      // before there was a real signal for that, and it contradicted the comment directly above it: a
+      // row that supplied only a brand sent a unit claim nobody had made. The shared catalogue holds
+      // no unit column at all, deliberately, so for a catalogue row there is nothing to claim.
+      wire.lastLocation = 'loc-1';
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('nobody-knows-this');
+
+      controller.fill(
+        'nobody-knows-this',
+        name: 'Yeni Ürün',
+        unit: ScanEntry.defaultUnit,
+        brand: 'Bir Marka',
+      );
+
+      await controller.commit();
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      expect(line['brand'], 'Bir Marka');
+      expect(
+        line.containsKey('base_unit'),
+        isFalse,
+        reason: 'the server owns the default, and it is the same value anyway',
+      );
+    });
+
     test('the count a row already had survives being filled', () async {
       // Two boxes of the same unknown thing scanned before the sheet was answered. Resetting to one
       // would silently lose a carton, and the user has no way to notice.

@@ -352,7 +352,13 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       // Only when the row's unit was actually chosen. Sending the model's default would make a
       // catalogue row claim a unit the catalogue never carried, and `base_unit` is the one field
       // D54 says stops being freely editable the moment a movement exists.
-      if (entry.brand != null || entry.unit != ScanEntry.defaultUnit) 'base_unit': entry.unit,
+      //
+      // **The condition used to carry `brand != null ||` and that contradicted this comment**, which
+      // a review round caught: a row that supplied only a brand sent a unit claim nobody made. It was
+      // a proxy for "the user filled the card" from before there was a real signal for that, and it
+      // changed no outcome, because the server falls back to the same value. Now the code says what
+      // the comment says.
+      if (entry.unit != ScanEntry.defaultUnit) 'base_unit': entry.unit,
       'contribute': entry.contribute,
     };
   }
