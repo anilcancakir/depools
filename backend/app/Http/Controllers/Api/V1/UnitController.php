@@ -99,6 +99,15 @@ final class UnitController extends Controller
         $code = Unit::normaliseCode($data['code']);
         $teamId = TeamScope::currentTeamId();
 
+        // **A null team would write a SHARED row, which is a tenant extending the global vocabulary.**
+        // `units.team_id` is nullable because that is how a seeded row says "everybody's", so unlike
+        // every other write in this API a missing team does not fail on a NOT NULL column here: it
+        // succeeds and puts a tenant's word in front of every other tenant. `TeamScope` returns null for
+        // an authenticated user with no `current_team_id`, so the guard is explicit rather than implied.
+        if ($teamId === null) {
+            abort(403, 'A unit belongs to a team, and this account has none selected.');
+        }
+
         if ($code === '') {
             throw ValidationException::withMessages(['code' => 'A unit needs a code.']);
         }

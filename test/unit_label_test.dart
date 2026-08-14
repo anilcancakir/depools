@@ -21,19 +21,23 @@ import 'package:flutter_test/flutter_test.dart';
 /// when a code has no entry, is checked through the helper. The hit path is verified by driving the
 /// screen, where the catalogue really is loaded.
 void main() {
-  /// Every code the units migration seeds. Kept here rather than derived from the catalogue, because a
-  /// list read out of the thing under test cannot notice a code missing from it.
-  const List<String> seeded = <String>[
-    'C62',
-    'KGM',
-    'GRM',
-    'LTR',
-    'MLT',
-    'MTR',
-    'PK',
-    'BX',
-    'CT',
+  /// Every code the units migration seeds, split by whether its label is a WORD or a SYMBOL.
+  ///
+  /// **Kept here rather than derived from the catalogue**, because a list read out of the thing under
+  /// test cannot notice a code missing from it. And split, because the two halves are asserted
+  /// differently: an English word inflects after a numeral and a symbol does not.
+  ///
+  /// This list said nine after the migration grew to nineteen, which a review round caught. That is the
+  /// failure mode of a hand-kept list, so it is worth saying what keeps it honest: the counts below are
+  /// asserted against the total, so a code added to the migration and forgotten here fails rather than
+  /// being quietly skipped.
+  const List<String> words = <String>[
+    'C62', 'DZN', 'PR', 'SET', 'PK', 'BX', 'CT', 'CS', 'BG', 'ROL',
   ];
+
+  const List<String> symbols = <String>['TNE', 'KGM', 'GRM', 'MGM', 'LTR', 'MLT', 'MTR', 'CMT', 'MMT'];
+
+  const List<String> seeded = <String>[...words, ...symbols];
 
   Map<String, dynamic> units(String locale) {
     final Map<String, dynamic> catalogue =
@@ -72,13 +76,27 @@ void main() {
     }
   });
 
-  test('English inflects the words and Turkish inflects nothing', () {
-    // After a numeral Turkish does not inflect, so `1 adet` and `5 adet` are both right and one half is
-    // the whole answer. English needs the pipe `plural()` reads. Symbols (`kg`, `ml`) inflect in
-    // neither, which is why this asserts the WORDS rather than every entry.
-    const List<String> words = <String>['c62', 'pk', 'bx', 'ct'];
+  test('the catalogue covers exactly the seeded set and nothing else', () {
+    // What keeps the hand-kept list above honest. A code added to the migration and forgotten here would
+    // otherwise be skipped in silence, which is what happened when the set grew from nine to nineteen.
+    for (final String locale in <String>['en', 'tr']) {
+      expect(
+        units(locale).keys.toSet(),
+        seeded.map((String code) => code.toLowerCase()).toSet(),
+        reason: '$locale: the catalogue and the seeded set have drifted apart',
+      );
+    }
+  });
 
-    for (final String key in words) {
+  test('English inflects every word and Turkish inflects nothing', () {
+    // After a numeral Turkish does not inflect, so `1 adet` and `5 adet` are both right and one half is
+    // the whole answer. English needs the pipe `plural()` reads.
+    //
+    // EVERY word, not a sample: this named four of the ten and a missing pipe on any of the other six
+    // would have made `plural()` fall back silently to the singular for `5 boxes`.
+    for (final String code in words) {
+      final String key = code.toLowerCase();
+
       expect(
         units('en')[key],
         contains('|'),
@@ -91,8 +109,14 @@ void main() {
       );
     }
 
-    for (final String key in <String>['kgm', 'grm', 'ltr', 'mlt', 'mtr']) {
-      expect(units('en')[key], isNot(contains('|')), reason: 'en: $key is a symbol');
+    // A symbol (`kg`, `ml`, `cm`) inflects in neither language, so a pipe there would be wrong rather
+    // than merely unused.
+    for (final String code in symbols) {
+      expect(
+        units('en')[code.toLowerCase()],
+        isNot(contains('|')),
+        reason: 'en: ${code.toLowerCase()} is a symbol',
+      );
     }
   });
 

@@ -260,6 +260,38 @@ final class UnitVocabularyTest extends TestCase
         $this->assertSame(12.0, Unit::findByCode('koli')->factorToRoot(), 'twelve pieces, folded lookup');
     }
 
+    public function test_an_account_with_no_team_cannot_extend_the_global_vocabulary(): void
+    {
+        // **The one write in this API where a missing team does not fail on a NOT NULL column.**
+        // `units.team_id` is nullable because that is how a seeded row says "everybody's", so without a
+        // guard an authenticated user with no `current_team_id` would have created a SHARED unit and put
+        // their own word in front of every other tenant. Every other write dies on the stamp instead.
+        /** @var User $teamless */
+        $teamless = User::factory()->createOne(['locale' => 'en', 'current_team_id' => null]);
+
+        $this->actingAs($teamless, 'sanctum');
+
+        $this->postJson('/api/v1/units', ['code' => 'MINE', 'name' => 'Mine'])->assertForbidden();
+
+        $this->assertSame(0, Unit::query()->where('code', 'MINE')->count());
+    }
+
+    public function test_a_blank_name_is_refused_rather_than_stored_empty(): void
+    {
+        // A review round asked whether a whitespace-only name would pass `required` and land as an empty
+        // string, leaving a unit that is required to have a name and does not. Measured through the HTTP
+        // stack rather than reasoned about, because the answer is in middleware: `TrimStrings` turns
+        // `'   '` into `''` and `required` then refuses it.
+        //
+        // Kept as a test rather than closed as a non-issue, because nothing near the `trim()` in the
+        // controller says that the middleware is what makes it safe.
+        $this->postJson('/api/v1/units', ['code' => 'KOLI', 'name' => '   '])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['name']);
+
+        $this->assertSame(0, Unit::query()->where('code', 'KOLI')->count());
+    }
+
     public function test_a_code_the_standard_already_defines_is_refused(): void
     {
         // Otherwise a tenant holds their own `CT` beside the shared one, `findByCode` has two rows to

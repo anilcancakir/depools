@@ -141,10 +141,14 @@ return new class extends Migration
      *
      * Not a D84 violation: the database is storing given facts, not deriving values.
      *
-     * Nine codes rather than the standard's ~2,100. No official retail subset exists and every
-     * downstream standard curates its own, so this is the set the product's own screens already
-     * offered (`adet`, `kg`, `lt`, `paket`, `kutu`) mapped onto Rec 20, plus the three that make a
-     * hardware or a liquid product expressible.
+     * Nineteen codes rather than the standard's ~2,100. No official retail subset exists and every
+     * downstream standard curates its own, so this is the set the product's own screens already offered
+     * (`adet`, `kg`, `lt`, `paket`, `kutu`) mapped onto Rec 20, plus what a small business actually
+     * meets: a case, a dozen, a pair, a sack, a roll, a tonne, and the millimetre-to-metre family.
+     *
+     * Eleven standalone plus eight derived. Counted here because the number was stale within one
+     * afternoon: this docblock said nine after the set grew, and so did two client tests, which is how a
+     * test that claims to cover "every seeded code" ends up covering half of them.
      */
     private function seedSharedVocabulary(): void
     {

@@ -233,8 +233,7 @@ final class Product extends Model
      *
      * A shared Rec 20 row, or one this tenant added. Immutable in practice once a movement exists
      * (D25): changing it would reinterpret every delta in the ledger rather than convert anything.
-     */
-    /**
+     *
      * **Named `unit` and not `baseUnit`, because Eloquent cannot tell those apart from the accessor.**
      * `Str::studly` folds both `base_unit` and `baseUnit` to `BaseUnit`, so a `getBaseUnitAttribute`
      * accessor shadows a `baseUnit()` relation completely: reading the relation returned the code and

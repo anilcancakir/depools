@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTeam;
 use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,7 +18,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * The migration carries the reasoning: why Rec 20 codes, why no dimensional category, and why the
  * foreign key points at `id` rather than at `code`.
  *
- * @see BelongsToTeam for the ordinary tenant scope this table deliberately does NOT use
+ * Deliberately does NOT use the `BelongsToTeam` concern every other tenant-owned model does; the scope
+ * below says why. Named in prose rather than as a `@see`, because importing a class only so a docblock
+ * can point at it leaves an unused import that static analysis is right to flag.
  */
 final class Unit extends Model
 {
