@@ -273,7 +273,13 @@ final class StockController extends Controller
     public function receiveBatch(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'location_id' => ['required'],
+            // **`uuid`, because without it a malformed id is a 500.** Measured: every key here is a
+            // native `uuid` column, so `findOrFail('not-a-uuid')` reaches PostgreSQL and comes back as
+            // `SQLSTATE[22P02] invalid input syntax for type uuid`, which is an unhandled query
+            // exception rather than a refusal the client can read. A well-formed id belonging to
+            // another tenant is untouched by this and still 404s through the scope, which is tenancy
+            // rule 2 and has to stay that way.
+            'location_id' => ['required', 'uuid'],
             'lines' => ['required', 'array', 'min:1', 'max:200'],
             'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
 
@@ -286,6 +292,7 @@ final class StockController extends Controller
             // A line with neither is still a 422 naming both fields, which is what the client needs.
             'lines.*.product_id' => [
                 'nullable',
+                'uuid',
                 'required_without:lines.*.name',
                 'prohibits:lines.*.name,lines.*.brand,lines.*.base_unit,lines.*.barcode,lines.*.symbology,lines.*.contribute',
             ],
@@ -325,9 +332,17 @@ final class StockController extends Controller
         $source = $this->source($data);
 
         return $this->guard(function () use ($data, $location, $products, $source, $actorId): JsonResponse {
-            // One transaction around the whole batch, and each line's own write is a nested one,
-            // which Laravel implements as a savepoint. That is what lets a single refusal roll back
-            // its own line instead of aborting every later statement with `SQLSTATE[25P02]`.
+            // One transaction around the whole batch, and it is all or nothing: `receiveLines` catches
+            // nothing, so any refusal propagates out of here and every line rolls back, including the
+            // products earlier lines created. That is the atomicity this endpoint exists for, since a
+            // dropped write halfway down a pile of boxes would leave stock recorded with no way to tell
+            // which boxes it belonged to.
+            //
+            // **This comment used to claim the opposite** and a review round caught it: it said each
+            // line's nested transaction lets "a single refusal roll back its own line instead of
+            // aborting every later statement", which describes per-line partial success. There is no
+            // later statement, because nothing continues. The savepoint is real (the writer opens its
+            // own nested transaction) and it is simply not load-bearing here.
             $written = DB::transaction(
                 fn (): array => $this->receiveLines($data['lines'], $location, $products, $source, $actorId),
             );

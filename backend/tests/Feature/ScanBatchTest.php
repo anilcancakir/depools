@@ -224,6 +224,28 @@ final class ScanBatchTest extends TestCase
         $this->assertSame(0, StockMovement::query()->count());
     }
 
+    public function test_a_malformed_id_is_refused_rather_than_reaching_the_database(): void
+    {
+        // Measured before it was fixed: both of these came back 500, because every key here is a native
+        // `uuid` column, so `findOrFail('not-a-uuid')` reaches PostgreSQL and raises
+        // `SQLSTATE[22P02] invalid input syntax for type uuid`. An unhandled query exception is not
+        // something a client can act on, and it is indistinguishable from the server being broken.
+        $product = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => 'not-a-uuid',
+            'lines' => [['product_id' => $product->getKey(), 'quantity' => 1]],
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['location_id']);
+
+        $this->receive([['product_id' => 'also-not-a-uuid', 'quantity' => 1]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['lines.0.product_id']);
+
+        $this->assertSame(0, StockMovement::query()->count());
+    }
+
     public function test_another_tenants_product_is_a_404_that_wrote_nothing(): void
     {
         // Tenancy rule 2, and it has to stay a 404: a 403 confirms the identifier is real, which is
