@@ -4,6 +4,7 @@ import 'package:magic_starter/magic_starter.dart'
     show MSButton, ButtonIntent, MSCombobox, MSInput, MSSwitch;
 
 import '../../../app/models/scan_entry.dart' show ScanEntry;
+import '../../../app/support/merge_unit_codes.dart';
 import '../../../app/support/unit_label.dart';
 import '../../../ui/components/section_header/section_header.dart';
 
@@ -248,8 +249,19 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
               ),
               MSCombobox<String>(
                 value: _unit,
+                // **The selection is always among the options, which it was not.** The sheet opens per
+                // scan and the screen's vocabulary request may not have landed, so `unitCodes` can still
+                // be the countable unit alone while a scan that resolved to the tenant's own product
+                // arrives carrying `KGM` from its `unit_hint`. A combobox whose `value` is absent from
+                // its `options` is a contract this has no business testing.
+                //
+                // Same defect the product form had one screen over, so it uses the same tested merge.
                 options: <SelectOption<String>>[
-                  for (final String code in widget.unitCodes)
+                  for (final String code in mergeUnitCodes(
+                    fromServer: widget.unitCodes,
+                    known: const <String>[],
+                    selected: _unit,
+                  ))
                     SelectOption<String>(value: code, label: unitLabel(code)),
                 ],
                 searchPlaceholder: Lang.get('components.scan_draft.unit_search'),
