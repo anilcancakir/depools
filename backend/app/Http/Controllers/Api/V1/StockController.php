@@ -224,7 +224,8 @@ final class StockController extends Controller
     }
 
     /**
-     * Where this tenant last received stock, which is what a scan batch should default to.
+     * Where this tenant last received stock, most recent first, for the batch's default and the
+     * picker's top rows.
      *
      * **Habit rather than affinity, and that is the departure worth naming.** Every other location
      * suggestion in this app answers "where does this CATEGORY go", which a mixed batch cannot ask:
@@ -235,11 +236,16 @@ final class StockController extends Controller
      * Null when nothing has ever been received, which the client renders as "choose a location"
      * rather than as an error: a tenant on their first delivery is the ordinary case, not a failure.
      */
-    public function lastReceivingLocation(): JsonResponse
+    public function recentReceivingLocations(): JsonResponse
     {
-        $locationId = $this->ledger->lastReceivingLocationId();
+        $ids = $this->ledger->recentReceivingLocationIds();
 
-        return response()->json(['data' => ['location_id' => $locationId]]);
+        return response()->json(['data' => [
+            // The first is the default the batch opens with; the rest are the picker's top rows.
+            // Sending one list rather than a default plus a list keeps the client from having to
+            // decide which of two answers wins when they disagree.
+            'location_ids' => $ids,
+        ]]);
     }
 
     /**

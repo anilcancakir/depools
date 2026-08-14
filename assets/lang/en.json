@@ -842,7 +842,11 @@
       "choose_destination": "Choose a location first",
       "nothing_to_write": "Nothing is ready to be written yet",
       "submitting": "Adding",
-      "write_failed": "The batch could not be added"
+      "write_failed": "The batch could not be added",
+      "draft_title": "What is this?",
+      "from_catalog": "From the shared catalogue",
+      "from_unverified": "From Open Food Facts, unconfirmed",
+      "from_recalled": "Your own earlier answer"
     },
     "search": {
       "title": "Search",
@@ -1137,6 +1141,29 @@
       "confirm_recorded": "same as record",
       "confirm_recorded_figure": "same as :figure",
       "confirm_recorded_for": "Count :name as the record says"
+    },
+    "destination_sheet": {
+      "recent_group": "RECENT",
+      "all_group": "ALL LOCATIONS",
+      "search": "Search locations",
+      "no_match": "No location matches",
+      "pick": "Put this batch in :path",
+      "current": "This batch goes to :path"
+    },
+    "scan_draft": {
+      "barcode_label": "BARCODE",
+      "product_group": "Product",
+      "name_placeholder": "Product name",
+      "name_required": "A name is needed to save this",
+      "unit_label": "Counted in",
+      "brand_label": "Brand",
+      "optional": "Optional",
+      "contribute_label": "Share with the catalogue",
+      "contribute_note": "The text only, never your photos",
+      "save": "Save",
+      "cancel": "Cancel",
+      "owned_note": "Already in your products. Rename it on the product screen.",
+      "done": "Done"
     }
   }
 }

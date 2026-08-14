@@ -32,6 +32,12 @@ class ScanEntry {
   /// The unit the count is in.
   final String unit;
 
+  /// The brand, when a draft carried one. Never sent for a row the tenant already owns.
+  final String? brand;
+
+  /// Whether a created product goes to the shared catalogue (D117: ticked by default).
+  final bool contribute;
+
   /// When this code was SCANNED, as a monotonic counter rather than a clock.
   ///
   /// **The queue is ordered by this and not by arrival, because the two differ.** A local hit
@@ -54,6 +60,8 @@ class ScanEntry {
     this.source = ScanSource.unmatched,
     this.productId,
     this.unit = 'adet',
+    this.brand,
+    this.contribute = true,
   });
 
   /// What makes two reads the same read.
@@ -71,6 +79,38 @@ class ScanEntry {
   /// Whether this row will be written to stock as it stands.
   bool get isSettled => source != ScanSource.unmatched;
 
+  /// The same row, with what the user typed into the draft sheet.
+  ///
+  /// **The source becomes `own`, and that is not a lie about ownership.** `ScanSource` says how far to
+  /// trust the answer, not which table it came from: this one came from the person holding the
+  /// carton, which is the most authoritative source there is and the one `ScanRow` prints no
+  /// provenance for. `recalled` was the alternative and it means specifically a PAST answer of theirs
+  /// replayed, which this is not.
+  ///
+  /// **`productId` is CARRIED, and dropping it was a defect worth recording.** The first version set
+  /// it to null so every filled row committed as a card to create. For a catalogue row that is right
+  /// and is the whole feature. For a row the tenant already OWNS it is a guaranteed 422: the barcode
+  /// is already linked to their product, and `BarcodeLinker` refuses a second one by design. So the
+  /// sheet does not offer to rename an owned product, and this keeps the id that makes the commit
+  /// send an id.
+  ScanEntry filled({
+    required String name,
+    required String unit,
+    String? brand,
+    bool contribute = true,
+  }) => ScanEntry(
+    barcode: barcode,
+    symbology: symbology,
+    count: count,
+    sequence: sequence,
+    productName: name,
+    source: ScanSource.own,
+    productId: productId,
+    unit: unit,
+    brand: brand,
+    contribute: contribute,
+  );
+
   /// The same row scanned once more, taking the new read's place in the queue.
   ///
   /// The sequence moves because a repeat IS a scan: the row has to come back to the front or the
@@ -86,6 +126,8 @@ class ScanEntry {
     int? sequence,
     String? productId,
     String? unit,
+    String? brand,
+    bool? contribute,
   }) => ScanEntry(
     barcode: barcode,
     symbology: symbology,
@@ -95,6 +137,8 @@ class ScanEntry {
     count: count ?? this.count,
     productId: productId ?? this.productId,
     unit: unit ?? this.unit,
+    brand: brand ?? this.brand,
+    contribute: contribute ?? this.contribute,
   );
 
   /// The row the cascade's answer describes.

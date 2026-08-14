@@ -30,6 +30,9 @@ class _SlowWire extends FakeNetworkDriver {
   /// The location the last delivery went to, or null for a tenant with no history.
   String? lastLocation;
 
+  /// Any earlier destinations behind it, for the picker's recent section.
+  List<String> otherRecents = const <String>[];
+
   @override
   Future<MagicResponse> post(
     String url, {
@@ -47,10 +50,15 @@ class _SlowWire extends FakeNetworkDriver {
     Map<String, dynamic>? query,
     Map<String, String>? headers,
   }) async {
-    if (url.contains('last-receiving-location')) {
+    if (url.contains('recent-receiving-locations')) {
       return MagicResponse(
         statusCode: 200,
-        data: <String, dynamic>{'data': <String, dynamic>{'location_id': lastLocation}},
+        data: <String, dynamic>{
+          'data': <String, dynamic>{
+            // The FIRST is the default the batch opens with; the rest are the picker's top rows.
+            'location_ids': <String>[?lastLocation, ...otherRecents],
+          },
+        },
       );
     }
 
@@ -402,6 +410,125 @@ void main() {
       await controller.commit();
 
       expect(wire.posts.single.$2['location_id'], 'loc-2');
+    });
+  });
+
+  group('filling in a barcode nothing knew', () {
+    test('a filled row becomes writable and commits as a card', () async {
+      // The whole point of the draft sheet: a code nobody could answer becomes a product, and the
+      // person holding the carton is the one who named it.
+      wire.lastLocation = 'loc-1';
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('nobody-knows-this');
+
+      expect(controller.entries.single.isSettled, isFalse, reason: 'nothing answered it');
+
+      controller.fill(
+        'nobody-knows-this',
+        name: 'Yeni Ürün',
+        unit: 'kg',
+        brand: 'Bir Marka',
+      );
+
+      final ScanEntry row = controller.entries.single;
+      expect(row.isSettled, isTrue, reason: 'a named row can be written');
+      expect(row.productName, 'Yeni Ürün');
+      // Their own answer, so the row prints no provenance: `ScanSource` says how far to trust an
+      // answer, and the person holding the carton is the most authoritative source there is.
+      expect(row.source, ScanSource.own);
+      // And null, so the commit sends the card to create rather than an id that does not exist.
+      expect(row.productId, isNull);
+
+      await controller.commit();
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      expect(line['name'], 'Yeni Ürün');
+      expect(line['base_unit'], 'kg');
+      expect(line['brand'], 'Bir Marka');
+      expect(line['barcode'], 'nobody-knows-this');
+      expect(line.containsKey('product_id'), isFalse);
+    });
+
+    test('the count a row already had survives being filled', () async {
+      // Two boxes of the same unknown thing scanned before the sheet was answered. Resetting to one
+      // would silently lose a carton, and the user has no way to notice.
+      wire.lastLocation = 'loc-1';
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('unknown');
+      await controller.scan('unknown');
+
+      controller.fill('unknown', name: 'İki Kutu', unit: 'adet');
+
+      expect(controller.entries.single.count, 2);
+    });
+
+    test('unticking the box on a draft travels to the endpoint', () async {
+      // D117 is a default, not a rule: a private recipe or an own-brand SKU is exactly the case the
+      // switch exists for, and it has to reach the server to mean anything.
+      wire.lastLocation = 'loc-1';
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('unknown');
+      controller.fill('unknown', name: 'Gizli', unit: 'adet', contribute: false);
+      await controller.commit();
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      expect(line['contribute'], isFalse);
+    });
+
+    test('filling a row that is no longer in the batch changes nothing', () async {
+      // The sheet can outlive its row: a commit or a removal while it is open leaves nothing to
+      // update, and writing the draft into a fresh batch would attach it to a carton nobody scanned.
+      wire.lastLocation = 'loc-1';
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('unknown');
+      controller.clear();
+
+      controller.fill('unknown', name: 'Hayalet', unit: 'adet');
+
+      expect(controller.entries, isEmpty);
+    });
+
+    test('a filled row keeps the product id it arrived with', () async {
+      // **This test caught a defect by contradicting its own name.** The first version asserted the
+      // id was dropped, and dropping it means the commit sends a card to create for a barcode already
+      // linked to the tenant's product: the server refuses that by design, so editing an owned row
+      // was a guaranteed 422. The id is carried, and the sheet does not offer to rename an owned
+      // product at all.
+      wire.lastLocation = 'loc-1';
+      answers('869', 'Milk');
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+
+      expect(controller.entries.single.productId, 'p-869');
+
+      controller.fill('869', name: 'Süt', unit: 'adet');
+
+      expect(controller.entries.single.productName, 'Süt');
+      expect(controller.entries.single.productId, 'p-869');
+
+      await controller.commit();
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      // An id, so the stock lands on the product they already have rather than trying to make a
+      // second one.
+      expect(line['product_id'], 'p-869');
+      expect(line.containsKey('name'), isFalse);
     });
   });
 }

@@ -219,9 +219,9 @@ final class ScanBatchTest extends TestCase
         $this->receive([['product_id' => $milk->getKey(), 'quantity' => 1]], $other->getKey())
             ->assertCreated();
 
-        $this->getJson('/api/v1/stock/last-receiving-location')
+        $this->getJson('/api/v1/stock/recent-receiving-locations')
             ->assertOk()
-            ->assertJsonPath('data.location_id', $other->getKey());
+            ->assertJsonPath('data.location_ids.0', $other->getKey());
     }
 
     public function test_putting_stock_away_does_not_move_the_default(): void
@@ -244,18 +244,18 @@ final class ScanBatchTest extends TestCase
             'quantity' => 2,
         ])->assertSuccessful();
 
-        $this->getJson('/api/v1/stock/last-receiving-location')
+        $this->getJson('/api/v1/stock/recent-receiving-locations')
             ->assertOk()
-            ->assertJsonPath('data.location_id', $bench->getKey());
+            ->assertJsonPath('data.location_ids.0', $bench->getKey());
     }
 
     public function test_a_tenant_who_has_never_received_anything_gets_null(): void
     {
-        // A first delivery is the ordinary case, so this is null and the client asks for a location
+        // A first delivery is the ordinary case, so this is empty and the client asks for a location
         // rather than showing an error.
-        $this->getJson('/api/v1/stock/last-receiving-location')
+        $this->getJson('/api/v1/stock/recent-receiving-locations')
             ->assertOk()
-            ->assertJsonPath('data.location_id', null);
+            ->assertJsonPath('data.location_ids', []);
     }
 
     public function test_another_tenants_delivery_is_not_this_tenants_default(): void
@@ -265,8 +265,32 @@ final class ScanBatchTest extends TestCase
 
         $this->tenant('Beta');
 
-        $this->getJson('/api/v1/stock/last-receiving-location')
+        $this->getJson('/api/v1/stock/recent-receiving-locations')
             ->assertOk()
-            ->assertJsonPath('data.location_id', null);
+            ->assertJsonPath('data.location_ids', []);
+    }
+
+    public function test_the_recents_are_distinct_and_newest_first(): void
+    {
+        // **Distinct in SQL, not in PHP.** The last twenty movements are easily the same shelf twenty
+        // times, and without the grouping the picker's three suggestions would be one shelf repeated.
+        $kiler = Location::create(['name' => 'Kiler']);
+        $dolap = Location::create(['name' => 'Dolap']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+
+        foreach ([$this->shelf, $kiler, $this->shelf, $dolap] as $where) {
+            $this->receive([['product_id' => $milk->getKey(), 'quantity' => 1]], $where->getKey())
+                ->assertCreated();
+        }
+
+        $this->getJson('/api/v1/stock/recent-receiving-locations')
+            ->assertOk()
+            // Newest first, each shelf once: Dolap, then the shelf (its later delivery counts), then
+            // Kiler.
+            ->assertJsonPath('data.location_ids', [
+                $dolap->getKey(),
+                $this->shelf->getKey(),
+                $kiler->getKey(),
+            ]);
     }
 }

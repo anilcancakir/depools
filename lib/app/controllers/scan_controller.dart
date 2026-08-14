@@ -171,6 +171,11 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
 
   String? get destinationId => _destinationId;
 
+  /// The recent destinations, newest first, for the picker's top section.
+  List<String> _recentDestinationIds = const <String>[];
+
+  List<String> get recentDestinationIds => _recentDestinationIds;
+
   /// Whether a commit is in flight, so the button cannot be pressed twice.
   ///
   /// **Read, unlike the flag this class carried before.** That one existed for a spinner nobody
@@ -186,7 +191,7 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// a mixed batch cannot ask "where does this category go", and where the last delivery landed is a
   /// fact about how the business works.
   Future<void> loadDestination() async {
-    final dynamic response = await Http.get('/stock/last-receiving-location');
+    final dynamic response = await Http.get('/stock/recent-receiving-locations');
 
     if (!response.successful) {
       return;
@@ -194,10 +199,20 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
 
     final dynamic data = response['data'];
 
-    if (data is Map) {
-      _destinationId = data['location_id'] as String?;
-      notifyListeners();
-    }
+    if (data is! Map) return;
+
+    final dynamic ids = data['location_ids'];
+
+    if (ids is! List) return;
+
+    _recentDestinationIds = <String>[
+      for (final dynamic id in ids)
+        if (id is String) id,
+    ];
+    // **The first recent IS the default, rather than a second answer that could disagree with it.**
+    // Only when nothing is chosen yet: re-loading must not move a destination the user picked.
+    _destinationId ??= _recentDestinationIds.isEmpty ? null : _recentDestinationIds.first;
+    notifyListeners();
   }
 
   /// Chooses where the batch will land.
@@ -285,7 +300,41 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       'quantity': entry.count,
       'barcode': entry.barcode,
       if (entry.symbology != null) 'symbology': entry.symbology,
+      if (entry.brand != null) 'brand': entry.brand,
+      // Only when the row's unit was actually chosen. Sending the model's default would make a
+      // catalogue row claim a unit the catalogue never carried, and `base_unit` is the one field
+      // D54 says stops being freely editable the moment a movement exists.
+      if (entry.brand != null || entry.unit != 'adet') 'base_unit': entry.unit,
+      'contribute': entry.contribute,
     };
+  }
+
+  /// Replaces a row with what the draft sheet returned.
+  ///
+  /// Keyed on `(barcode, symbology)` rather than on an index, because the queue re-sorts while the
+  /// sheet is open: a scan landing behind it moves every row, and an index captured before would
+  /// write the draft onto somebody else's carton.
+  void fill(
+    String barcode, {
+    String? symbology,
+    required String name,
+    required String unit,
+    String? brand,
+    bool contribute = true,
+  }) {
+    final int at = _entries.indexWhere(
+      (ScanEntry e) => e.barcode == barcode && e.symbology == symbology,
+    );
+
+    if (at < 0) return;
+
+    _entries[at] = _entries[at].filled(
+      name: name,
+      unit: unit,
+      brand: brand,
+      contribute: contribute,
+    );
+    _publish();
   }
 
   /// Removes a row from the batch.

@@ -842,7 +842,11 @@
       "choose_destination": "Önce bir konum seçin",
       "nothing_to_write": "Henüz yazılacak bir şey yok",
       "submitting": "Ekleniyor",
-      "write_failed": "Parti eklenemedi"
+      "write_failed": "Parti eklenemedi",
+      "draft_title": "Bu nedir?",
+      "from_catalog": "Paylaşılan katalogdan",
+      "from_unverified": "Open Food Facts, doğrulanmamış",
+      "from_recalled": "Kendi önceki cevabınız"
     },
     "search": {
       "title": "Ara",
@@ -1137,6 +1141,29 @@
       "confirm_recorded": "kayıtla aynı",
       "confirm_recorded_figure": "kayıtla aynı: :figure",
       "confirm_recorded_for": ":name için kayıttaki miktarı gir"
+    },
+    "destination_sheet": {
+      "recent_group": "SON KULLANILAN",
+      "all_group": "TÜM KONUMLAR",
+      "search": "Konum ara",
+      "no_match": "Eşleşen konum yok",
+      "pick": "Bu partiyi :path konumuna koyun",
+      "current": "Bu parti :path konumuna gidiyor"
+    },
+    "scan_draft": {
+      "barcode_label": "BARKOD",
+      "product_group": "Ürün",
+      "name_placeholder": "Ürün adı",
+      "name_required": "Kaydetmek için bir ad gerekli",
+      "unit_label": "Sayım birimi",
+      "brand_label": "Marka",
+      "optional": "İsteğe bağlı",
+      "contribute_label": "Katalogla paylaş",
+      "contribute_note": "Yalnızca metin, fotoğraflarınız asla",
+      "save": "Kaydet",
+      "cancel": "Vazgeç",
+      "owned_note": "Ürünlerinizde zaten var. Adını ürün ekranından değiştirin.",
+      "done": "Tamam"
     }
   }
 }

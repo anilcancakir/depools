@@ -12,10 +12,10 @@ import '../../../app/controllers/scan_controller.dart';
 import '../../../app/support/barcode_symbology.dart';
 import '../../../app/support/scan_presence.dart';
 import '../../../app/models/scan_entry.dart';
-import '../../../ui/components/option_row/option_row.dart';
-import 'product_filter_sheet.dart' show FilterOption;
 import '../../../ui/components/scan_row/scan_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
+import 'destination_sheet.dart';
+import 'scan_draft_sheet.dart';
 
 /// Continuous barcode scanning, and the batch it accumulates.
 ///
@@ -118,10 +118,16 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   String? _destinationPath;
 
   /// The tenant's locations, for the picker.
-  List<FilterOption> _locations = const <FilterOption>[];
+  List<DestinationOption> _locations = const <DestinationOption>[];
+
+  /// The recent destinations, newest first, from the ledger.
+  List<String> _recentIds = const <String>[];
 
   /// The server's refusal, when there was one.
   String? _error;
+
+  /// Whether a draft sheet is open, so a scan landing behind it cannot stack a second one.
+  bool _drafting = false;
 
   @override
   void initState() {
@@ -132,7 +138,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     unawaited(_loadDestination());
   }
 
-  /// Loads the locations and the shelf the last delivery went to.
+  /// Loads the locations and the shelves recent deliveries went to.
   Future<void> _loadDestination() async {
     await _controller.loadDestination();
 
@@ -145,17 +151,20 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     if (rows is! List) return;
 
     setState(() {
-      _locations = <FilterOption>[
+      _locations = <DestinationOption>[
         for (final dynamic row in rows)
           if (row is Map && row['id'] is String)
-            FilterOption(
+            DestinationOption(
               id: row['id'] as String,
-              label: (row['name'] as String?) ?? '',
-              // `path` is the hierarchy ("Depo › Raf A"), which is what a destination row wants:
-              // `fullPath` falls back to the label when the endpoint sent none.
-              path: row['path'] as String?,
+              name: (row['name'] as String?) ?? '',
+              // `full_path` is the hierarchy the picker's description line shows; it falls back to
+              // the name for a root, where there are no ancestors to print.
+              fullPath: (row['full_path'] as String?) ?? (row['name'] as String?) ?? '',
+              depth: (row['depth'] as num?)?.toInt() ?? 0,
+              productCount: (row['stock_count'] as num?)?.toInt() ?? 0,
             ),
       ];
+      _recentIds = _controller.recentDestinationIds;
       _destinationPath = _pathOf(_controller.destinationId);
     });
   }
@@ -164,7 +173,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   String? _pathOf(String? id) {
     if (id == null) return null;
 
-    for (final FilterOption option in _locations) {
+    for (final DestinationOption option in _locations) {
       if (option.id == id) return option.fullPath;
     }
 
@@ -182,21 +191,12 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     final String? picked = await MSBottomSheet.show<String>(
       context,
       title: Lang.get('screens.scan.pick_destination_title'),
-      body: Builder(
-        builder: (BuildContext sheetContext) => WDiv(
-          className: 'flex flex-col gap-1',
-          children: [
-            for (final FilterOption option in _locations)
-              OptionRow(
-                label: option.fullPath,
-                isSelected: option.id == current,
-                semanticLabel: option.id == current
-                    ? Lang.get('screens.scan.current_destination', {'path': option.fullPath})
-                    : Lang.get('screens.scan.pick_destination', {'path': option.fullPath}),
-                onTap: () => Navigator.of(sheetContext).pop(option.id),
-              ),
-          ],
-        ),
+      // The sheet is its own widget, so the search field's state belongs to it rather than to this
+      // screen: a `setState` here while the sheet is open would rebuild the scan queue behind it.
+      body: DestinationSheet(
+        options: _locations,
+        recentIds: _recentIds,
+        selectedId: current,
       ),
     );
 
@@ -251,7 +251,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
       // the first one's lookup, so two labels in frame together resolved half a second apart while
       // the camera went on delivering frames. The controller already orders by scan sequence rather
       // than by arrival, which is what makes firing them together safe.
-      unawaited(_controller.scan(value, symbology: symbology));
+      unawaited(_scanThenPrompt(value, symbology));
     }
 
     _presence.prune(now);
@@ -261,6 +261,42 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     await _scanner.toggleTorch();
 
     if (mounted) setState(() => _torchOn = !_torchOn);
+  }
+
+  /// Scans, and opens the draft sheet when nothing anywhere knew the code.
+  ///
+  /// **Only for a code that MISSED.** A found row opens nothing: the catalogue already answered, so a
+  /// sheet per scan would be the modal-per-read `barcode-and-catalog.md` rejects outright, and twenty
+  /// dismissals is twenty unread dialogs. A missed row has nothing to write at all, so asking is the
+  /// only thing left to do.
+  ///
+  /// The sheet is skipped when one is already open, because a second read while the user is typing
+  /// would stack sheets over each other and the row behind the top one would be forgotten.
+  Future<void> _scanThenPrompt(String code, String? symbology) async {
+    await _controller.scan(code, symbology: symbology);
+
+    if (!mounted || _drafting) return;
+
+    // A plain loop rather than `firstWhereOrNull`, which needs `package:collection` and is not
+    // already a dependency of this app: one import for one lookup is not the trade.
+    ScanEntry? row;
+
+    for (final ScanEntry entry in _controller.entries) {
+      if (entry.barcode == code.trim() && entry.symbology == symbology) {
+        row = entry;
+        break;
+      }
+    }
+
+    if (row == null || row.isSettled) return;
+
+    _drafting = true;
+
+    try {
+      await _openDraft(row);
+    } finally {
+      _drafting = false;
+    }
   }
 
   void _onChanged() {
@@ -275,6 +311,50 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
 
   bool get hasScans => _controller.hasScans;
 
+  /// Opens the draft sheet for a row, prefilled with whatever the cascade found.
+  ///
+  /// Returns nothing: the row is updated through the controller, so the queue and the batch stay one
+  /// source of truth even while a sheet is open above them.
+  Future<void> _openDraft(ScanEntry entry) async {
+    final ScanDraft? draft = await MSBottomSheet.show<ScanDraft>(
+      context,
+      title: Lang.get('screens.scan.draft_title'),
+      body: ScanDraftSheet(
+        barcode: entry.barcode,
+        name: entry.productName,
+        brand: entry.brand,
+        provenance: _provenanceOf(entry.source),
+        // A product the tenant already owns is shown rather than offered for renaming: the commit
+        // would send a card to create and the server refuses that, because the barcode is already
+        // linked to their product.
+        editable: entry.productId == null,
+      ),
+    );
+
+    if (draft == null || !mounted) return;
+
+    _controller.fill(
+      entry.barcode,
+      symbology: entry.symbology,
+      name: draft.name,
+      unit: draft.baseUnit,
+      brand: draft.brand,
+      contribute: draft.contribute,
+    );
+  }
+
+  /// Where an answer came from, already localised, or null when nothing answered.
+  ///
+  /// `own` prints nothing: a product the tenant already holds needs no provenance, which is the same
+  /// rule `ScanRow` follows for the row itself.
+  String? _provenanceOf(ScanSource source) => switch (source) {
+    ScanSource.own => null,
+    ScanSource.unmatched => null,
+    ScanSource.catalog => Lang.get('screens.scan.from_catalog'),
+    ScanSource.unverified => Lang.get('screens.scan.from_unverified'),
+    ScanSource.recalled => Lang.get('screens.scan.from_recalled'),
+  };
+
   /// Reads whatever the user typed, then clears the field for the next one.
   ///
   /// **Cleared after the call is dispatched, not after it returns.** A receiving bench types the
@@ -286,7 +366,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     if (code.isEmpty) return;
 
     _manual.clear();
-    unawaited(_controller.scan(code));
+    unawaited(_scanThenPrompt(code, null));
   }
 
 
@@ -531,12 +611,12 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
             // and deliberately not what the tenant holds, so printing a stock figure here would
             // need a second request per scanned row, at a bench, while the camera is running.
             onHandFormatted: null,
-            // Stage 6 of the cascade found nothing anywhere, and typing or photographing the
-            // product is the only way forward. That is exactly what `ProductDraftView` is,
-            // and it had no entry point until now. A settled row goes nowhere yet.
-            onTap: scan.source == ScanSource.unmatched
-                ? () => MagicRoute.to('/draft')
-                : () {},
+            // **Every row opens the same sheet, and that is the point.** An unmatched one opens it
+            // empty because nothing anywhere knew the code; a found one opens it PREFILLED, because a
+            // catalogue answer can be wrong or in another language and the person holding the carton
+            // is the one who can see that. It used to navigate to `/draft`, which is a fixture screen
+            // that never learned the barcode.
+            onTap: () => unawaited(_openDraft(scan)),
           ),
       ],
     );

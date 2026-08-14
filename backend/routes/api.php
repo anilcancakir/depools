@@ -49,7 +49,7 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // is setting a quantity, which is the exact mental model the ledger exists to replace.
     Route::prefix('stock')->group(function (): void {
         // A GET among the posts, because it answers a question rather than appending anything.
-        Route::get('last-receiving-location', [StockController::class, 'lastReceivingLocation']);
+        Route::get('recent-receiving-locations', [StockController::class, 'recentReceivingLocations']);
 
         Route::post('receive', [StockController::class, 'receive']);
 
