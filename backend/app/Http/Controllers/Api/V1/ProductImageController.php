@@ -135,6 +135,13 @@ final class ProductImageController extends Controller
         $picture = $model->images()->findOrFail($image);
 
         DB::transaction(function () use ($model, $picture): void {
+            // **The same product lock `store` takes, or the two interleave into a gallery with no
+            // primary.** An upload that sees one existing picture does not nominate a primary, and a
+            // delete running beside it removes the one there was; not seeing the uncommitted upload,
+            // it finds nothing to promote. Both commit, and the product has a picture the list cannot
+            // show. Locking here serialises the pair, the way promotions already serialise.
+            Product::query()->whereKey($model->getKey())->lockForUpdate()->first();
+
             $wasPrimary = (bool) $picture->is_primary;
             $path = $picture->path;
 
