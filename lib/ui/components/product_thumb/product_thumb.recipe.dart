@@ -54,6 +54,15 @@ WindSlotRecipe productThumbRecipe() {
           'fallback': 'size-16 text-lg',
           'initial': 'text-lg',
         },
+        // The detail screen's identity block. 80 rather than 64 because that is the size that screen
+        // already drew before this component existed, and shrinking it would have been a design change
+        // smuggled in as a refactor.
+        'lg': {
+          'root': 'size-20',
+          'image': 'size-20',
+          'fallback': 'size-20 text-2xl',
+          'initial': 'text-2xl',
+        },
       },
     },
     defaultVariants: {'size': 'sm'},

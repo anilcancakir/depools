@@ -83,6 +83,20 @@ class ProductThumbPreview extends StatelessWidget {
             ),
           ],
         ),
+        WDiv(
+          className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
+          children: [
+            WText("lg, a detail screen's identity block", className: 'text-xs text-fg-muted'),
+            WDiv(
+              className: 'flex flex-row items-center gap-3',
+              children: [
+                ProductThumb(name: _photographed, imageUrl: _url, size: ProductThumbSize.lg),
+                ProductThumb(name: _named, size: ProductThumbSize.lg),
+                ProductThumb(name: _named, imageUrl: _missing, size: ProductThumbSize.lg),
+              ],
+            ),
+          ],
+        ),
       ],
     );
   }

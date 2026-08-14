@@ -10,6 +10,9 @@ enum ProductThumbSize {
 
   /// A card or a sheet, where the picture is part of what is being checked.
   md,
+
+  /// A detail screen's identity block, where confirming the product IS the reason to look.
+  lg,
 }
 
 /// **ProductThumb**

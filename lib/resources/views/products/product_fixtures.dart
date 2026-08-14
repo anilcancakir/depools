@@ -261,6 +261,12 @@ class ProductListItem {
   /// Brand, if known.
   final String? brand;
 
+  /// The primary picture's url, when the product has one.
+  ///
+  /// Not normalised here: `ProductThumb` already treats a blank string as no picture, and repeating
+  /// that rule in the model would be a second place for it to drift from.
+  final String? imageUrl;
+
   /// The ids of every location holding stock of this product.
   final Set<String> locationIds;
 
@@ -500,6 +506,7 @@ class ProductListItem {
       ],
       name: json['name'] as String,
       brand: json['brand'] as String?,
+      imageUrl: json['image_url'] as String?,
       description: json['description'] as String?,
       sku: json['sku'] as String?,
       amount: quantity,
@@ -536,6 +543,7 @@ class ProductListItem {
     required this.formatted,
     required this.unit,
     this.brand,
+    this.imageUrl,
     this.locationIds = const {},
     this.locationAmounts = const {},
     this.locationSummary = '',

@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSSkeleton, SkeletonShape;
 
 import '../expiry_badge/expiry_badge.dart';
+import '../product_thumb/product_thumb.dart';
 import '../quantity/quantity.dart';
 import '../stock_badge/stock_badge.dart';
 import 'product_row.recipe.dart';
@@ -37,10 +37,15 @@ import 'product_row.recipe.dart';
 /// ```
 @immutable
 class ProductRow extends StatelessWidget {
-  static const IconData _thumbIcon = Icons.photo_outlined;
-
   /// The product name, already localised. Truncates rather than wrapping.
   final String name;
+
+  /// The primary picture's url, when the product has one.
+  ///
+  /// Null is the ordinary case rather than the exception: nothing writes a product's image until the
+  /// tenant uploads one, so most rows fall back to the name's initial. That is why the box is drawn by
+  /// [ProductThumb], which reserves the same geometry either way.
+  final String? imageUrl;
 
   /// The already-joined brand and location line.
   final String? meta;
@@ -91,6 +96,7 @@ class ProductRow extends StatelessWidget {
     required this.name,
     required this.amount,
     required this.formatted,
+    this.imageUrl,
     this.meta,
     this.unit,
     this.remainderFormatted,
@@ -107,6 +113,7 @@ class ProductRow extends StatelessWidget {
   /// lines and the trailing figure land where the content will.
   const ProductRow.skeleton({super.key})
     : name = '',
+      imageUrl = null,
       meta = null,
       amount = 0,
       formatted = '',
@@ -130,10 +137,11 @@ class ProductRow extends StatelessWidget {
       child: WDiv(
         className: slots['root'],
         children: [
-          WDiv(
-            className: slots['thumb'],
-            child: const WIcon(_thumbIcon, className: 'size-5 text-fg-disabled'),
-          ),
+          // The component rather than the slot: it draws the same box, and it fills it with the
+          // picture when there is one and the product's initial when there is not. A generic photo
+          // glyph on every row was the same mark repeated down the list, which told the reader
+          // nothing and made two adjacent rows harder to tell apart rather than easier.
+          ProductThumb(name: name, imageUrl: imageUrl),
           WDiv(
             className: slots['body'],
             children: [
