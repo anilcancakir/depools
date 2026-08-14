@@ -42,15 +42,22 @@ final class ProductImageTest extends TestCase
     public function test_a_stored_path_is_answered_as_a_url(): void
     {
         // The path is ours and means nothing to a client; the field is called `image_url` and should be
-        // one. Asserting the SHAPE rather than an exact string, because the disk's base url is
-        // configuration and pinning it here would make this a test about `.env`.
+        // one. The exact base is configuration and pinning it would make this a test about `.env`, so
+        // what is asserted is the property the NAME promises: a scheme and a host.
+        //
+        // **The first version of this asserted only that the string was not the bare path, and that was
+        // not enough.** The local disk answers `/storage/products/milk.jpg`, which passed all three of
+        // the old assertions and loads nowhere: a Flutter mobile build throws `No host specified in
+        // URI` and a web build resolves it against its own origin. A weaker assertion here is what let
+        // that reach master.
         $product = Product::create(['name' => 'Süt', 'image_path' => 'products/milk.jpg']);
 
         $url = $product->image_url;
 
         $this->assertIsString($url);
         $this->assertStringEndsWith('products/milk.jpg', $url);
-        $this->assertNotSame('products/milk.jpg', $url, 'a bare path would not load anywhere');
+        $this->assertNotNull(parse_url($url, PHP_URL_SCHEME), "[$url] has no scheme");
+        $this->assertNotNull(parse_url($url, PHP_URL_HOST), "[$url] has no host, so no client can load it");
     }
 
     public function test_a_product_with_no_image_answers_null_rather_than_a_url_to_nothing(): void

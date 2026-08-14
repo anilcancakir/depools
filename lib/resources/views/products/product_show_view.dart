@@ -23,6 +23,7 @@ import '../../../ui/components/expiry_badge/expiry_badge.dart';
 import '../../../ui/components/location_stock_row/location_stock_row.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
 import '../../../ui/components/product_row/product_row.dart';
+import '../../../ui/components/product_thumb/product_thumb.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -135,7 +136,6 @@ class ProductShowView extends StatefulWidget {
 }
 
 class _ProductShowViewState extends State<ProductShowView> {
-  static const IconData _imagePlaceholderIcon = Icons.photo_outlined;
   static const IconData _moveIcon = Icons.swap_horiz_outlined;
   static const IconData _labelIcon = Icons.qr_code_2_outlined;
   static const IconData _moreIcon = Icons.more_horiz_outlined;
@@ -531,9 +531,9 @@ class _ProductShowViewState extends State<ProductShowView> {
 
   /// Image, category, tags and description: what the thing actually is.
   ///
-  /// The image is a placeholder here because the fixture carries no asset. In the
-  /// wired screen it is the product photo, and it earns its space: a user who
-  /// scanned a barcode confirms the match by looking, not by reading a SKU.
+  /// The picture earns its space: a user who scanned a barcode confirms the match by
+  /// looking, not by reading a SKU. A product with none falls back to its initial
+  /// rather than to a photo glyph, which said the same nothing on every product.
   Widget _buildIdentity() {
     return WDiv(
       className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
@@ -541,12 +541,10 @@ class _ProductShowViewState extends State<ProductShowView> {
         WDiv(
           className: 'flex flex-row items-start gap-3',
           children: [
-            WDiv(
-              className: '''
-                size-20 rounded-md bg-surface-container-high
-                flex items-center justify-center
-              ''',
-              child: const WIcon(_imagePlaceholderIcon, className: 'size-8 text-fg-disabled'),
+            ProductThumb(
+              name: _product.name,
+              imageUrl: _product.imageUrl,
+              size: ProductThumbSize.lg,
             ),
             WDiv(
               className: 'flex flex-col gap-2 flex-1 min-w-0',

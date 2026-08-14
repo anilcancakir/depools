@@ -16,6 +16,9 @@ WindSlotRecipe productRowRecipe() {
   return const WindSlotRecipe(
     slots: {
       'root': 'flex flex-row items-center gap-3 py-2 min-h-11',
+      // **The skeleton's box only.** A filled row draws `ProductThumb` here instead, which carries the
+      // same geometry; this slot stays so the placeholder cannot drift from the thing it is standing
+      // in for, which is the whole argument for the skeleton living in this component.
       'thumb': 'size-10 rounded-md bg-surface-container-high flex items-center justify-center',
       'body': 'flex flex-col gap-0.5 flex-1 min-w-0',
       'name': 'text-sm font-semibold text-fg truncate',

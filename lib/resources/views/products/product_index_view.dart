@@ -882,6 +882,7 @@ class _ProductIndexViewState extends State<ProductIndexView> {
 
     return ProductRow(
       name: item.name,
+      imageUrl: item.imageUrl,
       // The open note joins the meta line rather than taking a line of its own: at
       // "2 poşet" the reader needs to know one pack is open, and a third line per row
       // would cost more vertical space than the fact is worth.
