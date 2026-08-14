@@ -698,7 +698,7 @@ void main() {
       final ScanController controller = ScanController.instance;
       final Future<void> scan = controller.scan('869');
 
-      controller.fill('869', name: 'What The Carton Says', unit: 'piece');
+      controller.fill('869', name: 'What The Carton Says', unit: ScanEntry.defaultUnit);
 
       await scan;
 
@@ -809,7 +809,7 @@ void main() {
 
       expect(controller.entries.single.needsAsking, isTrue);
 
-      controller.fill('unknown-code', name: 'Typed By Hand', unit: 'piece');
+      controller.fill('unknown-code', name: 'Typed By Hand', unit: ScanEntry.defaultUnit);
 
       expect(controller.entries.single.needsAsking, isFalse);
     });

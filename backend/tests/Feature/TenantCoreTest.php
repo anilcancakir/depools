@@ -42,7 +42,7 @@ final class TenantCoreTest extends TestCase
         $this->actingAs($user->refresh());
 
         $this->location = Location::create(['name' => 'Mutfak']);
-        $this->product = Product::create(['name' => 'Pınar Süt', 'base_unit' => 'adet']);
+        $this->product = Product::create(['name' => 'Pınar Süt', 'base_unit' => 'C62']);
     }
 
     private function movement(array $overrides = []): StockMovement

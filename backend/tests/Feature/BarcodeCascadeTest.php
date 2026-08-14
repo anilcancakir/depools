@@ -115,7 +115,7 @@ final class BarcodeCascadeTest extends TestCase
 
         $barcode = Barcode::forGtin('8690504010012');
 
-        $mine = Product::create(['name' => 'My Own Milk', 'base_unit' => 'piece']);
+        $mine = Product::create(['name' => 'My Own Milk', 'base_unit' => 'C62']);
         $mine->linkBarcode($barcode);
 
         $global = GlobalProduct::create([
@@ -185,7 +185,7 @@ final class BarcodeCascadeTest extends TestCase
         // is for. It may never answer with another TENANT's product: that is their inventory, and the
         // barcode being global is exactly what makes the mistake reachable.
         $this->tenant('Beta');
-        $theirs = Product::create(['name' => 'Beta Secret Milk', 'base_unit' => 'piece']);
+        $theirs = Product::create(['name' => 'Beta Secret Milk', 'base_unit' => 'C62']);
         $theirs->linkBarcode(Barcode::forGtin('8690504010012'));
 
         $this->tenant('Alpha');

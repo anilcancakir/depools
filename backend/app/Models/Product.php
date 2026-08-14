@@ -8,6 +8,7 @@ use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -35,7 +36,11 @@ final class Product extends Model
         'description',
         'sku',
         'image_path',
+        // Both, and they are two ways to say the same thing: `base_unit` takes a CODE and resolves it
+        // through the mutator below, `base_unit_id` takes the row a caller already has. Request paths
+        // use the code, because that is what the wire carries.
         'base_unit',
+        'base_unit_id',
         'tracks_expiry',
         'default_shelf_life_days',
         'opened_shelf_life_days',
@@ -135,6 +140,19 @@ final class Product extends Model
      */
     protected static function booted(): void
     {
+        // **The default the column used to carry, moved into PHP.** `base_unit` was a string defaulting
+        // to `adet`, so a create naming no unit worked; it is a NOT NULL foreign key now and a default
+        // on it would have to be a uuid, which is not something a schema can name. D84 wants the
+        // computation here anyway: PostgreSQL stores and constrains, Laravel decides.
+        //
+        // Only when nothing said otherwise, so a caller filling either `base_unit` or `base_unit_id`
+        // is untouched.
+        self::creating(static function (self $product): void {
+            if ($product->base_unit_id === null) {
+                $product->base_unit_id = Unit::fallback()->getKey();
+            }
+        });
+
         self::updating(static function (self $product): void {
             if (! $product->isDirty('tracking_mode')) {
                 return;
@@ -208,6 +226,65 @@ final class Product extends Model
         }
 
         $this->tags()->sync($ids);
+    }
+
+    /**
+     * The unit every quantity for this product is denominated in.
+     *
+     * A shared Rec 20 row, or one this tenant added. Immutable in practice once a movement exists
+     * (D25): changing it would reinterpret every delta in the ledger rather than convert anything.
+     */
+    /**
+     * **Named `unit` and not `baseUnit`, because Eloquent cannot tell those apart from the accessor.**
+     * `Str::studly` folds both `base_unit` and `baseUnit` to `BaseUnit`, so a `getBaseUnitAttribute`
+     * accessor shadows a `baseUnit()` relation completely: reading the relation returned the code and
+     * eager loading it warned `Undefined property`. Same shape as the `Barcode::gtin()` method that
+     * shadowed its own column here once before.
+     */
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'base_unit_id');
+    }
+
+    /**
+     * The unit's CODE, which is what the API speaks and what a screen resolves a label from.
+     *
+     * **An accessor rather than a column**, which is the whole point of the change: the wire format
+     * did not move, so a client still sends and reads `base_unit: 'C62'` and never learns a unit's
+     * uuid, while the database gets a foreign key and a closed vocabulary instead of free text.
+     */
+    public function getBaseUnitAttribute(): ?string
+    {
+        return $this->unit?->code;
+    }
+
+    /**
+     * Filling `base_unit` with a CODE sets the foreign key.
+     *
+     * **A mutator rather than forty edited call sites.** Every seeder and every test writes
+     * `Product::create(['name' => ..., 'base_unit' => 'C62'])`, and the column becoming a foreign key
+     * would otherwise have meant rewriting each of them to look a row up first: noise, and forty
+     * chances to look it up slightly differently.
+     *
+     * A `RuntimeException` and not a validation error, deliberately: a request has already been past
+     * [UnitExists] by the time it reaches here, so an unknown code at this point is a seeder or a test
+     * naming something that does not exist, which should stop rather than become a 422 nobody reads.
+     */
+    public function setBaseUnitAttribute(?string $code): void
+    {
+        $unit = Unit::findByCode($code);
+
+        if ($unit === null) {
+            throw new RuntimeException(
+                "No unit is registered under the code {$code}. The shared vocabulary is seeded by the "
+                .'units migration; a tenant-specific unit has to be created before a product can use it.',
+            );
+        }
+
+        $this->attributes['base_unit_id'] = $unit->getKey();
+        // Set on the relation too, so a freshly created model can report its own unit without a
+        // second query, which is what the resource does immediately after a store.
+        $this->setRelation('unit', $unit);
     }
 
     /**

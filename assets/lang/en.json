@@ -734,7 +734,13 @@
       "description": "Description",
       "description_placeholder": "Short note",
       "save_and_stock": "Save and add stock",
-      "save_only": "Save only"
+      "save_only": "Save only",
+      "unit_add": "Add a unit",
+      "unit_add_label": "Add a unit of your own",
+      "unit_add_title": "Add a unit",
+      "unit_add_failed": "The unit could not be added",
+      "save_failed": "The product could not be saved",
+      "saved": ":name saved"
     },
     "products": {
       "activity": "Activity",
@@ -1177,6 +1183,37 @@
       "owned_note": "Already in your products. Rename it on the product screen.",
       "done": "Done",
       "confirm": "Confirm"
+    },
+    "unit_draft": {
+      "cancel": "Cancel",
+      "code_label": "CODE",
+      "code_placeholder": "CASE",
+      "name_label": "What you call it",
+      "name_placeholder": "Case",
+      "note": "Only your team sees it. Pick a short code and the word you use for it.",
+      "required": "This one is needed",
+      "save": "Add"
     }
+  },
+  "units": {
+    "bg": "bag|bags",
+    "bx": "box|boxes",
+    "c62": "piece|pieces",
+    "cmt": "cm",
+    "cs": "case|cases",
+    "ct": "carton|cartons",
+    "dzn": "dozen|dozens",
+    "grm": "g",
+    "kgm": "kg",
+    "ltr": "l",
+    "mgm": "mg",
+    "mlt": "ml",
+    "mmt": "mm",
+    "mtr": "m",
+    "pk": "pack|packs",
+    "pr": "pair|pairs",
+    "rol": "roll|rolls",
+    "set": "set|sets",
+    "tne": "t"
   }
 }

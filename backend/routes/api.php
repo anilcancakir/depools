@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\BarcodeController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\StockController;
+use App\Http\Controllers\Api\V1\UnitController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,6 +28,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     Route::apiResource('locations', LocationController::class)->only(['index', 'store', 'show']);
+
+    // The vocabulary a client offers in a picker, and the one deliberate way a tenant extends it. No
+    // update and no delete: a unit with products counted in it is what every delta in their ledger is
+    // denominated in, so the foreign key is `restrictOnDelete` and a rename would reinterpret history.
+    Route::get('units', [UnitController::class, 'index']);
+    Route::post('units', [UnitController::class, 'store']);
     // **Before the resource, or `by-barcode` is read as a product id.** `products/{id}` matches any
     // segment, so declared after it this route never runs and the request dies in PostgreSQL instead,
     // as `invalid input syntax for type uuid: "by-barcode"`. Found by writing the test first.

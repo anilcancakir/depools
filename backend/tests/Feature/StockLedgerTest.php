@@ -39,7 +39,7 @@ final class StockLedgerTest extends TestCase
         $this->actingAs($user->refresh());
 
         $this->location = Location::create(['name' => 'Mutfak']);
-        $this->product = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $this->product = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
     }
 
     private function lot(float $initial = 10): StockLot

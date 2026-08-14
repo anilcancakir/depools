@@ -96,14 +96,14 @@ class ScanEntry {
   /// it: the constructor's default, the batch line deciding whether the unit was CHOSEN, and the row
   /// widget.
   ///
-  /// **`piece` and not `adet`, because that is what the server actually stores.** The batch endpoint
-  /// writes `piece` when a line omits the unit, so a client saying `adet` was describing a product the
-  /// database would record differently, and a draft saved untouched created one whose unit is not even
-  /// in the product form's own chips. The two halves disagreed in three places at once.
+  /// **A UN/ECE Rec 20 code, which is unreadable on purpose.** `C62` is "one piece", and it is what
+  /// e-Fatura already puts on the wire, so the product side and the receipt side finally speak one
+  /// vocabulary. Nobody sees this string: [unitLabel] turns it into a word, and that indirection is
+  /// the whole reason an English screen stopped reading `1 adet`.
   ///
-  /// It is still not the final answer: the vocabulary becomes a seeded `units` table on UN/ECE Rec 20
-  /// codes, so this constant is the one place that changes when it does.
-  static const String defaultUnit = 'piece';
+  /// The server names the same row through `Unit::DEFAULT_CODE`. Two constants rather than one is the
+  /// cost of the wire being the boundary, and it is the reason this comment names its counterpart.
+  static const String defaultUnit = 'C62';
 
   /// What makes two reads the same read.
   ///

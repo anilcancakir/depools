@@ -45,7 +45,7 @@ final class StockLedgerServiceTest extends TestCase
         $this->location = Location::create(['name' => 'Mutfak']);
         $this->product = Product::create([
             'name' => 'Süt',
-            'base_unit' => 'adet',
+            'base_unit' => 'C62',
             'tracks_expiry' => true,
             // Three days once opened, which is what makes an open lot outrank a sealed one.
             'opened_shelf_life_days' => 3,

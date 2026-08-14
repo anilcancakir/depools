@@ -126,7 +126,7 @@ class DemoVolumeSeeder extends Seeder
                 'name' => $name,
                 'brand' => self::BRANDS[$i % count(self::BRANDS)],
                 'sku' => $i % 4 === 0 ? 'SKU-'.str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT) : null,
-                'base_unit' => 'piece',
+                'base_unit' => 'C62',
                 'product_category_id' => $i % 5 === 0 ? null : $categories[$i % $categories->count()]->getKey(),
                 'tracks_expiry' => $i % 4 !== 0,
                 'default_shelf_life_days' => $i % 4 !== 0 ? 7 + ($i % 60) : null,

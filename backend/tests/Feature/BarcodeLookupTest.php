@@ -39,7 +39,7 @@ final class BarcodeLookupTest extends TestCase
 
         $this->actingAs($user, 'sanctum');
 
-        $product = Product::create(['name' => $name.' Süt', 'base_unit' => 'adet']);
+        $product = Product::create(['name' => $name.' Süt', 'base_unit' => 'C62']);
 
         return [$user->refresh(), $product];
     }
@@ -215,7 +215,7 @@ final class BarcodeLookupTest extends TestCase
         // has to answer a barcode as well as a name.
         [, $product] = $this->tenant('Alpha');
         $product->linkBarcode(Barcode::forGtin('8690504010012'));
-        Product::create(['name' => 'Alpha Ekmek', 'base_unit' => 'adet']);
+        Product::create(['name' => 'Alpha Ekmek', 'base_unit' => 'C62']);
 
         $this->getJson('/api/v1/products?query=8690504010012')
             ->assertOk()

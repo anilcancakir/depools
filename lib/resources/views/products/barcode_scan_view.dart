@@ -17,6 +17,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../app/controllers/scan_controller.dart';
 import '../../../app/support/barcode_symbology.dart';
 import '../../../app/support/plural.dart';
+import '../../../app/support/unit_label.dart';
 import '../../../app/support/scan_presence.dart';
 import '../../../app/models/scan_entry.dart';
 import '../../../ui/components/scan_row/scan_row.dart';
@@ -143,6 +144,14 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   /// which is what the write needs.
   String? _destinationPath;
 
+  /// The unit codes a card may offer, from `GET /units`.
+  ///
+  /// **Asked once for the screen, not once per card.** The vocabulary does not change between two
+  /// cartons, and a request per scan at a receiving bench is a request per carton for an answer that
+  /// does not move. Starts as the countable unit alone, so a card opened before the answer lands still
+  /// offers something real.
+  List<String> _unitCodes = const <String>[ScanEntry.defaultUnit];
+
   /// The tenant's locations, for the picker.
   List<DestinationOption> _locations = const <DestinationOption>[];
 
@@ -162,6 +171,30 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     // Asked once, when the screen opens. A receiving bench does not change shelves between boxes, so
     // re-asking per scan would be a request per carton for an answer that does not move.
     unawaited(_loadDestination());
+    unawaited(_loadUnits());
+  }
+
+  /// Loads the units a card may offer.
+  ///
+  /// A failure leaves the countable unit as the only option, which is the honest degradation: every
+  /// product can be counted in pieces, and a card offering one real choice beats one offering none.
+  Future<void> _loadUnits() async {
+    final dynamic response = await Http.get('/units');
+
+    if (!mounted || !response.successful) return;
+
+    final dynamic rows = response['data'];
+
+    if (rows is! List) return;
+
+    final List<String> codes = <String>[
+      for (final dynamic row in rows)
+        if (row is Map && row['code'] is String) row['code'] as String,
+    ];
+
+    if (codes.isEmpty) return;
+
+    setState(() => _unitCodes = codes);
   }
 
   /// Loads the locations and the shelves recent deliveries went to.
@@ -444,6 +477,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
         // The row's OWN unit, so reopening a card does not hand back the default and quietly undo a
         // unit the user already chose.
         baseUnit: entry.unit,
+        unitCodes: _unitCodes,
       ),
     );
 
@@ -835,7 +869,11 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
             productName: scan.productName,
             source: scan.source,
             count: scan.count,
-            unit: scan.unit,
+            // The CODE becomes a word here, at the boundary between the model and the widget.
+            // `ScanRow` takes already-localised text like every other component, and the stored value
+            // is a Rec 20 code that means nothing to a reader: this is where `1 adet` on an English
+            // screen was coming from.
+            unit: unitLabel(scan.unit, scan.count),
             // **No on-hand figure on a live row, and its absence is a decision.** The fixture
             // carried one because it could invent it. The resolve endpoint answers what a code IS
             // and deliberately not what the tenant holds, so printing a stock figure here would

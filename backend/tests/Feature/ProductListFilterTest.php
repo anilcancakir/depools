@@ -64,7 +64,7 @@ final class ProductListFilterTest extends TestCase
      */
     private function product(string $name, array $attributes = []): Product
     {
-        return Product::create(array_merge(['name' => $name, 'base_unit' => 'adet'], $attributes));
+        return Product::create(array_merge(['name' => $name, 'base_unit' => 'C62'], $attributes));
     }
 
     /**
