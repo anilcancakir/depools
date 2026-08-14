@@ -265,6 +265,13 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   /// count. The snapshot is exact rather than approximate: `commit()` filters the same set
   /// synchronously before its first `await`, so no scan can land between the two.
   Future<void> _commit() async {
+    // **A press that will be ignored must not be reported as a success.** `commit()` answers null for
+    // two different things: the write worked, and there was already one in flight. The button is
+    // disabled while committing, but a second tap inside the same frame lands before that rebuild, and
+    // it would have shown "Added to stock" for a press that did nothing while the real request was
+    // still out and could still fail.
+    if (_controller.isCommitting) return;
+
     final List<ScanEntry> writing = _settled;
     final String? destination = _destinationPath;
 
