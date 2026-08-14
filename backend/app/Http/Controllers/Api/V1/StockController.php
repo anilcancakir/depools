@@ -7,6 +7,8 @@ use App\Enums\MovementSource;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\Unit;
+use App\Rules\UnitExists;
 use App\Services\BarcodeLinker;
 use App\Services\CatalogueContributor;
 use App\Services\StockLedger;
@@ -300,7 +302,7 @@ final class StockController extends Controller
             'lines.*.brand' => ['nullable', 'string', 'max:255'],
             // The cascade's `unit_hint`, which is a suggestion rather than an answer: a shop counts
             // cartons and a cafe counts litres of the same milk, so the default is the countable one.
-            'lines.*.base_unit' => ['nullable', 'string', 'max:16'],
+            'lines.*.base_unit' => ['nullable', 'string', 'max:16', new UnitExists],
             'lines.*.barcode' => ['nullable', 'string', 'max:128'],
             'lines.*.symbology' => ['nullable', 'string', 'max:16'],
             // Same default as the product form: ticked, per D117.
@@ -411,11 +413,15 @@ final class StockController extends Controller
         $product = Product::create([
             'name' => $line['name'],
             'brand' => $line['brand'] ?? null,
-            // **`piece` when the cascade offered nothing**, because a product with no unit cannot be
-            // counted at all and the overwhelming majority of a delivery is countable items. The user
-            // changes it on the product screen; the alternative is refusing a carton for a field the
-            // catalogue never carried.
-            'base_unit' => $line['base_unit'] ?? 'piece',
+            // **The countable unit when the cascade offered nothing**, because a product with no unit
+            // cannot be counted at all and the overwhelming majority of a delivery is countable items.
+            // The user changes it on the product screen; the alternative is refusing a carton for a
+            // field the shared catalogue deliberately does not carry.
+            //
+            // The constant rather than a literal, which is what stopped this path and the products
+            // migration disagreeing about what the default even was: one said `piece`, the other
+            // `adet`, and both were free text.
+            'base_unit' => $line['base_unit'] ?? Unit::DEFAULT_CODE,
         ]);
 
         if ($barcode !== null) {

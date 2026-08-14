@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\StockMovement;
 use App\Models\Team;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -82,7 +83,7 @@ final class ScanBatchTest extends TestCase
 
     public function test_a_product_the_tenant_owns_is_stocked_without_being_recreated(): void
     {
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->receive([
             ['product_id' => $milk->getKey(), 'quantity' => 3],
@@ -98,7 +99,7 @@ final class ScanBatchTest extends TestCase
         // and for a community or Open Food Facts hit the tenant owns no product for it. Sending them
         // to a form for every carton the community already described is the alternative.
         $this->receive([
-            ['name' => 'Pınar Süt 1 L', 'brand' => 'Pınar', 'base_unit' => 'adet',
+            ['name' => 'Pınar Süt 1 L', 'brand' => 'Pınar', 'base_unit' => 'C62',
                 'barcode' => '8690504010012', 'quantity' => 2],
         ])->assertCreated()->assertJsonPath('data.lines.0.created', true);
 
@@ -139,7 +140,7 @@ final class ScanBatchTest extends TestCase
             ['name' => 'Bir şey', 'quantity' => 1],
         ])->assertCreated();
 
-        $this->assertSame('piece', Product::query()->sole()->base_unit);
+        $this->assertSame(Unit::DEFAULT_CODE, Product::query()->sole()->base_unit);
     }
 
     public function test_a_line_with_neither_a_product_nor_a_name_is_refused(): void
@@ -174,7 +175,7 @@ final class ScanBatchTest extends TestCase
 
             $product = Product::query()->where('name', "Blank Unit {$label}")->sole();
 
-            $this->assertSame('piece', $product->base_unit, "a {$label} unit should fall back");
+            $this->assertSame(Unit::DEFAULT_CODE, $product->base_unit, "a {$label} unit should fall back");
         }
     }
 
@@ -185,7 +186,7 @@ final class ScanBatchTest extends TestCase
         // on its own only says "at least one", so a line with both was accepted and then silently took
         // the id path: the card was dropped without a word, which is contract drift that costs a day to
         // find from the client side.
-        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->receive([[
             'product_id' => $mine->getKey(),
@@ -203,11 +204,11 @@ final class ScanBatchTest extends TestCase
         // Prohibiting `name` alone left the same hole for the other five: a line could carry an id plus
         // a brand, a unit, a barcode, a symbology or a contribution flag, all of which describe a
         // product this line is NOT creating, and every one of them was swallowed in silence.
-        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         foreach ([
             'brand' => 'Pınar',
-            'base_unit' => 'kg',
+            'base_unit' => 'KGM',
             'barcode' => '8690000000017',
             'symbology' => 'code128',
             'contribute' => true,
@@ -230,7 +231,7 @@ final class ScanBatchTest extends TestCase
         // `uuid` column, so `findOrFail('not-a-uuid')` reaches PostgreSQL and raises
         // `SQLSTATE[22P02] invalid input syntax for type uuid`. An unhandled query exception is not
         // something a client can act on, and it is indistinguishable from the server being broken.
-        $product = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $product = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->postJson('/api/v1/stock/receive-batch', [
             'location_id' => 'not-a-uuid',
@@ -250,10 +251,10 @@ final class ScanBatchTest extends TestCase
     {
         // Tenancy rule 2, and it has to stay a 404: a 403 confirms the identifier is real, which is
         // how an attacker holding a range of ids maps another tenant's catalogue without reading one.
-        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $mine = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->tenant('Beta');
-        $theirs = Product::create(['name' => 'Beta Süt', 'base_unit' => 'adet']);
+        $theirs = Product::create(['name' => 'Beta Süt', 'base_unit' => 'C62']);
 
         // Back to the tenant that owns `$mine`, and NOT `tenant('Alpha')`, which mints a second Alpha
         // owning nothing: with that, both lines were foreign and the case below was never exercised.
@@ -295,10 +296,10 @@ final class ScanBatchTest extends TestCase
         // serial-tracked product is a real writer refusal (invariant 8: its quantity is the count of
         // its serials, so a lot here would be a second disagreeing answer), and it arrives with
         // everything already valid.
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
         $serialised = Product::create([
             'name' => 'Telefon',
-            'base_unit' => 'adet',
+            'base_unit' => 'C62',
             'tracking_mode' => 'serial',
         ]);
 
@@ -330,7 +331,7 @@ final class ScanBatchTest extends TestCase
         // most right after `prohibits` went in: that rule names sibling fields through `lines.*.name`,
         // so a wildcard resolving across indices instead of within one would refuse every mixed batch,
         // which is the ordinary case rather than an edge.
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->receive([
             ['product_id' => $milk->getKey(), 'quantity' => 2],
@@ -353,7 +354,7 @@ final class ScanBatchTest extends TestCase
         // Everything arriving through a receiving bench was bought. Letting a client name the reason
         // would put `correction` or `found` on a delivery, which is the audit distinction the ledger
         // exists to keep.
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->receive([['product_id' => $milk->getKey(), 'quantity' => 4]])->assertCreated();
 
@@ -362,7 +363,7 @@ final class ScanBatchTest extends TestCase
 
     public function test_a_barcode_this_tenant_already_uses_is_refused_before_anything_is_written(): void
     {
-        $existing = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $existing = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
         $existing->linkBarcode(Barcode::forGtin('8690504010012'));
 
         $this->receive([
@@ -378,7 +379,7 @@ final class ScanBatchTest extends TestCase
         // Habit rather than affinity: a mixed batch cannot ask "where does this category go", and
         // where the last delivery was put away is a fact about how the business works.
         $other = Location::create(['name' => 'Kiler']);
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->receive([['product_id' => $milk->getKey(), 'quantity' => 1]], $other->getKey())
             ->assertCreated();
@@ -396,7 +397,7 @@ final class ScanBatchTest extends TestCase
         // a different location. Without the filter the next delivery would default to wherever the
         // last thing happened to be carried, which is the shelf rather than the bench.
         $bench = Location::create(['name' => 'Kiler']);
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         $this->receive([['product_id' => $milk->getKey(), 'quantity' => 6]], $bench->getKey())
             ->assertCreated();
@@ -424,7 +425,7 @@ final class ScanBatchTest extends TestCase
 
     public function test_another_tenants_delivery_is_not_this_tenants_default(): void
     {
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
         $this->receive([['product_id' => $milk->getKey(), 'quantity' => 1]])->assertCreated();
 
         $this->tenant('Beta');
@@ -440,7 +441,7 @@ final class ScanBatchTest extends TestCase
         // times, and without the grouping the picker's three suggestions would be one shelf repeated.
         $kiler = Location::create(['name' => 'Kiler']);
         $dolap = Location::create(['name' => 'Dolap']);
-        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'adet']);
+        $milk = Product::create(['name' => 'Süt', 'base_unit' => 'C62']);
 
         foreach ([$this->shelf, $kiler, $this->shelf, $dolap] as $where) {
             $this->receive([['product_id' => $milk->getKey(), 'quantity' => 1]], $where->getKey())

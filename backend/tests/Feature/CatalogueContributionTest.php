@@ -47,7 +47,7 @@ final class CatalogueContributionTest extends TestCase
         return $this->postJson('/api/v1/products', array_merge([
             'name' => 'Pınar Süt 1 L',
             'brand' => 'Pınar',
-            'base_unit' => 'piece',
+            'base_unit' => 'C62',
             'barcode' => '8690504010012',
         ], $overrides));
     }

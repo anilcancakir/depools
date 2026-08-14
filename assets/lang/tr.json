@@ -734,7 +734,14 @@
       "description": "Açıklama",
       "description_placeholder": "Kısa not",
       "save_and_stock": "Kaydet ve stok gir",
-      "save_only": "Sadece kaydet"
+      "save_only": "Sadece kaydet",
+      "unit_add": "Birim ekle",
+      "unit_add_label": "Kendinize ait bir birim ekleyin",
+      "unit_add_title": "Birim ekle",
+      "unit_add_failed": "Birim eklenemedi",
+      "save_failed": "Ürün kaydedilemedi",
+      "saved": ":name kaydedildi",
+      "unit_search": "Birim ara"
     },
     "products": {
       "activity": "Hareketler",
@@ -1176,7 +1183,39 @@
       "cancel": "Vazgeç",
       "owned_note": "Ürünlerinizde zaten var. Adını ürün ekranından değiştirin.",
       "done": "Tamam",
-      "confirm": "Onayla"
+      "confirm": "Onayla",
+      "unit_search": "Birim ara"
+    },
+    "unit_draft": {
+      "cancel": "Vazgeç",
+      "code_label": "KOD",
+      "code_placeholder": "KOLI",
+      "name_label": "Siz ne diyorsunuz",
+      "name_placeholder": "Koli",
+      "note": "Yalnızca ekibiniz görür. Kısa bir kod ve kullandığınız kelimeyi girin.",
+      "required": "Bu alan gerekli",
+      "save": "Ekle"
     }
+  },
+  "units": {
+    "bg": "çuval",
+    "bx": "kutu",
+    "c62": "adet",
+    "cmt": "cm",
+    "cs": "kasa",
+    "ct": "koli",
+    "dzn": "düzine",
+    "grm": "g",
+    "kgm": "kg",
+    "ltr": "lt",
+    "mgm": "mg",
+    "mlt": "ml",
+    "mmt": "mm",
+    "mtr": "m",
+    "pk": "paket",
+    "pr": "çift",
+    "rol": "top",
+    "set": "takım",
+    "tne": "ton"
   }
 }

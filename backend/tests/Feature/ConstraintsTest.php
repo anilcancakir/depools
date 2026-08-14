@@ -202,16 +202,16 @@ final class ConstraintsTest extends TestCase
             'a content amount with no unit',
         );
         $this->assertRefused(
-            fn (): int => DB::table('products')->update(['content_unit' => 'ml']),
+            fn (): int => DB::table('products')->update(['content_unit' => 'MLT']),
             'a content unit with no amount',
         );
         $this->assertRefused(
-            fn (): int => DB::table('products')->update(['content_amount' => 0, 'content_unit' => 'ml']),
+            fn (): int => DB::table('products')->update(['content_amount' => 0, 'content_unit' => 'MLT']),
             'a carton containing nothing',
         );
 
-        DB::table('products')->update(['content_amount' => 1000, 'content_unit' => 'ml']);
-        $this->assertSame('ml', DB::table('products')->value('content_unit'));
+        DB::table('products')->update(['content_amount' => 1000, 'content_unit' => 'MLT']);
+        $this->assertSame('MLT', DB::table('products')->value('content_unit'));
     }
 
     /** @param array<string, mixed> $overrides */

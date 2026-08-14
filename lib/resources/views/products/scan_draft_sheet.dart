@@ -1,9 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSButton, ButtonIntent, MSInput, MSSwitch;
+    show MSButton, ButtonIntent, MSCombobox, MSInput, MSSwitch;
 
 import '../../../app/models/scan_entry.dart' show ScanEntry;
+import '../../../app/support/merge_unit_codes.dart';
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/section_header/section_header.dart';
 
 /// What the sheet came back with: the card the user confirmed.
@@ -108,34 +110,34 @@ class ScanDraftSheet extends StatefulWidget {
     this.editable = true,
     this.confirming = false,
     this.baseUnit = ScanEntry.defaultUnit,
+    this.unitCodes = const <String>[ScanEntry.defaultUnit],
     super.key,
   });
+
+  /// The vocabulary this sheet may offer, newest answer from `GET /units`.
+  ///
+  /// **Passed in rather than fetched here**, because the sheet is opened per scan and the vocabulary
+  /// does not change between two cartons: the screen asks once and hands the answer down. The default
+  /// is the countable unit alone, so a sheet built before that request lands still shows a real option
+  /// rather than an empty row.
+  final List<String> unitCodes;
 
   @override
   State<ScanDraftSheet> createState() => _ScanDraftSheetState();
 }
 
 class _ScanDraftSheetState extends State<ScanDraftSheet> {
-  /// The unit a delivery is overwhelmingly counted in.
-  ///
-  /// **Taken from [ScanEntry] rather than declared here**, which was a review finding worth keeping:
-  /// this sheet had its own copy, so the client held two unit vocabularies at once and a draft saved
-  /// untouched sent a unit the rest of the app did not use. One constant, and the server writes the
-  /// same value when a line omits it.
-  ///
-  /// It is the fallback for an EMPTY field now rather than the field's starting value, which is
-  /// [ScanDraftSheet.baseUnit].
-  static const String _defaultUnit = ScanEntry.defaultUnit;
-
   late final TextEditingController _name = TextEditingController(
     text: widget.name ?? '',
   );
   late final TextEditingController _brand = TextEditingController(
     text: widget.brand ?? '',
   );
-  late final TextEditingController _unit = TextEditingController(
-    text: widget.baseUnit,
-  );
+  /// The chosen unit CODE.
+  ///
+  /// A plain field rather than a `TextEditingController`, because this stopped being typed: the value is
+  /// one of the vocabulary's codes, and a controller would invite somebody to put a word in it again.
+  late String _unit = widget.baseUnit;
 
   bool _contribute = true;
 
@@ -146,7 +148,6 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
   void dispose() {
     _name.dispose();
     _brand.dispose();
-    _unit.dispose();
     super.dispose();
   }
 
@@ -161,13 +162,14 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
       return;
     }
 
-    final String unit = _unit.text.trim();
     final String brand = _brand.text.trim();
 
     Navigator.of(context).pop(
       ScanDraft(
         name: name,
-        baseUnit: unit.isEmpty ? _defaultUnit : unit,
+        // No empty case to guard any more: the unit is one of the offered codes rather than whatever
+        // was left in a text field.
+        baseUnit: _unit,
         brand: brand.isEmpty ? null : brand,
         contribute: _contribute,
       ),
@@ -227,38 +229,62 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
                 ),
             ],
           ),
-        // Optional, and labelled as such rather than left to be guessed: a bench that leaves both
-        // blank has lost nothing, and the product screen is where they get filled in.
+        // **Chosen, not typed, and that is the point of the vocabulary change.** The field was free
+        // text, which is how `kg`, `KG` and `kilogram` became three units; it now holds a UN/ECE Rec 20
+        // code, which nobody can be asked to type. Every option is a real row the server recognises,
+        // labelled through the locale catalogue, so the same choice reads `piece` here and `adet` in
+        // Turkish while one code travels.
+        //
+        // **A searchable combobox rather than a row of chips**, and that was a correction: nineteen
+        // seeded codes already wrapped to two rows on a sheet, and a tenant may add their own on top, so
+        // the list has no known length. Chips are right for a handful of answers and wrong for a set
+        // that grows; a combobox costs one tap and stays one line however long the vocabulary gets.
         if (widget.editable)
           WDiv(
-            className: 'flex flex-col md:flex-row gap-2',
+            className: 'flex flex-col gap-1',
             children: [
-              WDiv(
-                className: 'flex-1 min-w-0 flex flex-col gap-1',
-                children: [
-                  WText(
-                    Lang.get('components.scan_draft.unit_label'),
-                    className: 'text-xs text-fg-muted',
-                  ),
-                  MSInput(
-                    className: 'bg-surface-container px-3 py-3.5',
-                    controller: _unit,
-                  ),
-                ],
+              WText(
+                Lang.get('components.scan_draft.unit_label'),
+                className: 'text-xs text-fg-muted',
               ),
-              WDiv(
-                className: 'flex-1 min-w-0 flex flex-col gap-1',
-                children: [
-                  WText(
-                    Lang.get('components.scan_draft.brand_label'),
-                    className: 'text-xs text-fg-muted',
-                  ),
-                  MSInput(
-                    className: 'bg-surface-container px-3 py-3.5',
-                    placeholder: Lang.get('components.scan_draft.optional'),
-                    controller: _brand,
-                  ),
+              MSCombobox<String>(
+                value: _unit,
+                // **The selection is always among the options, which it was not.** The sheet opens per
+                // scan and the screen's vocabulary request may not have landed, so `unitCodes` can still
+                // be the countable unit alone while a scan that resolved to the tenant's own product
+                // arrives carrying `KGM` from its `unit_hint`. A combobox whose `value` is absent from
+                // its `options` is a contract this has no business testing.
+                //
+                // Same defect the product form had one screen over, so it uses the same tested merge.
+                options: <SelectOption<String>>[
+                  for (final String code in mergeUnitCodes(
+                    fromServer: widget.unitCodes,
+                    known: const <String>[],
+                    selected: _unit,
+                  ))
+                    SelectOption<String>(value: code, label: unitLabel(code)),
                 ],
+                searchPlaceholder: Lang.get('components.scan_draft.unit_search'),
+                onChange: (String? code) {
+                  if (code != null) setState(() => _unit = code);
+                },
+              ),
+            ],
+          ),
+        // Optional, and labelled as such rather than left to be guessed: a bench that leaves it blank
+        // has lost nothing, and the product screen is where it gets filled in.
+        if (widget.editable)
+          WDiv(
+            className: 'flex flex-col gap-1',
+            children: [
+              WText(
+                Lang.get('components.scan_draft.brand_label'),
+                className: 'text-xs text-fg-muted',
+              ),
+              MSInput(
+                className: 'bg-surface-container px-3 py-3.5',
+                placeholder: Lang.get('components.scan_draft.optional'),
+                controller: _brand,
               ),
             ],
           ),

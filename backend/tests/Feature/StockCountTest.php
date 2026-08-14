@@ -47,10 +47,10 @@ final class StockCountTest extends TestCase
         $this->fridge = Location::create(['name' => 'Buzdolabı']);
         $this->product = Product::create([
             'name' => 'Süt',
-            'base_unit' => 'adet',
+            'base_unit' => 'C62',
             'tracks_expiry' => true,
             'content_amount' => 1000,
-            'content_unit' => 'ml',
+            'content_unit' => 'MLT',
             'opened_shelf_life_days' => 3,
         ]);
 
@@ -180,7 +180,7 @@ final class StockCountTest extends TestCase
     {
         $drill = Product::create([
             'name' => 'Matkap',
-            'base_unit' => 'adet',
+            'base_unit' => 'C62',
             'tracking_mode' => 'serial',
         ]);
 

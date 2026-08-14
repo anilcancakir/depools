@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSInput, MSSwitch;
+import 'package:magic_starter/magic_starter.dart'
+    show ButtonIntent, MSBottomSheet, MSButton, MSCombobox, MSInput, MSSwitch;
 
-import '../../../ui/components/choice_chip/choice_chip.dart';
+import '../../../app/models/scan_entry.dart' show ScanEntry;
+import '../../../app/support/merge_unit_codes.dart';
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
+import 'unit_draft_sheet.dart';
 
 /// Creating a product by hand, which until now was impossible.
 ///
@@ -53,17 +59,87 @@ class ProductFormView extends StatefulWidget {
 class _ProductFormViewState extends State<ProductFormView> {
   static const IconData _saveIcon = Icons.arrow_forward;
 
-  /// The units offered as chips, in the order a Turkish small business meets them.
-  ///
-  /// Chips rather than a dropdown because there are five common answers and a dropdown hides all
-  /// of them behind a tap. The field stays free-form underneath: an unusual unit is typed.
-  static const List<String> _units = <String>['adet', 'kg', 'lt', 'paket', 'kutu'];
+  static const IconData _addUnitIcon = Icons.add;
 
-  String _name = '';
-  String _unit = 'adet';
+  /// The vocabulary, from `GET /units`.
+  ///
+  /// **Chips rather than a dropdown**, because a dropdown hides every answer behind a tap and the
+  /// common ones are short. What changed is where the list comes from: it used to be five hardcoded
+  /// Turkish words (`adet`, `kg`, `lt`, `paket`, `kutu`) with a comment claiming a free-text field
+  /// underneath, which there never was. Those five were not codes the server recognised, so this
+  /// screen was offering a vocabulary of its own.
+  ///
+  /// Starts as the countable unit alone so the chip row is never empty while the request is out.
+  List<String> _units = const <String>[ScanEntry.defaultUnit];
+
+  final TextEditingController _name = TextEditingController();
+  final TextEditingController _brand = TextEditingController();
+  final TextEditingController _sku = TextEditingController();
+  final TextEditingController _description = TextEditingController();
+  final TextEditingController _shelfLife = TextEditingController();
+
+  String _unit = ScanEntry.defaultUnit;
   bool _tracksExpiry = false;
 
-  bool get _isValid => _name.trim().isNotEmpty;
+  /// Whether a save is in flight, so a second press cannot create a second product.
+  bool _saving = false;
+
+  /// The server's field errors, keyed the way it names them.
+  ///
+  /// Both halves of the double validation `flutter-app.md` asks for: the button below refuses an empty
+  /// name before the request, and anything the server refuses is mapped back onto the field that
+  /// caused it rather than shown as one message about the form.
+  Map<String, String> _errors = const <String, String>{};
+
+  bool get _isValid => _name.text.trim().isNotEmpty && !_saving;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadUnits());
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _brand.dispose();
+    _sku.dispose();
+    _description.dispose();
+    _shelfLife.dispose();
+    super.dispose();
+  }
+
+  /// Loads the units this tenant may pick.
+  ///
+  /// A failure leaves the countable unit as the only option, which is the honest degradation: every
+  /// product can be counted in pieces.
+  ///
+  /// **The answer is MERGED rather than assigned, and overwriting was a real race.** This request is
+  /// started in `initState`, and a user can register a unit of their own before it lands: the late
+  /// response would then replace the list, drop the code they just created, and leave the combobox
+  /// holding a `value` that is no longer among its `options`. Server order leads, because that is the
+  /// order the picker is meant to read in, and anything the screen knows about and the server did not
+  /// mention follows it.
+  Future<void> _loadUnits() async {
+    final dynamic response = await Http.get('/units');
+
+    if (!mounted || !response.successful) return;
+
+    final dynamic rows = response['data'];
+
+    if (rows is! List) return;
+
+    final List<String> codes = <String>[
+      for (final dynamic row in rows)
+        if (row is Map && row['code'] is String) row['code'] as String,
+    ];
+
+    if (codes.isEmpty) return;
+
+    setState(() {
+      _units = mergeUnitCodes(fromServer: codes, known: _units, selected: _unit);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,8 +172,13 @@ class _ProductFormViewState extends State<ProductFormView> {
             MSInput(
               className: 'bg-surface-container',
               placeholder: Lang.get('screens.product_form.name_placeholder'),
-              onChanged: (String next) => setState(() => _name = next),
+              controller: _name,
+              // The button's own enabled state reads this, so the rebuild is the point rather than the
+              // stored value: a controller holds the text either way.
+              onChanged: (String _) => setState(() => _errors = _without('name')),
             ),
+            if (_errors['name'] != null)
+              WText(_errors['name']!, className: 'text-xs text-expired'),
           ],
         ),
         WDiv(
@@ -107,20 +188,52 @@ class _ProductFormViewState extends State<ProductFormView> {
               Lang.get('screens.product_form.unit'),
               className: 'text-sm font-medium text-fg',
             ),
-            WDiv(
-              className: 'flex flex-row wrap items-center gap-2',
-              children: [
+            // **A searchable combobox rather than a row of chips**, and that was a correction:
+            // nineteen seeded codes already wrapped to two rows, and a tenant may add their own on top,
+            // so the list has no known length. Chips are right for a handful of answers and wrong for a
+            // set that grows; the combobox stays one line however long the vocabulary gets.
+            //
+            // The CODE picks and the WORD shows: the option reads `piece` or `adet` while `C62` travels
+            // to the server. Rec 20 codes are unreadable by design, so an option labelled with one would
+            // be an option nobody can choose.
+            MSCombobox<String>(
+              value: _unit,
+              options: <SelectOption<String>>[
                 for (final String unit in _units)
-                  ChoiceChip(
-                    label: unit,
-                    isSuggested: unit == _unit,
-                    semanticLabel: unit == _unit
-                        ? Lang.get('screens.product_form.unit_current', {'unit': unit})
-                        : Lang.get('screens.product_form.unit_pick', {'unit': unit}),
-                    onTap: () => setState(() => _unit = unit),
-                  ),
+                  SelectOption<String>(value: unit, label: unitLabel(unit)),
               ],
+              searchPlaceholder: Lang.get('screens.product_form.unit_search'),
+              onChange: (String? next) {
+                // Clears its own complaint, the same way the name field does: a refusal about the unit
+                // stops being true the moment a different one is chosen.
+                if (next != null) {
+                  setState(() {
+                    _unit = next;
+                    _errors = _without('base_unit');
+                  });
+                }
+              },
             ),
+            // The one deliberate way out of a closed vocabulary. Nineteen codes cover a lot and not
+            // everything, and `units.team_id` exists precisely so a tenant who counts in something the
+            // standard does not name can say so once instead of typing it per product.
+            WAnchor(
+              onTap: () => unawaited(_addUnit()),
+              semanticLabel: Lang.get('screens.product_form.unit_add_label'),
+              child: WDiv(
+                className: 'flex flex-row items-center gap-1 px-3 py-2 rounded-md '
+                    'bg-surface-container border border-color-border',
+                children: [
+                  const WIcon(_addUnitIcon, className: 'size-4 text-fg-muted'),
+                  WText(
+                    Lang.get('screens.product_form.unit_add'),
+                    className: 'text-sm text-fg-muted',
+                  ),
+                ],
+              ),
+            ),
+            if (_errors['base_unit'] != null)
+              WText(_errors['base_unit']!, className: 'text-xs text-expired'),
             // Said once, under the chips: stock is stored in this unit and a package unit is a
             // conversion to it, which is the distinction `inventory-core.md` spends a section on.
             WText(
@@ -189,8 +302,16 @@ class _ProductFormViewState extends State<ProductFormView> {
               MSInput(
                 className: 'bg-surface-container',
                 placeholder: Lang.get('screens.product_form.shelf_life_placeholder'),
-                onChanged: (String _) {},
+                type: InputType.number,
+                controller: _shelfLife,
+                onChanged: (String _) =>
+                    setState(() => _errors = _without('default_shelf_life_days')),
               ),
+              if (_errors['default_shelf_life_days'] != null)
+                WText(
+                  _errors['default_shelf_life_days']!,
+                  className: 'text-xs text-expired',
+                ),
               WText(
                 Lang.get('screens.product_form.shelf_life_note'),
                 className: 'text-xs text-fg-muted',
@@ -214,11 +335,17 @@ class _ProductFormViewState extends State<ProductFormView> {
       collapsible: true,
       initiallyExpanded: false,
       children: [
-        for (final (String key, String hint) in <(String, String)>[
-          ('brand', 'brand_placeholder'),
-          ('sku', 'sku_placeholder'),
-          ('category', 'category_placeholder'),
-          ('description', 'description_placeholder'),
+        // **Three of the four are wired and `category` is not, which is a fact rather than an
+        // oversight.** The API takes a `product_category_id` into the SHARED taxonomy, and that table
+        // holds zero rows: its Google seed is documented in the migration and lives nowhere, so there is
+        // no id for a typed word to become. A free-text category would either be dropped silently or
+        // invent a per-tenant vocabulary, which is the exact mistake this whole change is undoing.
+        for (final (String key, String hint, TextEditingController? controller)
+            in <(String, String, TextEditingController?)>[
+          ('brand', 'brand_placeholder', _brand),
+          ('sku', 'sku_placeholder', _sku),
+          ('category', 'category_placeholder', null),
+          ('description', 'description_placeholder', _description),
         ])
           WDiv(
             className: 'flex flex-col gap-1.5',
@@ -230,12 +357,165 @@ class _ProductFormViewState extends State<ProductFormView> {
               MSInput(
                 className: 'bg-surface-container',
                 placeholder: Lang.get('screens.product_form.$hint'),
-                onChanged: (String _) {},
+                controller: controller,
+                // The one field with no controller cannot be saved, so it cannot be typed into either:
+                // an input that accepts text and discards it is worse than one that does not accept it.
+                // `enabled`, which is what `MSInput` calls it.
+                enabled: controller != null,
+                onChanged: (String _) => setState(() => _errors = _without(key)),
               ),
+              if (_errors[key] != null)
+                WText(_errors[key]!, className: 'text-xs text-expired'),
             ],
           ),
       ],
     );
+  }
+
+  /// The error map without one key, so typing into a field clears its own complaint and nothing else.
+  Map<String, String> _without(String field) {
+    if (!_errors.containsKey(field)) return _errors;
+
+    return <String, String>{
+      for (final MapEntry<String, String> entry in _errors.entries)
+        if (entry.key != field) entry.key: entry.value,
+    };
+  }
+
+  /// Registers a unit of this tenant's own and selects it.
+  ///
+  /// The code is folded to upper case by the server, so `koli` and `Koli` are one unit rather than two;
+  /// the sheet does not pretend otherwise and shows what came back.
+  Future<void> _addUnit() async {
+    final UnitDraft? draft = await MSBottomSheet.show<UnitDraft>(
+      context,
+      title: Lang.get('screens.product_form.unit_add_title'),
+      body: const UnitDraftSheet(),
+    );
+
+    if (draft == null || !mounted) return;
+
+    final dynamic response = await Http.post('/units', data: <String, dynamic>{
+      'code': draft.code,
+      'name': draft.name,
+    });
+
+    if (!mounted) return;
+
+    if (!response.successful) {
+      // The server's own sentence, because it names which collision happened: a standard code, or one
+      // this tenant already has.
+      MagicFeedback.error(
+        Lang.get('screens.product_form.unit_add_title'),
+        _messageOf(response) ?? Lang.get('screens.product_form.unit_add_failed'),
+      );
+
+      return;
+    }
+
+    final dynamic code = response['data'] is Map ? response['data']['code'] : null;
+
+    if (code is! String) return;
+
+    setState(() {
+      _units = <String>[..._units, code];
+      _unit = code;
+      _errors = _without('base_unit');
+    });
+  }
+
+  /// Creates the product, then either opens it or goes back to the list.
+  ///
+  /// **Both buttons save.** The primary one is `save and enter stock` because
+  /// `inventory-core.md`'s first criterion counts the stock too, so it lands on the product's own
+  /// screen, which is where stock is entered. The quiet one returns to the list, for somebody building
+  /// a catalogue before they receive anything.
+  Future<void> _save({required bool thenStock}) async {
+    if (_saving) return;
+
+    setState(() {
+      _saving = true;
+      _errors = const <String, String>{};
+    });
+
+    final dynamic response = await Http.post('/products', data: <String, dynamic>{
+      'name': _name.text.trim(),
+      'base_unit': _unit,
+      'tracks_expiry': _tracksExpiry,
+      if (_tracksExpiry && int.tryParse(_shelfLife.text.trim()) != null)
+        'default_shelf_life_days': int.parse(_shelfLife.text.trim()),
+      if (_brand.text.trim().isNotEmpty) 'brand': _brand.text.trim(),
+      if (_sku.text.trim().isNotEmpty) 'sku': _sku.text.trim(),
+      if (_description.text.trim().isNotEmpty) 'description': _description.text.trim(),
+    });
+
+    if (!mounted) return;
+
+    if (!response.successful) {
+      setState(() {
+        _saving = false;
+        _errors = _fieldErrorsOf(response);
+      });
+
+      // A message as well as the field marks, because a refusal with no field (a rate limit, a 500)
+      // would otherwise mark nothing and look like the button doing nothing.
+      if (_errors.isEmpty) {
+        MagicFeedback.error(
+          Lang.get('screens.product_form.title'),
+          _messageOf(response) ?? Lang.get('screens.product_form.save_failed'),
+        );
+      }
+
+      return;
+    }
+
+    final dynamic id = response['data'] is Map ? response['data']['id'] : null;
+
+    MagicFeedback.success(
+      Lang.get('screens.product_form.title'),
+      Lang.get('screens.product_form.saved', {'name': _name.text.trim()}),
+    );
+
+    if (thenStock && id is String) {
+      MagicRoute.to('/products/$id');
+
+      return;
+    }
+
+    MagicRoute.to('/products');
+  }
+
+  /// The server's field errors, flattened to one message per field.
+  ///
+  /// Laravel answers `{errors: {name: [..]}}`, and a field with two complaints shows the first: a form
+  /// row has space for one line, and the second is almost always a consequence of the first.
+  Map<String, String> _fieldErrorsOf(dynamic response) {
+    final dynamic errors = response['errors'];
+
+    if (errors is! Map) return const <String, String>{};
+
+    final Map<String, String> mapped = <String, String>{};
+
+    for (final dynamic key in errors.keys) {
+      final dynamic messages = errors[key];
+
+      if (key is! String) continue;
+
+      if (messages is List && messages.isNotEmpty && messages.first is String) {
+        mapped[key] = messages.first as String;
+      } else if (messages is String) {
+        mapped[key] = messages;
+      }
+    }
+
+    return mapped;
+  }
+
+  /// The server's own sentence, when it sent one.
+  String? _messageOf(dynamic response) {
+    final dynamic message = response['message'];
+
+    return message is String && message.isNotEmpty ? message : null;
   }
 
   /// Save and go straight to stock, or just save.
@@ -255,7 +535,7 @@ class _ProductFormViewState extends State<ProductFormView> {
         // and returns the moment it can, which is also the clearest possible signal of what
         // changed.
         MSButton(
-          onPressed: _isValid ? () {} : null,
+          onPressed: _isValid ? () => unawaited(_save(thenStock: true)) : null,
           disabled: !_isValid,
           intent: _isValid ? ButtonIntent.primary : ButtonIntent.secondary,
           fullWidth: true,
@@ -269,7 +549,7 @@ class _ProductFormViewState extends State<ProductFormView> {
           ),
         ),
         MSButton(
-          onPressed: _isValid ? () {} : null,
+          onPressed: _isValid ? () => unawaited(_save(thenStock: false)) : null,
           disabled: !_isValid,
           intent: ButtonIntent.ghost,
           fullWidth: true,

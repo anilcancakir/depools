@@ -219,7 +219,7 @@ final class CaptureTest extends TestCase
             'product_id' => $product->getKey(),
             'resolved_by' => 'alias',
             'raw_unit_code' => 'C62',
-            'resolved_unit' => 'adet',
+            'resolved_unit' => 'C62',
             'quantity' => 2,
         ]);
 
@@ -228,10 +228,16 @@ final class CaptureTest extends TestCase
         // `resolved_by` is what makes the cascade measurable rather than trusted: `alias` here means the
         // step D89 added answered, which is the outcome that costs nothing.
         $this->assertSame('alias', $line->resolved_by);
-        // And the raw UN/ECE code is kept beside the mapped unit, so an unrecognised code is a visible
-        // state rather than a silent default to `adet` (D97).
+        // And the raw UN/ECE code is kept beside the resolved unit, so an unrecognised code is a
+        // visible state rather than a silent default (D97).
+        //
+        // **The two are the same string now, and that is the point of the vocabulary change.** The
+        // resolved unit used to be `adet`, a word in one language, so D97's map was a translation that
+        // could disagree with the product it landed against. Both sides speak Rec 20, so mapping a
+        // recognised code is an identity and the interesting case is the UNRECOGNISED one, which the
+        // next test pins.
         $this->assertSame('C62', $line->raw_unit_code);
-        $this->assertSame('adet', $line->resolved_unit);
+        $this->assertSame('C62', $line->resolved_unit);
     }
 
     public function test_an_unmapped_unit_code_leaves_the_resolved_unit_empty(): void

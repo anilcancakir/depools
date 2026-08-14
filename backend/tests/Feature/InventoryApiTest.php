@@ -37,7 +37,7 @@ final class InventoryApiTest extends TestCase
         $this->actingAs($user, 'sanctum');
 
         $location = Location::create(['name' => $name.' Mutfak']);
-        $product = Product::create(['name' => $name.' Süt', 'base_unit' => 'adet']);
+        $product = Product::create(['name' => $name.' Süt', 'base_unit' => 'C62']);
 
         return [$user->refresh(), $location, $product];
     }
@@ -305,24 +305,24 @@ final class InventoryApiTest extends TestCase
     public function test_a_sku_is_unique_within_a_tenant_and_free_across_them(): void
     {
         $this->tenant('İkinci');
-        $this->postJson('/api/v1/products', ['name' => 'Un', 'base_unit' => 'kg', 'sku' => 'UN-1'])
+        $this->postJson('/api/v1/products', ['name' => 'Un', 'base_unit' => 'KGM', 'sku' => 'UN-1'])
             ->assertCreated();
 
         $this->tenant('Birinci');
         // The same code in another tenant is not a collision: two businesses numbering their own
         // shelves the same way is the normal case, not a conflict to resolve.
-        $this->postJson('/api/v1/products', ['name' => 'Un', 'base_unit' => 'kg', 'sku' => 'UN-1'])
+        $this->postJson('/api/v1/products', ['name' => 'Un', 'base_unit' => 'KGM', 'sku' => 'UN-1'])
             ->assertCreated();
 
-        $this->postJson('/api/v1/products', ['name' => 'Başka un', 'base_unit' => 'kg', 'sku' => 'UN-1'])
+        $this->postJson('/api/v1/products', ['name' => 'Başka un', 'base_unit' => 'KGM', 'sku' => 'UN-1'])
             ->assertStatus(422)->assertJsonValidationErrors('sku');
     }
 
     public function test_a_count_commits_every_writable_line_and_names_the_rest(): void
     {
         [, $location, $product] = $this->tenant('Birinci');
-        $matched = Product::create(['name' => 'Kaşar', 'base_unit' => 'adet']);
-        $unrecorded = Product::create(['name' => 'Yoğurt', 'base_unit' => 'adet']);
+        $matched = Product::create(['name' => 'Kaşar', 'base_unit' => 'C62']);
+        $unrecorded = Product::create(['name' => 'Yoğurt', 'base_unit' => 'C62']);
 
         foreach ([$product, $matched] as $stocked) {
             $this->postJson('/api/v1/stock/receive', [
@@ -372,24 +372,24 @@ final class InventoryApiTest extends TestCase
         // smaller ones. Six demo products shipped in that shape and a 500 g pack read as "2 g".
         $this->postJson('/api/v1/products', [
             'name' => 'Süt',
-            'base_unit' => 'l',
+            'base_unit' => 'LTR',
             'content_amount' => 1,
-            'content_unit' => 'l',
+            'content_unit' => 'LTR',
         ])->assertStatus(422)->assertJsonValidationErrors('content_unit');
 
         $this->postJson('/api/v1/products', [
             'name' => 'Süt',
-            'base_unit' => 'piece',
+            'base_unit' => 'C62',
             'content_amount' => 1000,
-            'content_unit' => 'ml',
+            'content_unit' => 'MLT',
         ])->assertCreated();
     }
 
     public function test_a_count_resolves_its_products_in_one_query(): void
     {
         [, $location, $first] = $this->tenant('Birinci');
-        $second = Product::create(['name' => 'Kaşar', 'base_unit' => 'adet']);
-        $third = Product::create(['name' => 'Yoğurt', 'base_unit' => 'adet']);
+        $second = Product::create(['name' => 'Kaşar', 'base_unit' => 'C62']);
+        $third = Product::create(['name' => 'Yoğurt', 'base_unit' => 'C62']);
 
         DB::enableQueryLog();
 

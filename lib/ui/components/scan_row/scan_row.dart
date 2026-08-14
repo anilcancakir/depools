@@ -53,11 +53,12 @@ class ScanRow extends StatelessWidget {
   /// How many times this barcode was scanned in this batch.
   final int count;
 
-  /// The unit the count is in, already in the form it should be read.
+  /// The unit the count is in, already localised by the caller.
   ///
-  /// The default matches the one the client and the server both write for a product nobody named a
-  /// unit for. It is a stored CODE rather than copy, which is why an English screen has been reading
-  /// `1 adet`: a code is not a word, and the vocabulary that fixes it is a change of its own.
+  /// **A word, not a stored code.** The database now holds UN/ECE Rec 20 codes (`C62`, `KGM`), which a
+  /// reader cannot be shown, so the view resolves one through `unitLabel` before it reaches here. That
+  /// keeps this component's contract the same as every other one: parameters are already-localised
+  /// text.
   final String unit;
 
   /// The already-formatted stock the tenant already holds, when [source] is own. `'0'` is

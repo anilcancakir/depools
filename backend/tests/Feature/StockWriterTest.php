@@ -44,7 +44,7 @@ final class StockWriterTest extends TestCase
         $this->store = Location::create(['name' => 'Depo']);
         $this->product = Product::create([
             'name' => 'Süt',
-            'base_unit' => 'adet',
+            'base_unit' => 'C62',
             'tracks_expiry' => true,
             'opened_shelf_life_days' => 3,
         ]);

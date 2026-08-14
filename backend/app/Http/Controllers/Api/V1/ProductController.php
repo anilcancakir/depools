@@ -8,6 +8,7 @@ use App\Models\Barcode;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\Scopes\TeamScope;
+use App\Rules\UnitExists;
 use App\Services\BarcodeLinker;
 use App\Services\CatalogueContributor;
 use App\Services\ProductListQuery;
@@ -92,7 +93,7 @@ final class ProductController extends Controller
 
         $page = $filter->apply(
             Product::query()
-                ->with(['stock', 'tags'])
+                ->with(['stock', 'tags', 'unit'])
                 // One aggregate for the whole page rather than a query per row. The count decides
                 // which certainty tier the client is allowed to speak in, so a list without it can
                 // only render the most cautious one for everything.
@@ -124,7 +125,10 @@ final class ProductController extends Controller
             'sku' => ['nullable', 'string', 'max:64', Rule::unique('products', 'sku')
                 ->where('team_id', $request->user()->current_team_id)
                 ->whereNull('deleted_at')],
-            'base_unit' => ['required', 'string', 'max:16'],
+            // A CODE from the shared vocabulary or one this tenant added. `max:16` is the column's
+            // shape and [UnitExists] is the vocabulary, which is what replaced this field being free
+            // text: an unknown code is a 422 naming the field rather than a new unit nobody meant.
+            'base_unit' => ['required', 'string', 'max:16', new UnitExists],
             'tracks_expiry' => ['boolean'],
             'default_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
             'opened_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:365'],
@@ -136,7 +140,15 @@ final class ProductController extends Controller
             // made the app look wrong where it was not: a 500 g pack read as "2 g" on the count sheet,
             // and the split-quantity field cannot work at all, because half of a base unit is then
             // half of the same unit rather than a count of smaller ones (D26).
-            'content_unit' => ['nullable', 'string', 'max:16', 'different:base_unit'],
+            // **The same vocabulary as `base_unit`, or `different` compares two of them.** This field
+            // stayed free text while the base unit became a code, which made the rule below trivially
+            // satisfiable: `LTR` differs from `l` by spelling rather than by meaning, and the test that
+            // pins "a litre cannot contain a litre" went green while a product declared exactly that.
+            //
+            // Still a string column rather than a second foreign key, which is a deliberate stopping
+            // point: nothing computes with a content unit yet, and the pair `(content_amount,
+            // content_unit)` is already constrained to travel together.
+            'content_unit' => ['nullable', 'string', 'max:16', 'different:base_unit', new UnitExists],
             'par_level' => ['nullable', 'numeric', 'min:0'],
 
             // **Stage 6 of the cascade arrives here.** A scan that resolved to nothing sends the
@@ -266,7 +278,7 @@ final class ProductController extends Controller
         abort_if($productId === null, 404);
 
         $product = Product::query()
-            ->with(['stock', 'tags'])
+            ->with(['stock', 'tags', 'unit'])
             ->find($productId);
 
         abort_if($product === null, 404);
@@ -277,7 +289,7 @@ final class ProductController extends Controller
     public function show(string $id): ProductResource
     {
         $product = Product::query()
-            ->with(['stock', 'tags', 'lots', 'serials'])
+            ->with(['stock', 'tags', 'lots', 'serials', 'unit'])
             ->withCount('movements')
             ->findOrFail($id);
 

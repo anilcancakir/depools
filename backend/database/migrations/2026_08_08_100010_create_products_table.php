@@ -54,7 +54,19 @@ return new class extends Migration
 
             // The unit stock is STORED in. Every delta in the ledger is in this unit, so changing
             // it after movements exist would silently rewrite history's meaning.
-            $table->string('base_unit', 16)->default('adet');
+            //
+            // **A foreign key rather than the `string(16)` this used to be.** Free text made `kg`,
+            // `KG` and `kilogram` three different units, printed a stored code straight at the user
+            // (`1 adet` on an English screen), and left this column's own default (`adet`) disagreeing
+            // with what the batch create path wrote (`piece`). `units` carries the vocabulary and the
+            // reasoning; it is keyed on `id` rather than `code` because a tenant may add their own
+            // word and `code` is then only unique per tenant.
+            //
+            // NOT NULL and no default: a unit cannot be guessed, and the application resolves
+            // `Unit::DEFAULT_CODE` when a client omits one. `restrictOnDelete`, because a unit with
+            // products counted in it is not something a delete should be able to take away from
+            // under a ledger whose every delta is denominated in it.
+            MigrationHelper::foreignKey($table, 'base_unit_id')->constrained('units')->restrictOnDelete();
 
             $table->boolean('tracks_expiry')->default(false);
             $table->unsignedSmallInteger('default_shelf_life_days')->nullable();
