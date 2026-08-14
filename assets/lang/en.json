@@ -740,7 +740,8 @@
       "unit_add_title": "Add a unit",
       "unit_add_failed": "The unit could not be added",
       "save_failed": "The product could not be saved",
-      "saved": ":name saved"
+      "saved": ":name saved",
+      "unit_search": "Search units"
     },
     "products": {
       "activity": "Activity",
@@ -1182,7 +1183,8 @@
       "cancel": "Cancel",
       "owned_note": "Already in your products. Rename it on the product screen.",
       "done": "Done",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "unit_search": "Search units"
     },
     "unit_draft": {
       "cancel": "Cancel",

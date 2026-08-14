@@ -4,11 +4,10 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show ButtonIntent, MSBottomSheet, MSButton, MSInput, MSSwitch;
+    show ButtonIntent, MSBottomSheet, MSButton, MSCombobox, MSInput, MSSwitch;
 
 import '../../../app/models/scan_entry.dart' show ScanEntry;
 import '../../../app/support/unit_label.dart';
-import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 import 'unit_draft_sheet.dart';
@@ -179,40 +178,42 @@ class _ProductFormViewState extends State<ProductFormView> {
               Lang.get('screens.product_form.unit'),
               className: 'text-sm font-medium text-fg',
             ),
-            WDiv(
-              className: 'flex flex-row wrap items-center gap-2',
-              children: [
-                // The CODE picks and the WORD shows: the chip carries `piece` or `adet` while `C62`
-                // travels to the server. Rec 20 codes are unreadable by design, so a chip labelled with
-                // one would be a chip nobody can choose.
+            // **A searchable combobox rather than a row of chips**, and that was a correction:
+            // nineteen seeded codes already wrapped to two rows, and a tenant may add their own on top,
+            // so the list has no known length. Chips are right for a handful of answers and wrong for a
+            // set that grows; the combobox stays one line however long the vocabulary gets.
+            //
+            // The CODE picks and the WORD shows: the option reads `piece` or `adet` while `C62` travels
+            // to the server. Rec 20 codes are unreadable by design, so an option labelled with one would
+            // be an option nobody can choose.
+            MSCombobox<String>(
+              value: _unit,
+              options: <SelectOption<String>>[
                 for (final String unit in _units)
-                  ChoiceChip(
-                    label: unitLabel(unit),
-                    isSuggested: unit == _unit,
-                    semanticLabel: unit == _unit
-                        ? Lang.get('screens.product_form.unit_current', {'unit': unitLabel(unit)})
-                        : Lang.get('screens.product_form.unit_pick', {'unit': unitLabel(unit)}),
-                    onTap: () => setState(() => _unit = unit),
-                  ),
-                // The one deliberate way out of a closed vocabulary. Nineteen codes cover a lot and not
-                // everything, and `units.team_id` exists precisely so a tenant who counts in something
-                // the standard does not name can say so once instead of typing it per product.
-                WAnchor(
-                  onTap: () => unawaited(_addUnit()),
-                  semanticLabel: Lang.get('screens.product_form.unit_add_label'),
-                  child: WDiv(
-                    className: 'flex flex-row items-center gap-1 px-3 py-2 rounded-md '
-                        'bg-surface-container border border-color-border',
-                    children: [
-                      const WIcon(_addUnitIcon, className: 'size-4 text-fg-muted'),
-                      WText(
-                        Lang.get('screens.product_form.unit_add'),
-                        className: 'text-sm text-fg-muted',
-                      ),
-                    ],
-                  ),
-                ),
+                  SelectOption<String>(value: unit, label: unitLabel(unit)),
               ],
+              searchPlaceholder: Lang.get('screens.product_form.unit_search'),
+              onChange: (String? next) {
+                if (next != null) setState(() => _unit = next);
+              },
+            ),
+            // The one deliberate way out of a closed vocabulary. Nineteen codes cover a lot and not
+            // everything, and `units.team_id` exists precisely so a tenant who counts in something the
+            // standard does not name can say so once instead of typing it per product.
+            WAnchor(
+              onTap: () => unawaited(_addUnit()),
+              semanticLabel: Lang.get('screens.product_form.unit_add_label'),
+              child: WDiv(
+                className: 'flex flex-row items-center gap-1 px-3 py-2 rounded-md '
+                    'bg-surface-container border border-color-border',
+                children: [
+                  const WIcon(_addUnitIcon, className: 'size-4 text-fg-muted'),
+                  WText(
+                    Lang.get('screens.product_form.unit_add'),
+                    className: 'text-sm text-fg-muted',
+                  ),
+                ],
+              ),
             ),
             if (_errors['base_unit'] != null)
               WText(_errors['base_unit']!, className: 'text-xs text-expired'),

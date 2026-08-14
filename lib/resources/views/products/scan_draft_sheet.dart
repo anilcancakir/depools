@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSButton, ButtonIntent, MSInput, MSSwitch;
+    show MSButton, ButtonIntent, MSCombobox, MSInput, MSSwitch;
 
 import '../../../app/models/scan_entry.dart' show ScanEntry;
 import '../../../app/support/unit_label.dart';
@@ -150,26 +150,6 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
     super.dispose();
   }
 
-  /// One unit option, labelled in the reader's language and carrying its code underneath.
-  ///
-  /// Selection is a fill plus a border rather than a fill alone, which `design.md` asks for: a tint on
-  /// its own is subtle in light mode and nothing at all to a colour-blind reader.
-  Widget _unitChip(String code, bool isSelected) {
-    return WAnchor(
-      onTap: () => setState(() => _unit = code),
-      semanticLabel: unitLabel(code),
-      child: WDiv(
-        className: isSelected
-            ? 'px-3 py-2 rounded-md bg-primary-container border border-color-control'
-            : 'px-3 py-2 rounded-md bg-surface-container border border-color-border',
-        child: WText(
-          unitLabel(code),
-          className: isSelected ? 'text-sm font-medium text-fg' : 'text-sm text-fg-muted',
-        ),
-      ),
-    );
-  }
-
   void _save() {
     final String name = _name.text.trim();
 
@@ -253,6 +233,11 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
         // code, which nobody can be asked to type. Every option is a real row the server recognises,
         // labelled through the locale catalogue, so the same choice reads `piece` here and `adet` in
         // Turkish while one code travels.
+        //
+        // **A searchable combobox rather than a row of chips**, and that was a correction: nineteen
+        // seeded codes already wrapped to two rows on a sheet, and a tenant may add their own on top, so
+        // the list has no known length. Chips are right for a handful of answers and wrong for a set
+        // that grows; a combobox costs one tap and stays one line however long the vocabulary gets.
         if (widget.editable)
           WDiv(
             className: 'flex flex-col gap-1',
@@ -261,14 +246,16 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
                 Lang.get('components.scan_draft.unit_label'),
                 className: 'text-xs text-fg-muted',
               ),
-              WDiv(
-                // Wrapped, because the count is variable by definition: a tenant who added their own
-                // unit has more options than the seeded set, and no width is known to fit.
-                className: 'flex flex-row wrap gap-2',
-                children: [
+              MSCombobox<String>(
+                value: _unit,
+                options: <SelectOption<String>>[
                   for (final String code in widget.unitCodes)
-                    _unitChip(code, code == _unit),
+                    SelectOption<String>(value: code, label: unitLabel(code)),
                 ],
+                searchPlaceholder: Lang.get('components.scan_draft.unit_search'),
+                onChange: (String? code) {
+                  if (code != null) setState(() => _unit = code);
+                },
               ),
             ],
           ),

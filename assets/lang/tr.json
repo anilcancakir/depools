@@ -740,7 +740,8 @@
       "unit_add_title": "Birim ekle",
       "unit_add_failed": "Birim eklenemedi",
       "save_failed": "Ürün kaydedilemedi",
-      "saved": ":name kaydedildi"
+      "saved": ":name kaydedildi",
+      "unit_search": "Birim ara"
     },
     "products": {
       "activity": "Hareketler",
@@ -1182,7 +1183,8 @@
       "cancel": "Vazgeç",
       "owned_note": "Ürünlerinizde zaten var. Adını ürün ekranından değiştirin.",
       "done": "Tamam",
-      "confirm": "Onayla"
+      "confirm": "Onayla",
+      "unit_search": "Birim ara"
     },
     "unit_draft": {
       "cancel": "Vazgeç",
