@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
-use App\Models\Concerns\HasStoredImage;
 use App\Models\Concerns\NormalisesName;
 use App\Models\Scopes\TeamScope;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
@@ -12,7 +11,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -27,7 +28,6 @@ final class Product extends Model
     use BelongsToTeam;
     use ConditionallyUsesUuids;
     use HasFactory;
-    use HasStoredImage;
     use NormalisesName;
     use SoftDeletes;
 
@@ -37,7 +37,6 @@ final class Product extends Model
         'brand',
         'description',
         'sku',
-        'image_path',
         // Both, and they are two ways to say the same thing: `base_unit` takes a CODE and resolves it
         // through the mutator below, `base_unit_id` takes the row a caller already has. Request paths
         // use the code, because that is what the wire carries.
@@ -245,6 +244,97 @@ final class Product extends Model
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'base_unit_id');
+    }
+
+    /**
+     * The shared catalogue row this product was built from, when it was built from one.
+     *
+     * The column has been on the table since it was created and nothing read it until now: copying
+     * the catalogue's photograph into a tenant's own gallery is the first thing that needs to walk
+     * back to it. `nullOnDelete` on that key, so a takedown removing the shared row leaves the
+     * tenant's product intact and this relation null.
+     */
+    public function globalProduct(): BelongsTo
+    {
+        return $this->belongsTo(GlobalProduct::class);
+    }
+
+    /**
+     * The gallery, in the order the user arranged it.
+     *
+     * `position` then `created_at`, because position is not unique: a reorder that had to keep it
+     * unique at every intermediate step could not be written as one pass, so two pictures can share a
+     * position and the older one goes first rather than the order flickering per query.
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('position')->orderBy('created_at');
+    }
+
+    /**
+     * The one picture a list row and the detail header show.
+     *
+     * A `HasOne` off the same table so it can be eager-loaded: `with('primaryImage')` is one extra
+     * query for a page of products, where reading `images` per row would be one per product.
+     */
+    public function primaryImage(): HasOne
+    {
+        return $this->hasOne(ProductImage::class)->where('is_primary', true);
+    }
+
+    /**
+     * The primary picture's url, or null when the product has none.
+     *
+     * **Replaces the `image_path` column and its accessor**, and deliberately keeps the same name and
+     * the same shape on the wire: `ProductResource`, `BarcodeResolver` and both screens were already
+     * reading `image_url`, so moving the storage underneath them changed nothing they can see.
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->primaryImage?->url;
+    }
+
+    /**
+     * Make one of this product's pictures the primary, and demote whichever held it.
+     *
+     * **A method rather than a fillable column, because this is a swap and not an assignment.** A
+     * partial unique index allows exactly one primary per product, so writing the new one before
+     * clearing the old one violates it; both writes are one transaction here, in one place, rather
+     * than repeated at each call site with the order chosen freshly each time.
+     *
+     * Refuses a picture belonging to another product. Under `TeamScope` a cross-tenant row cannot be
+     * loaded at all, so the guard that matters at this layer is the one the scope does not cover.
+     */
+    public function makeImagePrimary(ProductImage $image): void
+    {
+        if ($image->product_id !== $this->getKey()) {
+            throw new RuntimeException('That picture belongs to another product.');
+        }
+
+        DB::transaction(function () use ($image): void {
+            // **The product row is locked first, and without it two promotions race into a 500.**
+            // Clearing the old primary takes a row lock on it, so a second transaction blocks there
+            // and then re-evaluates under READ COMMITTED: the row it meant to clear is no longer
+            // primary, its `where` matches nothing, and it proceeds to set its own row while the
+            // first one is already set. The partial unique index refuses that, correctly, and the
+            // client gets a QueryException for a request that should simply have been last-writer.
+            // Locking the parent serialises both callers, this one and the delete handoff below.
+            self::query()->whereKey($this->getKey())->lockForUpdate()->first();
+
+            // **Every OTHER picture, not every picture.** Clearing the target too made promoting the
+            // one that already leads demote it: the mass update set the column false in the database
+            // while this instance still held `true` in memory, so `forceFill(true)` left the model
+            // clean and `save()` wrote nothing. The row came back as not primary from an endpoint
+            // that had just answered 200.
+            //
+            // Excluding it also means no moment exists where the product has no primary at all.
+            $this->images()
+                ->where('is_primary', true)
+                ->whereKeyNot($image->getKey())
+                ->update(['is_primary' => false]);
+
+            $image->forceFill(['is_primary' => true])->save();
+        });
     }
 
     /**

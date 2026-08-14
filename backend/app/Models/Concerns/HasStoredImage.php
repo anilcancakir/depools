@@ -18,6 +18,12 @@ use Illuminate\Support\Facades\URL;
  * So a path becomes a url here, at the boundary, and a remote url passes through untouched. The shape
  * is the one `magic-starter-laravel` already uses for a profile photo: a `*_path` column plus a `*_url`
  * accessor over `Storage::url`.
+ *
+ * **Used by `GlobalProduct` alone now.** A tenant's own product has a GALLERY rather than one column,
+ * so `Product::image_url` reads its primary `product_images` row; the same conversion lives on
+ * `ProductImage::url`. The shared catalogue keeps one picture per row on purpose: it is a description
+ * of a thing rather than a record of one shelf, and a contributor's second photograph of the same
+ * carton adds nothing a lookup needs.
  */
 trait HasStoredImage
 {

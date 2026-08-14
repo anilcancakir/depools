@@ -64,7 +64,6 @@ The catalog entry for a thing the tenant holds. Holds no quantity.
 | `brand` | string(255), nullable | |
 | `description` | text, nullable | |
 | `sku` | string(64), nullable, indexed | tenant-assigned |
-| `image_path` | string, nullable | |
 | `base_unit` | string(16) | the unit stock is stored in, e.g. `adet`, `kg`, `lt` |
 | `tracks_expiry` | boolean, default false | when true, capture asks for an expiry date |
 | `default_shelf_life_days` | integer, nullable | used to pre-fill an expiry date suggestion, and to derive the warning window (D24) |
@@ -83,6 +82,34 @@ Unique: (`team_id`, `sku`) where `sku` is not null.
 `tracking_mode` is effectively immutable in the `serial` direction: a product with serials cannot go back to lots, because the serials have no fungible quantity to collapse into.
 
 **Enforced in three places, one per failure mode (D109), and "at validation" was never one of them.** The vocabulary is a CHECK, because a closed set of values constrains rather than derives. The transition is a model guard, because it compares against another table: `serial -> lot` is refused as soon as one serial row exists, which is permanent because a released serial is kept as evidence, while `lot -> serial` is refused only while a lot still holds stock, so an emptied lot does not block a correction. The write that could create the contradiction is refused by `StockWriter::receive`.
+
+### product_images
+
+A product's photographs, ordered, with exactly one primary (D118). This replaced the single
+`image_path` column `products` used to carry: a product is a physical thing, and the front of the box
+names it while the back carries the ingredients and a shelf photo says where it lives.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, pk | |
+| `team_id` | uuid, fk teams | tenancy, stamped from the auth context and never fillable |
+| `product_id` | uuid, fk products, cascade | these pictures ARE the product's |
+| `path` | string, nullable | a file on our disk, on the `public` disk (D118) |
+| `remote_url` | string, nullable | an address we point at and do not copy, for a CC-BY-SA photograph (D87) |
+| `attribution` | string, nullable | the credit a linked photograph's licence asks for |
+| `source` | enum `upload`, `catalogue`, `link`, `scan` | what an audit and a takedown both need |
+| `is_primary` | boolean, default false | the one picture a list row and the detail header show |
+| `position` | smallint, default 0 | the user's own order; deliberately not unique |
+
+Unique: (`product_id`) where `is_primary`, as a PARTIAL index. A plain unique on
+(`product_id`, `is_primary`) would forbid two non-primary pictures, which is the point of a gallery.
+
+CHECK: `(NULLIF(btrim(path), '') IS NULL) <> (NULLIF(btrim(remote_url), '') IS NULL)`. Ours or theirs,
+never both and never neither. The fold is load-bearing rather than decorative: a bare NULL test lets
+`path = '   '` satisfy "exactly one is set" while being as unloadable as nothing at all.
+
+`Product::image_url` reads the primary row, so every caller of that field (the barcode resolver,
+`ProductResource`, the list row, the detail header) kept working when the storage moved underneath it.
 
 ### tags and product_tag
 

@@ -2297,3 +2297,47 @@ Not decided, and named so it does not read as an oversight: a second tenant conf
 product is corroboration and is currently dropped rather than raising `confidence`. That needs a rule
 for how much and a ceiling, and D31 already warns about what an unexplained number in that column
 invites.
+
+### D118. A product's pictures are a table, and one of them is primary
+
+`data-model.md` gave `products` a single `image_path`. That is the right shape for the shared
+catalogue and the wrong one for a tenant's own product: a product is a physical thing, and the front
+of the box names it while the back carries the ingredients and the shelf photo says where it lives.
+Anılcan asked for a gallery with a primary picture shown in list rows.
+
+So `product_images` holds them, ordered, with `is_primary` on exactly one row per product, and
+`products.image_path` is gone. The alternative considered and rejected was keeping that column beside
+the table as a materialised copy of the primary path. `backend.md` permits a derived column with a
+guard and a drift check, and here it buys nothing: the list already eager-loads the primary
+(`with('primaryImage')`), which is one query for a page rather than one per row. `Product::image_url`
+reads the primary row, so the resolver, `ProductResource` and both screens kept working unchanged.
+
+**One primary is a partial unique index, not a promise.** `CREATE UNIQUE INDEX ... ON product_images
+(product_id) WHERE is_primary`. Two primaries is not a state the interface can render, and promoting
+one picture is two writes: without the index, an interleaved pair leaves both rows set and the list
+starts showing whichever the sort reaches first. A plain unique on `(product_id, is_primary)` would
+have forbidden a product from holding two NON-primary pictures, which is the whole point of a gallery.
+`Product::makeImagePrimary` owns the swap in one transaction, and `is_primary` is not fillable, so
+there is no second place that could get the order wrong.
+
+**A row is either ours or somebody else's, never both**, pinned by
+`CHECK ((path IS NULL) <> (remote_url IS NULL))`. `path` is a file on our disk. `remote_url` is an
+address we point at and do not copy, which exists for one reason: an Open Food Facts photograph is
+CC-BY-SA and D87 keeps ODbL data at arm's length. Copying our OWN catalogue row's photograph is fine
+and is what `from_catalogue` does, because `CatalogueContributor` deliberately keeps `image_path` null
+for anything derived from OFF, so a file in that column is one we may redistribute.
+
+**Storage is the `public` disk**, matching what `magic-starter` already does for a profile photo
+(`MAGIC_STARTER_PROFILE_PHOTO_DISK=public`), with random UUIDv7 filenames so a url carries no tenant
+data and cannot be guessed from a known one. Anılcan's call, over signed temporary urls and over an
+authenticated streaming route. What it costs is that a leaked url stays readable; what it buys is that
+`Image.network` works with no header, no custom `ImageProvider` and no expiry to refresh, and that a
+CDN can sit in front of it later.
+
+**Adding a picture by url does NOT fetch it**, which narrows what was asked for and is the one place
+this decision does not do what the question described. Fetching a user-supplied address is a
+server-side request forgery surface, and doing it safely means resolving the host, refusing private
+ranges, capping the body and re-checking after every redirect: hardened machinery rather than a
+validation rule. Linking is also already how an OFF photograph reaches the screen. The cost is real
+and worth naming: a linked picture breaks when the far end moves it. If copying is wanted it should
+arrive as a fetcher with those checks, not as a `file_get_contents` in a controller.

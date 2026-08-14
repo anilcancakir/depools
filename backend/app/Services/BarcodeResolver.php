@@ -106,7 +106,8 @@ final class BarcodeResolver
             return null;
         }
 
-        $product = Product::query()->find($productId);
+        // `unit` and `primaryImage` are both read below, and both are one query each without this.
+        $product = Product::query()->with(['unit', 'primaryImage'])->find($productId);
 
         if ($product === null) {
             return null;
@@ -122,7 +123,8 @@ final class BarcodeResolver
             productId: $product->getKey(),
             // **Stage 1 sent no image at all**, so a scan of the tenant's OWN product showed nothing
             // while a catalogue hit showed a picture: the one row we know most about looked like the
-            // one we knew least about.
+            // one we knew least about. The accessor now reads the product's PRIMARY gallery row, so a
+            // tenant who photographed their own shelf sees that picture back when they scan it.
             imageUrl: $product->image_url,
         );
     }

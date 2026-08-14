@@ -25,10 +25,14 @@ final class ProductResource extends JsonResource
             'description' => $this->description,
             'sku' => $this->sku,
             'base_unit' => $this->base_unit,
-            // **The column existed and nothing exposed it**, so no list row and no detail screen could
-            // show a picture even for a product that had one. A url rather than the path, because a
-            // client cannot turn a path into anything.
+            // The PRIMARY picture, flattened to the one field a list row needs. It stays here beside
+            // the gallery below because a row draws one picture and should not have to pick it out of
+            // a collection, and because the field predates the gallery: every existing reader of
+            // `image_url` keeps working while the storage underneath it moved.
             'image_url' => $this->image_url,
+            // The gallery, only where it was loaded. `whenLoaded` rather than an unconditional read,
+            // so a list of thirty products does not fetch every picture of each to render one.
+            'images' => ProductImageResource::collection($this->whenLoaded('images')),
             'tracks_expiry' => (bool) $this->tracks_expiry,
             'content_amount' => $this->content_amount,
             'content_unit' => $this->content_unit,

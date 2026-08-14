@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\BarcodeController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\UnitController;
 use Illuminate\Support\Facades\Route;
@@ -50,6 +51,15 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     Route::get('barcode/resolve', [BarcodeController::class, 'resolve']);
 
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
+
+    // The gallery, nested because a picture has no meaning away from its product. Both ids resolve
+    // under `TeamScope`, so another tenant's product and another tenant's picture are each a 404.
+    //
+    // No `index`: `GET products/{id}` already carries the gallery, and a screen that has the product
+    // has its pictures. A second route answering the same question is a second thing to keep in step.
+    Route::post('products/{product}/images', [ProductImageController::class, 'store']);
+    Route::patch('products/{product}/images/{image}', [ProductImageController::class, 'update']);
+    Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
 
     // Stock is not a resource with an id: it is a set of things that HAPPEN, and each one appends
     // to the ledger. Modelling these as `PATCH /products/{id}` would invite the client to think it
