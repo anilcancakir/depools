@@ -90,6 +90,29 @@ final class UnitVocabularyTest extends TestCase
         $this->assertSame(0.000001, $milligram->factorToRoot());
     }
 
+    public function test_a_reference_cycle_is_refused_rather_than_answered_partially(): void
+    {
+        // **A partial product is the worst possible answer**, which is what the hop guard used to
+        // return: a plausible-looking number that is wrong by orders of magnitude, with nothing
+        // downstream able to tell it from a real ratio. The CHECK forbids a row referencing itself and
+        // nothing forbids a longer cycle, so this is the shape that gets here.
+        $a = Unit::createFor($this->team->getKey(), ['code' => 'AAA', 'name' => 'A']);
+        $b = Unit::createFor($this->team->getKey(), [
+            'code' => 'BBB',
+            'name' => 'B',
+            'reference_unit_id' => $a->getKey(),
+            'factor' => 2,
+        ]);
+
+        // Closing the loop, which no request path can do: the endpoint only ever points a NEW unit at an
+        // existing one, so a cycle needs a direct write like this one.
+        $a->forceFill(['reference_unit_id' => $b->getKey(), 'factor' => 3])->save();
+
+        $this->expectException(RuntimeException::class);
+
+        $a->refresh()->factorToRoot();
+    }
+
     public function test_a_countable_multiple_is_shared_rather_than_per_product(): void
     {
         // A dozen IS twelve pieces, which is a fact about the word rather than about any product, so it

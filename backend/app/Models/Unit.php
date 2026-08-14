@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use RuntimeException;
 
 /**
  * A unit stock can be counted in: a seeded UN/ECE Rec 20 row, or a tenant's own word.
@@ -34,6 +35,15 @@ final class Unit extends Model
      * and three literals is how the previous vocabulary ended up disagreeing with itself.
      */
     public const DEFAULT_CODE = 'C62';
+
+    /**
+     * How far [factorToRoot] will walk before deciding the graph is broken.
+     *
+     * The seeded data is three deep at most (`MGM` to `GRM` to `KGM`), and a tenant relating their own
+     * unit to a derived one adds at most one more. Eight is generous for a real chain and short enough
+     * that a cycle is caught rather than spun through.
+     */
+    public const MAX_REFERENCE_HOPS = 8;
 
     /**
      * A tenant's own code, in the one shape the vocabulary will hold it.
@@ -191,14 +201,36 @@ final class Unit extends Model
         $unit = $this;
         $hops = 0;
 
-        while ($unit->reference_unit_id !== null && $hops < 8) {
-            $factor *= (float) $unit->factor;
-            $unit = $unit->reference;
-
-            if ($unit === null) {
-                break;
+        while ($unit->reference_unit_id !== null) {
+            // **Both of these used to `break` and return the factor so far, which is the worst possible
+            // answer.** A partial product is a plausible-looking number: `MGM` stopping one hop early
+            // reads as a thousandth of a kilogram instead of a millionth, and nothing downstream can
+            // tell that from a real ratio. A conversion silently wrong by three orders of magnitude on
+            // ledger-adjacent data is exactly what "no fallback that swallows the error" is about.
+            if ($hops >= self::MAX_REFERENCE_HOPS) {
+                throw new RuntimeException(
+                    "The unit {$this->code} has a reference chain deeper than ".self::MAX_REFERENCE_HOPS
+                    .' hops, which means it loops: the CHECK forbids a row referencing itself and '
+                    .'nothing forbids a longer cycle.',
+                );
             }
 
+            $factor *= (float) $unit->factor;
+            $reference = $unit->reference;
+
+            if ($reference === null) {
+                // **An assertion rather than a handled case, and the difference is worth stating.**
+                // `units_reference_unit_id_foreign` refuses a dangling id outright: writing one raises
+                // `SQLSTATE[23503]`, measured while trying to write a test for this branch. So it is
+                // unreachable while the foreign key exists, and there is no test for it because the
+                // state cannot be constructed. It stays because the alternative on a dropped constraint
+                // is a silent partial factor, which is the thing this whole method stopped doing.
+                throw new RuntimeException(
+                    "The unit {$unit->code} points at a reference that does not exist.",
+                );
+            }
+
+            $unit = $reference;
             $hops++;
         }
 
