@@ -834,7 +834,15 @@
       "torch_on": "Işığı aç",
       "torch_off": "Işığı kapat",
       "camera_hint": "Kamerayı barkoda tutun",
-      "barcode_placeholder": "13 hane"
+      "barcode_placeholder": "13 hane",
+      "no_destination": "Konum seçin",
+      "pick_destination_title": "Bu parti nereye gidiyor?",
+      "pick_destination": "Bu partiyi :path konumuna koyun",
+      "current_destination": "Bu parti :path konumuna gidiyor",
+      "choose_destination": "Önce bir konum seçin",
+      "nothing_to_write": "Henüz yazılacak bir şey yok",
+      "submitting": "Ekleniyor",
+      "write_failed": "Parti eklenemedi"
     },
     "search": {
       "title": "Ara",

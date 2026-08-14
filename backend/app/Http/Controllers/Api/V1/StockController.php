@@ -7,10 +7,14 @@ use App\Enums\MovementSource;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Product;
+use App\Services\BarcodeLinker;
+use App\Services\CatalogueContributor;
+use App\Services\StockLedger;
 use App\Services\StockWriter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use RuntimeException;
@@ -33,7 +37,12 @@ use RuntimeException;
  */
 final class StockController extends Controller
 {
-    public function __construct(private readonly StockWriter $writer) {}
+    public function __construct(
+        private readonly StockWriter $writer,
+        private readonly StockLedger $ledger,
+        private readonly BarcodeLinker $barcodes,
+        private readonly CatalogueContributor $contributor,
+    ) {}
 
     public function receive(Request $request): JsonResponse
     {
@@ -212,6 +221,182 @@ final class StockController extends Controller
         });
 
         return response()->json(['data' => ['lines' => $lines]]);
+    }
+
+    /**
+     * Where this tenant last received stock, which is what a scan batch should default to.
+     *
+     * **Habit rather than affinity, and that is the departure worth naming.** Every other location
+     * suggestion in this app answers "where does this CATEGORY go", which a mixed batch cannot ask:
+     * milk and a screwdriver set disagree, and picking one row's winner for the whole delivery would
+     * be arbitrary dressed up as intelligence. Where the last delivery was put away is a fact about
+     * how this business works, and it is honest about being a guess.
+     *
+     * Null when nothing has ever been received, which the client renders as "choose a location"
+     * rather than as an error: a tenant on their first delivery is the ordinary case, not a failure.
+     */
+    public function lastReceivingLocation(): JsonResponse
+    {
+        $locationId = $this->ledger->lastReceivingLocationId();
+
+        return response()->json(['data' => ['location_id' => $locationId]]);
+    }
+
+    /**
+     * Receives a whole scan batch into one location, creating the products it names that do not exist.
+     *
+     * ### One request, for the reason [count] is one request
+     *
+     * A receiving bench unpacks twenty boxes in a row, and committing row by row would leave a half
+     * received delivery behind every dropped connection: some stock written, some not, and no way for
+     * the user to tell which without re-counting the pile they just put away. That argument is
+     * already recorded on the count endpoint and it is the same argument.
+     *
+     * ### Why this creates products, which no other stock endpoint does
+     *
+     * The cascade answers what a barcode IS, and for stages 2 and 3 the tenant does not own a product
+     * for it yet. `barcode-and-catalog.md` says a catalogue hit is written as it stands, so the
+     * alternative is sending the user to a form for every carton the community already described.
+     * Splitting it into "create each product, then receive them all" was considered and rejected: it
+     * is N+1 requests whose failure mode is products created with no stock against them, which is
+     * worse than the thing this endpoint exists to prevent.
+     *
+     * A line therefore carries EITHER a `product_id` the tenant owns, or the card to create. Never
+     * both, because a line that carries both is a client that has not decided.
+     */
+    public function receiveBatch(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'location_id' => ['required'],
+            'lines' => ['required', 'array', 'min:1', 'max:200'],
+            'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
+
+            // One or the other. `required_without` on both makes a line with neither a 422 naming
+            // both fields, which is what the client needs to see.
+            'lines.*.product_id' => ['nullable', 'required_without:lines.*.name'],
+            'lines.*.name' => ['nullable', 'required_without:lines.*.product_id', 'string', 'max:255'],
+            'lines.*.brand' => ['nullable', 'string', 'max:255'],
+            // The cascade's `unit_hint`, which is a suggestion rather than an answer: a shop counts
+            // cartons and a cafe counts litres of the same milk, so the default is the countable one.
+            'lines.*.base_unit' => ['nullable', 'string', 'max:16'],
+            'lines.*.barcode' => ['nullable', 'string', 'max:128'],
+            'lines.*.symbology' => ['nullable', 'string', 'max:16'],
+            // Same default as the product form: ticked, per D117.
+            'lines.*.contribute' => ['nullable', 'boolean'],
+
+            'source' => ['nullable', Rule::enum(MovementSource::class)],
+        ]);
+
+        $location = Location::query()->findOrFail($data['location_id']);
+
+        // Every named product resolved BEFORE the transaction opens, one query rather than one per
+        // line, and an id belonging to another tenant is a 404 that wrote nothing. Same reasoning as
+        // [count], including why it must not be a 403.
+        $ids = array_values(array_filter(array_column($data['lines'], 'product_id')));
+        $products = $ids === []
+            ? collect()
+            : Product::query()->whereIn('id', $ids)->get()->keyBy('id');
+
+        foreach ($ids as $id) {
+            if (! $products->has($id)) {
+                throw (new ModelNotFoundException)->setModel(Product::class, [$id]);
+            }
+        }
+
+        $actorId = $request->user()->getKey();
+        // **`purchase`, not the caller's choice.** Everything arriving through a receiving bench was
+        // bought, and letting a client name the reason here would put `correction` or `found` on a
+        // delivery, which is exactly the audit distinction the ledger exists to keep.
+        $source = $this->source($data);
+
+        return $this->guard(function () use ($data, $location, $products, $source, $actorId): JsonResponse {
+            // One transaction around the whole batch, and each line's own write is a nested one,
+            // which Laravel implements as a savepoint. That is what lets a single refusal roll back
+            // its own line instead of aborting every later statement with `SQLSTATE[25P02]`.
+            $written = DB::transaction(
+                fn (): array => $this->receiveLines($data['lines'], $location, $products, $source, $actorId),
+            );
+
+            return response()->json(['data' => ['lines' => $written]], 201);
+        });
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $lines
+     * @param  Collection<string, Product>  $products
+     * @return array<int, array<string, mixed>>
+     */
+    private function receiveLines(
+        array $lines,
+        Location $location,
+        $products,
+        MovementSource $source,
+        int|string $actorId,
+    ): array {
+        $written = [];
+
+        foreach ($lines as $line) {
+            $product = isset($line['product_id'])
+                ? $products[$line['product_id']]
+                : $this->createFromLine($line);
+
+            $movement = $this->writer->receive(
+                $product,
+                $location,
+                (float) $line['quantity'],
+                $source,
+                null,
+                null,
+                $actorId,
+                null,
+            );
+
+            $written[] = [
+                'product_id' => $product->getKey(),
+                'product_name' => $product->name,
+                // Whether this line brought a product into the catalogue, because the client shows a
+                // different sentence for "added 3 products" than for "stocked 3 you already had".
+                'created' => ! isset($line['product_id']),
+                'movement_id' => $movement->getKey(),
+            ];
+        }
+
+        return $written;
+    }
+
+    /**
+     * Creates the product a catalogue line describes, with its barcode and its contribution.
+     *
+     * @param  array<string, mixed>  $line
+     */
+    private function createFromLine(array $line): Product
+    {
+        $barcode = $this->barcodes->forLine(
+            (string) ($line['barcode'] ?? ''),
+            (string) ($line['symbology'] ?? ''),
+        );
+
+        $this->barcodes->refuseIfAlreadyLinked($barcode);
+
+        $product = Product::create([
+            'name' => $line['name'],
+            'brand' => $line['brand'] ?? null,
+            // **`piece` when the cascade offered nothing**, because a product with no unit cannot be
+            // counted at all and the overwhelming majority of a delivery is countable items. The user
+            // changes it on the product screen; the alternative is refusing a carton for a field the
+            // catalogue never carried.
+            'base_unit' => $line['base_unit'] ?? 'piece',
+        ]);
+
+        if ($barcode !== null) {
+            $product->linkBarcode($barcode);
+        }
+
+        if (($line['contribute'] ?? true) === true) {
+            $this->contributor->contribute($product, $barcode);
+        }
+
+        return $product;
     }
 
     /**

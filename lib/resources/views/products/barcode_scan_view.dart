@@ -4,7 +4,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageScaffold, MSButton, ButtonIntent, MSEmptyState, MSInput;
+    show MSPageScaffold, MSButton, ButtonIntent, MSEmptyState, MSInput, MSBottomSheet;
 
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -12,6 +12,8 @@ import '../../../app/controllers/scan_controller.dart';
 import '../../../app/support/barcode_symbology.dart';
 import '../../../app/support/scan_presence.dart';
 import '../../../app/models/scan_entry.dart';
+import '../../../ui/components/option_row/option_row.dart';
+import 'product_filter_sheet.dart' show FilterOption;
 import '../../../ui/components/scan_row/scan_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 
@@ -79,15 +81,6 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   static const IconData _photoIcon = Icons.photo_camera_outlined;
   static const IconData _shelfIcon = Icons.grid_view_outlined;
 
-  /// The batch destination: the last location used for receiving.
-  ///
-  /// **Not category affinity, and that is a deliberate departure** from every other
-  /// location suggestion in the app. Affinity answers "where does this CATEGORY go", which
-  /// is exactly the question a mixed batch cannot ask: milk and a screwdriver set disagree,
-  /// and picking one row's winner for the whole batch would be arbitrary dressed up as
-  /// intelligence. Receiving location is a habit rather than a per-product fact, so the last
-  /// one used is both the better guess and an honest one.
-  static const String _destination = 'Depo › Raf A';
 
   /// Whether a read is a new carton or the same one still in view.
   ///
@@ -118,10 +111,112 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   /// Whether the torch is on, so the button can say which way it will move.
   bool _torchOn = false;
 
+  /// The destination's own path, for the row that says where the batch will land.
+  ///
+  /// Presentation, held here rather than on the controller: the controller owns the location's ID,
+  /// which is what the write needs.
+  String? _destinationPath;
+
+  /// The tenant's locations, for the picker.
+  List<FilterOption> _locations = const <FilterOption>[];
+
+  /// The server's refusal, when there was one.
+  String? _error;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onChanged);
+    // Asked once, when the screen opens. A receiving bench does not change shelves between boxes, so
+    // re-asking per scan would be a request per carton for an answer that does not move.
+    unawaited(_loadDestination());
+  }
+
+  /// Loads the locations and the shelf the last delivery went to.
+  Future<void> _loadDestination() async {
+    await _controller.loadDestination();
+
+    final dynamic response = await Http.get('/locations');
+
+    if (!mounted || !response.successful) return;
+
+    final dynamic rows = response['data'];
+
+    if (rows is! List) return;
+
+    setState(() {
+      _locations = <FilterOption>[
+        for (final dynamic row in rows)
+          if (row is Map && row['id'] is String)
+            FilterOption(
+              id: row['id'] as String,
+              label: (row['name'] as String?) ?? '',
+              // `path` is the hierarchy ("Depo › Raf A"), which is what a destination row wants:
+              // `fullPath` falls back to the label when the endpoint sent none.
+              path: row['path'] as String?,
+            ),
+      ];
+      _destinationPath = _pathOf(_controller.destinationId);
+    });
+  }
+
+  /// The path of a location id, or null when it names none of them.
+  String? _pathOf(String? id) {
+    if (id == null) return null;
+
+    for (final FilterOption option in _locations) {
+      if (option.id == id) return option.fullPath;
+    }
+
+    return null;
+  }
+
+  /// Opens the shelf picker and moves the batch's destination to what it returns.
+  ///
+  /// The same shape the count screen's picker uses, including the `Builder`: without it the body is
+  /// built from the VIEW's context, which resolves to the route BEHIND the sheet, and tapping an
+  /// option pops the screen instead of the sheet.
+  Future<void> _pickDestination() async {
+    final String? current = _controller.destinationId;
+
+    final String? picked = await MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.scan.pick_destination_title'),
+      body: Builder(
+        builder: (BuildContext sheetContext) => WDiv(
+          className: 'flex flex-col gap-1',
+          children: [
+            for (final FilterOption option in _locations)
+              OptionRow(
+                label: option.fullPath,
+                isSelected: option.id == current,
+                semanticLabel: option.id == current
+                    ? Lang.get('screens.scan.current_destination', {'path': option.fullPath})
+                    : Lang.get('screens.scan.pick_destination', {'path': option.fullPath}),
+                onTap: () => Navigator.of(sheetContext).pop(option.id),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (picked == null || !mounted || picked == current) return;
+
+    _controller.chooseDestination(picked);
+    setState(() {
+      _destinationPath = _pathOf(picked);
+      // A destination the user just chose cannot still be the reason a write failed.
+      _error = null;
+    });
+  }
+
+  /// Writes the batch, keeping the server's own sentence when it refuses.
+  Future<void> _commit() async {
+    final String? failure = await _controller.commit();
+
+    if (mounted) {
+      setState(() => _error = failure);
+    }
   }
 
   @override
@@ -490,11 +585,16 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
             WDiv(
               className: 'flex flex-row items-center justify-between gap-3 py-1',
               children: [
-                WText(_destination, className: 'text-sm text-fg flex-auto min-w-0'),
+                WText(
+                  // Null means this tenant has never received anything, which is a first delivery
+                  // rather than a failure: the copy asks for a location instead of naming one.
+                  _destinationPath ?? Lang.get('screens.scan.no_destination'),
+                  className: 'flex-1 min-w-0 truncate text-sm text-fg',
+                ),
                 MSButton(
-                  onPressed: () {},
+                  onPressed: _pickDestination,
                   intent: ButtonIntent.ghost,
-                  className: 'justify-center',
+                  className: 'justify-center shrink-0',
                   child: WText(Lang.get('screens.scan.change')),
                 ),
               ],
@@ -514,11 +614,23 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
           className: 'text-sm text-fg-muted',
         ),
         MSButton(
-          onPressed: () {},
+          // **`disabled` as well as a null callback**, because MSButton takes them separately: a
+          // null `onPressed` alone leaves the primary fill looking untouched, which this repo has
+          // already been bitten by once.
+          onPressed: _controller.isCommitting || ready == 0 ? null : _commit,
+          disabled: _controller.isCommitting || ready == 0,
           fullWidth: true,
           className: 'justify-center',
-          child: WText(Lang.get('screens.scan.submit', {'count': ready})),
+          child: WText(
+            _controller.isCommitting
+                ? Lang.get('screens.scan.submitting')
+                : Lang.get('screens.scan.submit', {'count': ready}),
+          ),
         ),
+        // The server's own sentence when it refused, because it names the reason: a barcode already
+        // in use, a serial-tracked product, a location that vanished. Replacing it with a generic
+        // line throws away the only useful part of a refusal.
+        if (_error != null) WText(_error!, className: 'text-sm text-expired'),
       ],
     );
   }

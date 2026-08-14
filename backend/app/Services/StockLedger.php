@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\MovementReason;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\Scopes\TeamScope;
 use App\Models\StockLot;
+use App\Models\StockMovement;
 use Illuminate\Support\Collection;
 
 /**
@@ -35,6 +37,32 @@ use Illuminate\Support\Collection;
  */
 final class StockLedger
 {
+    /**
+     * Where this tenant last received stock, or null when they never have.
+     *
+     * **Here rather than in the controller, and `LedgerWritersTest` is what said so.** That guard
+     * pins the set of files that can reach `stock_movements` at all, reads included, and refuses any
+     * controller outright. It fired on the first version of this and it was right to: a read that
+     * lives in a controller is one refactor away from becoming a write that bypasses [StockWriter].
+     *
+     * `occurred_at` decides and the id breaks its ties, which is not belt-and-braces. Measured:
+     * `occurred_at` stores whole seconds, so a delivery and the transfer that puts it away land on
+     * the SAME timestamp and Postgres returns whichever row it likes. Keys are UUIDv7 app-wide (D73),
+     * so inside one second the id is the only time signal left.
+     *
+     * Only `purchase`, because receiving and putting away are two events (D38): without the filter
+     * the next delivery would default to wherever the last carton was carried rather than to the
+     * bench it arrived at.
+     */
+    public function lastReceivingLocationId(): int|string|null
+    {
+        return StockMovement::query()
+            ->where('reason', MovementReason::Purchase)
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->value('location_id');
+    }
+
     /**
      * The lots to consume from, in the order they should be used.
      *

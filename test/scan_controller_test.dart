@@ -14,7 +14,32 @@ import 'package:magic/magic.dart';
 /// then silently ignored, so the test could not fail.
 class _SlowWire extends FakeNetworkDriver {
   /// Code to the name it resolves to and how long the wire takes.
-  final Map<String, (String, Duration)> answers = <String, (String, Duration)>{};
+  final Map<String, (String, Duration, String?)> answers = <String, (String, Duration, String?)>{};
+
+  /// Every POST body this wire was handed, so a test can assert what was SENT rather than only what
+  /// came back. The batch's shape is the contract with the endpoint, and it is the half a green
+  /// response cannot check.
+  final List<(String, dynamic)> posts = <(String, dynamic)>[];
+
+  /// What the next POST answers with. Defaults to a 201, which is what the batch endpoint returns.
+  MagicResponse postResponse = MagicResponse(
+    statusCode: 201,
+    data: <String, dynamic>{'data': <String, dynamic>{'lines': <dynamic>[]}},
+  );
+
+  /// The location the last delivery went to, or null for a tenant with no history.
+  String? lastLocation;
+
+  @override
+  Future<MagicResponse> post(
+    String url, {
+    dynamic data,
+    Map<String, String>? headers,
+  }) async {
+    posts.add((url, data));
+
+    return postResponse;
+  }
 
   @override
   Future<MagicResponse> get(
@@ -22,7 +47,14 @@ class _SlowWire extends FakeNetworkDriver {
     Map<String, dynamic>? query,
     Map<String, String>? headers,
   }) async {
-    for (final MapEntry<String, (String, Duration)> entry in answers.entries) {
+    if (url.contains('last-receiving-location')) {
+      return MagicResponse(
+        statusCode: 200,
+        data: <String, dynamic>{'data': <String, dynamic>{'location_id': lastLocation}},
+      );
+    }
+
+    for (final MapEntry<String, (String, Duration, String?)> entry in answers.entries) {
       if (!url.contains('code=${entry.key}')) continue;
 
       await Future<void>.delayed(entry.value.$2);
@@ -32,8 +64,10 @@ class _SlowWire extends FakeNetworkDriver {
         data: <String, dynamic>{
           'data': <String, dynamic>{
             'name': entry.value.$1,
-            'source': 'own',
-            'product_id': null,
+            // A null product id is the CATALOGUE shape: the cascade said what the thing is and this
+            // tenant has never held one. A non-null id is stage 1, their own product.
+            'source': entry.value.$3 == null ? 'community' : 'own',
+            'product_id': entry.value.$3,
           },
         },
       );
@@ -50,11 +84,22 @@ class _SlowWire extends FakeNetworkDriver {
 /// wire is swapped, by binding a driver into the container under `network`, which is what the facade
 /// resolves. Three of these pin review findings and none of them can be seen without controlling
 /// latency.
+/// The sentinel that separates "no product id was passed" from "null was passed on purpose".
+const String _own = '__own__';
+
 void main() {
   late _SlowWire wire;
 
-  void answers(String code, String name, {Duration delay = Duration.zero}) {
-    wire.answers[code] = (name, delay);
+  /// `productId` defaults to `p-<code>`, which is the stage-1 shape: the tenant owns it. Passing
+  /// null is the catalogue shape, where the cascade said what the thing is and the tenant has never
+  /// held one.
+  void answers(
+    String code,
+    String name, {
+    Duration delay = Duration.zero,
+    String? productId = _own,
+  }) {
+    wire.answers[code] = (name, delay, productId == _own ? 'p-$code' : productId);
   }
 
   setUp(() {
@@ -217,5 +262,146 @@ void main() {
     await controller.scan('869');
 
     expect(controller.entries.single.count, 1);
+  });
+
+  group('committing the batch', () {
+    test('an unmatched row is left behind rather than sent', () async {
+      // It has no product and no usable name, so there is nothing to create. The count above the
+      // button already says how many are waiting, and the batch survives the commit so the user can
+      // finish them.
+      answers('869', 'Whole Milk 1 L');
+
+      final ScanController controller = ScanController.instance;
+      wire.lastLocation = 'loc-1';
+      await controller.loadDestination();
+
+      await controller.scan('869');
+      await controller.scan('nothing-knows-this');
+
+      expect(await controller.commit(), isNull);
+
+      final (String url, dynamic body) = wire.posts.single;
+      expect(url, contains('receive-batch'));
+      expect((body['lines'] as List<dynamic>), hasLength(1));
+      // The row that was written is gone; the one still needing the user is not.
+      expect(controller.entries, hasLength(1));
+      expect(controller.unmatchedCount, 1);
+    });
+
+    test('a row the tenant owns is sent as an id, not as a card', () async {
+      // Sending a name for a product that already exists would create a second one beside it.
+      wire.lastLocation = 'loc-1';
+      answers('869', 'Whole Milk 1 L');
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+      await controller.commit();
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      expect(line['product_id'], 'p-869');
+      expect(line.containsKey('name'), isFalse);
+    });
+
+    test('a catalogue row is sent as the card to create, with its barcode', () async {
+      // The cascade said what the thing IS and this tenant has never held one, so the line carries
+      // what the endpoint needs to create it. Without the barcode the next scan of the same carton
+      // misses and creates a second product.
+      wire.lastLocation = 'loc-1';
+      answers('869', 'Community Milk', productId: null);
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+      await controller.commit();
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      expect(line['name'], 'Community Milk');
+      expect(line['barcode'], '869');
+      expect(line.containsKey('product_id'), isFalse);
+    });
+
+    test('the count travels as the quantity', () async {
+      // Two reads of one carton are two units, which is the whole prior this screen was built on.
+      wire.lastLocation = 'loc-1';
+      answers('869', 'Whole Milk 1 L');
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+      await controller.scan('869');
+      await controller.commit();
+
+      final Map<String, dynamic> line =
+          (wire.posts.single.$2['lines'] as List<dynamic>).single as Map<String, dynamic>;
+
+      expect(line['quantity'], 2);
+    });
+
+    test('nothing is sent without a destination', () async {
+      // A tenant on their first delivery has no last-received shelf, so the screen has to ask rather
+      // than guess: writing stock to an arbitrary location is a compensating movement to undo.
+      wire.lastLocation = null;
+      answers('869', 'Whole Milk 1 L');
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+
+      expect(await controller.commit(), isNotNull, reason: 'it returns a sentence to show');
+      expect(wire.posts, isEmpty);
+      // And the batch is untouched, so nothing of the user's work is lost to the refusal.
+      expect(controller.entries, hasLength(1));
+    });
+
+    test('a refused write keeps the batch and the server sentence', () async {
+      // The rows are still on the shelf in front of the user. Clearing them because the server said
+      // no would throw away the scanning and leave the stock unrecorded.
+      wire.lastLocation = 'loc-1';
+      answers('869', 'Whole Milk 1 L');
+      wire.postResponse = MagicResponse(
+        statusCode: 422,
+        data: <String, dynamic>{'message': 'This barcode already belongs to Süt.'},
+      );
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+
+      expect(await controller.commit(), 'This barcode already belongs to Süt.');
+      expect(controller.entries, hasLength(1));
+    });
+
+    test('a second press while the first is in flight sends nothing', () async {
+      // The ledger is append-only, so a double press appends the whole batch twice and the fix is a
+      // compensating movement per row.
+      wire.lastLocation = 'loc-1';
+      answers('869', 'Whole Milk 1 L', delay: const Duration(milliseconds: 100));
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      await controller.scan('869');
+
+      await Future.wait<String?>(<Future<String?>>[controller.commit(), controller.commit()]);
+
+      expect(wire.posts, hasLength(1));
+    });
+
+    test('a chosen destination is what the batch is sent to', () async {
+      wire.lastLocation = 'loc-1';
+      answers('869', 'Whole Milk 1 L');
+
+      final ScanController controller = ScanController.instance;
+      await controller.loadDestination();
+      controller.chooseDestination('loc-2');
+      await controller.scan('869');
+      await controller.commit();
+
+      expect(wire.posts.single.$2['location_id'], 'loc-2');
+    });
   });
 }

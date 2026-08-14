@@ -834,7 +834,15 @@
       "torch_on": "Turn on the torch",
       "torch_off": "Turn off the torch",
       "camera_hint": "Point the camera at a barcode",
-      "barcode_placeholder": "13 digits"
+      "barcode_placeholder": "13 digits",
+      "no_destination": "Choose a location",
+      "pick_destination_title": "Where does this batch go?",
+      "pick_destination": "Put this batch in :path",
+      "current_destination": "This batch goes to :path",
+      "choose_destination": "Choose a location first",
+      "nothing_to_write": "Nothing is ready to be written yet",
+      "submitting": "Adding",
+      "write_failed": "The batch could not be added"
     },
     "search": {
       "title": "Search",

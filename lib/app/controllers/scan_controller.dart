@@ -162,6 +162,132 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
     _entries.sort((ScanEntry a, ScanEntry b) => b.sequence.compareTo(a.sequence));
   }
 
+  /// Where the batch will land, and how it was chosen.
+  ///
+  /// Null until [loadDestination] has answered, and null AFTER it when this tenant has never
+  /// received anything: a first delivery is the ordinary case, so the screen asks for a location
+  /// rather than showing an error.
+  String? _destinationId;
+
+  String? get destinationId => _destinationId;
+
+  /// Whether a commit is in flight, so the button cannot be pressed twice.
+  ///
+  /// **Read, unlike the flag this class carried before.** That one existed for a spinner nobody
+  /// built and was deleted in review; this one guards a write, and a second press would append the
+  /// whole batch to the ledger again.
+  bool _committing = false;
+
+  bool get isCommitting => _committing;
+
+  /// Asks where the last delivery was put away.
+  ///
+  /// Habit rather than category affinity, which is the departure the screen's own docblock records:
+  /// a mixed batch cannot ask "where does this category go", and where the last delivery landed is a
+  /// fact about how the business works.
+  Future<void> loadDestination() async {
+    final dynamic response = await Http.get('/stock/last-receiving-location');
+
+    if (!response.successful) {
+      return;
+    }
+
+    final dynamic data = response['data'];
+
+    if (data is Map) {
+      _destinationId = data['location_id'] as String?;
+      notifyListeners();
+    }
+  }
+
+  /// Chooses where the batch will land.
+  void chooseDestination(String locationId) {
+    _destinationId = locationId;
+    notifyListeners();
+  }
+
+  /// Writes every settled row into the destination, or returns the server's refusal.
+  ///
+  /// **One request for the whole batch**, because the endpoint is one request: a dropped connection
+  /// halfway down a pile of boxes would otherwise leave some stock written and no way for the user
+  /// to tell which without re-counting the pile they just put away.
+  ///
+  /// Unmatched rows are left behind rather than sent. They have no product and no name, so there is
+  /// nothing to create; the count above the button already says how many are waiting, and the batch
+  /// survives the commit so the user can finish them.
+  Future<String?> commit() async {
+    if (_committing) {
+      return null;
+    }
+
+    final String? destination = _destinationId;
+
+    if (destination == null) {
+      return Lang.get('screens.scan.choose_destination');
+    }
+
+    final List<ScanEntry> settled = _entries.where((ScanEntry e) => e.isSettled).toList();
+
+    if (settled.isEmpty) {
+      return Lang.get('screens.scan.nothing_to_write');
+    }
+
+    _committing = true;
+    notifyListeners();
+
+    try {
+      final dynamic response = await Http.post(
+        '/stock/receive-batch',
+        data: <String, dynamic>{
+          'location_id': destination,
+          'lines': settled.map(_lineOf).toList(),
+        },
+      );
+
+      if (!response.successful) {
+        // The server's own sentence, because it names the reason: a barcode already in use, a
+        // serial-tracked product, a location that vanished. Replacing it with a generic line throws
+        // away the only useful part of a refusal.
+        final dynamic message = response['message'];
+
+        return message is String && message.isNotEmpty
+            ? message
+            : Lang.get('screens.scan.write_failed');
+      }
+
+      // **Only the rows that were written leave the batch.** An unmatched row still needs the user,
+      // and clearing everything would silently discard the work of finding it.
+      _entries.removeWhere((ScanEntry e) => e.isSettled);
+      _publish();
+
+      return null;
+    } finally {
+      _committing = false;
+      notifyListeners();
+    }
+  }
+
+  /// One batch line: an id when the tenant owns the product, the card to create when they do not.
+  ///
+  /// A catalogue hit has no `productId`, which is not a gap in the answer: it means the cascade
+  /// said what the thing IS and this tenant has never held one. `barcode-and-catalog.md` says such a
+  /// row is written as it stands, so the line carries what the endpoint needs to create it.
+  Map<String, dynamic> _lineOf(ScanEntry entry) {
+    if (entry.productId != null) {
+      return <String, dynamic>{
+        'product_id': entry.productId,
+        'quantity': entry.count,
+      };
+    }
+
+    return <String, dynamic>{
+      'name': entry.productName,
+      'quantity': entry.count,
+      'barcode': entry.barcode,
+      if (entry.symbology != null) 'symbology': entry.symbology,
+    };
+  }
+
   /// Removes a row from the batch.
   void remove(String barcode, {String? symbology}) {
     _entries.removeWhere(
