@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasStoredImage;
 use App\Models\Concerns\NormalisesName;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 final class GlobalProduct extends Model
 {
     use ConditionallyUsesUuids;
+    use HasStoredImage;
     use NormalisesName;
 
     /** @var list<string> */

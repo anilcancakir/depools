@@ -25,6 +25,10 @@ final class ProductResource extends JsonResource
             'description' => $this->description,
             'sku' => $this->sku,
             'base_unit' => $this->base_unit,
+            // **The column existed and nothing exposed it**, so no list row and no detail screen could
+            // show a picture even for a product that had one. A url rather than the path, because a
+            // client cannot turn a path into anything.
+            'image_url' => $this->image_url,
             'tracks_expiry' => (bool) $this->tracks_expiry,
             'content_amount' => $this->content_amount,
             'content_unit' => $this->content_unit,

@@ -36,7 +36,10 @@ WindSlotRecipe scanRowRecipe() {
   return const WindSlotRecipe(
     slots: {
       'root': 'flex flex-row items-start gap-3 py-2',
-      'iconBox': 'size-4 shrink-0 flex items-center justify-center',
+      // `mt-0.5` keeps the glyph on the first line of text now that a 40pt thumbnail sets the row's
+      // height: `items-start` would otherwise put it a couple of pixels above the name's cap line.
+
+      'iconBox': 'size-4 shrink-0 mt-0.5 flex items-center justify-center',
       'icon': 'size-4',
       'body': 'flex flex-col gap-0.5 flex-1 min-w-0',
       'name': 'text-sm font-semibold text-fg truncate',

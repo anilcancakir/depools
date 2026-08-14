@@ -22,6 +22,9 @@ class _SlowWire extends FakeNetworkDriver {
   /// The unit a source suggests for a code. In practice only stage 1 sends one.
   final Map<String, String> unitHints = <String, String>{};
 
+  /// The picture a source has for a code, when it has one.
+  final Map<String, String> images = <String, String>{};
+
   /// Every POST body this wire was handed, so a test can assert what was SENT rather than only what
   /// came back. The batch's shape is the contract with the endpoint, and it is the half a green
   /// response cannot check.
@@ -102,6 +105,7 @@ class _SlowWire extends FakeNetworkDriver {
             'product_id': entry.value.$3,
             'brand': brands[entry.key],
             'unit_hint': unitHints[entry.key],
+            'image_url': images[entry.key],
           },
         },
       );
@@ -784,6 +788,46 @@ void main() {
       await controller.scan('cat');
 
       expect(controller.entries.single.unit, ScanEntry.defaultUnit);
+    });
+
+    test('the picture the cascade knew reaches the row', () async {
+      // The third field this response has always carried and the client dropped, after the brand and
+      // the unit hint. A catalogue find presented as text while the API was sending a photograph.
+      answers('cat', 'Ayran 250 ml', productId: null);
+      wire.images['cat'] = 'https://images.example.test/ayran.jpg';
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('cat');
+
+      expect(controller.entries.single.imageUrl, 'https://images.example.test/ayran.jpg');
+    });
+
+    test('a find with no picture carries null rather than an empty string', () async {
+      // An empty string would reach `WImage` as a src and fail to load, which renders as a broken
+      // product rather than as one nobody has photographed.
+      answers('cat', 'Ayran 250 ml', productId: null);
+      wire.images['cat'] = '   ';
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('cat');
+
+      expect(controller.entries.single.imageUrl, isNull);
+    });
+
+    test('a picture survives the user correcting the name', () async {
+      // Renaming a catalogue find does not make its photograph wrong, and the alternative is a row that
+      // loses its picture the moment somebody fixes a word in it.
+      answers('cat', 'Ayrn 250 ml', productId: null);
+      wire.images['cat'] = 'https://images.example.test/ayran.jpg';
+
+      final ScanController controller = ScanController.instance;
+
+      await controller.scan('cat');
+      controller.fill('cat', name: 'Ayran 250 ml', unit: ScanEntry.defaultUnit);
+
+      expect(controller.entries.single.imageUrl, 'https://images.example.test/ayran.jpg');
     });
 
     test('the brand the cascade knew reaches the card', () async {

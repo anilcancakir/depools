@@ -35,6 +35,17 @@ class ScanEntry {
   /// The brand, when a draft carried one. Never sent for a row the tenant already owns.
   final String? brand;
 
+  /// The product's picture, when any stage of the cascade had one.
+  ///
+  /// **Carried rather than dropped, and the API has been sending it all along.** `ProductCandidate`
+  /// has had an `image_url` since the endpoint was written; the client threw it away, so a catalogue
+  /// find presented as text while the row we knew most about, the tenant's own product, showed nothing
+  /// either.
+  ///
+  /// Always a url a client can load: a stored path is converted server-side, and an Open Food Facts
+  /// photograph stays remote because it is CC-BY-SA and deliberately not copied to our disk.
+  final String? imageUrl;
+
   /// Whether a created product goes to the shared catalogue (D117: ticked by default).
   final bool contribute;
 
@@ -88,6 +99,7 @@ class ScanEntry {
     this.contribute = true,
     this.pending = false,
     this.asked = false,
+    this.imageUrl,
   });
 
   /// What a row is counted in when nothing has said otherwise.
@@ -166,6 +178,9 @@ class ScanEntry {
     unit: unit,
     brand: brand,
     contribute: contribute,
+    // Kept: the user renaming a catalogue find does not make its picture wrong, and the alternative
+    // is a row that loses its image the moment somebody corrects a word in it.
+    imageUrl: imageUrl,
     // The card has been seen, so a repeat read of the same carton increments this row silently
     // instead of asking the same question again.
     asked: true,
@@ -190,6 +205,7 @@ class ScanEntry {
     bool? contribute,
     bool? pending,
     bool? asked,
+    String? imageUrl,
   }) => ScanEntry(
     barcode: barcode,
     symbology: symbology,
@@ -203,6 +219,7 @@ class ScanEntry {
     contribute: contribute ?? this.contribute,
     pending: pending ?? this.pending,
     asked: asked ?? this.asked,
+    imageUrl: imageUrl ?? this.imageUrl,
   );
 
   /// The row the cascade's answer describes.
