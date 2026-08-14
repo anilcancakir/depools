@@ -473,6 +473,7 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
     final dynamic productId = data['product_id'];
     final dynamic brand = data['brand'];
     final dynamic unitHint = data['unit_hint'];
+    final dynamic imageUrl = data['image_url'];
 
     return ScanEntry(
       barcode: code,
@@ -495,6 +496,10 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       unit: unitHint is String && unitHint.trim().isNotEmpty
           ? unitHint
           : ScanEntry.defaultUnit,
+      // The third field this response has always carried and this client dropped, after the brand and
+      // the unit hint. Always a url: a stored path is converted server-side and a remote one passes
+      // through, so nothing here has to know which source answered.
+      imageUrl: imageUrl is String && imageUrl.trim().isNotEmpty ? imageUrl : null,
     );
   }
 

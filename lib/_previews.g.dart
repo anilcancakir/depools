@@ -67,6 +67,7 @@ import 'ui/components/lot_row/lot_row.preview.dart';
 import 'ui/components/movement_row/movement_row.preview.dart';
 import 'ui/components/option_row/option_row.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
+import 'ui/components/product_thumb/product_thumb.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
 import 'ui/components/quantity_stepper/quantity_stepper.preview.dart';
 import 'ui/components/quota_meter/quota_meter.preview.dart';
@@ -323,6 +324,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ProductShowSerialScreen',
       slug: 'product_show_serial_screen',
       builder: (_) => const ProductShowSerialScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductThumb',
+      slug: 'product_thumb',
+      builder: (_) => const ProductThumbPreview(),
     ),
     PreviewEntry(
       label: 'ProfileScreen',

@@ -39,6 +39,8 @@ class ScanRowPreview extends StatelessWidget {
               productName: 'Pınar Süt Tam Yağlı 1 lt',
               count: 6,
               onHandFormatted: '2',
+              // A real Open Food Facts url, so the loaded state previewed here is the one users get.
+              imageUrl: 'https://images.openfoodfacts.org/images/products/869/050/400/4073/front_en.4.400.jpg',
             onTap: _noop),
             ScanRow(
               barcode: '8691234567890',

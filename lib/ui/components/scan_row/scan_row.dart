@@ -8,6 +8,7 @@ import '../../../app/models/scan_source.dart';
 // The enum itself lives in the app layer, because a model naming it must not import a widget.
 export '../../../app/models/scan_source.dart';
 
+import '../product_thumb/product_thumb.dart';
 import '../quantity/quantity.dart';
 import 'scan_row.recipe.dart';
 
@@ -69,6 +70,13 @@ class ScanRow extends StatelessWidget {
   /// Called when the row is tapped to correct or resolve it.
   final VoidCallback? onTap;
 
+  /// The product's picture, when any stage of the cascade had one.
+  ///
+  /// The thumbnail is drawn whether or not this is set, because `ProductThumb` reserves its own box: a
+  /// leading element that appears on some rows and not others shifts the text beside it, and this
+  /// catalogue will be mostly image-less for a long time.
+  final String? imageUrl;
+
   /// Whether the cascade has not answered for this barcode yet.
   ///
   /// **A read is on screen before its answer is, and it used not to be.** A local hit answers in
@@ -92,6 +100,7 @@ class ScanRow extends StatelessWidget {
     this.onHandFormatted,
     this.onTap,
     this.pending = false,
+    this.imageUrl,
   });
 
   /// The recipe variant. Four of the five states will be written as they stand, so they
@@ -156,6 +165,15 @@ class ScanRow extends StatelessWidget {
       child: WDiv(
         className: slots['root'],
         children: [
+          // **The picture leads and the state glyph follows it**, rather than one replacing the other.
+          // They answer different questions: the thumbnail says what the thing IS, and the glyph says
+          // what this row will DO (created, or already yours). Collapsing them would drop the provenance
+          // signal for exactly the rows that have a photograph, which are the catalogue ones where it
+          // matters most.
+          ProductThumb(
+            name: productName ?? '',
+            imageUrl: imageUrl,
+          ),
           WDiv(
             className: slots['iconBox'],
             child: WIcon(_icon, className: slots['icon']),

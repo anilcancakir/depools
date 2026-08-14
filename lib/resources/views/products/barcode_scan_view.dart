@@ -478,6 +478,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
         // unit the user already chose.
         baseUnit: entry.unit,
         unitCodes: _unitCodes,
+        imageUrl: entry.imageUrl,
       ),
     );
 
@@ -880,6 +881,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
             // need a second request per scanned row, at a bench, while the camera is running.
             onHandFormatted: null,
             pending: scan.pending,
+            imageUrl: scan.imageUrl,
             // **Every row opens the same sheet, and that is the point.** An unmatched one opens it
             // empty because nothing anywhere knew the code; a found one opens it PREFILLED, because a
             // catalogue answer can be wrong or in another language and the person holding the carton

@@ -6,6 +6,7 @@ import 'package:magic_starter/magic_starter.dart'
 import '../../../app/models/scan_entry.dart' show ScanEntry;
 import '../../../app/support/merge_unit_codes.dart';
 import '../../../app/support/unit_label.dart';
+import '../../../ui/components/product_thumb/product_thumb.dart';
 import '../../../ui/components/section_header/section_header.dart';
 
 /// What the sheet came back with: the card the user confirmed.
@@ -84,6 +85,13 @@ class ScanDraftSheet extends StatefulWidget {
   /// Where the answer came from, already localised, or null when nothing answered.
   final String? provenance;
 
+  /// The picture the cascade found, when it found one.
+  ///
+  /// **Shown next to the name rather than instead of it.** This card is a yes-or-no about a claim
+  /// somebody else's data made, and a photograph is the fastest way to answer it: a carton in the hand
+  /// matches a carton on the screen long before a reader has finished the name.
+  final String? imageUrl;
+
   /// Whether the fields can be changed.
   ///
   /// **False for a product the tenant already owns**, and that is a correction rather than a
@@ -111,6 +119,7 @@ class ScanDraftSheet extends StatefulWidget {
     this.confirming = false,
     this.baseUnit = ScanEntry.defaultUnit,
     this.unitCodes = const <String>[ScanEntry.defaultUnit],
+    this.imageUrl,
     super.key,
   });
 
@@ -199,15 +208,34 @@ class _ScanDraftSheetState extends State<ScanDraftSheet> {
           ],
         ),
         SectionHeader(label: Lang.get('components.scan_draft.product_group')),
-        // Read-only, with the reason and the place to do it instead. A field that accepts typing and
-        // then discards it is worse than one that cannot be typed into.
-        if (!widget.editable) ...[
-          WText(widget.name ?? '', className: 'text-sm font-medium text-fg'),
-          WText(
-            Lang.get('components.scan_draft.owned_note'),
-            className: 'text-xs text-fg-muted',
-          ),
-        ] else
+        // Card size, because here the picture is part of what the user is checking rather than a hint
+        // in a list. It is drawn whether or not there is one: `ProductThumb` reserves its own box, so
+        // the name below does not move depending on whether a photograph arrived.
+        WDiv(
+          className: 'flex flex-row items-center gap-3',
+          children: [
+            ProductThumb(
+              name: widget.name ?? '',
+              imageUrl: widget.imageUrl,
+              size: ProductThumbSize.md,
+            ),
+            if (!widget.editable)
+              WDiv(
+                className: 'flex-1 min-w-0 flex flex-col gap-1',
+                children: [
+                  WText(widget.name ?? '', className: 'text-sm font-medium text-fg'),
+                  WText(
+                    Lang.get('components.scan_draft.owned_note'),
+                    className: 'text-xs text-fg-muted',
+                  ),
+                ],
+              ),
+          ],
+        ),
+        // Read-only rows say their name beside the picture above, so only the editable one needs a
+        // field here. A field that accepts typing and then discards it is worse than one that cannot be
+        // typed into.
+        if (widget.editable)
           WDiv(
             className: 'flex flex-col gap-1',
             children: [
