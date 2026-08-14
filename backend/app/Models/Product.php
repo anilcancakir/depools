@@ -312,7 +312,26 @@ final class Product extends Model
         }
 
         DB::transaction(function () use ($image): void {
-            $this->images()->where('is_primary', true)->update(['is_primary' => false]);
+            // **The product row is locked first, and without it two promotions race into a 500.**
+            // Clearing the old primary takes a row lock on it, so a second transaction blocks there
+            // and then re-evaluates under READ COMMITTED: the row it meant to clear is no longer
+            // primary, its `where` matches nothing, and it proceeds to set its own row while the
+            // first one is already set. The partial unique index refuses that, correctly, and the
+            // client gets a QueryException for a request that should simply have been last-writer.
+            // Locking the parent serialises both callers, this one and the delete handoff below.
+            self::query()->whereKey($this->getKey())->lockForUpdate()->first();
+
+            // **Every OTHER picture, not every picture.** Clearing the target too made promoting the
+            // one that already leads demote it: the mass update set the column false in the database
+            // while this instance still held `true` in memory, so `forceFill(true)` left the model
+            // clean and `save()` wrote nothing. The row came back as not primary from an endpoint
+            // that had just answered 200.
+            //
+            // Excluding it also means no moment exists where the product has no primary at all.
+            $this->images()
+                ->where('is_primary', true)
+                ->whereKeyNot($image->getKey())
+                ->update(['is_primary' => false]);
 
             $image->forceFill(['is_primary' => true])->save();
         });

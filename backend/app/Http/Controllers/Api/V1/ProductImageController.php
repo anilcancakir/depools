@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -118,7 +119,7 @@ final class ProductImageController extends Controller
      * the primary would leave the list row blank while the detail screen showed three photographs,
      * which reads as data loss rather than as a deletion.
      */
-    public function destroy(string $product, string $image): JsonResponse
+    public function destroy(string $product, string $image): Response
     {
         $model = Product::query()->findOrFail($product);
         $picture = $model->images()->findOrFail($image);
@@ -145,7 +146,10 @@ final class ProductImageController extends Controller
             }
         });
 
-        return response()->json(status: 204);
+        // `noContent` rather than `json(status: 204)`. Both answer with an empty body through the
+        // kernel, because Symfony's `Response::prepare` strips the content on a 204 and drops the
+        // content type; this spelling says so at the call site instead of relying on that.
+        return response()->noContent();
     }
 
     /**
@@ -249,12 +253,26 @@ final class ProductImageController extends Controller
             ]);
         }
 
+        // **A recorded path is not a file, and the difference was a 500.** A stale row, a takedown
+        // that removed the bytes, or a disk restored without them all leave `image_path` pointing at
+        // nothing. Measured rather than assumed: this disk carries `throw => false`, so `get()` answers
+        // NULL rather than raising, and the exception then comes one line later out of Flysystem's
+        // `write()` as `Argument #2 ($contents) must be of type string, null given`. Either way the
+        // user asked for something that is not there, which is a 422.
+        $bytes = Storage::disk($this->catalogueDisk())->get($source);
+
+        if ($bytes === null) {
+            throw ValidationException::withMessages([
+                'from_catalogue' => __('The catalogue picture for this product is no longer stored.'),
+            ]);
+        }
+
         $disk = $this->disk();
         $target = config('products.images.directory').'/'.Str::uuid7()->toString().'.'.pathinfo($source, PATHINFO_EXTENSION);
 
         // Between disks, because the catalogue's own file may live somewhere else entirely; reading
         // and writing the bytes is the one operation that works whatever those two are.
-        Storage::disk($disk)->put($target, Storage::disk($this->catalogueDisk())->get($source));
+        Storage::disk($disk)->put($target, $bytes);
 
         return ['path' => $target, 'source' => 'catalogue', 'attribution' => null];
     }

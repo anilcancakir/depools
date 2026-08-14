@@ -296,6 +296,62 @@ final class ProductImageTest extends TestCase
             ->assertJsonValidationErrors('from_catalogue');
     }
 
+    public function test_a_catalogue_row_pointing_at_a_file_that_is_gone_is_refused(): void
+    {
+        // A recorded path is not a file. A takedown that removed the bytes, a stale row or a disk
+        // restored without them all land here, and the user asked for something that is not there,
+        // which is a 422 and not a 500.
+        //
+        // Measured before it was fixed: the disk carries `throw => false`, so `get()` answered NULL
+        // and the exception came one line later out of Flysystem's `write()` as
+        // `Argument #2 ($contents) must be of type string, null given`.
+        Storage::fake(config('products.images.disk'));
+        Storage::fake(config('filesystems.default'));
+
+        $global = GlobalProduct::create([
+            'name' => 'Sütaş Ayran 250 ml',
+            'locale' => 'en',
+            'source' => 'community',
+            'confidence' => 70,
+            'image_path' => 'catalogue/removed.jpg',
+        ]);
+
+        $product = Product::create(['name' => 'Ayran']);
+        $product->forceFill(['global_product_id' => $global->getKey()])->save();
+
+        $this->postJson("/api/v1/products/{$product->getKey()}/images", ['from_catalogue' => true])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('from_catalogue');
+    }
+
+    public function test_promoting_the_picture_that_already_leads_is_not_an_error(): void
+    {
+        // The idempotent case, and the one that shows the swap has to clear before it sets: the row
+        // being promoted is the row being demoted, so an order that set first would collide with the
+        // partial unique index against itself.
+        $product = $this->productWithPicture();
+        $primary = $product->primaryImage;
+
+        $this->patchJson("/api/v1/products/{$product->getKey()}/images/{$primary->getKey()}", [
+            'is_primary' => true,
+        ])->assertOk()->assertJsonPath('data.is_primary', true);
+
+        $this->assertSame(1, $product->images()->where('is_primary', true)->count());
+    }
+
+    public function test_a_delete_answers_with_no_body_at_all(): void
+    {
+        // A 204 carrying JSON is read inconsistently by proxies and clients. Symfony's `prepare`
+        // strips it, so this holds whichever spelling the controller uses; the assertion is here so
+        // that stays true rather than being a property of the framework nobody checked.
+        $product = $this->productWithPicture();
+
+        $response = $this->deleteJson("/api/v1/products/{$product->getKey()}/images/{$product->primaryImage->getKey()}");
+
+        $response->assertNoContent();
+        $this->assertSame('', $response->getContent());
+    }
+
     public function test_the_gallery_stops_at_its_ceiling(): void
     {
         $product = Product::create(['name' => 'Süt']);
