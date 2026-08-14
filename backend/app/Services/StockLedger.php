@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\MovementReason;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\Scopes\TeamScope;
 use App\Models\StockLot;
+use App\Models\StockMovement;
 use Illuminate\Support\Collection;
 
 /**
@@ -35,6 +37,53 @@ use Illuminate\Support\Collection;
  */
 final class StockLedger
 {
+    /**
+     * Where this tenant last received stock, most recent first, or empty when they never have.
+     *
+     * **A LIST, because a receiving bench has two or three places and not one.** The picker puts
+     * these at the top so the ordinary case is a single tap; a tenant with a thousand locations and
+     * six levels of nesting cannot be asked to walk a tree for a shelf they used an hour ago.
+     *
+     * Here rather than in a controller, and `LedgerWritersTest` is what said so: that guard pins the
+     * set of files that can reach `stock_movements` at all, reads included, and refuses any
+     * controller outright. It fired on the first version of this and it was right to, because a read
+     * in a controller is one refactor away from a write that bypasses [StockWriter].
+     *
+     * `occurred_at` decides and the id breaks its ties, which is not belt-and-braces. Measured:
+     * `occurred_at` stores whole seconds, so a delivery and the transfer that puts it away land on
+     * the SAME timestamp and Postgres returns whichever row it likes. Keys are UUIDv7 app-wide
+     * (D73), so inside one second the id is the only time signal left.
+     *
+     * Only `purchase`, because receiving and putting away are two events (D38): without the filter
+     * the list would fill with wherever the last cartons were carried rather than where deliveries
+     * arrive.
+     *
+     * `list<string>` rather than Eloquent's own `list<int|string>`: every key in this schema is a
+     * native `uuid` (D73), so the int half describes a table this application does not have.
+     *
+     * @return list<string>
+     */
+    public function recentReceivingLocationIds(int $limit = 3): array
+    {
+        // DISTINCT on the location rather than in PHP, because the last twenty movements can easily
+        // be the same shelf twenty times and the query would then return one suggestion.
+        //
+        // `MAX(occurred_at)` and `MAX(id)` per location: a plain `orderByDesc` beside a `groupBy`
+        // is not valid SQL here, and picking the newest per group is exactly what the ordering has
+        // to answer.
+        return StockMovement::query()
+            ->where('reason', MovementReason::Purchase)
+            ->groupBy('location_id')
+            // **`id::text`, because PostgreSQL has no `max(uuid)`.** Found by the error rather than
+            // by reading, which is the honest way to record it. The cast is sound for the job: a
+            // UUIDv7's hex form sorts identically to its bytes, and the leading 48 bits are the
+            // timestamp, so the newest id in a group is the newest text too.
+            ->orderByRaw('MAX(occurred_at) DESC, MAX(id::text) DESC')
+            ->limit($limit)
+            ->pluck('location_id')
+            ->all();
+    }
+
     /**
      * The lots to consume from, in the order they should be used.
      *

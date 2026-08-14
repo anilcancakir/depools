@@ -48,7 +48,16 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // to the ledger. Modelling these as `PATCH /products/{id}` would invite the client to think it
     // is setting a quantity, which is the exact mental model the ledger exists to replace.
     Route::prefix('stock')->group(function (): void {
+        // A GET among the posts, because it answers a question rather than appending anything.
+        Route::get('recent-receiving-locations', [StockController::class, 'recentReceivingLocations']);
+
         Route::post('receive', [StockController::class, 'receive']);
+
+        // **Before nothing and after nothing, but it is not `receive` with a list.** That one takes a
+        // product the tenant already owns; this one takes a scan batch, which is mostly products the
+        // catalogue named and the tenant has never held. Folding them would put product CREATION
+        // behind a single-movement endpoint.
+        Route::post('receive-batch', [StockController::class, 'receiveBatch']);
         Route::post('consume', [StockController::class, 'consume']);
         Route::post('transfer', [StockController::class, 'transfer']);
 

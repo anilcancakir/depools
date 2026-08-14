@@ -70,6 +70,11 @@ final class LedgerWritersTest extends TestCase
                 // measures, and a value object carrying the writer's own output is the honest case for
                 // being on this list rather than a second author to hunt down.
                 'app/Services/StockCountResult.php',
+                // Reads the last `purchase` to answer where a scan batch should default to. A READ,
+                // and it lives here rather than in `StockController` because this test refused that
+                // and was right to: a read in a controller is one refactor away from a write that
+                // bypasses `StockWriter`.
+                'app/Services/StockLedger.php',
             ],
             'stock_lots' => [
                 'app/Services/StockWriter.php',

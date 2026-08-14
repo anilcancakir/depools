@@ -4,16 +4,25 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageScaffold, MSButton, ButtonIntent, MSEmptyState, MSInput;
+    show
+        MSPageScaffold,
+        MSButton,
+        ButtonIntent,
+        MSEmptyState,
+        MSInput,
+        MSBottomSheet;
 
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../app/controllers/scan_controller.dart';
 import '../../../app/support/barcode_symbology.dart';
+import '../../../app/support/plural.dart';
 import '../../../app/support/scan_presence.dart';
 import '../../../app/models/scan_entry.dart';
 import '../../../ui/components/scan_row/scan_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
+import 'destination_sheet.dart';
+import 'scan_draft_sheet.dart';
 
 /// Continuous barcode scanning, and the batch it accumulates.
 ///
@@ -79,15 +88,6 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   static const IconData _photoIcon = Icons.photo_camera_outlined;
   static const IconData _shelfIcon = Icons.grid_view_outlined;
 
-  /// The batch destination: the last location used for receiving.
-  ///
-  /// **Not category affinity, and that is a deliberate departure** from every other
-  /// location suggestion in the app. Affinity answers "where does this CATEGORY go", which
-  /// is exactly the question a mixed batch cannot ask: milk and a screwdriver set disagree,
-  /// and picking one row's winner for the whole batch would be arbitrary dressed up as
-  /// intelligence. Receiving location is a habit rather than a per-product fact, so the last
-  /// one used is both the better guess and an honest one.
-  static const String _destination = 'Depo › Raf A';
 
   /// Whether a read is a new carton or the same one still in view.
   ///
@@ -115,13 +115,207 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   final ScanController _controller = ScanController.instance;
   final TextEditingController _manual = TextEditingController();
 
+  /// The width at which both capture paths fit side by side.
+  ///
+  /// Wind's own `lg`, and the same 1024 the app shell swaps its tree at. In Dart rather than as a
+  /// `lg:` prefix because the decision here is not only which widget is drawn: the camera is a
+  /// platform resource that has to be stopped and started, and no className can express that.
+  static const double _bothFitWidth = 1024;
+
   /// Whether the torch is on, so the button can say which way it will move.
   bool _torchOn = false;
+
+  /// Whether the digit field has the phone's screen instead of the viewfinder.
+  ///
+  /// **Only meaningful below [_bothFitWidth], and it is a height budget rather than a preference.**
+  /// DESIGN.md's own rule is that a screen operated WHILE typing is laid out against what the keyboard
+  /// leaves, not against the viewport, and this screen had the camera and the field stacked above a
+  /// queue that grows without bound: the viewfinder got a fraction of the height, and raising the
+  /// keyboard to use the field covered the queue the field feeds.
+  ///
+  /// At desktop width neither is the fallback, so both stay: a hardware barcode reader is an HID
+  /// keyboard typing into the field, while a laptop webcam points at the operator's face.
+  bool _typing = false;
+
+  /// The destination's own path, for the row that says where the batch will land.
+  ///
+  /// Presentation, held here rather than on the controller: the controller owns the location's ID,
+  /// which is what the write needs.
+  String? _destinationPath;
+
+  /// The tenant's locations, for the picker.
+  List<DestinationOption> _locations = const <DestinationOption>[];
+
+  /// The recent destinations, newest first, from the ledger.
+  List<String> _recentIds = const <String>[];
+
+  /// The server's refusal, when there was one.
+  String? _error;
+
+  /// Whether a draft sheet is open, so a scan landing behind it cannot stack a second one.
+  bool _drafting = false;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onChanged);
+    // Asked once, when the screen opens. A receiving bench does not change shelves between boxes, so
+    // re-asking per scan would be a request per carton for an answer that does not move.
+    unawaited(_loadDestination());
+  }
+
+  /// Loads the locations and the shelves recent deliveries went to.
+  ///
+  /// **The two answers are kept apart, and folding them put a lie on screen.** They are separate
+  /// requests: the ledger says WHERE the batch will land, and `/locations` says what that place is
+  /// called. Returning early when only the second failed left the controller holding a real
+  /// destination while the bar read "Choose a location", so the screen denied knowing something it
+  /// was about to act on. The commit would have written to that shelf regardless.
+  Future<void> _loadDestination() async {
+    await _controller.loadDestination();
+
+    final dynamic response = await Http.get('/locations');
+
+    if (!mounted) return;
+
+    final dynamic rows = response.successful ? response['data'] : null;
+
+    setState(() {
+      _locations = <DestinationOption>[
+        if (rows is List)
+          for (final dynamic row in rows)
+            if (row is Map && row['id'] is String)
+              DestinationOption(
+                id: row['id'] as String,
+                name: (row['name'] as String?) ?? '',
+                // `full_path` is the hierarchy the picker's description line shows; it falls back to
+                // the name for a root, where there are no ancestors to print.
+                fullPath: (row['full_path'] as String?) ?? (row['name'] as String?) ?? '',
+                depth: (row['depth'] as num?)?.toInt() ?? 0,
+                productCount: (row['stock_count'] as num?)?.toInt() ?? 0,
+              ),
+      ];
+      _recentIds = _controller.recentDestinationIds;
+      _destinationPath = _pathOf(_controller.destinationId);
+    });
+  }
+
+  /// What the "where" row says, which is three states rather than two.
+  ///
+  /// A destination with no name is its own state: the batch has somewhere to go and this screen could
+  /// not find out what it is called. Reusing "Choose a location" there asks for something that is
+  /// already chosen, and reusing the path would mean inventing one.
+  String get _destinationLabel {
+    final String? path = _destinationPath;
+
+    if (path != null) return path;
+
+    return Lang.get(
+      _controller.destinationId == null
+          ? 'screens.scan.no_destination'
+          : 'screens.scan.destination_unnamed',
+    );
+  }
+
+  /// The path of a location id, or null when it names none of them.
+  String? _pathOf(String? id) {
+    if (id == null) return null;
+
+    for (final DestinationOption option in _locations) {
+      if (option.id == id) return option.fullPath;
+    }
+
+    return null;
+  }
+
+  /// Opens the shelf picker and moves the batch's destination to what it returns.
+  ///
+  /// The same shape the count screen's picker uses, including the `Builder`: without it the body is
+  /// built from the VIEW's context, which resolves to the route BEHIND the sheet, and tapping an
+  /// option pops the screen instead of the sheet.
+  Future<void> _pickDestination() async {
+    final String? current = _controller.destinationId;
+
+    final String? picked = await MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.scan.pick_destination_title'),
+      // The sheet is its own widget, so the search field's state belongs to it rather than to this
+      // screen: a `setState` here while the sheet is open would rebuild the scan queue behind it.
+      body: DestinationSheet(
+        options: _locations,
+        recentIds: _recentIds,
+        selectedId: current,
+      ),
+    );
+
+    if (picked == null || !mounted || picked == current) return;
+
+    _controller.chooseDestination(picked);
+    setState(() {
+      _destinationPath = _pathOf(picked);
+      // A destination the user just chose cannot still be the reason a write failed.
+      _error = null;
+    });
+  }
+
+  /// Writes the batch, keeping the server's own sentence when it refuses.
+  ///
+  /// **The rows are captured BEFORE the write, because the write consumes them.** A successful commit
+  /// removes every settled row from the batch, so a toast built afterwards would have nothing left to
+  /// count. The snapshot is exact rather than approximate: `commit()` filters the same set
+  /// synchronously before its first `await`, so no scan can land between the two.
+  Future<void> _commit() async {
+    // **A press that will be ignored must not be reported as a success.** `commit()` answers null for
+    // two different things: the write worked, and there was already one in flight. The button is
+    // disabled while committing, but a second tap inside the same frame lands before that rebuild, and
+    // it would have shown "Added to stock" for a press that did nothing while the real request was
+    // still out and could still fail.
+    if (_controller.isCommitting) return;
+
+    final List<ScanEntry> writing = _settled;
+    final String? destination = _destinationPath;
+
+    final String? failure = await _controller.commit();
+
+    if (!mounted) return;
+
+    setState(() => _error = failure);
+
+    // A refusal is reported in place, under the button, because the server's sentence names the
+    // reason and a toast would take it off screen after a few seconds.
+    if (failure == null) {
+      _reportWritten(writing, destination);
+    }
+  }
+
+  /// Says what the commit wrote, which was previously the one outcome with no feedback at all.
+  ///
+  /// **A one-row batch names the product and its count**, because that is the case the screen is used
+  /// for most: somebody scans one carton twice and the useful fact is the 2, not that "1 product" was
+  /// added. Several rows can only be counted as products.
+  ///
+  /// **No unit total across rows, and that is the same decision the write summary records.** Rows can
+  /// be in different units, so adding three kilos to four pieces produces a number that means
+  /// nothing. `2 × Pınar Süt 1 L` carries the count without claiming a unit.
+  void _reportWritten(List<ScanEntry> writing, String? destination) {
+    if (writing.isEmpty) return;
+
+    final String what = writing.length == 1
+        ? Lang.get('screens.scan.added_one', {
+            'count': writing.first.count,
+            'product': writing.first.productName ?? writing.first.barcode,
+          })
+        : plural('screens.scan.added_many', writing.length, {'count': writing.length});
+
+    MagicFeedback.success(
+      Lang.get('screens.scan.added_title'),
+      // The destination clause is dropped rather than faked when the locations list has not
+      // answered: the batch still landed somewhere real, and naming the wrong shelf is worse than
+      // naming none.
+      destination == null
+          ? Lang.get('screens.scan.added_plain', {'what': what})
+          : Lang.get('screens.scan.added_to', {'what': what, 'location': destination}),
+    );
   }
 
   @override
@@ -156,7 +350,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
       // the first one's lookup, so two labels in frame together resolved half a second apart while
       // the camera went on delivering frames. The controller already orders by scan sequence rather
       // than by arrival, which is what makes firing them together safe.
-      unawaited(_controller.scan(value, symbology: symbology));
+      unawaited(_scanThenPrompt(value, symbology));
     }
 
     _presence.prune(now);
@@ -166,6 +360,48 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     await _scanner.toggleTorch();
 
     if (mounted) setState(() => _torchOn = !_torchOn);
+  }
+
+  /// Scans, and opens the card for any read that is about to create a product.
+  ///
+  /// **Not only for a code that missed, and that is a correction.** The first version asked about an
+  /// unmatched row alone, so a barcode only the SHARED CATALOGUE knew slid into the queue with a name
+  /// nobody here had ever seen and became this tenant's own product on commit. A find is a claim about
+  /// somebody else's data, so it gets one look before it is adopted.
+  ///
+  /// **A product the tenant already owns still opens nothing**, which is what keeps this from becoming
+  /// the modal-per-read `barcode-and-catalog.md` rejects outright: unpacking twenty boxes of things
+  /// already in inventory produces twenty silent rows. [ScanEntry.needsAsking] draws that line at the
+  /// presence of a product id, and it draws the other one at [ScanEntry.asked]: the question is asked
+  /// once per ROW, so the second carton of a confirmed find increments it in silence.
+  ///
+  /// The sheet is skipped when one is already open, because a second read while the user is typing
+  /// would stack sheets over each other and the row behind the top one would be forgotten.
+  Future<void> _scanThenPrompt(String code, String? symbology) async {
+    await _controller.scan(code, symbology: symbology);
+
+    if (!mounted || _drafting) return;
+
+    // A plain loop rather than `firstWhereOrNull`, which needs `package:collection` and is not
+    // already a dependency of this app: one import for one lookup is not the trade.
+    ScanEntry? row;
+
+    for (final ScanEntry entry in _controller.entries) {
+      if (entry.barcode == code.trim() && entry.symbology == symbology) {
+        row = entry;
+        break;
+      }
+    }
+
+    if (row == null || !row.needsAsking) return;
+
+    _drafting = true;
+
+    try {
+      await _openDraft(row);
+    } finally {
+      _drafting = false;
+    }
   }
 
   void _onChanged() {
@@ -180,6 +416,70 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
 
   bool get hasScans => _controller.hasScans;
 
+  /// Opens the card for a row, prefilled with whatever the cascade found.
+  ///
+  /// **The title asks a different question depending on what came back**, because the two cases are
+  /// genuinely different work. With a name on screen the answer is a yes or a correction, so the card
+  /// asks whether it is right. With nothing, the user is the only source, so it asks what the thing is.
+  /// One title covering both read as an interrogation of an answer the app had already found.
+  ///
+  /// Returns nothing: the row is updated through the controller, so the queue and the batch stay one
+  /// source of truth even while a sheet is open above them.
+  Future<void> _openDraft(ScanEntry entry) async {
+    final bool found = entry.productName != null;
+
+    final ScanDraft? draft = await MSBottomSheet.show<ScanDraft>(
+      context,
+      title: Lang.get(found ? 'screens.scan.confirm_title' : 'screens.scan.draft_title'),
+      body: ScanDraftSheet(
+        barcode: entry.barcode,
+        name: entry.productName,
+        brand: entry.brand,
+        provenance: _provenanceOf(entry.source),
+        // A product the tenant already owns is shown rather than offered for renaming: the commit
+        // would send a card to create and the server refuses that, because the barcode is already
+        // linked to their product.
+        editable: entry.productId == null,
+        confirming: found,
+        // The row's OWN unit, so reopening a card does not hand back the default and quietly undo a
+        // unit the user already chose.
+        baseUnit: entry.unit,
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (draft == null) {
+      // **Closing the card still answers the question it asked.** The row keeps what the cascade said
+      // and will be written as it stands, so re-opening on the next read of the same box would ask
+      // about an answer the user has already looked at and accepted by leaving it alone.
+      _controller.markAsked(entry.barcode, symbology: entry.symbology);
+
+      return;
+    }
+
+    _controller.fill(
+      entry.barcode,
+      symbology: entry.symbology,
+      name: draft.name,
+      unit: draft.baseUnit,
+      brand: draft.brand,
+      contribute: draft.contribute,
+    );
+  }
+
+  /// Where an answer came from, already localised, or null when nothing answered.
+  ///
+  /// `own` prints nothing: a product the tenant already holds needs no provenance, which is the same
+  /// rule `ScanRow` follows for the row itself.
+  String? _provenanceOf(ScanSource source) => switch (source) {
+    ScanSource.own => null,
+    ScanSource.unmatched => null,
+    ScanSource.catalog => Lang.get('screens.scan.from_catalog'),
+    ScanSource.unverified => Lang.get('screens.scan.from_unverified'),
+    ScanSource.recalled => Lang.get('screens.scan.from_recalled'),
+  };
+
   /// Reads whatever the user typed, then clears the field for the next one.
   ///
   /// **Cleared after the call is dispatched, not after it returns.** A receiving bench types the
@@ -191,7 +491,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     if (code.isEmpty) return;
 
     _manual.clear();
-    unawaited(_controller.scan(code));
+    unawaited(_scanThenPrompt(code, null));
   }
 
 
@@ -199,8 +499,14 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   Widget build(BuildContext context) {
     return MSPageScaffold(
       title: Lang.get('screens.scan.title'),
+      // Pluralised on the SCAN count, which is the noun that inflects here: `:ready ready` is a
+      // count plus an adjective and agrees with nothing. One barcode read `1 barcodes · 1 ready`
+      // until Anılcan saw it on screen.
       subtitle: hasScans
-          ? Lang.get('screens.scan.subtitle', {'scans': _scans.length, 'ready': _settled.length})
+          ? plural('screens.scan.subtitle', _scans.length, {
+              'scans': _scans.length,
+              'ready': _settled.length,
+            })
           : Lang.get('screens.scan.subtitle_empty'),
       children: [
         // items-start so the capture column keeps its own height at lg instead of
@@ -213,11 +519,110 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
     );
   }
 
+  /// Whether both capture paths fit on screen together.
+  bool get _bothFit => MediaQuery.sizeOf(context).width >= _bothFitWidth;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // **A window widened from phone to desktop size puts the viewfinder back on screen**, and a camera
+    // stopped for the keyboard would be a black rectangle sitting there. Web is where this happens: it
+    // is the one platform whose window changes width under a running app. A rebuild is already in
+    // progress here, so the field is set directly rather than through `setState`.
+    if (_bothFit && _typing) {
+      _typing = false;
+      unawaited(_scanner.start());
+    }
+  }
+
+  /// Moves the phone's screen between the viewfinder and the digit field.
+  ///
+  /// **The camera is stopped rather than just hidden.** The controller outlives the widget, so removing
+  /// the preview from the tree leaves the stream open: the torch stays lit behind a keyboard nobody can
+  /// see past, and the battery goes on draining for a picture nothing is looking at.
+  Future<void> _setTyping(bool typing) async {
+    if (_typing == typing) return;
+
+    setState(() => _typing = typing);
+
+    if (typing) {
+      await _scanner.stop();
+
+      // Stopping releases the lamp, so the glyph would otherwise keep claiming a torch that is off.
+      if (mounted && _torchOn) setState(() => _torchOn = false);
+
+      return;
+    }
+
+    await _scanner.start();
+  }
+
   /// The two ways a barcode gets in: the camera, and typed digits.
+  ///
+  /// Branched in Dart rather than with `hidden lg:flex`, and that is the exception the anti-pattern
+  /// table allows rather than a lapse: the two arms differ in whether the CAMERA IS RUNNING, which a
+  /// className cannot say. Using both mechanisms would be two sources of truth for one decision, so
+  /// the width is read once, here.
   Widget _buildCapture() {
+    final bool bothFit = _bothFit;
+
     return WDiv(
       className: 'flex flex-col gap-4 w-full lg:flex-1',
-      children: [_buildViewfinder(), _buildCameraHint(), _buildManualEntry()],
+      children: [
+        if (!bothFit) _buildModeSwitch(),
+        if (bothFit || !_typing) ...[_buildViewfinder(), _buildCameraHint()],
+        if (bothFit || _typing) _buildManualEntry(),
+      ],
+    );
+  }
+
+  /// Which capture path has the phone's screen.
+  ///
+  /// A segmented control, which is the shape `design.md` names for adjacent choices: one container with
+  /// the selected segment raised inside it, so it reads as one control with a position rather than as
+  /// two things that happen to sit next to each other. The labels are nominal, because a segment names
+  /// a mode rather than issuing a command.
+  ///
+  /// **Built here rather than with `MSSegmentedControl`, and the reason is measured.** That control
+  /// exposes `root` and `item` classNames, but `item` lands on a `WDiv` INSIDE a `WAnchor`, so the flex
+  /// child of its row is the anchor and `flex-1` on `item` reaches the wrong box: `root: w-full`
+  /// stretched the track and left both segments content-sized at the left edge. Full width from the
+  /// caller is not expressible, so it belongs in that control as a PR to `magic_starter` rather than as
+  /// an edit from here.
+  ///
+  /// The layering is the pattern the anti-pattern table prescribes for exactly this: the outer `WDiv`
+  /// carries paint-only tokens, and a plain `Row` owns the main axis so `Expanded` is legal. A raw
+  /// `Expanded` inside a wind `flex` box asserts as `RenderBox was not laid out` instead.
+  Widget _buildModeSwitch() {
+    return WDiv(
+      className: 'w-full rounded-lg bg-surface-container-high p-1',
+      child: Row(
+        children: <Widget>[
+          Expanded(child: _modeSegment(Lang.get('screens.scan.mode_camera'), !_typing, false)),
+          Expanded(child: _modeSegment(Lang.get('screens.scan.mode_manual'), _typing, true)),
+        ],
+      ),
+    );
+  }
+
+  /// One segment, carrying the same signals the library control uses: the fill, a hairline shadow and
+  /// the text tone. Three together rather than the fill alone, which `design.md` asks for.
+  Widget _modeSegment(String label, bool isSelected, bool typing) {
+    return WAnchor(
+      onTap: () => unawaited(_setTyping(typing)),
+      semanticLabel: label,
+      child: WDiv(
+        className: isSelected
+            ? 'flex flex-row items-center justify-center px-3 py-2 rounded-md bg-surface shadow-sm'
+            : 'flex flex-row items-center justify-center px-3 py-2 rounded-md',
+        child: WText(
+          label,
+          className: isSelected
+              ? 'text-sm font-medium text-fg'
+              : 'text-sm font-medium text-fg-muted',
+        ),
+      ),
     );
   }
 
@@ -422,7 +827,7 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
   Widget _buildQueue() {
     return SectionCard(
       label: Lang.get('screens.scan.scanned_group'),
-      count: Lang.get('screens.scan.scan_count', {'count': _scans.length}),
+      count: plural('screens.scan.scan_count', _scans.length, {'count': _scans.length}),
       children: [
         for (final ScanEntry scan in _scans)
           ScanRow(
@@ -436,12 +841,15 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
             // and deliberately not what the tenant holds, so printing a stock figure here would
             // need a second request per scanned row, at a bench, while the camera is running.
             onHandFormatted: null,
-            // Stage 6 of the cascade found nothing anywhere, and typing or photographing the
-            // product is the only way forward. That is exactly what `ProductDraftView` is,
-            // and it had no entry point until now. A settled row goes nowhere yet.
-            onTap: scan.source == ScanSource.unmatched
-                ? () => MagicRoute.to('/draft')
-                : () {},
+            pending: scan.pending,
+            // **Every row opens the same sheet, and that is the point.** An unmatched one opens it
+            // empty because nothing anywhere knew the code; a found one opens it PREFILLED, because a
+            // catalogue answer can be wrong or in another language and the person holding the carton
+            // is the one who can see that. It used to navigate to `/draft`, which is a fixture screen
+            // that never learned the barcode.
+            // Null while the lookup is out, because there is nothing to confirm yet and a card
+            // opened now would be overwritten the moment the answer lands. The row still counts.
+            onTap: scan.pending ? null : () => unawaited(_openDraft(scan)),
           ),
       ],
     );
@@ -490,11 +898,16 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
             WDiv(
               className: 'flex flex-row items-center justify-between gap-3 py-1',
               children: [
-                WText(_destination, className: 'text-sm text-fg flex-auto min-w-0'),
+                WText(
+                  // Three states, not two: a named shelf, a first delivery with nothing chosen yet,
+                  // and a shelf the ledger knows whose name this screen could not load.
+                  _destinationLabel,
+                  className: 'flex-1 min-w-0 truncate text-sm text-fg',
+                ),
                 MSButton(
-                  onPressed: () {},
+                  onPressed: _pickDestination,
                   intent: ButtonIntent.ghost,
-                  className: 'justify-center',
+                  className: 'justify-center shrink-0',
                   child: WText(Lang.get('screens.scan.change')),
                 ),
               ],
@@ -507,20 +920,49 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
         ),
         // Products, never a quantity sum. The rows can be in different units, and adding
         // three kilos to four items produces a number that means nothing.
-        WText(
-          unmatched == 0
-              ? Lang.get('screens.scan.will_write', {'count': ready})
-              : Lang.get('screens.scan.will_write_partial', {'count': ready, 'unmatched': unmatched}),
-          className: 'text-sm text-fg-muted',
-        ),
+        //
+        // **Two fragments and a wrapper, rather than one string with two counts.** Products and
+        // unmatched barcodes inflect independently, so a single pipe would be wrong for every case
+        // where they differ, and `localization_test` guards exactly that shape.
+        WText(_writeSummary(ready, unmatched), className: 'text-sm text-fg-muted'),
         MSButton(
-          onPressed: () {},
+          // **`disabled` as well as a null callback**, because MSButton takes them separately: a
+          // null `onPressed` alone leaves the primary fill looking untouched, which this repo has
+          // already been bitten by once.
+          onPressed: _controller.isCommitting || ready == 0 ? null : _commit,
+          disabled: _controller.isCommitting || ready == 0,
           fullWidth: true,
           className: 'justify-center',
-          child: WText(Lang.get('screens.scan.submit', {'count': ready})),
+          child: WText(
+            _controller.isCommitting
+                ? Lang.get('screens.scan.submitting')
+                : plural('screens.scan.submit', ready, {'count': ready}),
+          ),
         ),
+        // The server's own sentence when it refused, because it names the reason: a barcode already
+        // in use, a serial-tracked product, a location that vanished. Replacing it with a generic
+        // line throws away the only useful part of a refusal.
+        if (_error != null) WText(_error!, className: 'text-sm text-expired'),
       ],
     );
+  }
+
+  /// What committing will write, and what it will leave behind.
+  ///
+  /// Both nouns are counted and they inflect on their own, so each is pluralised separately and the
+  /// wrapper key holds only the separator. Composing in Dart with a hardcoded comma would put copy
+  /// in a widget, which is what the catalogues exist to prevent.
+  String _writeSummary(int ready, int unmatched) {
+    final String written = plural('screens.scan.will_write', ready, {'count': ready});
+
+    if (unmatched == 0) {
+      return written;
+    }
+
+    return Lang.get('screens.scan.will_write_partial', {
+      'ready': written,
+      'unmatched': plural('screens.scan.unmatched_count', unmatched, {'unmatched': unmatched}),
+    });
   }
 
   /// The two camera paths that are not barcode reading, and what each one yields.

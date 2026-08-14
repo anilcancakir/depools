@@ -32,6 +32,36 @@ class ScanEntry {
   /// The unit the count is in.
   final String unit;
 
+  /// The brand, when a draft carried one. Never sent for a row the tenant already owns.
+  final String? brand;
+
+  /// Whether a created product goes to the shared catalogue (D117: ticked by default).
+  final bool contribute;
+
+  /// Whether the cascade is still being asked what this code is.
+  ///
+  /// **The row exists during its own lookup, and it used not to.** A read produced nothing on screen
+  /// until its answer arrived, which is around five milliseconds for a local hit and much longer for
+  /// stage 3: an Open Food Facts round trip, and a community row goes through `CatalogueTranslator`
+  /// synchronously on top of that. So a scan of something new looked ignored for as long as the
+  /// slowest stage took, at a bench where the next carton is already in the user's hands.
+  ///
+  /// Orthogonal to [source] rather than a value of it, because a pending row has no answer to be
+  /// trusted or distrusted: [source] says how far to believe a claim, and there is no claim yet.
+  final bool pending;
+
+  /// Whether the user has been shown this row's card.
+  ///
+  /// **A row that will CREATE a product is confirmed once, and this is what stops it being twice.**
+  /// A catalogue answer is a claim about somebody else's data, so it gets one look before it becomes
+  /// the tenant's own product. Without this flag the second read of the same carton would re-open the
+  /// sheet, which is the modal-per-scan `barcode-and-catalog.md` rejects outright.
+  ///
+  /// Records that the card was SHOWN, not that the user agreed with it: cancelling still counts, and
+  /// the row keeps whatever the cascade said. Tapping the row re-opens it for anybody who wants
+  /// another look.
+  final bool asked;
+
   /// When this code was SCANNED, as a monotonic counter rather than a clock.
   ///
   /// **The queue is ordered by this and not by arrival, because the two differ.** A local hit
@@ -53,8 +83,27 @@ class ScanEntry {
     this.productName,
     this.source = ScanSource.unmatched,
     this.productId,
-    this.unit = 'adet',
+    this.unit = defaultUnit,
+    this.brand,
+    this.contribute = true,
+    this.pending = false,
+    this.asked = false,
   });
+
+  /// What a row is counted in when nothing has said otherwise.
+  ///
+  /// Named rather than repeated, because three places compared against the literal and a fourth wrote
+  /// it: the constructor's default, the batch line deciding whether the unit was CHOSEN, and the row
+  /// widget.
+  ///
+  /// **`piece` and not `adet`, because that is what the server actually stores.** The batch endpoint
+  /// writes `piece` when a line omits the unit, so a client saying `adet` was describing a product the
+  /// database would record differently, and a draft saved untouched created one whose unit is not even
+  /// in the product form's own chips. The two halves disagreed in three places at once.
+  ///
+  /// It is still not the final answer: the vocabulary becomes a seeded `units` table on UN/ECE Rec 20
+  /// codes, so this constant is the one place that changes when it does.
+  static const String defaultUnit = 'piece';
 
   /// What makes two reads the same read.
   ///
@@ -69,7 +118,58 @@ class ScanEntry {
   String get key => keyOf(barcode, symbology);
 
   /// Whether this row will be written to stock as it stands.
-  bool get isSettled => source != ScanSource.unmatched;
+  ///
+  /// A pending row is not, and it is not unmatched either: it is a question still out. Folding the two
+  /// together would put a row still being looked up into the count of barcodes that could not be
+  /// matched, which is a claim about a lookup that has not failed.
+  bool get isSettled => !pending && source != ScanSource.unmatched;
+
+  /// Whether this row is waiting on the user before it can be written.
+  bool get needsUser => !pending && source == ScanSource.unmatched;
+
+  /// Whether the user should be shown this row's card now.
+  ///
+  /// **One predicate for two cases that look different and are the same.** A code nothing knew has to
+  /// be typed in, and a code only the shared catalogue knew has to be confirmed; both end in a product
+  /// being CREATED in this tenant's inventory off the back of something they have not seen. A product
+  /// they already own is the third case and asks nothing, which is what [productId] being present
+  /// means here.
+  bool get needsAsking => !pending && !asked && productId == null;
+
+  /// The same row, with what the user typed into the draft sheet.
+  ///
+  /// **The source becomes `own`, and that is not a lie about ownership.** `ScanSource` says how far to
+  /// trust the answer, not which table it came from: this one came from the person holding the
+  /// carton, which is the most authoritative source there is and the one `ScanRow` prints no
+  /// provenance for. `recalled` was the alternative and it means specifically a PAST answer of theirs
+  /// replayed, which this is not.
+  ///
+  /// **`productId` is CARRIED, and dropping it was a defect worth recording.** The first version set
+  /// it to null so every filled row committed as a card to create. For a catalogue row that is right
+  /// and is the whole feature. For a row the tenant already OWNS it is a guaranteed 422: the barcode
+  /// is already linked to their product, and `BarcodeLinker` refuses a second one by design. So the
+  /// sheet does not offer to rename an owned product, and this keeps the id that makes the commit
+  /// send an id.
+  ScanEntry filled({
+    required String name,
+    required String unit,
+    String? brand,
+    bool contribute = true,
+  }) => ScanEntry(
+    barcode: barcode,
+    symbology: symbology,
+    count: count,
+    sequence: sequence,
+    productName: name,
+    source: ScanSource.own,
+    productId: productId,
+    unit: unit,
+    brand: brand,
+    contribute: contribute,
+    // The card has been seen, so a repeat read of the same carton increments this row silently
+    // instead of asking the same question again.
+    asked: true,
+  );
 
   /// The same row scanned once more, taking the new read's place in the queue.
   ///
@@ -86,6 +186,10 @@ class ScanEntry {
     int? sequence,
     String? productId,
     String? unit,
+    String? brand,
+    bool? contribute,
+    bool? pending,
+    bool? asked,
   }) => ScanEntry(
     barcode: barcode,
     symbology: symbology,
@@ -95,6 +199,10 @@ class ScanEntry {
     count: count ?? this.count,
     productId: productId ?? this.productId,
     unit: unit ?? this.unit,
+    brand: brand ?? this.brand,
+    contribute: contribute ?? this.contribute,
+    pending: pending ?? this.pending,
+    asked: asked ?? this.asked,
   );
 
   /// The row the cascade's answer describes.

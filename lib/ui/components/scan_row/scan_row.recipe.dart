@@ -27,6 +27,11 @@ import 'package:magic/magic.dart';
 /// `unverified` sits between them. It will be written, so it is not attention, but it
 /// came from a source `barcode-and-catalog.md` requires be presented as unverified, so it
 /// is not silent either.
+///
+/// `pending` is the fourth look and it is a fact about the LOOKUP rather than about the
+/// answer, which is why it is a state here and not a `ScanSource`. The row used to appear
+/// only once its answer landed, so a stage-3 read (an Open Food Facts round trip, plus a
+/// synchronous catalogue translation) showed nothing at all for as long as that took.
 WindSlotRecipe scanRowRecipe() {
   return const WindSlotRecipe(
     slots: {
@@ -49,6 +54,10 @@ WindSlotRecipe scanRowRecipe() {
         'settled': {'icon': 'text-fg-disabled'},
         'unverified': {'icon': 'text-fg-muted'},
         'attention': {'icon': 'text-ai'},
+        // A question still out, so the row leads with the barcode like `attention` does and takes
+        // the muted tone: it is not asking for anything yet, and it must not pull the eye of somebody
+        // scanning the next carton.
+        'pending': {'icon': 'text-fg-muted', 'prompt': 'text-sm text-fg-muted'},
       },
     },
     defaultVariants: {'state': 'settled'},

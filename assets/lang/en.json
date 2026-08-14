@@ -804,7 +804,7 @@
     },
     "scan": {
       "title": "Scan a barcode",
-      "subtitle": ":scans barcodes · :ready ready",
+      "subtitle": ":scans barcode · :ready ready|:scans barcodes · :ready ready",
       "continuous": "Keep scanning",
       "camera_on": "Camera on",
       "camera_last": "Camera on · last read :code",
@@ -812,15 +812,15 @@
       "barcode": "Barcode",
       "checksum": "The check digit is verified",
       "scanned_group": "Scanned",
-      "scan_count": ":count barcodes",
+      "scan_count": ":count barcode|:count barcodes",
       "empty_title": "Nothing scanned yet",
       "empty_description": "Every barcode you read is added here. Reading the same one again does not add a row, it raises the count on the row already there.",
       "where_group": "Where",
       "change": "Change",
       "where_note": "The whole batch goes here, and can be moved between locations afterwards",
-      "will_write": ":count products will be written to stock",
-      "will_write_partial": ":count products will be written to stock, :unmatched barcodes could not be matched",
-      "submit": "Add :count products",
+      "will_write": ":count product will be written to stock|:count products will be written to stock",
+      "will_write_partial": ":ready, :unmatched",
+      "submit": "Add :count product|Add :count products",
       "other_ways": "Other ways to use the camera",
       "from_photo": "Identify from a photo",
       "from_photo_note": "One product · opens a draft card",
@@ -834,7 +834,29 @@
       "torch_on": "Turn on the torch",
       "torch_off": "Turn off the torch",
       "camera_hint": "Point the camera at a barcode",
-      "barcode_placeholder": "13 digits"
+      "barcode_placeholder": "13 digits",
+      "no_destination": "Choose a location",
+      "pick_destination_title": "Where does this batch go?",
+      "pick_destination": "Put this batch in :path",
+      "current_destination": "This batch goes to :path",
+      "choose_destination": "Choose a location first",
+      "nothing_to_write": "Nothing is ready to be written yet",
+      "submitting": "Adding",
+      "write_failed": "The batch could not be added",
+      "draft_title": "What is this?",
+      "from_catalog": "From the shared catalogue",
+      "from_unverified": "From Open Food Facts, unconfirmed",
+      "from_recalled": "Your own earlier answer",
+      "unmatched_count": ":unmatched barcode could not be matched|:unmatched barcodes could not be matched",
+      "added_title": "Added to stock",
+      "added_one": ":count × :product",
+      "added_many": ":count product|:count products",
+      "added_to": ":what added to :location",
+      "added_plain": ":what added to stock",
+      "confirm_title": "Is this it?",
+      "mode_camera": "Camera",
+      "mode_manual": "By hand",
+      "destination_unnamed": "Location name unavailable"
     },
     "search": {
       "title": "Search",
@@ -1094,7 +1116,9 @@
       "new_unverified": "New product · Unverified",
       "new_manual": "New product · Entered by hand",
       "unmatched": "Not matched",
-      "unmatched_label": ":barcode was not matched, tap to fix it"
+      "unmatched_label": ":barcode was not matched, tap to fix it",
+      "pending": "Looking it up",
+      "pending_label": ":barcode is being looked up"
     },
     "shelf_candidate_row": {
       "unrecognised": "Not recognised",
@@ -1129,6 +1153,30 @@
       "confirm_recorded": "same as record",
       "confirm_recorded_figure": "same as :figure",
       "confirm_recorded_for": "Count :name as the record says"
+    },
+    "destination_sheet": {
+      "recent_group": "RECENT",
+      "all_group": "ALL LOCATIONS",
+      "search": "Search locations",
+      "no_match": "No location matches",
+      "pick": "Put this batch in :path",
+      "current": "This batch goes to :path"
+    },
+    "scan_draft": {
+      "barcode_label": "BARCODE",
+      "product_group": "Product",
+      "name_placeholder": "Product name",
+      "name_required": "A name is needed to save this",
+      "unit_label": "Counted in",
+      "brand_label": "Brand",
+      "optional": "Optional",
+      "contribute_label": "Share with the catalogue",
+      "contribute_note": "The text only, never your photos",
+      "save": "Save",
+      "cancel": "Cancel",
+      "owned_note": "Already in your products. Rename it on the product screen.",
+      "done": "Done",
+      "confirm": "Confirm"
     }
   }
 }

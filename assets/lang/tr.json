@@ -819,7 +819,7 @@
       "change": "Değiştir",
       "where_note": "Tüm parti buraya girer, sonrasında konumlar arası taşınabilir",
       "will_write": ":count ürün stoğa yazılacak",
-      "will_write_partial": ":count ürün stoğa yazılacak, :unmatched barkod eşleştirilemedi",
+      "will_write_partial": ":ready, :unmatched",
       "submit": ":count ürünü ekle",
       "other_ways": "Kamerayla başka yollar",
       "from_photo": "Fotoğraftan tanıt",
@@ -834,7 +834,29 @@
       "torch_on": "Işığı aç",
       "torch_off": "Işığı kapat",
       "camera_hint": "Kamerayı barkoda tutun",
-      "barcode_placeholder": "13 hane"
+      "barcode_placeholder": "13 hane",
+      "no_destination": "Konum seçin",
+      "pick_destination_title": "Bu parti nereye gidiyor?",
+      "pick_destination": "Bu partiyi :path konumuna koyun",
+      "current_destination": "Bu parti :path konumuna gidiyor",
+      "choose_destination": "Önce bir konum seçin",
+      "nothing_to_write": "Henüz yazılacak bir şey yok",
+      "submitting": "Ekleniyor",
+      "write_failed": "Parti eklenemedi",
+      "draft_title": "Bu nedir?",
+      "from_catalog": "Paylaşılan katalogdan",
+      "from_unverified": "Open Food Facts, doğrulanmamış",
+      "from_recalled": "Kendi önceki cevabınız",
+      "unmatched_count": ":unmatched barkod eşleştirilemedi",
+      "added_title": "Stoğa eklendi",
+      "added_one": ":count × :product",
+      "added_many": ":count ürün",
+      "added_to": ":location konumuna :what eklendi",
+      "added_plain": ":what stoğa eklendi",
+      "confirm_title": "Bu mu?",
+      "mode_camera": "Kamera",
+      "mode_manual": "Elle",
+      "destination_unnamed": "Konum adı alınamadı"
     },
     "search": {
       "title": "Ara",
@@ -1094,7 +1116,9 @@
       "new_unverified": "Yeni ürün · Doğrulanmadı",
       "new_manual": "Yeni ürün · Elle girildi",
       "unmatched": "Eşleştirilemedi",
-      "unmatched_label": ":barcode eşleştirilemedi, düzeltmek için dokunun"
+      "unmatched_label": ":barcode eşleştirilemedi, düzeltmek için dokunun",
+      "pending": "Aranıyor",
+      "pending_label": ":barcode aranıyor"
     },
     "shelf_candidate_row": {
       "unrecognised": "Tanınamadı",
@@ -1129,6 +1153,30 @@
       "confirm_recorded": "kayıtla aynı",
       "confirm_recorded_figure": "kayıtla aynı: :figure",
       "confirm_recorded_for": ":name için kayıttaki miktarı gir"
+    },
+    "destination_sheet": {
+      "recent_group": "SON KULLANILAN",
+      "all_group": "TÜM KONUMLAR",
+      "search": "Konum ara",
+      "no_match": "Eşleşen konum yok",
+      "pick": "Bu partiyi :path konumuna koyun",
+      "current": "Bu parti :path konumuna gidiyor"
+    },
+    "scan_draft": {
+      "barcode_label": "BARKOD",
+      "product_group": "Ürün",
+      "name_placeholder": "Ürün adı",
+      "name_required": "Kaydetmek için bir ad gerekli",
+      "unit_label": "Sayım birimi",
+      "brand_label": "Marka",
+      "optional": "İsteğe bağlı",
+      "contribute_label": "Katalogla paylaş",
+      "contribute_note": "Yalnızca metin, fotoğraflarınız asla",
+      "save": "Kaydet",
+      "cancel": "Vazgeç",
+      "owned_note": "Ürünlerinizde zaten var. Adını ürün ekranından değiştirin.",
+      "done": "Tamam",
+      "confirm": "Onayla"
     }
   }
 }

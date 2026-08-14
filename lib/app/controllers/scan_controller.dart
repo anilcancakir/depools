@@ -40,22 +40,6 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// green because no test had a resolve in flight when it ran.
   int _generation = 0;
 
-  /// Reads that arrived for a code whose lookup had not returned yet.
-  ///
-  /// **The row does not exist during its own lookup, so there is nothing to increment.** A second
-  /// read of the same carton while a stage-3 lookup is in flight found no existing row and started
-  /// a second one: two rows for one product, and a second HTTP request for an answer already on its
-  /// way. The camera cannot do this inside its 800ms gate, but a typed entry has no gate at all and
-  /// a slow lookup outlasts the gate anyway.
-  ///
-  /// Counted here and applied when the answer lands, keyed the same way the batch is.
-  ///
-  /// **The SEQUENCE travels with the count, and the first version dropped it.** A row that banked a
-  /// repeat kept the first scan's sequence, so it could sit below rows scanned between the two
-  /// reads: the newest-first invariant broken by the very fix that closed the duplicate row.
-  final Map<String, ({int repeats, int lastSequence})> _pendingRepeats =
-      <String, ({int repeats, int lastSequence})>{};
-
   /// The batch as the view reads it.
   List<ScanEntry> get entries => List<ScanEntry>.unmodifiable(_entries);
 
@@ -63,7 +47,11 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   bool get hasScans => _entries.isNotEmpty;
 
   /// How many rows still need the user before the batch can be written.
-  int get unmatchedCount => _entries.where((ScanEntry e) => !e.isSettled).length;
+  ///
+  /// **Not `!isSettled`, because a pending row is neither.** That reading counted every lookup still
+  /// in flight as a barcode that could not be matched, so the line above the button accused the
+  /// cascade of failing at a question it had not finished answering.
+  int get unmatchedCount => _entries.where((ScanEntry e) => e.needsUser).length;
 
   /// How many units the batch holds, across every row.
   int get totalUnits => _entries.fold(0, (int sum, ScanEntry e) => sum + e.count);
@@ -97,31 +85,31 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       return;
     }
 
-    final String key = ScanEntry.keyOf(code, symbology);
+    // **The row goes in before the question goes out**, so a read is on screen in the same frame the
+    // user scanned it rather than whenever the slowest stage of the cascade answers.
+    //
+    // This also DELETED a mechanism. The class used to bank repeat reads in a side map, for the
+    // reason its own comment gave: "the row does not exist during its own lookup, so there is
+    // nothing to increment". Now it does exist, so the plain repeat branch above catches a second
+    // read and the map has nothing left to do. Two scans of one code cannot both miss the branch,
+    // because everything up to the first `await` here runs in one turn of the event loop.
+    _entries.add(
+      ScanEntry(
+        barcode: code,
+        symbology: symbology,
+        count: 1,
+        sequence: sequence,
+        pending: true,
+      ),
+    );
+    _sort();
+    _publish();
 
-    // Already being looked up: bank the read rather than starting a second lookup for an answer
-    // that is already in flight.
-    final ({int repeats, int lastSequence})? pending = _pendingRepeats[key];
-
-    if (pending != null) {
-      // This read's own sequence, because a repeat IS a scan and the row it lands on has to come
-      // back to the front.
-      _pendingRepeats[key] = (repeats: pending.repeats + 1, lastSequence: sequence);
-
-      return;
-    }
-
-    _pendingRepeats[key] = (repeats: 0, lastSequence: sequence);
-
-    // **No in-flight flag, and the review was right that the one here was broken.** It could be
-    // cleared by whichever resolve finished first while another was still running, and a throw
-    // would have left it stuck on. What made it harmless is worse than the bug: nothing read it.
-    // So it is gone rather than fixed, which is also what removes the defect.
-    // `finally` rather than a catch: nothing is swallowed, and the key MUST come out whatever
-    // happens. Left behind by a throw it would bank every later read of that code forever, against
-    // a row that never arrives, which is the same shape as the flag defect the last round found.
     final int generation = _generation;
 
+    // `finally` rather than a catch, so nothing is swallowed: a throw from the network layer must
+    // still take the row out of its pending state, or it sits there as a question that will never be
+    // answered and cannot be committed either.
     try {
       final ScanEntry resolved = await _resolve(code, symbology, sequence);
 
@@ -130,22 +118,61 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
         return;
       }
 
-      // Whatever arrived while this was in flight belongs to this row, including its place in the
-      // queue: the last read is what decides where the row sits.
-      final ({int repeats, int lastSequence}) banked =
-          _pendingRepeats[key] ?? (repeats: 0, lastSequence: sequence);
-
-      _entries.add(
-        banked.repeats == 0
-            ? resolved
-            : resolved.copyWith(count: 1 + banked.repeats, sequence: banked.lastSequence),
-      );
-      _sort();
-      _publish();
+      _replacePending(code, symbology, resolved);
     } finally {
-      _pendingRepeats.remove(key);
+      if (generation == _generation) {
+        _settleAbandoned(code, symbology);
+      }
     }
   }
+
+  /// Puts the cascade's answer onto the row that was holding the place for it.
+  ///
+  /// **A row that is no longer pending is left alone, and that is not defensive coding.** The user can
+  /// open the card and answer it while the lookup is still out, and when the answer then lands it
+  /// would overwrite what they typed with what a catalogue guessed. The person holding the carton
+  /// outranks the cascade.
+  ///
+  /// The count and the queue position come from the ROW rather than from the answer, because both are
+  /// facts about scanning that accumulated while the question was out.
+  void _replacePending(String code, String? symbology, ScanEntry resolved) {
+    final int at = _indexOf(code, symbology);
+
+    if (at < 0) {
+      return;
+    }
+
+    final ScanEntry row = _entries[at];
+
+    if (!row.pending) {
+      return;
+    }
+
+    _entries[at] = resolved.copyWith(count: row.count, sequence: row.sequence);
+    _sort();
+    _publish();
+  }
+
+  /// Turns a row whose lookup never came back into one the user can finish.
+  ///
+  /// Only reachable when [_resolve] threw, since a failed response already resolves to an unmatched
+  /// row. `unmatched` is the honest landing place either way: the batch survives, and the row says it
+  /// needs somebody, which is exactly true.
+  void _settleAbandoned(String code, String? symbology) {
+    final int at = _indexOf(code, symbology);
+
+    if (at < 0 || !_entries[at].pending) {
+      return;
+    }
+
+    _entries[at] = _entries[at].copyWith(pending: false, source: ScanSource.unmatched);
+    _publish();
+  }
+
+  /// Where a code sits in the batch, or -1.
+  int _indexOf(String code, String? symbology) => _entries.indexWhere(
+    (ScanEntry e) => e.barcode == code && e.symbology == symbology,
+  );
 
   /// Newest scan first, by sequence.
   ///
@@ -162,6 +189,225 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
     _entries.sort((ScanEntry a, ScanEntry b) => b.sequence.compareTo(a.sequence));
   }
 
+  /// Where the batch will land, and how it was chosen.
+  ///
+  /// Null until [loadDestination] has answered, and null AFTER it when this tenant has never
+  /// received anything: a first delivery is the ordinary case, so the screen asks for a location
+  /// rather than showing an error.
+  String? _destinationId;
+
+  String? get destinationId => _destinationId;
+
+  /// The recent destinations, newest first, for the picker's top section.
+  List<String> _recentDestinationIds = const <String>[];
+
+  List<String> get recentDestinationIds => _recentDestinationIds;
+
+  /// Whether a commit is in flight, so the button cannot be pressed twice.
+  ///
+  /// **Read, unlike the flag this class carried before.** That one existed for a spinner nobody
+  /// built and was deleted in review; this one guards a write, and a second press would append the
+  /// whole batch to the ledger again.
+  bool _committing = false;
+
+  bool get isCommitting => _committing;
+
+  /// Asks where the last delivery was put away.
+  ///
+  /// Habit rather than category affinity, which is the departure the screen's own docblock records:
+  /// a mixed batch cannot ask "where does this category go", and where the last delivery landed is a
+  /// fact about how the business works.
+  Future<void> loadDestination() async {
+    final dynamic response = await Http.get('/stock/recent-receiving-locations');
+
+    if (!response.successful) {
+      return;
+    }
+
+    final dynamic data = response['data'];
+
+    if (data is! Map) return;
+
+    final dynamic ids = data['location_ids'];
+
+    if (ids is! List) return;
+
+    _recentDestinationIds = <String>[
+      for (final dynamic id in ids)
+        if (id is String) id,
+    ];
+    // **The first recent IS the default, rather than a second answer that could disagree with it.**
+    // Only when nothing is chosen yet: re-loading must not move a destination the user picked.
+    _destinationId ??= _recentDestinationIds.isEmpty ? null : _recentDestinationIds.first;
+    notifyListeners();
+  }
+
+  /// Chooses where the batch will land.
+  void chooseDestination(String locationId) {
+    _destinationId = locationId;
+    notifyListeners();
+  }
+
+  /// Writes every settled row into the destination, or returns the server's refusal.
+  ///
+  /// **One request for the whole batch**, because the endpoint is one request: a dropped connection
+  /// halfway down a pile of boxes would otherwise leave some stock written and no way for the user
+  /// to tell which without re-counting the pile they just put away.
+  ///
+  /// Unmatched rows are left behind rather than sent. They have no product and no name, so there is
+  /// nothing to create; the count above the button already says how many are waiting, and the batch
+  /// survives the commit so the user can finish them.
+  Future<String?> commit() async {
+    if (_committing) {
+      return null;
+    }
+
+    final String? destination = _destinationId;
+
+    if (destination == null) {
+      return Lang.get('screens.scan.choose_destination');
+    }
+
+    final List<ScanEntry> settled = _entries.where((ScanEntry e) => e.isSettled).toList();
+
+    if (settled.isEmpty) {
+      return Lang.get('screens.scan.nothing_to_write');
+    }
+
+    // **What was posted, keyed and counted, because the batch keeps moving while the request is out.**
+    // Sweeping `isSettled` on the way back removed whatever happened to be settled by THEN, which is
+    // not the same set: a row still being looked up when the button was pressed becomes settled when
+    // its answer lands mid-request, and left with the others it would be deleted without ever having
+    // been written. The count is here for the narrower half of the same problem, a repeat read landing
+    // during the request, where the row was written N times and now says N+1.
+    final Map<String, int> posted = <String, int>{
+      for (final ScanEntry entry in settled) entry.key: entry.count,
+    };
+
+    _committing = true;
+    notifyListeners();
+
+    try {
+      final dynamic response = await Http.post(
+        '/stock/receive-batch',
+        data: <String, dynamic>{
+          'location_id': destination,
+          'lines': settled.map(_lineOf).toList(),
+        },
+      );
+
+      if (!response.successful) {
+        // The server's own sentence, because it names the reason: a barcode already in use, a
+        // serial-tracked product, a location that vanished. Replacing it with a generic line throws
+        // away the only useful part of a refusal.
+        final dynamic message = response['message'];
+
+        return message is String && message.isNotEmpty
+            ? message
+            : Lang.get('screens.scan.write_failed');
+      }
+
+      // **Only what was written leaves the batch, and only as much of it as was written.** An
+      // unmatched row still needs the user, and clearing everything would silently discard the work
+      // of finding it. A row scanned again while the request was out keeps the difference, so the
+      // carton that arrived too late to be in this batch is still in the next one.
+      _entries.removeWhere((ScanEntry e) => (posted[e.key] ?? 0) >= e.count);
+
+      for (int i = 0; i < _entries.length; i++) {
+        final int sent = posted[_entries[i].key] ?? 0;
+
+        if (sent > 0) {
+          _entries[i] = _entries[i].copyWith(count: _entries[i].count - sent);
+        }
+      }
+
+      _publish();
+
+      return null;
+    } finally {
+      _committing = false;
+      notifyListeners();
+    }
+  }
+
+  /// One batch line: an id when the tenant owns the product, the card to create when they do not.
+  ///
+  /// A catalogue hit has no `productId`, which is not a gap in the answer: it means the cascade
+  /// said what the thing IS and this tenant has never held one. `barcode-and-catalog.md` says such a
+  /// row is written as it stands, so the line carries what the endpoint needs to create it.
+  Map<String, dynamic> _lineOf(ScanEntry entry) {
+    if (entry.productId != null) {
+      return <String, dynamic>{
+        'product_id': entry.productId,
+        'quantity': entry.count,
+      };
+    }
+
+    return <String, dynamic>{
+      'name': entry.productName,
+      'quantity': entry.count,
+      'barcode': entry.barcode,
+      if (entry.symbology != null) 'symbology': entry.symbology,
+      if (entry.brand != null) 'brand': entry.brand,
+      // Only when the row's unit was actually chosen. Sending the model's default would make a
+      // catalogue row claim a unit the catalogue never carried, and `base_unit` is the one field
+      // D54 says stops being freely editable the moment a movement exists.
+      //
+      // **The condition used to carry `brand != null ||` and that contradicted this comment**, which
+      // a review round caught: a row that supplied only a brand sent a unit claim nobody made. It was
+      // a proxy for "the user filled the card" from before there was a real signal for that, and it
+      // changed no outcome, because the server falls back to the same value. Now the code says what
+      // the comment says.
+      if (entry.unit != ScanEntry.defaultUnit) 'base_unit': entry.unit,
+      'contribute': entry.contribute,
+    };
+  }
+
+  /// Replaces a row with what the draft sheet returned.
+  ///
+  /// Keyed on `(barcode, symbology)` rather than on an index, because the queue re-sorts while the
+  /// sheet is open: a scan landing behind it moves every row, and an index captured before would
+  /// write the draft onto somebody else's carton.
+  void fill(
+    String barcode, {
+    String? symbology,
+    required String name,
+    required String unit,
+    String? brand,
+    bool contribute = true,
+  }) {
+    final int at = _entries.indexWhere(
+      (ScanEntry e) => e.barcode == barcode && e.symbology == symbology,
+    );
+
+    if (at < 0) return;
+
+    _entries[at] = _entries[at].filled(
+      name: name,
+      unit: unit,
+      brand: brand,
+      contribute: contribute,
+    );
+    _publish();
+  }
+
+  /// Records that the user has seen this row's card, without changing what it says.
+  ///
+  /// **The cancel path, and it has to record something or the sheet reopens per carton.** Somebody who
+  /// looks at a catalogue find and closes it has answered the question that was asked: the row keeps
+  /// whatever the cascade said and will be written as it stands. Asking again on the next read of the
+  /// same box would be the modal-per-scan the feature document rejects.
+  void markAsked(String barcode, {String? symbology}) {
+    final int at = _indexOf(barcode, symbology);
+
+    if (at < 0 || _entries[at].asked) {
+      return;
+    }
+
+    _entries[at] = _entries[at].copyWith(asked: true);
+    _publish();
+  }
+
   /// Removes a row from the batch.
   void remove(String barcode, {String? symbology}) {
     _entries.removeWhere(
@@ -173,11 +419,10 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
   /// Empties the batch, after it has been written or abandoned.
   void clear() {
     _entries.clear();
-    // Banked reads belong to the batch that is going away. Left behind, they would land on the next
-    // batch's first row for a carton nobody scanned into it.
-    _pendingRepeats.clear();
-    // And a lookup already in flight belongs to it too, so its answer is dropped rather than
-    // appended to the fresh batch.
+    // A lookup already in flight belongs to the batch that is going away, so its answer is dropped
+    // rather than appended to the fresh batch. This also covers the pending ROW it was holding: the
+    // row went with `_entries`, and the generation check is what stops the late answer from landing
+    // on a same-code row somebody scans into the next batch.
     _generation++;
     _publish();
   }
@@ -226,6 +471,8 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
     }
 
     final dynamic productId = data['product_id'];
+    final dynamic brand = data['brand'];
+    final dynamic unitHint = data['unit_hint'];
 
     return ScanEntry(
       barcode: code,
@@ -235,6 +482,19 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       productName: name,
       source: ScanEntry.sourceOf(data['source'] as String?),
       productId: productId is String ? productId : null,
+      // **Carried, and it was being dropped.** `ProductCandidate` has sent a brand since the endpoint
+      // was written, and the confirm card renders a Brand field, so a find whose brand the catalogue
+      // knew presented as one that had none: the user either retypes what we already had or the
+      // product is created without it. Found by driving the screen, not by reading it.
+      brand: brand is String && brand.trim().isNotEmpty ? brand : null,
+      // **Only where a source actually suggested one**, which in practice is stage 1: the shared
+      // catalogue deliberately holds no unit column, because what a product is COUNTED in is the
+      // tenant's decision and a shop counting cartons and a cafe counting litres are both right about
+      // the same milk. Dropping it made a row for the tenant's OWN product print the model's default
+      // instead of the unit that product is actually kept in.
+      unit: unitHint is String && unitHint.trim().isNotEmpty
+          ? unitHint
+          : ScanEntry.defaultUnit,
     );
   }
 

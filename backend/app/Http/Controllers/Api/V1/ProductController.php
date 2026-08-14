@@ -8,6 +8,7 @@ use App\Models\Barcode;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\Scopes\TeamScope;
+use App\Services\BarcodeLinker;
 use App\Services\CatalogueContributor;
 use App\Services\ProductListQuery;
 use App\Support\Gtin;
@@ -17,7 +18,6 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Products.
@@ -27,7 +27,10 @@ use Illuminate\Validation\ValidationException;
  */
 final class ProductController extends Controller
 {
-    public function __construct(private readonly CatalogueContributor $contributor) {}
+    public function __construct(
+        private readonly CatalogueContributor $contributor,
+        private readonly BarcodeLinker $barcodes,
+    ) {}
 
     /**
      * How many rows a page holds when the caller does not say.
@@ -152,9 +155,12 @@ final class ProductController extends Controller
             'contribute' => ['boolean'],
         ]);
 
-        $barcode = $this->barcodeFrom($data);
+        $barcode = $this->barcodes->forLine(
+            (string) ($data['barcode'] ?? ''),
+            (string) ($data['symbology'] ?? ''),
+        );
 
-        $this->refuseIfAlreadyLinked($barcode);
+        $this->barcodes->refuseIfAlreadyLinked($barcode);
 
         // **Atomic, so a losing race cannot leave a half-written product.** Without this the product
         // row was written and the pivot insert then threw, and the client got a 500 for a product
@@ -201,77 +207,6 @@ final class ProductController extends Controller
         }
 
         return new ProductResource($product);
-    }
-
-    /**
-     * Refuses a barcode this tenant has already pointed at a different product.
-     *
-     * `product_barcode` is `unique(team_id, barcode_id)` and the constraint is right: one tenant
-     * pointing one code at two products makes `products/by-barcode` unanswerable, so it is genuinely
-     * ambiguous rather than merely awkward. What was wrong was WHERE the refusal happened. The
-     * constraint fired after `Product::create()`, so the client received a 500 for a product that had
-     * already been written, and the message named a pivot table rather than the field they filled in.
-     */
-    private function refuseIfAlreadyLinked(?Barcode $barcode): void
-    {
-        if ($barcode === null) {
-            return;
-        }
-
-        $existing = ProductBarcode::query()
-            ->where('team_id', TeamScope::currentTeamId())
-            ->where('barcode_id', $barcode->getKey())
-            ->value('product_id');
-
-        if ($existing === null) {
-            return;
-        }
-
-        throw ValidationException::withMessages([
-            // Names the product it collides with, because "already in use" without saying where
-            // leaves the user searching their own catalogue for it.
-            'barcode' => 'This barcode already belongs to '
-                .(Product::query()->whereKey($existing)->value('name') ?? 'another product').'.',
-        ]);
-    }
-
-    /**
-     * The barcode row a create names, or null when it names none.
-     *
-     * A GTIN identifies itself and a non-GTIN label does not, which is why the symbology is required
-     * for one and meaningless for the other. A code that is neither is dropped rather than refused:
-     * the product is what the user asked for, and failing the whole create over a barcode we cannot
-     * model would lose the card they just typed.
-     *
-     * @param  array<string, mixed>  $data
-     */
-    private function barcodeFrom(array $data): ?Barcode
-    {
-        $code = trim((string) ($data['barcode'] ?? ''));
-
-        if ($code === '') {
-            return null;
-        }
-
-        $symbology = trim((string) ($data['symbology'] ?? ''));
-
-        // **The SHAPE decides, not whether a symbology arrived, because that is what the reader
-        // does.** `Barcode::findForScan()` tests the shape first and sends anything digits-only to
-        // the `gtin` column whatever symbology it was given. Writing a GTIN through `forCode()`
-        // because the client helpfully reported `ean13` therefore stored a row the cascade could
-        // never find again: the scan that created the product would miss on every later scan, which
-        // is the one thing this feature exists to prevent. A scanner SDK reporting the format is the
-        // ordinary case, not an odd one.
-        //
-        // `Gtin::couldBe` and not a bare try/catch, because `fromScan` strips letters rather than
-        // refusing them: `SHELF-A-0042` came through it as `00000000000042`.
-        if (Gtin::couldBe($code)) {
-            return Barcode::forGtin($code);
-        }
-
-        // A non-GTIN label needs its symbology, because the same characters as Code128 and as a QR
-        // are two different labels. Without one there is nothing to record.
-        return $symbology === '' ? null : Barcode::forCode($code, $symbology);
     }
 
     /**

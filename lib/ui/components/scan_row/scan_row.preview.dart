@@ -5,11 +5,11 @@ import 'scan_row.dart';
 
 /// Static variant-matrix preview for [ScanRow].
 ///
-/// All five sources, plus the two cases that only show up in a real batch: a product the
-/// tenant HAS but has run out of (`Mevcut: 0 adet`, which is the most useful thing a scan
-/// can tell you), and a barcode scanned six times that stayed one row.
+/// All five sources plus the pending state, and the two cases that only show up in a real
+/// batch: a product the tenant HAS but has run out of (`Mevcut: 0 adet`, which is the most
+/// useful thing a scan can tell you), and a barcode scanned six times that stayed one row.
 ///
-/// Two things to check here. The left edge must be dead straight down all six rows: the
+/// Two things to check here. The left edge must be dead straight down all seven rows: the
 /// glyph column is fixed-width precisely so a row with a different icon does not shift its
 /// own name, and this component exists in a codebase where that mistake was made twice.
 /// And the barcodes must line up digit under digit, because the whole reason they render
@@ -65,6 +65,11 @@ class ScanRowPreview extends StatelessWidget {
               count: 1,
             onTap: _noop),
             ScanRow(barcode: '8680000123456', source: ScanSource.unmatched, count: 1, onTap: _noop),
+            // **No `onTap`, and that is the state rather than an omission.** A row whose answer is
+            // still arriving has no card worth opening, and the view passes null for the same reason.
+            // The count still renders, because a repeat read while the lookup is out is a real second
+            // carton.
+            ScanRow(barcode: '4011200296908', count: 2, pending: true),
           ],
         ),
       ],
