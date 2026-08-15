@@ -2,6 +2,14 @@
 // `SelectableRegion` is the widgets-layer primitive underneath it and needs a delegate plus a context
 // menu builder supplied by hand; this is the assembled version. Still a `show` list rather than a bare
 // material import, which the design rules forbid.
+// `Platform` for the one platform question this screen asks: a phone gets its camera and everything
+// else gets a file dialog. `kIsWeb` guards it, because `dart:io`'s `Platform` throws on web.
+//
+// `ImagePicker` and `ImageSource` arrive through magic's own barrel, which re-exports them; naming
+// the package here as well is what the analyzer calls an unnecessary import.
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' show Icons, SelectionArea;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
@@ -15,6 +23,7 @@ import 'package:magic_starter/magic_starter.dart'
         ConfirmDialogVariant,
         MSDropdownMenuItem,
         MagicStarterConfirmDialog,
+        MSBottomSheet,
         MSEmptyState;
 
 import '../../../app/controllers/product_detail_controller.dart';
@@ -22,6 +31,8 @@ import '../../../app/support/unit_label.dart';
 import '../../../ui/components/draft_field/draft_field.dart';
 import '../../../ui/components/expiry_badge/expiry_badge.dart';
 import '../../../ui/components/location_stock_row/location_stock_row.dart';
+import '../../../ui/components/option_row/option_row.dart';
+import '../../../ui/components/product_gallery/product_gallery.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
 import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/product_thumb/product_thumb.dart';
@@ -137,6 +148,14 @@ class ProductShowView extends StatefulWidget {
 }
 
 class _ProductShowViewState extends State<ProductShowView> {
+  /// How many pictures one product may hold.
+  ///
+  /// Mirrors `ProductImage::MAX_PER_PRODUCT` on the server, which is what actually refuses the
+  /// ninth. Repeated here so the add control DISAPPEARS at the ceiling rather than offering an
+  /// upload that comes back 422, and duplicated rather than fetched because Dart cannot read a PHP
+  /// constant: the link is this comment, the same way `CountLine.matchEpsilon` names its own twin.
+  static const int _galleryMax = 8;
+
   static const IconData _moveIcon = Icons.swap_horiz_outlined;
   static const IconData _labelIcon = Icons.qr_code_2_outlined;
   static const IconData _moreIcon = Icons.more_horiz_outlined;
@@ -340,6 +359,101 @@ class _ProductShowViewState extends State<ProductShowView> {
     ];
   }
 
+  /// Takes a picture, or picks one, and adds it to the gallery.
+  ///
+  /// **Camera on a phone and the file dialog on a desktop, decided by the PLATFORM rather than by
+  /// the width.** That is the one case `DESIGN.md` allows it: the rule is that a feature is never
+  /// dropped for a platform and that layout adapts to width, not that a device with no camera should
+  /// be offered one. `image_picker` answers a file either way, so everything after this line is the
+  /// same on all three.
+  Future<void> _addPicture(String productId) async {
+    final XFile? picked = await _pickPicture();
+
+    if (picked == null) return;
+
+    final String? failure = await ProductDetailController.instance.addImage(productId, picked);
+
+    if (!mounted) return;
+
+    _report(
+      failure,
+      Lang.get('screens.product.gallery_add'),
+      Lang.get('screens.product.gallery_added'),
+    );
+  }
+
+  /// The picker, and the one place this screen asks what kind of device it is on.
+  ///
+  /// A phone gets the camera, because photographing the thing in your hand is the whole point. Every
+  /// other platform gets its file dialog, which is what `image_picker` falls back to there anyway.
+  Future<XFile?> _pickPicture() {
+    final ImagePicker picker = ImagePicker();
+    final bool handheld = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+    return picker.pickImage(
+      source: handheld ? ImageSource.camera : ImageSource.gallery,
+      // Capped on the way IN, so a 12 megapixel photograph is not carried over a phone connection to
+      // be refused by an 8 MB server limit. The longest edge is what matters for a thumbnail and a
+      // detail header; the server does not resize.
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 85,
+    );
+  }
+
+  /// What can be done with one picture: lead, or go.
+  ///
+  /// A sheet rather than a long-press, because this app ships on the web too and a long-press has no
+  /// affordance there. Two actions on a 40pt square is also more than a gesture can carry.
+  Future<void> _openPicture(String productId, String imageId) async {
+    final ProductImage? picture = _product.images
+        .where((ProductImage image) => image.id == imageId)
+        .firstOrNull;
+
+    if (picture == null) return;
+
+    final String? action = await MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.product.gallery_actions'),
+      body: WDiv(
+        className: 'flex flex-col gap-2',
+        children: [
+          // Absent when it already leads: an action that would change nothing reads as a
+          // question about whether it did.
+          if (!picture.isPrimary)
+            OptionRow(
+              label: Lang.get('screens.product.gallery_make_primary'),
+              semanticLabel: Lang.get('screens.product.gallery_make_primary'),
+              onTap: () => Navigator.of(context).pop('primary'),
+            ),
+          OptionRow(
+            label: Lang.get('screens.product.gallery_remove'),
+            semanticLabel: Lang.get('screens.product.gallery_remove'),
+            onTap: () => Navigator.of(context).pop('remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (action == null || !mounted) return;
+
+    final ProductDetailController controller = ProductDetailController.instance;
+
+    final String? failure = action == 'primary'
+        ? await controller.makeImagePrimary(productId, imageId)
+        : await controller.removeImage(productId, imageId);
+
+    if (!mounted) return;
+
+    _report(
+      failure,
+      Lang.get('screens.product.gallery_actions'),
+      Lang.get(
+        action == 'primary' ? 'screens.product.gallery_promoted' : 'screens.product.gallery_removed',
+      ),
+    );
+  }
+
   /// One toast for all three writes: the server's sentence on failure, the confirmation otherwise.
   void _report(String? failure, String title, String success) {
     if (failure == null) {
@@ -535,6 +649,11 @@ class _ProductShowViewState extends State<ProductShowView> {
   /// The picture earns its space: a user who scanned a barcode confirms the match by
   /// looking, not by reading a SKU. A product with none falls back to its initial
   /// rather than to a photo glyph, which said the same nothing on every product.
+  ///
+  /// **The big picture stays, and the gallery sits under it.** One photograph at 80pt is what
+  /// confirms the product at a glance; a row of 40pt squares is what MANAGES them. Replacing the
+  /// first with the second would make the common case (look, recognise, move on) worse to serve the
+  /// rarer one.
   Widget _buildIdentity() {
     return WDiv(
       className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
@@ -574,7 +693,39 @@ class _ProductShowViewState extends State<ProductShowView> {
             ),
           ],
         ),
+        _buildGallery(),
       ],
+    );
+  }
+
+  /// The pictures, with the primary marked and one control to add another.
+  ///
+  /// **Only on a persisted product.** Every action here is a request against
+  /// `products/{id}/images`, so a fixture row in the preview catalog has nothing to call and shows
+  /// no gallery rather than a control that would fail.
+  Widget _buildGallery() {
+    final String? id = _product.id;
+
+    if (id == null) return const WDiv();
+
+    return ProductGallery(
+      name: _product.name,
+      pictures: <GalleryPicture>[
+        for (final ProductImage image in _product.images)
+          (
+            id: image.id,
+            url: image.url,
+            attribution: image.attribution,
+            isPrimary: image.isPrimary,
+          ),
+      ],
+      addLabel: Lang.get('screens.product.gallery_add'),
+      pictureLabel: (int index, bool isPrimary) => Lang.get(
+        isPrimary ? 'screens.product.gallery_primary_label' : 'screens.product.gallery_label',
+        {'index': index + 1, 'name': _product.name},
+      ),
+      onAdd: _product.images.length >= _galleryMax ? null : () => _addPicture(id),
+      onSelect: (String imageId) => _openPicture(id, imageId),
     );
   }
 

@@ -247,6 +247,48 @@ class LotFixture {
 /// `ProductController` will hand the view, so building it now means the controller
 /// swap replaces where the rows come from and touches nothing else. The fixtures
 /// stay afterwards as the preview catalog's data source.
+/// One picture in a product's gallery.
+///
+/// The server's own reasoning is in `create_product_images_table`: why exactly one row per product is
+/// primary, and why a picture is either a file on our disk or an address we point at and never both.
+/// Neither distinction reaches here, deliberately: the API answers a single [url] whichever it was,
+/// because a client can load exactly one kind of thing.
+@immutable
+class ProductImage {
+  /// The server's identifier, needed to promote or remove this one.
+  final String id;
+
+  /// The address to load, whichever half of the row it came from.
+  final String url;
+
+  /// Who to credit, when the licence on a linked photograph asks for it.
+  ///
+  /// Null for the tenant's own upload, which has nobody to credit. Non-null means the credit has to
+  /// be VISIBLE wherever the picture is, which is the condition attached to showing it at all.
+  final String? attribution;
+
+  /// Whether this is the one a list row and the detail header show.
+  final bool isPrimary;
+
+  /// Creates a [ProductImage].
+  const ProductImage({
+    required this.id,
+    required this.url,
+    this.attribution,
+    this.isPrimary = false,
+  });
+
+  /// Maps one `images` entry from a product payload.
+  factory ProductImage.fromApi(Map<String, dynamic> json) {
+    return ProductImage(
+      id: json['id'] as String,
+      url: json['url'] as String,
+      attribution: json['attribution'] as String?,
+      isPrimary: json['is_primary'] as bool? ?? false,
+    );
+  }
+}
+
 @immutable
 class ProductListItem {
   /// The server's identifier, or null for a fixture.
@@ -417,6 +459,13 @@ class ProductListItem {
   /// The individually identified units, when [tracking] is [TrackingMode.serial].
   final List<SerialFixture> serials;
 
+  /// The product's pictures, in the order the tenant arranged them, primary first.
+  ///
+  /// **Only the DETAIL payload carries these**, because a list of thirty products fetching every
+  /// picture of each to draw one is what `whenLoaded` on the server side exists to prevent. A list
+  /// row reads [imageUrl] instead, which is the primary flattened to one field.
+  final List<ProductImage> images;
+
   /// The lots behind this product's stock, when the fixture declares them.
   ///
   /// When non-empty these are authoritative: [amount], [openRemainder] and
@@ -508,6 +557,11 @@ class ProductListItem {
       name: json['name'] as String,
       brand: json['brand'] as String?,
       imageUrl: json['image_url'] as String?,
+      // Absent on the list payload and present on the detail one, which is the server's
+      // `whenLoaded`: thirty rows do not fetch every picture of each to draw one.
+      images: <ProductImage>[
+        for (final Map<String, dynamic> image in _mapList(json['images'])) ProductImage.fromApi(image),
+      ],
       description: json['description'] as String?,
       sku: json['sku'] as String?,
       amount: quantity,
@@ -564,6 +618,7 @@ class ProductListItem {
     this.lots = const [],
     this.tracking = TrackingMode.lot,
     this.serials = const [],
+    this.images = const [],
     this.description,
     this.sku,
     this.categoryLabel,

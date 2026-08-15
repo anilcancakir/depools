@@ -1,3 +1,6 @@
+// `XFile` arrives through magic's own barrel, which re-exports `cross_file`. Importing
+// `image_picker` here as well is what the analyzer calls an unnecessary import, and it would also
+// pull a plugin into a layer that only ever handles the file the view already picked.
 import 'package:magic/magic.dart';
 
 import '../../resources/views/products/product_fixtures.dart';
@@ -98,6 +101,92 @@ class ProductDetailController extends MagicController
       'to_location_id': toLocationId,
       'quantity': quantity,
     });
+  }
+
+  /// Adds a picture the user just took or chose, then reloads so the gallery shows it.
+  ///
+  /// Returns null on success, or the server's message. The file goes through magic's own
+  /// `Http.upload`, which accepts an `XFile` directly: the bearer, the base url and the telescope
+  /// interceptor all come with it, and building a `FormData` here would be a second HTTP client.
+  Future<String?> addImage(String productId, XFile file) async {
+    final response = await Http.upload(
+      '/products/${Uri.encodeComponent(productId)}/images',
+      data: const <String, dynamic>{},
+      files: <String, dynamic>{'image': file},
+    );
+
+    return _afterGalleryWrite(productId, response);
+  }
+
+  /// Copies the shared catalogue's photograph onto this tenant's own disk.
+  ///
+  /// Only offered when the product came from the catalogue and that row has one; the server answers
+  /// 422 otherwise, and the message it sends is what the caller shows.
+  Future<String?> addImageFromCatalogue(String productId) async {
+    final response = await Http.post(
+      '/products/${Uri.encodeComponent(productId)}/images',
+      data: const <String, dynamic>{'from_catalogue': true},
+    );
+
+    return _afterGalleryWrite(productId, response);
+  }
+
+  /// Records a picture at an address, without fetching it.
+  ///
+  /// The server deliberately does not download it (D118), so this is a link rather than a copy and
+  /// [attribution] travels with it: a linked photograph is usually shown under a licence that asks
+  /// for the credit to be visible.
+  Future<String?> addImageFromUrl(String productId, String url, {String? attribution}) async {
+    final response = await Http.post(
+      '/products/${Uri.encodeComponent(productId)}/images',
+      data: <String, dynamic>{
+        'url': url,
+        if (attribution != null && attribution.isNotEmpty) 'attribution': attribution,
+      },
+    );
+
+    return _afterGalleryWrite(productId, response);
+  }
+
+  /// Promotes one picture to the one the list row and the header show.
+  Future<String?> makeImagePrimary(String productId, String imageId) async {
+    final response = await Http.put(
+      '/products/${Uri.encodeComponent(productId)}/images/${Uri.encodeComponent(imageId)}',
+      data: const <String, dynamic>{'is_primary': true},
+    );
+
+    return _afterGalleryWrite(productId, response);
+  }
+
+  /// Removes a picture. The server hands the primacy on when this one held it.
+  Future<String?> removeImage(String productId, String imageId) async {
+    final response = await Http.delete(
+      '/products/${Uri.encodeComponent(productId)}/images/${Uri.encodeComponent(imageId)}',
+    );
+
+    return _afterGalleryWrite(productId, response);
+  }
+
+  /// The half every gallery write shares: report a refusal, reload on success.
+  ///
+  /// `force: true` for the same reason the movement writes use it: the pictures on screen are
+  /// exactly what just changed, and the guard in [load] would otherwise serve the copy from before.
+  ///
+  /// The failure is RETURNED rather than set as the controller's error state, which is this class's
+  /// existing rule: blanking a screen the user is reading, over a write that changed nothing, is
+  /// worse than the failure itself.
+  Future<String?> _afterGalleryWrite(String productId, dynamic response) async {
+    if (!response.successful) {
+      final dynamic message = response['message'];
+
+      return message is String && message.isNotEmpty
+          ? message
+          : Lang.get('screens.product.write_failed');
+    }
+
+    await load(productId, force: true);
+
+    return null;
   }
 
   /// Posts one movement and reloads on success. Returns null, or the server's message.

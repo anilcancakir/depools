@@ -66,6 +66,7 @@ import 'ui/components/location_stock_row/location_stock_row.preview.dart';
 import 'ui/components/lot_row/lot_row.preview.dart';
 import 'ui/components/movement_row/movement_row.preview.dart';
 import 'ui/components/option_row/option_row.preview.dart';
+import 'ui/components/product_gallery/product_gallery.preview.dart';
 import 'ui/components/product_row/product_row.preview.dart';
 import 'ui/components/product_thumb/product_thumb.preview.dart';
 import 'ui/components/quantity/quantity.preview.dart';
@@ -289,6 +290,11 @@ List<PreviewEntry> previewEntries() {
       label: 'ProductFormScreen',
       slug: 'product_form_screen',
       builder: (_) => const ProductFormScreenPreview(),
+    ),
+    PreviewEntry(
+      label: 'ProductGallery',
+      slug: 'product_gallery',
+      builder: (_) => const ProductGalleryPreview(),
     ),
     PreviewEntry(
       label: 'ProductIndexEmptyScreen',

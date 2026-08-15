@@ -44,6 +44,7 @@ location with a depth.
 | `lot_row/` | `LotRow` | - | yes | yes | One inbound batch of a product at a location: its expiry, what is left of it, |
 | `movement_row/` | `MovementRow` | MovementDirection | yes | yes | One entry in the append-only ledger: what happened, who did it, when, and by |
 | `option_row/` | `OptionRow` | - | yes | yes | One full-width choice in a picker: a label, optionally why it is suggested, optionally a |
+| `product_gallery/` | `ProductGallery` | - | yes | yes | A product's pictures, the primary marked, with one control to add another. |
 | `product_row/` | `ProductRow` | - | yes | yes | One product in a list: what it is, roughly where it lives, how much there is in |
 | `product_thumb/` | `ProductThumb` | ProductThumbSize | yes | yes | A product's picture, or its initial when there is none. |
 | `quantity/` | `Quantity` | QuantitySize, QuantityTone | yes | yes | A stock figure with its unit, set in Geist Mono so a column of values aligns |
@@ -61,7 +62,7 @@ location with a depth.
 | `stock_badge/` | `StockBadge` | - | yes | yes | Says why a row with stock on hand still needs attention: it has fallen to or |
 | `tag/` | `Tag` | TagIntent, TagSize | yes | yes | A compact pill for category or status labels, demonstrating a two-axis |
 
-33 components. A `**NO**` in the Preview column is a rule violation, not a note:
+34 components. A `**NO**` in the Preview column is a rule violation, not a note:
 `.claude/rules/design.md` requires one preview per component.
 
 ## Layout infrastructure (not in the component library)
