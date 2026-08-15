@@ -123,6 +123,20 @@ final class StockMovement extends Model
     }
 
     /**
+     * The person who did this, when a person did.
+     *
+     * **Null is the ordinary answer rather than a broken row.** `actor_type` is one of four
+     * (`user`, `assistant`, `mcp_client`, `system`) and only the first names a `users` row, so a
+     * movement the assistant wrote resolves to null here and the client says "Assistant" from the
+     * TYPE instead. Guarding on the type inside the relation would make it uneager-loadable, which
+     * is the opposite of what an activity feed needs.
+     */
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_id');
+    }
+
+    /**
      * The receipt, invoice or shopping list that caused this movement, if any.
      */
     public function reference(): MorphTo
