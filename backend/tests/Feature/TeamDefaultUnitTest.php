@@ -114,6 +114,33 @@ final class TeamDefaultUnitTest extends TestCase
         $this->assertSame(Unit::DEFAULT_CODE, Product::create(['name' => 'Un'])->unit->code);
     }
 
+    public function test_a_lower_case_code_sets_the_default_rather_than_clearing_it(): void
+    {
+        // **This stored null and reported success.** `UnitExists` validates through
+        // `Unit::findByCode`, which trims and upper-cases, so `kgm` passed; the controller then ran a
+        // raw `where('code', 'kgm')`, found nothing, and wrote null. Measured: the raw lookup answers
+        // null while `findByCode` answers `KGM`. The user asked for kilograms and got the setting
+        // cleared, with a 200.
+        $this->putJson('/api/v1/team/settings', ['default_unit' => 'kgm'])
+            ->assertOk()
+            ->assertJsonPath('data.default_unit', 'KGM');
+
+        $this->assertSame('KGM', Product::create(['name' => 'Un'])->unit->code);
+    }
+
+    public function test_a_product_created_with_an_explicit_null_unit_falls_back(): void
+    {
+        // **A 500 before this.** Making `base_unit` nullable let an explicit null through validation,
+        // and the mutator resolves a CODE and throws on one it cannot find, so the ordinary case of
+        // "the caller named nothing" became an unhandled exception. A client spelling absent as null
+        // is common; both mean the same thing here and neither is an error.
+        $this->setDefault('KGM');
+
+        $this->postJson('/api/v1/products', ['name' => 'Un', 'base_unit' => null])
+            ->assertCreated()
+            ->assertJsonPath('data.base_unit', 'KGM');
+    }
+
     public function test_an_unknown_code_is_refused(): void
     {
         // Absent and wrong are different: one falls back, the other is a 422 naming the field.

@@ -43,10 +43,15 @@ final class TeamSettingsController extends Controller
 
         $team = $this->team();
 
+        // **`findByCode`, not a raw `where('code', ...)`, and the difference was silent.**
+        // `UnitExists` validates through `findByCode`, which normalises: it trims and upper-cases,
+        // so `kgm` passes. The raw lookup here did not, so `kgm` validated and then found nothing and
+        // stored null, CLEARING the setting the user was trying to set. Measured: `where('code',
+        // 'kgm')` answers null while `findByCode('kgm')` answers `KGM`.
+        //
+        // One resolver for both steps is what makes that impossible rather than fixed.
         $code = $data['default_unit'];
-        $team->default_unit_id = $code === null
-            ? null
-            : Unit::query()->visibleTo($team->getKey())->where('code', $code)->value('id');
+        $team->default_unit_id = $code === null ? null : Unit::findByCode($code)?->getKey();
 
         $team->save();
 

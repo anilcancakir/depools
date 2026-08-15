@@ -128,12 +128,18 @@ final class ProductController extends Controller
             // A CODE from the shared vocabulary or one this tenant added. `max:16` is the column's
             // shape and [UnitExists] is the vocabulary, which is what replaced this field being free
             // text: an unknown code is a 422 naming the field rather than a new unit nobody meant.
-            // **Nullable, because the fallback chain exists to answer this.** It was required, which
+            // **Optional, because the fallback chain exists to answer this.** It was required, which
             // made every caller state a unit even when the team had already said what it counts in.
             // `Product::creating` resolves what the caller named, then the team's `default_unit_id`,
             // then `Unit::fallback()`; a required field here would make the first step the only one.
             // An unknown CODE is still a 422 naming the field: absent and wrong are different.
-            'base_unit' => ['nullable', 'string', 'max:16', new UnitExists],
+            //
+            // **`nullable` was wrong and would have been a 500.** It let `base_unit: null` through
+            // validation, and `Product`'s mutator then ran `Unit::findByCode(null)`, found nothing
+            // and threw. A client that spells "no unit" as an explicit null is common enough that
+            // the null is stripped below rather than refused: omitted and null mean the same thing
+            // here, and neither should be an error.
+            'base_unit' => ['sometimes', 'nullable', 'string', 'max:16', new UnitExists],
             'tracks_expiry' => ['boolean'],
             'default_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
             'opened_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:365'],
@@ -188,7 +194,17 @@ final class ProductController extends Controller
         // into the same answer instead of a rolled-back 500.
         try {
             $product = DB::transaction(function () use ($data, $barcode): Product {
-                $product = Product::create(Arr::except($data, ['barcode', 'symbology', 'contribute']));
+                // A null `base_unit` is removed rather than passed on: the mutator resolves a CODE
+                // and throws on one it cannot find, so handing it null turns "the caller named
+                // nothing", which is the ordinary case, into a 500. Absent is what the fallback
+                // chain reads.
+                $attributes = Arr::except($data, ['barcode', 'symbology', 'contribute']);
+
+                if (($attributes['base_unit'] ?? null) === null) {
+                    unset($attributes['base_unit']);
+                }
+
+                $product = Product::create($attributes);
 
                 if ($barcode !== null) {
                     $product->linkBarcode($barcode);
