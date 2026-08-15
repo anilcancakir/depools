@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
 import '../../../app/support/location_appearance.dart';
+import '../app_icon/app_icon.dart';
 import 'location_row.recipe.dart';
 
 /// **LocationRow**
@@ -95,16 +96,17 @@ class LocationRow extends StatelessWidget {
           // The glyph is UNCONDITIONAL rather than reserved-when-absent, which is the
           // stronger version of the same fix. A conditional leading glyph shifted the text
           // beside it, so a root with an icon pushed its name 32px right while its child got
-          // 12px of indent and children appeared to the LEFT of their parents. Both columns
-          // are nullable on the backend, so the fallback lives in the resolver rather than
-          // in a condition here: there is no state in which this box is absent.
+          // 12px of indent and children appeared to the LEFT of their parents. `AppIcon` draws
+          // a neutral bundled glyph at the same size for a null name, an unknown one, and the
+          // frame before the svg arrives, so there is no state in which this box is absent or
+          // a different size.
           //
           // **The hue tints the glyph rather than filling a chip behind it, and the tree is
           // why.** A 32px chip reads better in isolation, and at depth 5 it would sit behind
           // 60px of indent: 92px of gutter before the name on a 390px phone. The detail
           // header, which pays no indent, does use the chip.
-          WIcon(
-            locationIcon(icon),
+          AppIcon(
+            name: icon,
             className: '${slots['icon']} ${locationGlyphClassName(colour)}',
           ),
           WDiv(

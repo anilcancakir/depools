@@ -57,6 +57,7 @@ import 'ui/components/draft_field/draft_field.preview.dart';
 import 'ui/components/expiry_badge/expiry_badge.preview.dart';
 import 'ui/components/filter_bar/filter_bar.preview.dart';
 import 'ui/components/filter_chip/filter_chip.preview.dart';
+import 'ui/components/icon_picker/icon_picker.preview.dart';
 import 'ui/components/label_card/label_card.preview.dart';
 import 'ui/components/label_item_row/label_item_row.preview.dart';
 import 'ui/components/label_preview/label_preview.preview.dart';
@@ -180,6 +181,11 @@ List<PreviewEntry> previewEntries() {
       label: 'Foundations',
       slug: 'foundations',
       builder: (_) => const FoundationsPreview(),
+    ),
+    PreviewEntry(
+      label: 'IconPicker',
+      slug: 'icon_picker',
+      builder: (_) => const IconPickerPreview(),
     ),
     PreviewEntry(
       label: 'LabelCard',

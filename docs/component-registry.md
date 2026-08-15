@@ -27,6 +27,7 @@ location with a depth.
 
 | Folder | Class | Variant enums | Recipe | Preview | What it is |
 |---|---|---|---|---|---|
+| `app_icon/` | `AppIcon` | - | no | **NO** | A glyph the USER chose, drawn from the catalogue rather than from a bundled font. |
 | `callout/` | `Callout` | CalloutIntent | yes | yes | An inline note with a title and message, tinted by intent. Demonstrates a |
 | `chat_message/` | `ChatMessage` | ChatSpeaker | yes | yes | One line of the transcript. |
 | `choice_chip/` | `ChoiceChip` | - | yes | yes | One tap-answer in an assistant's grouped question card. |
@@ -35,6 +36,7 @@ location with a depth.
 | `expiry_badge/` | `ExpiryBadge` | ExpiryUrgency | yes | yes | A lot's expiry date, rendered as a pill whose tone escalates as the date |
 | `filter_bar/` | `FilterBar` | - | yes | yes | The row of chips under the stock list's search field. It has two modes and never |
 | `filter_chip/` | `FilterChip` | - | yes | yes | One capsule in the stock list's filter row. Either an offer (a saved filter you |
+| `icon_picker/` | `IconPicker` | - | yes | yes | Search the icon catalogue and pick one, returning the chosen NAME. |
 | `label_card/` | `LabelCard` | LabelCardSize | yes | yes | One label at a size a person can read: what will be printed on it, and what will not |
 | `label_item_row/` | `LabelItemRow` | LabelCountMode | yes | yes | One product in a print batch: what will be printed, how many, and whether it already |
 | `label_preview/` | `LabelPreview` | - | yes | yes | The sheet a print will produce, at the page's real proportion. |
@@ -62,7 +64,7 @@ location with a depth.
 | `stock_badge/` | `StockBadge` | - | yes | yes | Says why a row with stock on hand still needs attention: it has fallen to or |
 | `tag/` | `Tag` | TagIntent, TagSize | yes | yes | A compact pill for category or status labels, demonstrating a two-axis |
 
-34 components. A `**NO**` in the Preview column is a rule violation, not a note:
+36 components. A `**NO**` in the Preview column is a rule violation, not a note:
 `.claude/rules/design.md` requires one preview per component.
 
 ## Layout infrastructure (not in the component library)
