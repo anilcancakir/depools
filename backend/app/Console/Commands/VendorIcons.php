@@ -88,9 +88,8 @@ final class VendorIcons extends Command
     public function handle(): int
     {
         $root = base_path('resources/icons');
-        $svgDir = $root.'/svg';
 
-        File::ensureDirectoryExists($svgDir);
+        File::ensureDirectoryExists($root);
 
         $icons = $this->fetchMetadata();
         $this->info(count($icons).' distinct icons in the catalogue');
@@ -100,18 +99,17 @@ final class VendorIcons extends Command
             $this->warn('Limited to '.count($icons).', so the metadata written is PARTIAL');
         }
 
-        $written = $this->fetchSvgs($icons, $svgDir);
+        $svgs = $this->fetchSvgs($icons);
 
-        // **Only icons whose svg actually arrived reach the metadata file.** The alternative, writing
-        // the full list and letting the seeder discover the gaps, produces a catalogue whose rows
-        // point at files that are not there, and the failure surfaces as a blank icon in the picker
-        // rather than as a failed fetch here.
+        // **Only icons whose svg actually arrived reach the catalogue.** The alternative, writing the
+        // full list and letting the seeder discover the gaps, produces rows that are pickable and
+        // render as nothing, and that failure surfaces two screens from its cause.
         $complete = array_values(array_filter(
             $icons,
-            static fn (array $icon): bool => in_array($icon['name'], $written, true),
+            static fn (array $icon): bool => isset($svgs[$icon['name']]),
         ));
 
-        $this->writeMetadata($root, $complete);
+        $this->writeCatalogue($root, $complete, $svgs);
 
         $this->info('Wrote '.count($complete).' icons to resources/icons');
 
@@ -200,34 +198,30 @@ final class VendorIcons extends Command
     }
 
     /**
-     * Fetch every missing svg, and return the names that are now on disk.
+     * Fetch every svg, keyed by name.
+     *
+     * **Resumable against the previous catalogue rather than against a directory.** The svgs used to
+     * be 4,185 separate files, which made the vendored set unreviewable: a pull request carrying it
+     * exceeds Copilot's 300-file ceiling and gets no review at all. They live inside the one
+     * catalogue file now, so this reads that file to decide what is already fetched. `--force`
+     * refetches everything, for the day Google redraws a glyph.
      *
      * @param  list<array{name: string, ...}>  $icons
-     * @return list<string>
+     * @return array<string, string>
      */
-    private function fetchSvgs(array $icons, string $svgDir): array
+    private function fetchSvgs(array $icons): array
     {
-        $force = (bool) $this->option('force');
-        $written = [];
+        $have = (bool) $this->option('force') ? [] : $this->readExistingSvgs();
         $pending = [];
 
         foreach ($icons as $icon) {
-            $path = $svgDir.'/'.$icon['name'].'.svg';
-
-            // Resumable by default: a run that died halfway is continued rather than restarted, and
-            // a re-run after a successful one costs nothing. `--force` is the escape hatch for the
-            // day Google redraws something.
-            if (! $force && File::exists($path)) {
-                $written[] = $icon['name'];
-
-                continue;
+            if (! isset($have[$icon['name']])) {
+                $pending[] = $icon['name'];
             }
-
-            $pending[] = $icon['name'];
         }
 
         if ($pending === []) {
-            return $written;
+            return $have;
         }
 
         $bar = $this->output->createProgressBar(count($pending));
@@ -258,8 +252,7 @@ final class VendorIcons extends Command
                     continue;
                 }
 
-                File::put($svgDir.'/'.$name.'.svg', $svg."\n");
-                $written[] = $name;
+                $have[$name] = $svg;
             }
 
             $bar->advance(count($batch));
@@ -268,26 +261,62 @@ final class VendorIcons extends Command
         $bar->finish();
         $this->newLine();
 
-        sort($written);
-
-        return $written;
+        return $have;
     }
 
     /**
-     * Write the metadata the seeder reads, one icon per line.
+     * The svgs already in the committed catalogue, so a re-run is cheap.
      *
-     * **NDJSON rather than a pretty-printed array, and the reason is the diff.** This file is
-     * committed and holds 4,185 icons carrying a median of 34 tags each. Pretty-printed that is 4.1 MB
-     * with every tag on its own line; as one object per line it is a third of that and a re-vendor
-     * that changes one icon's tags shows up as a ONE-LINE diff instead of a block of forty. It also
-     * means a reader can `grep` a name and get the whole row.
+     * @return array<string, string>
+     */
+    private function readExistingSvgs(): array
+    {
+        $path = base_path('resources/icons/catalogue.ndjson');
+
+        if (! File::exists($path)) {
+            return [];
+        }
+
+        $svgs = [];
+        $handle = fopen($path, 'rb');
+
+        while (($line = fgets($handle)) !== false) {
+            if (trim($line) === '') {
+                continue;
+            }
+
+            $row = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
+
+            if (isset($row['name'], $row['svg'])) {
+                $svgs[$row['name']] = $row['svg'];
+            }
+        }
+
+        fclose($handle);
+
+        return $svgs;
+    }
+
+    /**
+     * Write the whole catalogue, one icon per line, svg included.
+     *
+     * **ONE file rather than a metadata file beside 4,185 svgs, and the reason is that the set has to
+     * be reviewable.** A pull request carrying the icons as separate files runs to 4,191 changed
+     * files, and Copilot refuses to review anything over 300: measured on the first attempt, which
+     * came back "exceeds the maximum number of files (300)" and no review at all. Per-file diffs
+     * bought nothing to weigh against that, because a glyph never changes on its own; a re-vendor
+     * replaces the set.
+     *
+     * NDJSON rather than one JSON array, so the file stays diffable at all: a re-vendor that retags
+     * one icon is a one-line change, and a reader can `grep` a name and get the whole row.
      *
      * Sorted by name upstream, so the line order is stable and a re-run with no upstream change
-     * produces no diff at all.
+     * produces no diff.
      *
      * @param  list<array{name: string, categories: list<string>, tags: list<string>, popularity: int}>  $icons
+     * @param  array<string, string>  $svgs
      */
-    private function writeMetadata(string $root, array $icons): void
+    private function writeCatalogue(string $root, array $icons, array $svgs): void
     {
         $lines = array_map(static fn (array $icon): string => json_encode([
             'name' => $icon['name'],
@@ -298,8 +327,9 @@ final class VendorIcons extends Command
             'category' => $icon['categories'][0] ?? null,
             'tags' => $icon['tags'],
             'popularity' => $icon['popularity'],
+            'svg' => $svgs[$icon['name']],
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $icons);
 
-        File::put($root.'/metadata.ndjson', implode("\n", $lines)."\n");
+        File::put($root.'/catalogue.ndjson', implode("\n", $lines)."\n");
     }
 }

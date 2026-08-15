@@ -40,12 +40,11 @@ final class IconSeeder extends Seeder
 
     public function run(): void
     {
-        $root = base_path('resources/icons');
-        $metadata = $root.'/metadata.ndjson';
+        $catalogue = base_path('resources/icons/catalogue.ndjson');
 
-        if (! is_file($metadata)) {
+        if (! is_file($catalogue)) {
             throw new RuntimeException(
-                "No icon catalogue at [$metadata]. Run `php artisan depools:vendor-icons` first; the "
+                "No icon catalogue at [$catalogue]. Run `php artisan depools:vendor-icons` first; the "
                 .'files are committed, so this usually means a partial checkout rather than a missing step.',
             );
         }
@@ -55,7 +54,7 @@ final class IconSeeder extends Seeder
         $skipped = 0;
         $now = now();
 
-        $handle = fopen($metadata, 'rb');
+        $handle = fopen($catalogue, 'rb');
 
         // Read line by line rather than loading the file: 1.8 MB is not large, but NDJSON exists
         // precisely so this stays a stream, and a catalogue that grows should not change this code.
@@ -67,12 +66,12 @@ final class IconSeeder extends Seeder
             }
 
             $icon = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
-            $svgPath = $root.'/svg/'.$icon['name'].'.svg';
 
-            // **A metadata row whose svg is missing is skipped, not stored empty.** An icon with no
-            // glyph is worse than an absent one: it is pickable, it renders as nothing, and the
-            // failure surfaces two screens away from its cause.
-            if (! is_file($svgPath)) {
+            // **A row whose svg is missing is skipped, not stored empty.** An icon with no glyph is
+            // worse than an absent one: it is pickable, it renders as nothing, and the failure
+            // surfaces two screens away from its cause. The vendoring command already drops those,
+            // so this is the second guard rather than the only one.
+            if (! is_string($icon['svg'] ?? null) || ! str_starts_with($icon['svg'], '<svg')) {
                 $skipped++;
 
                 continue;
@@ -88,7 +87,7 @@ final class IconSeeder extends Seeder
                 'tags' => $tags,
                 'search_text' => Icon::searchTextFor($icon['name'], $icon['title'], $tags),
                 'popularity' => (int) ($icon['popularity'] ?? 0),
-                'svg' => trim((string) file_get_contents($svgPath)),
+                'svg' => $icon['svg'],
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
