@@ -85,6 +85,18 @@ final class Location extends Model
     ];
 
     /**
+     * A location's photograph is written to the media disk, not the application default.
+     *
+     * Without this the accessor would build a url for `filesystems.default` while `storeImage` wrote
+     * to `media.images.disk`. The two coincide on the current configuration and stop the moment
+     * either moves, which is the kind of agreement that is worth stating rather than relying on.
+     */
+    protected function imageDisk(): ?string
+    {
+        return config('media.images.disk');
+    }
+
+    /**
      * Keep `path` and `depth` true on every write, for this row AND everything under it.
      *
      * The cascade is triggered by `path` having actually changed rather than by a save happening, which

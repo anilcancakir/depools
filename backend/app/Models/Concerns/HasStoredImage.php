@@ -2,6 +2,7 @@
 
 namespace App\Models\Concerns;
 
+use Illuminate\Contracts\Filesystem\Cloud;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
@@ -49,10 +50,29 @@ trait HasStoredImage
             return null;
         }
 
-        // `Storage::url` rather than `Storage::disk(config('filesystems.default'))->url`: the facade
-        // already proxies to the default disk, and `disk()` is typed as the `Filesystem` contract,
-        // which does not declare `url()` (it lives on `Cloud`). The longer form made the editor report
-        // an undefined method on every read.
-        return URL::to(Storage::url($path));
+        // **Built on the disk the bytes were WRITTEN to, which is not always the default one.** A
+        // location's photograph goes to `media.images.disk` while `filesystems.default` is `local`, so
+        // the plain `Storage::url` here would answer a url for a disk that does not hold the file.
+        // The two happen to coincide today, because the local disk's fallback is `/storage/<path>` and
+        // the public disk's url is `APP_URL/storage`; point either at s3 and they stop.
+        //
+        // Typed as `Cloud` rather than `Filesystem` because that is the contract declaring `url()`,
+        // which the local adapter provides: an annotation of what the object IS, not a suppression.
+        /** @var Cloud $disk */
+        $disk = Storage::disk($this->imageDisk());
+
+        return URL::to($disk->url($path));
+    }
+
+    /**
+     * Which disk holds this row's image.
+     *
+     * The default is the application default, which is right for `global_products`: a catalogue
+     * picture is written by `CatalogueContributor` and copied from `filesystems.default`. A model
+     * whose uploads go elsewhere overrides this, and `Location` does.
+     */
+    protected function imageDisk(): ?string
+    {
+        return null;
     }
 }

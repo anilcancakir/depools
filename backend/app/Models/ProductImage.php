@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
+use Illuminate\Contracts\Filesystem\Cloud;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
@@ -93,6 +94,15 @@ final class ProductImage extends Model
             return null;
         }
 
-        return URL::to(Storage::url($path));
+        // The disk the bytes were WRITTEN to, which is `media.images.disk` rather than the
+        // application default: `Storage::url` here would answer a url for a disk that does not hold
+        // the file. Same defect `HasStoredImage` carried, found by grepping for the shape.
+        //
+        // Typed as `Cloud` because that is the contract declaring `url()`, which the local adapter
+        // provides: an annotation of what the object is, not a suppression.
+        /** @var Cloud $disk */
+        $disk = Storage::disk(config('media.images.disk'));
+
+        return URL::to($disk->url($path));
     }
 }
