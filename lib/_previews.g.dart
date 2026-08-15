@@ -49,6 +49,7 @@ import 'preview/shopping_list_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
 import 'preview/stock_take_screen.preview.dart';
 import 'preview/teams_screen.preview.dart';
+import 'ui/components/app_icon/app_icon.preview.dart';
 import 'ui/components/callout/callout.preview.dart';
 import 'ui/components/chat_message/chat_message.preview.dart';
 import 'ui/components/choice_chip/choice_chip.preview.dart';
@@ -57,6 +58,7 @@ import 'ui/components/draft_field/draft_field.preview.dart';
 import 'ui/components/expiry_badge/expiry_badge.preview.dart';
 import 'ui/components/filter_bar/filter_bar.preview.dart';
 import 'ui/components/filter_chip/filter_chip.preview.dart';
+import 'ui/components/icon_picker/icon_picker.preview.dart';
 import 'ui/components/label_card/label_card.preview.dart';
 import 'ui/components/label_item_row/label_item_row.preview.dart';
 import 'ui/components/label_preview/label_preview.preview.dart';
@@ -86,6 +88,11 @@ import 'ui/components/tag/tag.preview.dart';
 
 List<PreviewEntry> previewEntries() {
   return <PreviewEntry>[
+    PreviewEntry(
+      label: 'AppIcon',
+      slug: 'app_icon',
+      builder: (_) => const AppIconPreview(),
+    ),
     PreviewEntry(
       label: 'AssistantFreshScreen',
       slug: 'assistant_fresh_screen',
@@ -180,6 +187,11 @@ List<PreviewEntry> previewEntries() {
       label: 'Foundations',
       slug: 'foundations',
       builder: (_) => const FoundationsPreview(),
+    ),
+    PreviewEntry(
+      label: 'IconPicker',
+      slug: 'icon_picker',
+      builder: (_) => const IconPickerPreview(),
     ),
     PreviewEntry(
       label: 'LabelCard',

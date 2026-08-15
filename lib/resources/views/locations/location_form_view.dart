@@ -5,6 +5,7 @@ import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, M
 
 import '../../../app/support/location_appearance.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
+import '../../../ui/components/icon_picker/icon_picker.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 import 'location_fixtures.dart';
@@ -58,7 +59,11 @@ class _LocationFormViewState extends State<LocationFormView> {
   /// column accepts: `locations.icon` is CHECKed against a catalogue of sixteen names, and a
   /// position is meaningless the moment that list is reordered. Both now come from
   /// `location_appearance.dart`, which is also what the tree reads.
-  String _icon = locationIcons.keys.first;
+  /// Nothing chosen yet, which is the honest state of a form the user just opened.
+  ///
+  /// It used to default to the first of sixteen, which quietly put a house on any location the user
+  /// did not think about. `locations.icon` is nullable precisely so "not said" is expressible.
+  String? _icon;
   String _colour = locationFallbackColour;
 
   bool get _isValid => _name.trim().isNotEmpty;
@@ -131,43 +136,29 @@ class _LocationFormViewState extends State<LocationFormView> {
     );
   }
 
-  /// The sixteen glyphs, each drawn in the hue currently chosen.
+  /// The catalogue, searched.
   ///
-  /// **Tinting them with `_colour` is what ties the two pickers together.** They set one thing
-  /// between them, the mark that will stand for this place in the tree, and two independent rows
-  /// of swatches would make the user assemble that combination in their head. Here the icon row
-  /// IS the preview, and the colour row only says which tint it is wearing.
+  /// **This was sixteen tiles of our own choosing, and it is 4,185 searchable ones now.** A curated
+  /// row is easy to build and impossible to find a shelf in: the user who keeps stock in a van, a
+  /// basement or a chest freezer was offered a box. The picker searches the `icons` table, where
+  /// each icon carries a median of 34 tags, so `fridge` reaches `kitchen` and `storage` reaches
+  /// `shelves` without the user knowing Material's naming.
+  ///
+  /// The glyphs are NOT tinted with the chosen hue here, which the sixteen-tile version did. That
+  /// tied the two pickers together so the user saw the combination they were assembling, and it
+  /// stops working over a grid the user is scanning for a SHAPE: fifty red glyphs read as one
+  /// texture. The colour row below still shows the hue on its own, and the tree shows the pair.
   Widget _buildIconPicker() {
     return WDiv(
       className: 'flex flex-col gap-1.5',
       children: [
         WText(Lang.get('screens.location_form.icon'), className: 'text-sm font-medium text-fg'),
-        WDiv(
-          // Sixteen tiles will not fit a phone width, and the count is fixed rather than variable,
-          // so this wraps rather than scrolls: a horizontal scroller hides options behind a gesture
-          // that nothing on screen advertises.
-          className: 'flex flex-row wrap items-center gap-2',
-          children: [
-            for (final String name in locationIcons.keys)
-              WAnchor(
-                onTap: () => setState(() => _icon = name),
-                semanticLabel: Lang.get('screens.location_form.icon_pick', {
-                  'name': Lang.get('screens.location_form.icons.$name'),
-                }),
-                // Card tone plus a hairline for the unselected state, and the brand fill only for
-                // the chosen one. A tinted fill alone would carry selection by colour, and
-                // DESIGN.md's rule applies to state as much as to status.
-                child: WDiv(
-                  className: name == _icon
-                      ? 'size-11 rounded-md flex items-center justify-center bg-primary-container border border-color-border'
-                      : 'size-11 rounded-md flex items-center justify-center bg-surface-container border border-color-border',
-                  child: WIcon(
-                    locationIcons[name]!,
-                    className: 'size-5 ${locationGlyphClassName(_colour)}',
-                  ),
-                ),
-              ),
-          ],
+        IconPicker(
+          selected: _icon,
+          onSelected: (String name) => setState(() => _icon = name),
+          searchPlaceholder: Lang.get('screens.location_form.icon_search'),
+          searchingLabel: Lang.get('screens.location_form.icon_searching'),
+          emptyLabel: Lang.get('screens.location_form.icon_empty'),
         ),
       ],
     );

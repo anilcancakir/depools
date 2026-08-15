@@ -2,6 +2,7 @@ import 'package:magic/magic.dart';
 import 'package:flutter/material.dart';
 import 'package:magic_starter/magic_starter.dart';
 import '../models/user.dart';
+import '../support/icon_catalogue.dart';
 
 /// Application Service Provider.
 ///
@@ -12,9 +13,13 @@ class AppServiceProvider extends ServiceProvider {
 
   @override
   void register() {
-    // Bind your services here (sync only, do not resolve other services).
-    // Example:
-    //   app.singleton('my_service', () => MyService());
+    // The icon catalogue's client-side cache.
+    //
+    // **A singleton because it IS the cache.** The tree, a location's detail header and the picker
+    // all ask for the same handful of names, and three instances would mean three sets of requests
+    // for the same glyphs and three copies of the svg in memory. Bound here rather than constructed
+    // by the widget that happens to need it first.
+    app.singleton('icons', () => IconCatalogue());
   }
 
   @override

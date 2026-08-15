@@ -536,31 +536,12 @@
       "name_placeholder": "Örn: Raf B",
       "name_pending": "adı yazın",
       "icon": "İkon",
-      "icon_pick": ":name ikonu",
       "parent_group": "Nerede",
       "parent_none": "Ana konum",
       "depth": "derinlik :depth/:max",
       "depth_note": "En fazla :max seviye. Bir konum kendi altına taşınamaz.",
       "save": "Kaydet",
       "template": "Hazır şablondan başlat",
-      "icons": {
-        "home": "Ev",
-        "countertops": "Mutfak",
-        "kitchen": "Buzdolabı",
-        "ac_unit": "Derin dondurucu",
-        "dining": "Kiler",
-        "door_sliding": "Dolap",
-        "shelves": "Raf",
-        "inbox": "Çekmece",
-        "inventory_2": "Kutu",
-        "shopping_basket": "Sepet",
-        "widgets": "Kasa",
-        "warehouse": "Depo",
-        "garage": "Garaj",
-        "stairs": "Bodrum",
-        "desk": "Ofis",
-        "local_shipping": "Araç"
-      },
       "colour": "Renk",
       "colour_pick": ":name rengi",
       "colours": {
@@ -571,7 +552,10 @@
         "amber": "Sarı",
         "red": "Kırmızı",
         "violet": "Mor"
-      }
+      },
+      "icon_search": "İkon arayın",
+      "icon_searching": "Aranıyor",
+      "icon_empty": "Eşleşen ikon yok"
     },
     "locations": {
       "title": "Konumlar",

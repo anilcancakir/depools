@@ -71,6 +71,12 @@ dependencies:
   # branch in the widget tree: the phone offers its camera, the desktop offers a file dialog, and the
   # feature exists on both.
   image_picker: ^1.2.3
+  # Rendering an icon the user picked, which arrives from our own API as SVG source rather than as a
+  # glyph in a bundled font. That is not a preference: `IconTreeShaker` runs `ConstFinder` over the
+  # compiled kernel's constant pool, so a searchable picker over the whole Material set would have to
+  # reference all of it as constants, measured here at +1.81 MB. The catalogue is a table instead, and
+  # this is what draws what comes back. `vector_graphics` is its faster render path and comes with it.
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:

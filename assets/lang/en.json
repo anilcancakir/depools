@@ -536,31 +536,12 @@
       "name_placeholder": "e.g. Shelf B",
       "name_pending": "name it",
       "icon": "Icon",
-      "icon_pick": ":name icon",
       "parent_group": "Where",
       "parent_none": "Top level",
       "depth": "depth :depth/:max",
       "depth_note": "At most :max levels. A location cannot be moved inside itself.",
       "save": "Save",
       "template": "Start from a template",
-      "icons": {
-        "home": "Home",
-        "countertops": "Kitchen",
-        "kitchen": "Fridge",
-        "ac_unit": "Freezer",
-        "dining": "Pantry",
-        "door_sliding": "Cupboard",
-        "shelves": "Shelf",
-        "inbox": "Drawer",
-        "inventory_2": "Box",
-        "shopping_basket": "Basket",
-        "widgets": "Crate",
-        "warehouse": "Warehouse",
-        "garage": "Garage",
-        "stairs": "Basement",
-        "desk": "Office",
-        "local_shipping": "Van"
-      },
       "colour": "Colour",
       "colour_pick": ":name colour",
       "colours": {
@@ -571,7 +552,10 @@
         "amber": "Amber",
         "red": "Red",
         "violet": "Violet"
-      }
+      },
+      "icon_search": "Search icons",
+      "icon_searching": "Searching",
+      "icon_empty": "No matching icon"
     },
     "locations": {
       "title": "Locations",
