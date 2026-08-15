@@ -20,7 +20,10 @@ WindSlotRecipe locationRowRecipe() {
       'body': 'flex flex-col gap-0.5 flex-1 min-w-0',
       'name': 'text-sm font-semibold text-fg truncate',
       'meta': 'text-xs text-fg-muted truncate',
-      'icon': 'size-5 text-fg-muted',
+      // Size only. The tint is the location's own hue and arrives from the caller, so
+      // putting a colour here would be a default that is overridden on every single row:
+      // dead weight that reads like the real value when you grep for it.
+      'icon': 'size-5',
     },
     variants: {
       // A location holding nothing is not an error, it is a shelf waiting to be used.

@@ -2364,6 +2364,17 @@ fails the build on a raw colour outside the allowlist, and a free hex has no con
 either surface, so half the palette a colour picker offers would be unreadable in one appearance or
 the other.
 
+**The set is SEVEN, not the eight this decision first named.** `orange` was removed when the screen
+was built, by measurement rather than by taste, and the reason generalises past this one hue: contrast
+is the wrong instrument for a swatch. It compares a hue to the BACKGROUND, and a picker asks the user
+to tell hues apart from EACH OTHER. All eight cleared every contrast row while amber and orange were
+the same brown on screen in light mode, because Apple's increased-contrast yellow, orange and red all
+darken toward brown and orange sat between the other two: CIEDE2000 of 9.2 against amber and 10.1
+against red, where that same amber/orange pair measures 13.3 in dark mode and IS two colours to the
+eye. `bin/verify-design-contrast.py` now measures every pair in both appearances against a floor of
+12, calibrated between those two readings. Orange was dropped rather than retuned, because retuning
+means inventing a value and every hue in this palette is one of Apple's own.
+
 **The photograph reuses the product shape**: a `path` on the public disk, as D118 settled. ONE picture
 rather than a gallery, because a location is a place rather than a thing being described from several
 angles: the second photograph of a shelf answers no question the first did not.

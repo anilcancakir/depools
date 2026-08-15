@@ -51,13 +51,19 @@ class LocationNode {
   /// The full ancestor path, used when the tree is filtered and the indent loses meaning.
   final String path;
 
-  /// The location's icon, from `locations.icon_id`.
+  /// The location's icon NAME, from `locations.icon`.
   ///
-  /// **Every node has one, children included.** A tree where only roots carry a glyph
-  /// makes the children look like text under a heading rather than like places, and the
-  /// schema gives every location an `icon_id` precisely because a shelf is as much a place
-  /// as a room is.
-  final IconData icon;
+  /// **Every node draws one, children included.** A tree where only roots carry a glyph
+  /// makes the children look like text under a heading rather than like places, and a
+  /// shelf is as much a place as a room is. The column is nullable, so the fallback lives
+  /// in `location_appearance.dart` rather than in a condition on the row.
+  final String? icon;
+
+  /// The location's hue NAME, from `locations.colour`.
+  ///
+  /// Also nullable, and also resolved through the same fallback: a location the user never
+  /// tinted is neutral rather than absent.
+  final String? colour;
 
   /// Creates a [LocationNode].
   const LocationNode({
@@ -65,8 +71,9 @@ class LocationNode {
     required this.depth,
     required this.productCount,
     required this.summary,
-    required this.icon,
     required this.path,
+    this.icon,
+    this.colour,
   });
 }
 
@@ -285,6 +292,7 @@ class LocationIndexView extends StatelessWidget {
             productCount: node.productCount,
             itemSummary: node.summary,
             icon: node.icon,
+            colour: node.colour,
             // The tree was browsable and not inspectable: a row said "Kiler, 4 ürün" and had
             // nowhere to go. `inventory-core.md` lists seeing inside a location as one of the
             // seven things the user does.

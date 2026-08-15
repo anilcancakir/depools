@@ -16,6 +16,8 @@ Usage: python3 bin/verify-design-contrast.py
 Exit 0 if every non-exempt pair passes.
 """
 
+import itertools
+import math
 import re
 import sys
 from pathlib import Path
@@ -81,6 +83,7 @@ STATUS_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_sta
 PAPER_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_paper_tokens.dart'
 OVERLAY_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_overlay_tokens.dart'
 CONTROL_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_control_tokens.dart'
+LOCATION_TOKENS = Path(__file__).resolve().parent.parent / 'lib/config/depools_location_tokens.dart'
 
 # WCAG 1.4.11 asks 3:1 of a UI component's boundary. A switch has no text or icon to identify it,
 # so unlike a labelled button its edge is the only thing that can carry that. The page-surface row
@@ -92,6 +95,28 @@ CONTROL_FLOOR = 3.0
 # photograph, so it has to clear that against EVERY possible background rather than against a
 # known surface, which is why this is a floor over the whole luminance range rather than a pair.
 OVERLAY_FLOOR = 3.0
+
+# A location's hue is a GLYPH beside the name it belongs to, never text and never the only carrier
+# of anything: the name is right there. So the requirement is WCAG 1.4.11's 3:1 for a meaningful
+# graphic rather than the 4.5:1 the status solids hold, because those ARE read as text.
+#
+# Every hue clears 4.5 today regardless, the tightest being `red` on its own chip at 4.67. This is
+# not an argument for raising the floor: it would then assert something WCAG does not, and the next
+# hue that wants to look like the colour it is named after would hit a wall with no reason behind it.
+LOCATION_FLOOR = 3.0
+
+# **Contrast is the wrong instrument for a swatch, and this is the right one.** Two hues can each
+# clear 4.5:1 against the card and still be the same colour to a user: the check above compares
+# each hue to the BACKGROUND, and a picker asks the user to tell them apart from EACH OTHER. Apple's
+# increased-contrast light values for yellow, orange and red all darken toward brown, so the warm
+# end of the palette collapses in light mode while passing every contrast row.
+#
+# So this is CIEDE2000, a perceptual distance, and the threshold is calibrated against what was
+# actually on screen rather than picked: amber against orange measured 9.2 in light and was
+# indistinguishable, the same pair measured 13.3 in dark and was clearly a yellow beside an orange.
+# The boundary is between those two, and 12 sits there. `orange` was removed rather than retuned,
+# because retuning would mean inventing a value and every hue here is one of Apple's own.
+HUE_SEPARATION_FLOOR = 12.0
 
 # Ink read against paper, never against an app surface. The label preview renders a
 # picture of a printed sheet, so both sides of every `dark:` pair hold the same hex
@@ -138,18 +163,82 @@ def parse_control() -> tuple[str, str]:
     raise SystemExit('border-color-control not found in the control supplement')
 
 
-def parse_status() -> dict[str, dict[str, tuple[str, str]]]:
-    """Read the status supplement so it is checked from its real source.
+def srgb_to_lab(value: str) -> tuple[float, float, float]:
+    """CIELAB under D65, the space CIEDE2000 is defined in."""
+    r, g, b = (int(value[i:i + 2], 16) / 255 for i in (1, 3, 5))
+
+    def linear(c: float) -> float:
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = linear(r), linear(g), linear(b)
+    x = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047
+    y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750
+    z = (r * 0.0193339 + g * 0.1191920 + b * 0.9503041) / 1.08883
+
+    def f(v: float) -> float:
+        return v ** (1 / 3) if v > 216 / 24389 else (841 / 108) * v + 4 / 29
+
+    fx, fy, fz = f(x), f(y), f(z)
+    return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
+
+def ciede2000(one: str, two: str) -> float:
+    """Perceptual distance between two hexes. Roughly: under 10 reads as the same colour."""
+    l1, a1, b1 = srgb_to_lab(one)
+    l2, a2, b2 = srgb_to_lab(two)
+    c1, c2 = math.hypot(a1, b1), math.hypot(a2, b2)
+    cb = (c1 + c2) / 2
+    g = 0.5 * (1 - math.sqrt(cb ** 7 / (cb ** 7 + 25 ** 7))) if cb else 0.5
+    a1p, a2p = (1 + g) * a1, (1 + g) * a2
+    c1p, c2p = math.hypot(a1p, b1), math.hypot(a2p, b2)
+    h1p = math.degrees(math.atan2(b1, a1p)) % 360 if (b1 or a1p) else 0.0
+    h2p = math.degrees(math.atan2(b2, a2p)) % 360 if (b2 or a2p) else 0.0
+
+    dlp, dcp = l2 - l1, c2p - c1p
+    if c1p * c2p == 0:
+        dhp = 0.0
+    elif abs(h2p - h1p) <= 180:
+        dhp = h2p - h1p
+    else:
+        dhp = h2p - h1p - 360 if h2p - h1p > 180 else h2p - h1p + 360
+    dHp = 2 * math.sqrt(c1p * c2p) * math.sin(math.radians(dhp) / 2)
+
+    lbp, cbp = (l1 + l2) / 2, (c1p + c2p) / 2
+    if c1p * c2p == 0:
+        hbp = h1p + h2p
+    elif abs(h1p - h2p) <= 180:
+        hbp = (h1p + h2p) / 2
+    else:
+        hbp = (h1p + h2p + 360) / 2 if h1p + h2p < 360 else (h1p + h2p - 360) / 2
+
+    tt = (1 - 0.17 * math.cos(math.radians(hbp - 30))
+          + 0.24 * math.cos(math.radians(2 * hbp))
+          + 0.32 * math.cos(math.radians(3 * hbp + 6))
+          - 0.20 * math.cos(math.radians(4 * hbp - 63)))
+    sl = 1 + (0.015 * (lbp - 50) ** 2) / math.sqrt(20 + (lbp - 50) ** 2)
+    sc = 1 + 0.045 * cbp
+    sh = 1 + 0.015 * cbp * tt
+    rt = -math.sin(math.radians(2 * 30 * math.exp(-(((hbp - 275) / 25) ** 2)))) * (
+        2 * math.sqrt(cbp ** 7 / (cbp ** 7 + 25 ** 7)))
+
+    return math.sqrt((dlp / sl) ** 2 + (dcp / sc) ** 2 + (dHp / sh) ** 2
+                     + rt * (dcp / sc) * (dHp / sh))
+
+
+def parse_families(source: Path = STATUS_TOKENS) -> dict[str, dict[str, tuple[str, str]]]:
+    """Read a three-role supplement so it is checked from its real source.
 
     Returns {family: {role: (light, dark)}} where role is 'solid', 'soft' or
-    'soft-foreground'.
+    'soft-foreground'. The status families and the location hues share this shape
+    exactly, so they share the reader: a hue that forgets its soft pair is
+    reported by the same missing-role check.
     """
     families: dict[str, dict[str, tuple[str, str]]] = {}
     pattern = re.compile(
         r"^\s*'(?:bg|text)-([a-z-]+?)(-soft-foreground|-soft)?':\s*"
         r"'(?:bg|text)-\[(#[0-9A-Fa-f]{6})\]\s+dark:(?:bg|text)-\[(#[0-9A-Fa-f]{6})\]'"
     )
-    for line in STATUS_TOKENS.read_text().splitlines():
+    for line in source.read_text().splitlines():
         if not (m := pattern.match(line)):
             continue
         family, suffix, light, dark = m.groups()
@@ -223,7 +312,7 @@ def main() -> int:
         label = f'{fg} / {bg}'
         print(f'{label:<44}{rl:>8.2f}{mark_l:>4}{rd:>8.2f}{mark_d:>4}{need if need else "-":>6}')
 
-    status = parse_status()
+    status = parse_families()
 
     print()
     print(f'STATUS SOLIDS on surface-container ({len(status)} families, parsed from '
@@ -256,6 +345,57 @@ def main() -> int:
             failures.append(f'badge {name} dark {rd:.2f} < 4.5')
         print(f'{name + " badge":<44}{rl:>8.2f}{"   OK" if rl >= 4.5 else "  FAIL":>4}'
               f'{rd:>8.2f}{"   OK" if rd >= 4.5 else "  FAIL":>4}{4.5:>6}')
+
+    location = parse_families(LOCATION_TOKENS)
+
+    print()
+    print(f'LOCATION HUES: the glyph on a card, and the tick on its own swatch '
+          f'({len(location)} hues, parsed from {LOCATION_TOKENS.name})')
+    print('-' * 78)
+    for name, roles in sorted(location.items()):
+        if 'solid' not in roles:
+            failures.append(f'location {name} has no solid pair')
+            continue
+        light, dark = roles['solid']
+        rl = contrast(light, colors['surface-container']['light'])
+        rd = contrast(dark, colors['surface-container']['dark'])
+        if rl < LOCATION_FLOOR:
+            failures.append(f'location {name} glyph light {rl:.2f} < {LOCATION_FLOOR}')
+        if rd < LOCATION_FLOOR:
+            failures.append(f'location {name} glyph dark {rd:.2f} < {LOCATION_FLOOR}')
+        print(f'{name + " glyph on card":<44}{rl:>8.2f}'
+              f'{"   OK" if rl >= LOCATION_FLOOR else "  FAIL":>4}{rd:>8.2f}'
+              f'{"   OK" if rd >= LOCATION_FLOOR else "  FAIL":>4}{LOCATION_FLOOR:>6}')
+
+        # The form's chosen swatch draws a tick in `on-primary` over this same tone, and that
+        # single alias has to land on all seven. It works because these fills follow the
+        # primary's own brightness rule, dark in light mode and bright in dark, but "it works
+        # because of a rule" is exactly the claim worth measuring rather than repeating.
+        tl = contrast(colors['on-primary']['light'], light)
+        td = contrast(colors['on-primary']['dark'], dark)
+        if tl < 4.5:
+            failures.append(f'location {name} tick light {tl:.2f} < 4.5')
+        if td < 4.5:
+            failures.append(f'location {name} tick dark {td:.2f} < 4.5')
+        print(f'{name + " tick on its swatch":<44}{tl:>8.2f}'
+              f'{"   OK" if tl >= 4.5 else "  FAIL":>4}{td:>8.2f}'
+              f'{"   OK" if td >= 4.5 else "  FAIL":>4}{4.5:>6}')
+
+    print()
+    print('LOCATION HUES: told apart from EACH OTHER, CIEDE2000 over every pair, worst three')
+    print('-' * 78)
+    for idx, appearance in ((0, 'light'), (1, 'dark')):
+        distances = sorted(
+            (ciede2000(a['solid'][idx], b['solid'][idx]), n1, n2)
+            for (n1, a), (n2, b) in itertools.combinations(sorted(location.items()), 2)
+        )
+        for d, n1, n2 in distances[:3]:
+            if d < HUE_SEPARATION_FLOOR:
+                failures.append(f'{n1} and {n2} are {d:.1f} apart in {appearance}, '
+                                f'under {HUE_SEPARATION_FLOOR}')
+            label = f'{n1} vs {n2} ({appearance})'
+            mark = '   OK' if d >= HUE_SEPARATION_FLOOR else '  FAIL'
+            print(f'{label:<44}{d:>8.1f}{mark:>4}{"":>8}{"":>4}{HUE_SEPARATION_FLOOR:>6}')
 
     paper = parse_paper()
 

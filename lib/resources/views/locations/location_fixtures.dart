@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart' show Icons;
-
 import 'location_index_view.dart' show LocationNode;
 
 /// The demo location tree.
@@ -12,6 +10,12 @@ import 'location_index_view.dart' show LocationNode;
 ///
 /// The meta strings become computed values when the backend lands, at which point they turn into
 /// catalogue keys like every other count in the app.
+///
+/// **The icons and colours are stored NAMES**, matching `locations.icon` and `locations.colour`,
+/// and are resolved through `location_appearance.dart`. They were `IconData` constants here until
+/// the appearance columns landed, which made this file the only place in the app holding a glyph
+/// rather than the name of one. Two nodes deliberately carry no colour, because both columns are
+/// nullable and the fallback has to be on screen somewhere to be seen.
 const List<LocationNode> locationTree = <LocationNode>[
   LocationNode(
     name: 'Mutfak',
@@ -19,7 +23,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 0,
     productCount: 5,
     summary: '5 ürün · 2 alt konum',
-    icon: Icons.kitchen_outlined,
+    icon: 'kitchen',
+    colour: 'red',
   ),
   LocationNode(
     name: 'Buzdolabı',
@@ -27,7 +32,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 3,
     summary: '3 ürün',
-    icon: Icons.kitchen_outlined,
+    icon: 'fridge',
+    colour: 'blue',
   ),
   LocationNode(
     name: 'Derin dondurucu',
@@ -35,7 +41,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 1,
     summary: '1 ürün',
-    icon: Icons.ac_unit_outlined,
+    icon: 'freezer',
+    colour: 'teal',
   ),
   LocationNode(
     name: 'Kiler',
@@ -43,7 +50,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 0,
     productCount: 4,
     summary: '4 ürün · 3 alt konum',
-    icon: Icons.shelves,
+    icon: 'pantry',
+    colour: 'amber',
   ),
   LocationNode(
     name: 'Raf 1',
@@ -51,7 +59,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 1,
     summary: '1 ürün',
-    icon: Icons.shelves,
+    icon: 'shelf',
+    colour: 'green',
   ),
   LocationNode(
     name: 'Raf 2',
@@ -59,7 +68,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 2,
     summary: '2 ürün',
-    icon: Icons.shelves,
+    icon: 'shelf',
+    colour: 'green',
   ),
   LocationNode(
     name: 'Çekmece 2',
@@ -67,7 +77,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 1,
     summary: '1 ürün',
-    icon: Icons.inbox_outlined,
+    icon: 'drawer',
   ),
   LocationNode(
     name: 'Depo',
@@ -75,7 +85,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 0,
     productCount: 2,
     summary: '2 ürün · 1 alt konum',
-    icon: Icons.warehouse_outlined,
+    icon: 'warehouse',
+    colour: 'violet',
   ),
   LocationNode(
     name: 'Raf A',
@@ -83,7 +94,8 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 2,
     summary: '2 ürün',
-    icon: Icons.shelves,
+    icon: 'shelf',
+    colour: 'red',
   ),
   LocationNode(
     name: 'Raf B',
@@ -91,6 +103,6 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 0,
     summary: 'Boş',
-    icon: Icons.shelves,
+    icon: 'shelf',
   ),
 ];

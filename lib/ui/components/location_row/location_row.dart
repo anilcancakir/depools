@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/location_appearance.dart';
 import 'location_row.recipe.dart';
 
 /// **LocationRow**
@@ -20,7 +21,14 @@ import 'location_row.recipe.dart';
 /// ### Example
 ///
 /// ```dart
-/// LocationRow(name: 'Buzdolabı', depth: 1, productCount: 3, itemSummary: '3 ürün')
+/// LocationRow(
+///   name: 'Buzdolabı',
+///   depth: 1,
+///   productCount: 3,
+///   itemSummary: '3 ürün',
+///   icon: 'fridge',
+///   colour: 'blue',
+/// )
 /// ```
 @immutable
 class LocationRow extends StatelessWidget {
@@ -36,10 +44,22 @@ class LocationRow extends StatelessWidget {
   /// The already-formatted contents line, for example `'3 ürün · 2 parti'`.
   final String? itemSummary;
 
-  /// The location's icon. Required, because every node in the tree has one: a tree where
-  /// only roots carry a glyph makes children read as text under a heading rather than as
-  /// places, and `locations.icon_id` exists for every row.
-  final IconData icon;
+  /// The location's icon NAME, from the closed catalogue in `location_appearance.dart`.
+  ///
+  /// A name rather than an `IconData` because that is what the column holds, and because a
+  /// glyph built from a stored codepoint is shaken out of the font by the release build.
+  /// Null falls back to a neutral box: both columns are nullable, and the leading glyph is
+  /// unconditional, since a tree where only some rows carry one shifts the text beside it.
+  final String? icon;
+
+  /// The location's hue NAME, from the same catalogue.
+  ///
+  /// **The tint identifies a place, it does not assert a state.** Several hues share a hex
+  /// with a status family because both come from Apple's increased-contrast palette, and
+  /// that is safe for the reason DESIGN.md already relies on: a status in this app always
+  /// arrives as a filled badge carrying an icon AND its word, so a bare tint cannot be read
+  /// as one. Null falls back to the neutral.
+  final String? colour;
 
   /// Called when the row is tapped, which opens the location.
   final VoidCallback? onTap;
@@ -50,7 +70,8 @@ class LocationRow extends StatelessWidget {
     required this.name,
     required this.depth,
     required this.productCount,
-    required this.icon,
+    this.icon,
+    this.colour,
     this.itemSummary,
     this.onTap,
   });
@@ -71,12 +92,21 @@ class LocationRow extends StatelessWidget {
         // 44pt floor on the label instead of on the thing the user aims at.
         className: '${slots['root']} ${_indentFor(depth)}',
         children: [
-          // The icon is REQUIRED rather than reserved-when-absent, which is the stronger
-          // version of the same fix. A conditional leading glyph shifted the text beside
-          // it, so a root with an icon pushed its name 32px right while its child got 12px
-          // of indent and children appeared to the LEFT of their parents. Making it
-          // required removes the state that caused it instead of padding around it.
-          WIcon(icon, className: slots['icon']),
+          // The glyph is UNCONDITIONAL rather than reserved-when-absent, which is the
+          // stronger version of the same fix. A conditional leading glyph shifted the text
+          // beside it, so a root with an icon pushed its name 32px right while its child got
+          // 12px of indent and children appeared to the LEFT of their parents. Both columns
+          // are nullable on the backend, so the fallback lives in the resolver rather than
+          // in a condition here: there is no state in which this box is absent.
+          //
+          // **The hue tints the glyph rather than filling a chip behind it, and the tree is
+          // why.** A 32px chip reads better in isolation, and at depth 5 it would sit behind
+          // 60px of indent: 92px of gutter before the name on a 390px phone. The detail
+          // header, which pays no indent, does use the chip.
+          WIcon(
+            locationIcon(icon),
+            className: '${slots['icon']} ${locationGlyphClassName(colour)}',
+          ),
           WDiv(
             className: slots['body'],
             children: [

@@ -128,11 +128,19 @@ return new class extends Migration
         // retuning what `blue` resolves to rather than renaming the column's values. That is the
         // right trade for a personalisation choice, and the wrong one for a STATUS, which is why the
         // status families stay named for what they mean.
+        //
+        // **Seven, and `orange` was removed by measurement rather than by taste.** Apple's
+        // increased-contrast light values for yellow, orange and red all darken toward brown, and
+        // orange sat between the other two: CIEDE2000 of 9.2 against amber and 10.1 against red,
+        // where the same amber/orange pair is 13.3 in dark mode and IS distinguishable on screen.
+        // A swatch a user cannot tell from its neighbour defeats the only thing the hue is for.
+        // `bin/verify-design-contrast.py` measures every pair, so an eighth hue is checked before
+        // it reaches this list.
         DB::statement("
             ALTER TABLE locations
             ADD CONSTRAINT locations_colour_is_known
             CHECK (colour IS NULL OR colour IN (
-                'slate', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'violet'
+                'slate', 'blue', 'teal', 'green', 'amber', 'red', 'violet'
             ))
         ");
     }

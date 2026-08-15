@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSInput;
 
+import '../../../app/support/location_appearance.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
@@ -43,22 +44,22 @@ class LocationFormView extends StatefulWidget {
 }
 
 class _LocationFormViewState extends State<LocationFormView> {
-  /// The glyphs a small business actually reaches for, in the order they meet them.
-  static const List<IconData> _icons = <IconData>[
-    Icons.warehouse_outlined,
-    Icons.kitchen_outlined,
-    Icons.shelves,
-    Icons.inventory_2_outlined,
-    Icons.ac_unit_outlined,
-    Icons.door_sliding_outlined,
-  ];
+  /// The tick on the chosen colour, so selection is never carried by the tint alone.
+  static const IconData _selectedIcon = Icons.check;
 
   /// `data-model.md`'s cap, stated once.
   static const int _maxDepth = 6;
 
   String _name = '';
   String? _parentPath;
-  int _iconIndex = 0;
+
+  /// **Names, not an index into a local list.** This screen used to hold its own six glyphs and
+  /// store the position of the chosen one, which meant the form could not produce a value the
+  /// column accepts: `locations.icon` is CHECKed against a catalogue of sixteen names, and a
+  /// position is meaningless the moment that list is reordered. Both now come from
+  /// `location_appearance.dart`, which is also what the tree reads.
+  String _icon = locationIcons.keys.first;
+  String _colour = locationFallbackColour;
 
   bool get _isValid => _name.trim().isNotEmpty;
 
@@ -124,32 +125,88 @@ class _LocationFormViewState extends State<LocationFormView> {
             ),
           ],
         ),
+        _buildIconPicker(),
+        _buildColourPicker(),
+      ],
+    );
+  }
+
+  /// The sixteen glyphs, each drawn in the hue currently chosen.
+  ///
+  /// **Tinting them with `_colour` is what ties the two pickers together.** They set one thing
+  /// between them, the mark that will stand for this place in the tree, and two independent rows
+  /// of swatches would make the user assemble that combination in their head. Here the icon row
+  /// IS the preview, and the colour row only says which tint it is wearing.
+  Widget _buildIconPicker() {
+    return WDiv(
+      className: 'flex flex-col gap-1.5',
+      children: [
+        WText(Lang.get('screens.location_form.icon'), className: 'text-sm font-medium text-fg'),
         WDiv(
-          className: 'flex flex-col gap-1.5',
+          // Sixteen tiles will not fit a phone width, and the count is fixed rather than variable,
+          // so this wraps rather than scrolls: a horizontal scroller hides options behind a gesture
+          // that nothing on screen advertises.
+          className: 'flex flex-row wrap items-center gap-2',
           children: [
-            WText(Lang.get('screens.location_form.icon'), className: 'text-sm font-medium text-fg'),
-            WDiv(
-              className: 'flex flex-row wrap items-center gap-2',
-              children: [
-                for (int i = 0; i < _icons.length; i++)
-                  WAnchor(
-                    onTap: () => setState(() => _iconIndex = i),
-                    semanticLabel: Lang.get('screens.location_form.icon_pick', {'index': i + 1}),
-                    // Card tone plus a hairline for the unselected state, and the brand fill only
-                    // for the chosen one. A tinted fill alone would carry selection by colour, and
-                    // DESIGN.md's rule applies to state as much as to status.
-                    child: WDiv(
-                      className: i == _iconIndex
-                          ? 'size-11 rounded-md flex items-center justify-center bg-primary-container border border-color-border'
-                          : 'size-11 rounded-md flex items-center justify-center bg-surface-container border border-color-border',
-                      child: WIcon(
-                        _icons[i],
-                        className: i == _iconIndex ? 'size-5 text-fg' : 'size-5 text-fg-muted',
-                      ),
-                    ),
+            for (final String name in locationIcons.keys)
+              WAnchor(
+                onTap: () => setState(() => _icon = name),
+                semanticLabel: Lang.get('screens.location_form.icon_pick', {
+                  'name': Lang.get('screens.location_form.icons.$name'),
+                }),
+                // Card tone plus a hairline for the unselected state, and the brand fill only for
+                // the chosen one. A tinted fill alone would carry selection by colour, and
+                // DESIGN.md's rule applies to state as much as to status.
+                child: WDiv(
+                  className: name == _icon
+                      ? 'size-11 rounded-md flex items-center justify-center bg-primary-container border border-color-border'
+                      : 'size-11 rounded-md flex items-center justify-center bg-surface-container border border-color-border',
+                  child: WIcon(
+                    locationIcons[name]!,
+                    className: 'size-5 ${locationGlyphClassName(_colour)}',
                   ),
-              ],
-            ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// The seven hues, as plain filled swatches.
+  ///
+  /// **No glyph inside them, deliberately.** The icon row above is already showing the chosen
+  /// glyph in the chosen hue, so repeating it seven times here would put two marks in a 44pt box
+  /// for no new information, which is the crowding DESIGN.md warns about for a list row. The tick
+  /// is the exception, and it is the one thing that has to be there: selection carried by tint
+  /// alone is invisible to a colour-blind user, so the chosen swatch says so with a shape.
+  ///
+  /// `text-on-primary` for that tick rather than a per-hue foreground, because these fills follow
+  /// the same brightness rule the primary does: dark in light mode, bright in dark. One alias that
+  /// flips with the appearance therefore lands correctly on all seven.
+  Widget _buildColourPicker() {
+    return WDiv(
+      className: 'flex flex-col gap-1.5',
+      children: [
+        WText(Lang.get('screens.location_form.colour'), className: 'text-sm font-medium text-fg'),
+        WDiv(
+          className: 'flex flex-row wrap items-center gap-2',
+          children: [
+            for (final String hue in locationColours)
+              WAnchor(
+                onTap: () => setState(() => _colour = hue),
+                semanticLabel: Lang.get('screens.location_form.colour_pick', {
+                  'name': Lang.get('screens.location_form.colours.$hue'),
+                }),
+                child: WDiv(
+                  className:
+                      'size-11 rounded-md flex items-center justify-center '
+                      '${locationSwatchClassName(hue)} border border-color-border',
+                  child: hue == _colour
+                      ? const WIcon(_selectedIcon, className: 'size-5 text-on-primary')
+                      : null,
+                ),
+              ),
           ],
         ),
       ],
