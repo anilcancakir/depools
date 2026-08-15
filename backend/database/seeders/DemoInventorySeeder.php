@@ -131,16 +131,40 @@ class DemoInventorySeeder extends Seeder
      */
     private function locations(): array
     {
-        $kitchen = Location::create(['name' => 'Kitchen']);
-        $storeroom = Location::create(['name' => 'Storeroom']);
+        // **Every one carries an icon and a hue**, because the tree draws them and a demo tenant
+        // where all six fall back to a grey box demonstrates the fallback rather than the feature.
+        // Both names are CHECKed against `Location::ICONS` and `::COLOURS`, so a typo here is a
+        // constraint violation at seed time rather than a silently untinted row.
+        $kitchen = Location::create(['name' => 'Kitchen', 'icon' => 'kitchen', 'colour' => 'red']);
+        $storeroom = Location::create(['name' => 'Storeroom', 'icon' => 'warehouse', 'colour' => 'violet']);
 
         return [
             'kitchen' => $kitchen,
-            'fridge' => Location::create(['name' => 'Fridge', 'parent_location_id' => $kitchen->getKey()]),
-            'freezer' => Location::create(['name' => 'Freezer', 'parent_location_id' => $kitchen->getKey()]),
-            'pantry' => Location::create(['name' => 'Pantry', 'parent_location_id' => $kitchen->getKey()]),
+            'fridge' => Location::create([
+                'name' => 'Fridge',
+                'parent_location_id' => $kitchen->getKey(),
+                'icon' => 'fridge',
+                'colour' => 'blue',
+            ]),
+            'freezer' => Location::create([
+                'name' => 'Freezer',
+                'parent_location_id' => $kitchen->getKey(),
+                'icon' => 'freezer',
+                'colour' => 'teal',
+            ]),
+            'pantry' => Location::create([
+                'name' => 'Pantry',
+                'parent_location_id' => $kitchen->getKey(),
+                'icon' => 'pantry',
+                'colour' => 'amber',
+            ]),
             'storeroom' => $storeroom,
-            'shelfA' => Location::create(['name' => 'Shelf A', 'parent_location_id' => $storeroom->getKey()]),
+            'shelfA' => Location::create([
+                'name' => 'Shelf A',
+                'parent_location_id' => $storeroom->getKey(),
+                'icon' => 'shelf',
+                'colour' => 'green',
+            ]),
         ];
     }
 

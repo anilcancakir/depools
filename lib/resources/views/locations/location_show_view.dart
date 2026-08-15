@@ -146,6 +146,7 @@ class LocationShowView extends StatelessWidget {
             productCount: child.productCount,
             itemSummary: child.summary,
             icon: child.icon,
+            colour: child.colour,
             // Descending into a child is the whole point of a tree screen.
             onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(child.path)}'),
           ),

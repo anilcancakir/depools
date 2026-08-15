@@ -81,7 +81,7 @@ final class Location extends Model
      * value is a key rather than a colour, and `bin/design-tokens` would refuse a raw hex anyway.
      */
     public const COLOURS = [
-        'slate', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'violet',
+        'slate', 'blue', 'teal', 'green', 'amber', 'red', 'violet',
     ];
 
     /**

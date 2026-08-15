@@ -310,6 +310,58 @@ each other, so the boundary between the two strokes is never the weak link.
 `bin/verify-design-contrast.py` sweeps the whole luminance range and fails the build below 3:1,
 rather than trusting the arithmetic in this section.
 
+## Location hues: seven, because eight could not be told apart
+
+A location carries a hue the user picks from a swatch (D119), so unlike every other colour in this
+file it identifies rather than means. It lives in `lib/config/depools_location_tokens.dart` as a
+further supplement, two tokens per hue holding the same value: `text-<hue>-location` for the glyph
+in the tree, `bg-<hue>-location` for the same tone as the form's swatch fill.
+
+| Hue | Glyph light | Glyph dark | Apple source |
+|---|---|---|---|
+| `slate` | `#5A5A5E` | `#AEAEB2` | systemGray |
+| `blue` | `#0040DD` | `#409CFF` | systemBlue |
+| `teal` | `#00697C` | `#5DE6FF` | systemTeal |
+| `green` | `#1F7434` | `#30DB5B` | systemGreen |
+| `amber` | `#8A3E00` | `#FFD426` | systemYellow |
+| `red` | `#D70015` | `#FF6961` | systemRed |
+| `violet` | `#3D0099` | `#DA8FFF` | systemPurple |
+
+**Several hold the same hex as a status family, and that is agreement rather than reuse.** Both
+vocabularies are built from Apple's increased-contrast values and neither reads the other. It is safe
+because of this file's own rule, read in the direction that is easy to miss: colour never carries
+meaning alone here, so `expired` always arrives as a filled badge with an icon AND the word, and a red
+shelf glyph therefore cannot be misread as a date warning.
+
+**`orange` was in this table and was removed by measurement.** Contrast is the wrong instrument for a
+swatch: it compares a hue to the BACKGROUND, and a picker asks the user to tell hues apart from EACH
+OTHER. Every one of the original eight cleared its contrast rows while amber and orange were the same
+brown on screen in light mode, because Apple's increased-contrast yellow, orange and red all darken
+toward brown and orange sat between the other two.
+
+| Pair | CIEDE2000 | On screen |
+|---|---|---|
+| amber vs orange, light | 9.2 | the same colour |
+| orange vs red, light | 10.1 | the same colour |
+| amber vs orange, dark | 13.3 | clearly a yellow beside an orange |
+
+So the floor is 12, calibrated between the two readings rather than chosen, and
+`bin/verify-design-contrast.py` measures every pair in both appearances. Orange was dropped rather
+than retuned, because retuning means inventing a value and every hue here is Apple's own. The
+tightest surviving pair is `blue` against `violet` in light, at 15.1.
+
+**The tree tints the GLYPH; it does not fill a chip behind it.** A 32px chip reads better in
+isolation, and at the schema's maximum depth it would sit behind 60px of indent: 92px of gutter
+before the name on a 390px phone.
+
+**The form's swatch is the solid tone, not a soft tint of it**, so what the user taps predicts the
+row they get. A soft pair was written first and removed: it made the swatch a pale version of a
+glyph that renders at full strength two screens away. The tick on the chosen swatch is
+`text-on-primary` rather than a per-hue foreground, because these fills follow the primary's own
+brightness rule (dark in light mode, bright in dark) so one alias that flips with the appearance
+lands on all seven. That is measured rather than asserted: the tightest is `red` at 5.38:1 in light
+and `blue` at 6.51:1 in dark.
+
 ## The control edge is its own token
 
 `MSSwitch` off renders a `#E7E6EC` track with a white thumb. On this palette's white card the
