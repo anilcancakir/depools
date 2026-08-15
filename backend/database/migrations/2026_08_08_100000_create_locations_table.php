@@ -49,13 +49,18 @@ return new class extends Migration
             // How this node is shown (D119). All three are nullable: a location created by a scan or
             // by the AI has none of them, and that is the ordinary state rather than an incomplete one.
             //
-            // **The icon is a NAME from a closed catalogue, never a Material codepoint.** Storing the
-            // codepoint and rebuilding an `IconData` from it is the obvious shape and the toolchain
-            // refuses it: `--tree-shake-icons` defaults to ON, so a glyph no constant references is
-            // dropped from the font and the user's own location renders as tofu. Keeping it would mean
-            // shipping the entire icon font. `CHECK`ed below, because the catalogue is genuinely
-            // closed: it is a design decision, the same way the unit vocabulary is.
-            $table->string('icon', 32)->nullable();
+            // **The icon is a NAME, never a Material codepoint.** Storing the codepoint and
+            // rebuilding an `IconData` from it is the obvious shape and the toolchain refuses it:
+            // `--tree-shake-icons` defaults to ON, so a glyph no constant references is dropped from
+            // the font and the user's own location renders as tofu.
+            //
+            // It points at `icons.name` and is deliberately NOT constrained, neither by a CHECK nor
+            // by a foreign key. The CHECK it used to carry listed sixteen names and was right while
+            // the vocabulary was genuinely closed; the catalogue is 4,185 rows now and grows with a
+            // re-vendor, so a CHECK would be rewritten every time and a foreign key would make every
+            // test that creates a location seed the whole catalogue first. An unknown name renders
+            // the neutral fallback, which is what the client already does for a null one.
+            $table->string('icon', 64)->nullable();
 
             // A key into the same closed set, each entry carrying its own `dark:` pair. Not a hex: a
             // free colour has no contrast guarantee on either surface, and `bin/design-tokens` fails
@@ -100,7 +105,7 @@ return new class extends Migration
     }
 
     /**
-     * The two closed vocabularies D119 introduces.
+     * The one closed vocabulary left, now that the icons are a table.
      *
      * Raw DDL for the same reason `units` and `product_images` use it: a CHECK constrains rather than
      * derives, so it is not what D84 rules out.
@@ -112,16 +117,6 @@ return new class extends Migration
      */
     private function addAppearanceConstraints(): void
     {
-        DB::statement("
-            ALTER TABLE locations
-            ADD CONSTRAINT locations_icon_is_known
-            CHECK (icon IS NULL OR icon IN (
-                'home', 'kitchen', 'fridge', 'freezer', 'pantry', 'cupboard',
-                'shelf', 'drawer', 'box', 'basket', 'crate', 'warehouse',
-                'garage', 'basement', 'office', 'van'
-            ))
-        ");
-
         // Named by HUE, because the user picks one from a swatch and a role name would be a riddle
         // ("which of my shelves is the primary one?"). The cost is real and worth stating: these are
         // the only colour names in the schema that are not semantic, so a palette change means

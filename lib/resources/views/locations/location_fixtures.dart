@@ -23,7 +23,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 0,
     productCount: 5,
     summary: '5 ürün · 2 alt konum',
-    icon: 'kitchen',
+    icon: 'countertops',
     colour: 'red',
   ),
   LocationNode(
@@ -32,7 +32,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 3,
     summary: '3 ürün',
-    icon: 'fridge',
+    icon: 'kitchen',
     colour: 'blue',
   ),
   LocationNode(
@@ -41,7 +41,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 1,
     summary: '1 ürün',
-    icon: 'freezer',
+    icon: 'ac_unit',
     colour: 'teal',
   ),
   LocationNode(
@@ -50,7 +50,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 0,
     productCount: 4,
     summary: '4 ürün · 3 alt konum',
-    icon: 'pantry',
+    icon: 'dining',
     colour: 'amber',
   ),
   LocationNode(
@@ -59,7 +59,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 1,
     summary: '1 ürün',
-    icon: 'shelf',
+    icon: 'shelves',
     colour: 'green',
   ),
   LocationNode(
@@ -68,7 +68,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 2,
     summary: '2 ürün',
-    icon: 'shelf',
+    icon: 'shelves',
     colour: 'green',
   ),
   LocationNode(
@@ -77,7 +77,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 1,
     summary: '1 ürün',
-    icon: 'drawer',
+    icon: 'inbox',
   ),
   LocationNode(
     name: 'Depo',
@@ -94,7 +94,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 2,
     summary: '2 ürün',
-    icon: 'shelf',
+    icon: 'shelves',
     colour: 'red',
   ),
   LocationNode(
@@ -103,6 +103,6 @@ const List<LocationNode> locationTree = <LocationNode>[
     depth: 1,
     productCount: 0,
     summary: 'Boş',
-    icon: 'shelf',
+    icon: 'shelves',
   ),
 ];

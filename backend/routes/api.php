@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\BarcodeController;
+use App\Http\Controllers\Api\V1\IconController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
@@ -38,6 +39,10 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // The vocabulary a client offers in a picker, and the one deliberate way a tenant extends it. No
     // update and no delete: a unit with products counted in it is what every delta in their ledger is
     // denominated in, so the foreign key is `restrictOnDelete` and a rename would reinterpret history.
+    // The icon catalogue: one route for the picker's search and for resolving what is on screen.
+    // Global rather than team-scoped, which the controller says out loud.
+    Route::get('icons', [IconController::class, 'index']);
+
     Route::get('units', [UnitController::class, 'index']);
     Route::post('units', [UnitController::class, 'store']);
     // **Before the resource, or `by-barcode` is read as a product id.** `products/{id}` matches any

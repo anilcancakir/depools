@@ -66,11 +66,15 @@ final class LocationAppearanceTest extends TestCase
     {
         $body = $this->postJson('/api/v1/locations', [
             'name' => 'Fridge',
-            'icon' => 'fridge',
+            // **`kitchen`, and that is not a typo.** Material's `kitchen` glyph DRAWS a refrigerator;
+            // the room itself is `countertops`. The column used to hold our own invented labels, so
+            // `fridge` was a name that existed nowhere outside this app. It holds the catalogue's own
+            // names now, which is what makes `Rule::exists` possible at all.
+            'icon' => 'kitchen',
             'colour' => 'blue',
         ])->assertCreated()->json('data');
 
-        $this->assertSame('fridge', $body['icon']);
+        $this->assertSame('kitchen', $body['icon']);
         $this->assertSame('blue', $body['colour']);
         // Absent is the ordinary state: a location the assistant or a scan created carries neither.
         $this->assertNull($body['image_url']);
@@ -94,15 +98,21 @@ final class LocationAppearanceTest extends TestCase
             ->assertJsonValidationErrors('colour');
     }
 
-    public function test_the_database_refuses_an_unknown_icon_whatever_the_endpoint_allows(): void
+    public function test_the_database_accepts_an_icon_it_has_never_heard_of(): void
     {
-        // The validation rule and the CHECK say the same thing, and only one of them is reachable
-        // from a seeder, a console command or a Filament action. This asserts the one that is.
-        $this->expectException(QueryException::class);
+        // **This asserted the opposite until the catalogue became a table, and the reversal is the
+        // decision rather than a regression.** A CHECK listing sixteen names was right while the
+        // vocabulary was genuinely closed. It is 4,185 rows now and grows with a re-vendor, so the
+        // constraint would be rewritten every time, and a foreign key would make every test that
+        // creates a location seed the whole catalogue first.
+        //
+        // What replaces it: the endpoint validates against the `icons` table, and an unknown name
+        // that reaches the column some other way renders the neutral fallback, exactly as a null one
+        // does. The row survives, which is the right outcome for an appearance hint.
+        $location = Location::create(['name' => 'Fridge']);
+        $location->forceFill(['icon' => 'not_a_real_glyph'])->save();
 
-        DB::transaction(function (): void {
-            Location::create(['name' => 'Fridge'])->forceFill(['icon' => 'nope'])->save();
-        });
+        $this->assertSame('not_a_real_glyph', $location->refresh()->icon);
     }
 
     public function test_the_database_refuses_an_unknown_colour_too(): void
