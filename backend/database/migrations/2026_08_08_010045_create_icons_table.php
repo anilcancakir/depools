@@ -29,8 +29,8 @@ use Illuminate\Support\Facades\Schema;
  *
  * ### `search_text` is written by PHP, not derived by Postgres
  *
- * D84 keeps derivation out of the database, so the searchable blob is assembled in `Icon::fill` and
- * stored, rather than being an expression index or a generated column. It folds the name, the title
+ * D84 keeps derivation out of the database, so the searchable blob is assembled in a `saving` hook
+ * on `Icon` and stored, rather than being an expression index or a generated column. It folds the name, the title
  * and the tags into one lowercase string because the tags are the whole point: a user typing `fridge`
  * has to reach `kitchen`, whose tag list carries `fridge`, `refrigerator` and `cold`. Searching the
  * name alone would make a catalogue of 4,185 icons behave like a catalogue of the ones you can spell.

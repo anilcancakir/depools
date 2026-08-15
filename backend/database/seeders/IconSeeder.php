@@ -84,6 +84,18 @@ final class IconSeeder extends Seeder
                 continue;
             }
 
+            // **A missing name or title is fatal, where a missing svg is not, and the difference is
+            // what each one means.** An icon without a glyph is one row the catalogue can do
+            // without. A row with no name cannot be stored at all: both columns are NOT NULL, so
+            // this would surface as an integrity violation naming a column rather than as the
+            // truncated file it actually is.
+            if (! is_string($icon['name'] ?? null) || ! is_string($icon['title'] ?? null)) {
+                throw new RuntimeException(
+                    'The icon catalogue has a row with no name or title. It is likely truncated; '
+                    .'re-run `php artisan depools:vendor-icons --force`.',
+                );
+            }
+
             $tags = implode(', ', $icon['tags'] ?? []);
 
             $rows[] = [
