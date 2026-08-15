@@ -10,7 +10,8 @@
 ///
 /// **The colour is a name because `bin/design-tokens` fails the build on a raw hex**, and because a
 /// free colour has no contrast guarantee on either surface. Each hue resolves to a className token
-/// from `depools_location_aliases`, which carries its own `dark:` pair.
+/// from `depoolsLocationAliases` in `lib/config/depools_location_tokens.dart`, and each carries its
+/// own `dark:` pair.
 ///
 /// Both vocabularies match `Location::ICONS` and `Location::COLOURS` on the backend, which CHECKs
 /// each column against the same set. Adding one is a change in three places: the migration's
