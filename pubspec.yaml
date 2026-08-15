@@ -64,6 +64,13 @@ dependencies:
   # comparison and the two capabilities that are missing on web (`scanWindow` and reliable autofocus),
   # which is why manual digit entry stays a first-class control rather than a fallback.
   mobile_scanner: ^7.4.0
+  # Taking a product photograph, and the reason it is this rather than `file_picker` (which is
+  # already here for magic's own use): `file_picker` reaches the file system and never the CAMERA, so
+  # a phone user photographing a shelf would have to leave the app, use the camera, come back and
+  # find the file. `image_picker` declares all six platforms, so `DESIGN.md`'s rule holds without a
+  # branch in the widget tree: the phone offers its camera, the desktop offers a file dialog, and the
+  # feature exists on both.
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
