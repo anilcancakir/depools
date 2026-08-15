@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSBottomSheet, MSButton, ButtonIntent;
 
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/option_row/option_row.dart';
 import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
@@ -106,8 +107,8 @@ class _StockInSheetState extends State<StockInSheet> {
     final num gap = par == null ? 0 : (par - widget.product.amount).ceil();
 
     return <(num, String)>[
-      (1, '1 ${widget.product.unit}'),
-      (2, '2 ${widget.product.unit}'),
+      (1, '1 ${unitLabel(widget.product.unit, 1)}'),
+      (2, '2 ${unitLabel(widget.product.unit, 2)}'),
       if (gap > 2) (gap, Lang.get('screens.stock_in.fill_to_target', {'count': gap})),
     ];
   }
@@ -153,7 +154,7 @@ class _StockInSheetState extends State<StockInSheet> {
     // batches. A serial-tracked product counts whole units, so it keeps the generic word.
     final String noun = widget.product.tracking == TrackingMode.serial
         ? Lang.get('screens.stock_in.unit_word')
-        : widget.product.unit;
+        : unitLabel(widget.product.unit, here.floor());
     return Lang.get('screens.stock_in.suggested_here', {'count': here.floor(), 'noun': noun});
   }
 
@@ -227,8 +228,8 @@ class _StockInSheetState extends State<StockInSheet> {
     final int whole = total.floor();
     final num remainder = ((total - whole) * content).round();
 
-    if (remainder == 0) return Lang.get('screens.stock_in.left_simple', {'amount': whole, 'unit': widget.product.unit});
-    return Lang.get('screens.stock_in.left_split', {'whole': whole, 'unit': widget.product.unit, 'remainder': remainder, 'contentUnit': widget.product.contentUnit});
+    if (remainder == 0) return Lang.get('screens.stock_in.left_simple', {'amount': whole, 'unit': unitLabel(widget.product.unit, whole)});
+    return Lang.get('screens.stock_in.left_split', {'whole': whole, 'unit': unitLabel(widget.product.unit, whole), 'remainder': remainder, 'contentUnit': unitLabel(widget.product.contentUnit ?? '', remainder)});
   }
 
   @override

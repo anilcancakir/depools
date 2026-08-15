@@ -2,6 +2,8 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSInput;
+
+import '../../../app/support/unit_label.dart';
 import 'quantity_stepper.recipe.dart';
 
 /// **QuantityStepper**
@@ -114,7 +116,10 @@ class QuantityStepper extends StatelessWidget {
             placeholder: placeholder,
             type: InputType.number,
             onChanged: onChanged,
-            suffix: unit == null ? null : WText(unit!, className: slots['unit']),
+            // The code resolved to a word, as in `Quantity`, and for the same reason: this is the
+            // other place a unit reaches the user beside a number. Pluralised against the value in
+            // the field, so a stepper sitting at 1 does not read `1 pieces`.
+            suffix: unit == null ? null : WText(unitLabelFor(unit!, value ?? ''), className: slots['unit']),
           ),
         ),
         _button(slots, slots['right'], _incrementIcon, Lang.get('components.quantity_stepper.increment', {'name': semanticName}), onIncrement),
@@ -130,7 +135,12 @@ class QuantityStepper extends StatelessWidget {
               placeholder: remainderPlaceholder ?? placeholder,
               type: InputType.number,
               onChanged: onRemainderChanged,
-              suffix: WText(remainderUnit!, className: slots['unit']),
+              // Resolved against what is typed here, the same way the value's own unit is. An
+              // earlier version pinned this at one and said the opposite in its comment, which
+              // would have read as deliberate to the next person: a remainder is a measured amount
+              // and the measures do not inflect, so it looked like it could not matter. A tenant's
+              // own unit can be a countable word, so it can.
+              suffix: WText(unitLabelFor(remainderUnit!, remainderValue ?? ''), className: slots['unit']),
             ),
           ),
       ],

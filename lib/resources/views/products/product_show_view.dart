@@ -18,6 +18,7 @@ import 'package:magic_starter/magic_starter.dart'
         MSEmptyState;
 
 import '../../../app/controllers/product_detail_controller.dart';
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/draft_field/draft_field.dart';
 import '../../../ui/components/expiry_badge/expiry_badge.dart';
 import '../../../ui/components/location_stock_row/location_stock_row.dart';
@@ -800,7 +801,10 @@ class _ProductShowViewState extends State<ProductShowView> {
         WDiv(
           child: StatCard(
             label: Lang.get('screens.product.stat_target'),
-            value: Lang.get('screens.product.stat_target_value', {'par': _product.parLevel, 'unit': _product.unit}),
+            value: Lang.get('screens.product.stat_target_value', {
+              'par': _product.parLevel,
+              'unit': unitLabel(_product.unit, _product.parLevel ?? 1),
+            }),
             delta: Lang.get('screens.product.stat_target_manual'),
           ),
         ),

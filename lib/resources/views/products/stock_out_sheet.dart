@@ -3,6 +3,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSBottomSheet, MSButton, MSSegmentedControl, ButtonIntent;
 
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import 'product_fixtures.dart';
@@ -232,29 +233,47 @@ class _StockOutSheetState extends State<StockOutSheet> {
       // The open lot's remainder is already expressed in the content unit, so its
       // formatted figure is the amount.
       final num remaining = _lot!.remaining * (content ?? 1);
+      // `unit` stays the CODE, because it is what `_resultLabel` compares against the product's own
+      // to decide whether an amount is already in base units. Only the LABEL is resolved to a word.
+      final String openUnit = contentUnit ?? base;
+
       return <_AmountOption>[
         if (remaining > 1)
           _AmountOption(
             amount: remaining / 2,
-            unit: contentUnit ?? base,
-            label: Lang.get('screens.stock_out.quick_half', {'amount': (remaining / 2).round(), 'unit': contentUnit ?? base}),
+            unit: openUnit,
+            label: Lang.get('screens.stock_out.quick_half', {
+              'amount': (remaining / 2).round(),
+              'unit': unitLabel(openUnit, (remaining / 2).round()),
+            }),
           ),
         _AmountOption(
           amount: remaining,
-          unit: contentUnit ?? base,
-          label: Lang.get('screens.stock_out.quick_all', {'amount': remaining.round(), 'unit': contentUnit ?? base}),
+          unit: openUnit,
+          label: Lang.get('screens.stock_out.quick_all', {
+            'amount': remaining.round(),
+            'unit': unitLabel(openUnit, remaining.round()),
+          }),
           emptiesLot: true,
         ),
       ];
     }
 
     return <_AmountOption>[
-      _AmountOption(amount: 1, unit: base, label: '1 $base', emptiesLot: _lot!.remaining == 1),
+      _AmountOption(
+        amount: 1,
+        unit: base,
+        label: '1 ${unitLabel(base, 1)}',
+        emptiesLot: _lot!.remaining == 1,
+      ),
       if (content != null && contentUnit != null)
         _AmountOption(
           amount: content / 2,
           unit: contentUnit,
-          label: Lang.get('screens.stock_out.quick_half', {'amount': (content / 2).round(), 'unit': contentUnit}),
+          label: Lang.get('screens.stock_out.quick_half', {
+            'amount': (content / 2).round(),
+            'unit': unitLabel(contentUnit, (content / 2).round()),
+          }),
           opensLot: true,
         ),
     ];
@@ -267,7 +286,7 @@ class _StockOutSheetState extends State<StockOutSheet> {
   String get _resultLabel {
     if (_isSerial) {
       final int left = widget.product.liveSerials.length - (_serial == null ? 0 : 1);
-      return left == 0 ? Lang.get('screens.stock_out.left_none') : Lang.get('screens.stock_out.left_simple', {'amount': left, 'unit': widget.product.unit});
+      return left == 0 ? Lang.get('screens.stock_out.left_none') : Lang.get('screens.stock_out.left_simple', {'amount': left, 'unit': unitLabel(widget.product.unit, left)});
     }
 
     final _AmountOption? option = _amount;
@@ -282,9 +301,9 @@ class _StockOutSheetState extends State<StockOutSheet> {
     final int whole = left.floor();
     final num remainder = ((left - whole) * content).round();
 
-    if (remainder == 0) return Lang.get('screens.stock_out.left_simple', {'amount': whole, 'unit': widget.product.unit});
-    if (whole == 0) return Lang.get('screens.stock_out.left_simple', {'amount': remainder, 'unit': widget.product.contentUnit});
-    return Lang.get('screens.stock_out.left_split', {'whole': whole, 'unit': widget.product.unit, 'remainder': remainder, 'contentUnit': widget.product.contentUnit});
+    if (remainder == 0) return Lang.get('screens.stock_out.left_simple', {'amount': whole, 'unit': unitLabel(widget.product.unit, whole)});
+    if (whole == 0) return Lang.get('screens.stock_out.left_simple', {'amount': remainder, 'unit': unitLabel(widget.product.contentUnit ?? '', remainder)});
+    return Lang.get('screens.stock_out.left_split', {'whole': whole, 'unit': unitLabel(widget.product.unit, whole), 'remainder': remainder, 'contentUnit': unitLabel(widget.product.contentUnit ?? '', remainder)});
   }
 
   /// The already-localised label for a reason, which varies by tracking mode.

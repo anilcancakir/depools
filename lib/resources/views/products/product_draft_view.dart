@@ -4,6 +4,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSPageScaffold, MSButton, ButtonIntent, MSSkeleton, SkeletonShape;
 
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/draft_field/draft_field.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/tag/index.dart';
@@ -232,7 +233,10 @@ class ProductDraftView extends StatelessWidget {
           label: Lang.get('screens.product_draft.content'),
           value: _source.contentAmount == null
               ? null
-              : Lang.get('screens.product_draft.content_value', {'amount': _source.contentAmount!.round(), 'unit': _source.contentUnit}),
+              : Lang.get('screens.product_draft.content_value', {
+                  'amount': _source.contentAmount!.round(),
+                  'unit': unitLabel(_source.contentUnit ?? '', _source.contentAmount!.round()),
+                }),
           unconfirmed: true,
           state: isEnriching ? DraftFieldState.loading : null,
           prompt: Lang.get('screens.product_draft.optional'),
@@ -290,7 +294,7 @@ class ProductDraftView extends StatelessWidget {
           children: [
             DraftField(
               label: Lang.get('screens.product_draft.quantity'),
-              value: '1 ${_source.unit}',
+              value: '1 ${unitLabel(_source.unit, 1)}',
               layout: DraftFieldLayout.chip,
               onTap: () => _edit(
                 context,

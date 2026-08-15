@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/unit_label.dart';
 import '../quantity/quantity.dart';
 import '../receipt_line_row/receipt_line_row.dart' show LineResolution;
 import 'shelf_candidate_row.recipe.dart';
@@ -77,7 +78,7 @@ class ShelfCandidateRow extends StatelessWidget {
               'region': region,
               'name': productName ?? '',
               'amount': formatted,
-              'unit': unit,
+              'unit': unitLabelFor(unit, formatted),
             }),
       child: WDiv(
         className: slots['root'],

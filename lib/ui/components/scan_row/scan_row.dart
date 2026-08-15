@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/unit_label.dart';
 import '../../../app/models/scan_source.dart';
 
 // Re-exported so a widget that already reached `ScanSource` through this component keeps working.
@@ -137,7 +138,7 @@ class ScanRow extends StatelessWidget {
           // unit. "Mevcut: 2 adet" states which number is which; "2 adet" would not.
           ScanSource.own => onHandFormatted == null
               ? null
-              : Lang.get('components.scan_row.on_hand', {'amount': onHandFormatted, 'unit': unit}),
+              : Lang.get('components.scan_row.on_hand', {'amount': onHandFormatted, 'unit': unitLabelFor(unit, onHandFormatted!)}),
           ScanSource.catalog => Lang.get('components.scan_row.new_catalog'),
           ScanSource.unverified => Lang.get('components.scan_row.new_unverified'),
           ScanSource.recalled => Lang.get('components.scan_row.new_manual'),
@@ -160,7 +161,9 @@ class ScanRow extends StatelessWidget {
         _ when pending => Lang.get('components.scan_row.pending_label', {'barcode': barcode}),
         _ when isUnmatched =>
           Lang.get('components.scan_row.unmatched_label', {'barcode': barcode}),
-        _ => [productName ?? barcode, '$count $unit', ?_meta].join(', '),
+        // The unit resolved here too: a screen reader would otherwise say "six C62", which is worse
+        // than seeing it, since there is no surrounding layout to guess from.
+        _ => [productName ?? barcode, '$count ${unitLabel(unit, count)}', ?_meta].join(', '),
       },
       child: WDiv(
         className: slots['root'],

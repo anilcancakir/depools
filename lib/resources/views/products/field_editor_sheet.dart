@@ -3,6 +3,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSBottomSheet, MSButton, ButtonIntent, MSInput;
 
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/option_row/option_row.dart';
 
@@ -211,7 +212,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
               // editable here: changing what a number MEANS is a different decision from
               // changing the number, and D54 keeps them apart.
               if (widget.unit != null)
-                WText(widget.unit!, className: 'text-sm text-fg-muted axis-min'),
+                WText(unitLabelFor(widget.unit!, _value ?? ''), className: 'text-sm text-fg-muted axis-min'),
             ],
           ),
         );
@@ -272,7 +273,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
 
   /// A number chip shows its unit; a text or choice chip is already self-describing.
   String _labelFor(String answer) => widget.kind == FieldEditorKind.number && widget.unit != null
-      ? '$answer ${widget.unit}'
+      ? '$answer ${unitLabelFor(widget.unit!, answer)}'
       : answer;
 
   void _set(String next) => setState(() => _value = next.isEmpty ? null : next);

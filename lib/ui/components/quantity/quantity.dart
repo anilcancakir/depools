@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/unit_label.dart';
 import 'quantity.recipe.dart';
 
 /// The quantity size axis.
@@ -74,7 +75,16 @@ class Quantity extends StatelessWidget {
   /// The already-formatted value for the active locale, for example `'1.240,00'`.
   final String formatted;
 
-  /// The unit label, for example `'kg'` or `'adet'`.
+  /// The unit CODE, for example `'C62'` or `'KGM'`.
+  ///
+  /// **Resolved to a word here rather than by the caller**, which is the whole reason this parameter
+  /// changed meaning. Since the vocabulary became UN/ECE Rec 20 codes, every screen that printed this
+  /// straight showed `1240 C62` at the user; the scan screen resolved it and nothing else did.
+  /// Pluralisation needs the count, and this widget is the one place that already holds both the
+  /// number and the unit, so it is the only place where the two cannot drift apart.
+  ///
+  /// A code with no entry in the catalogue falls through as it stands, which is right for a tenant's
+  /// own unit: their code IS their word for it (`koli`, `case`).
   final String? unit;
 
   /// An already-formatted second figure for the open unit's remainder.
@@ -129,14 +139,22 @@ class Quantity extends StatelessWidget {
       ),
       children: [
         WText(formatted),
-        if (unit != null) WText(unit!, className: unitClassName),
+        // [amount] is the raw total, which is the count this unit belongs to in every shape rendered
+        // here: a whole count, a fractional one, and the case where the caller passes the open
+        // remainder as [formatted] and the total IS that remainder. `unitLabel` takes a `num` and
+        // owns the singular-versus-plural rule, so there is nothing to decide at this call site.
+        if (unit != null) WText(unitLabel(unit!, amount), className: unitClassName),
         // The `+` takes the unit's muted tone rather than the value's. It is a
         // separator, not a figure, and at the value's weight it competed with both
         // numbers it sits between.
         if (remainderFormatted != null) ...[
           WText('+', className: unitClassName),
           WText(remainderFormatted!),
-          if (remainderUnit != null) WText(remainderUnit!, className: unitClassName),
+          // Against the remainder's OWN figure rather than [amount], which is the total and would
+          // pluralise the second unit by the first one's count. The raw number never reaches this
+          // widget, so the formatted string is what the count is read from.
+          if (remainderUnit != null)
+            WText(unitLabelFor(remainderUnit!, remainderFormatted ?? ''), className: unitClassName),
         ],
       ],
     );

@@ -504,7 +504,13 @@ void main() {
       expect(vanilla.wholeCount, 0);
       expect(vanilla.primaryFigure, ('2', 'poşet'));
       expect(vanilla.remainderFigure, isNull);
-      expect(vanilla.openNote, '1 paket açık');
+      // **The note is PRESENT, rather than equal to a sentence.** It used to assert
+      // `'1 paket açık'`, which is what it read while the string was hardcoded Turkish with the raw
+      // unit interpolated into it: on an English screen that rendered `1 C62 açık`. It resolves
+      // through `Lang.get` now, and the catalogue does not load in this harness (see
+      // `unit_label_test.dart`), so what can honestly be asserted here is that the row HAS a note
+      // while the previous case asserts that a row with a whole count does not.
+      expect(vanilla.openNote, isNotNull);
     });
 
     test('a product with nothing open renders no remainder at all', () {

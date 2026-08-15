@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:magic/magic.dart';
 
 import '../../../app/models/product_filter.dart';
+import '../../../app/support/unit_label.dart';
 import 'product_filter_sheet.dart';
 
 /// How a product's units are identified.
@@ -700,9 +701,13 @@ class ProductListItem {
   /// Only worth saying when the remainder is the primary figure. "2 adet + 500 ml"
   /// already tells the reader something is open; "2 poşet" does not, and without the
   /// note the user cannot tell two loose sachets from two sealed packs.
+  /// **This was a hardcoded Turkish string with a raw unit code in it**, and no gate could see it:
+  /// `no_hardcoded_copy_test` skips any path containing `fixtures`, which is the exemption
+  /// `count_line.dart`'s own header warns about. On an English screen it read `1 C62 açık`.
   String? get openNote {
     if (!hasOpenUnit || wholeCount > 0) return null;
-    return '1 $unit açık';
+
+    return Lang.get('screens.products.open_note', {'unit': unitLabel(unit, 1)});
   }
 
   /// Decimal formatting for a content figure, in the ACTIVE locale.

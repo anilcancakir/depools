@@ -132,4 +132,52 @@ void main() {
     expect(unitLabel(''), '');
     expect(unitLabel('   '), '');
   });
+
+  group('the count a formatted figure agrees with', () {
+    // Most display sites hold only the string, because formatting is a locale decision belonging to
+    // whoever built the figure, and the unit beside it still has to agree in number.
+    //
+    // **The COUNT is asserted rather than the word**, and that is not a shortcut. Every code falls
+    // back to itself in this harness, for the reason the file docblock records, so
+    // `unitLabelFor('C62', '1')` and `unitLabelFor('C62', '2')` both answer `C62` and an assertion on
+    // them would pass whatever the rule did. The count is the part carrying a decision.
+
+    test('exactly one is one, and nothing else is', () {
+      expect(pluralCountOf('1'), 1);
+      expect(pluralCountOf('2'), isNot(1));
+      expect(pluralCountOf('0'), isNot(1));
+    });
+
+    test('one written as a whole is still one', () {
+      // Either separator, because the app writes the decimal one way in English and the other in
+      // Turkish and this helper is handed the already-formatted string.
+      expect(pluralCountOf('1,0'), 1);
+      expect(pluralCountOf('1.00'), 1);
+      expect(pluralCountOf('1,5'), isNot(1));
+    });
+
+    test('a GROUPED thousand is not one, which a bare parse got wrong', () {
+      // **This is the case that made the rule a rule.** The first version was
+      // `num.tryParse(s.replaceAll(',', '.'))`, and `num.tryParse('1.000')` answers 1.0, so one
+      // thousand took the singular: `1.000 piece`. A separator followed by exactly three digits is
+      // read as grouping now, whichever separator the locale uses.
+      expect(pluralCountOf('1.000'), isNot(1));
+      expect(pluralCountOf('1,000'), isNot(1));
+      expect(pluralCountOf('1.240,00'), isNot(1));
+      expect(pluralCountOf('1.240'), isNot(1));
+    });
+
+    test('an empty or unreadable field reads as plural', () {
+      // The placeholder in a stepper sits under a unit, not under a count of one.
+      expect(pluralCountOf(''), isNot(1));
+      expect(pluralCountOf('-'), isNot(1));
+    });
+
+    test('a field stopped mid-decimal reads as one, deliberately', () {
+      // `1,` on the way to `1,5`. The value at that instant is one-point-something-not-yet-said, and
+      // the next keystroke settles it. Pinned so a future reader sees it was decided rather than
+      // missed: an earlier docblock claimed the opposite of what the code did.
+      expect(pluralCountOf('1,'), 1);
+    });
+  });
 }
