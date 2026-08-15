@@ -2349,14 +2349,42 @@ form asks for one rather than treating it as decoration". Nothing stored one: `l
 path, depth and parent, and the five icons in the app live in `location_fixtures.dart` as raw
 `IconData` constants. Anılcan asked for a custom image, an icon and a colour, and picked all three.
 
-**The icon is a NAMED key from a closed catalogue** (`fridge`, `shelf`, `freezer`, `pantry`, ...),
-stored as a short string and mapped to a `const IconData` in the client. The obvious alternative,
-storing the Material codepoint, is ruled out by the toolchain rather than by taste: `--tree-shake-icons`
-defaults to ON (checked against `flutter build web --help`), so an `IconData` built from a stored int
-is not referenced anywhere the shaker can see and its glyph is dropped from the font. The symptom is
-tofu on a user's own location, and the workaround is `--no-tree-shake-icons`, which ships the entire
-icon font. A named catalogue keeps every icon a constant and makes the SET a design decision, which is
-what it should be: the vocabulary is ours, the same way the unit vocabulary is.
+**The icon is a NAMED key, and the name is Material's own** (`kitchen`, `shelves`, `local_shipping`).
+Storing the Material codepoint is the obvious alternative and the toolchain rules it out rather than
+taste: `--tree-shake-icons` defaults to ON (checked against `flutter build web --help`), so an
+`IconData` built from a stored int is not referenced anywhere the shaker can see and its glyph is
+dropped from the font. The symptom is tofu on a user's own location.
+
+**The CLOSED half of this was superseded once the picker was built, and the reason it had to be is
+worth keeping.** The first version was sixteen names of our own invention (`fridge`, `shelf`, `van`)
+mapped to a `const IconData` in the client and CHECKed on the column, on the reasoning that a closed
+set makes the vocabulary a design decision the way the unit vocabulary is. That reasoning holds for
+units and does not hold here: a unit is a measurement the product has an opinion about, an icon is
+decoration the user picks, and sixteen options is a picker nobody can find their shelf in.
+
+Anılcan asked for search across the whole set, and the const-map answer was measured on this app and
+rejected: `IconTreeShaker` runs `ConstFinder` over the compiled kernel's CONSTANT POOL, so it keeps
+every entry of a `const Map` and drops anything built at runtime. Referencing all 8,825 icons took
+`main.dart.js` from 5,132,437 to 5,796,655 and the font from 23,376 to 1,261,120, so +1.81 MB, with
+the tree-shaking reduction collapsing from 98.6% to 23.3%.
+
+So the catalogue is a global `icons` TABLE of 4,185 Material Symbols Outlined glyphs, held as SVG
+with their tags, vendored into the repository by `depools:vendor-icons` and rendered through
+`flutter_svg`. App size goes to zero and adding an icon becomes a row. Three consequences:
+
+- `locations.icon` carries no CHECK and no foreign key any more. A CHECK listing 4,185 names would
+  be rewritten on every re-vendor, and a foreign key would make every test that creates a location
+  seed the whole catalogue first. The endpoint validates against the table; an unknown name renders
+  the neutral fallback, exactly as a null one does.
+- The stored names changed from ours to Material's, which is what makes validating against the table
+  possible at all. Material's own naming carries one surprise: `kitchen` DRAWS a refrigerator, so
+  the room itself is `countertops`.
+- The metadata is what makes this worth doing rather than merely bigger. Each icon carries a median
+  of 34 tags plus a category and Google's `popularity`, the richest of the eight sets compared
+  (Tabler ~10, Font Awesome 8-14, Lucide 6-7), and the tags are this app's own vocabulary: `shelves`
+  lists inventory, storage, warehouse, goods. That is what the picker searches and what the AI
+  suggestion will embed. Finding it required not believing the first answer: the metadata is absent
+  from `google/material-design-icons` entirely and lives in the Google Fonts API.
 
 **The colour is a closed set of semantic tints**, each carrying its own `dark:` pair, stored as a key
 the same way. A user-chosen hex is not an option here and the reason is mechanical: `bin/design-tokens`

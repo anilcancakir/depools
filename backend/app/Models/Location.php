@@ -60,20 +60,6 @@ final class Location extends Model
     ];
 
     /**
-     * The icons a location may carry, matching the CHECK on the column.
-     *
-     * **A closed catalogue of NAMES, and the reason is the build rather than taste.** Storing a
-     * Material codepoint and rebuilding an `IconData` from it is the obvious shape;
-     * `--tree-shake-icons` defaults to ON, so a glyph no constant references is dropped from the font
-     * and the user's own location renders as tofu. The client maps each of these to a `const`.
-     */
-    public const ICONS = [
-        'home', 'kitchen', 'fridge', 'freezer', 'pantry', 'cupboard',
-        'shelf', 'drawer', 'box', 'basket', 'crate', 'warehouse',
-        'garage', 'basement', 'office', 'van',
-    ];
-
-    /**
      * The colours a location may carry, matching the CHECK on the column.
      *
      * Named by hue rather than by role, because the user picks one from a swatch: "which of my

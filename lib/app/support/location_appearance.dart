@@ -13,9 +13,16 @@
 /// from `depoolsLocationAliases` in `lib/config/depools_location_tokens.dart`, and each carries its
 /// own `dark:` pair.
 ///
-/// Both vocabularies match `Location::ICONS` and `Location::COLOURS` on the backend, which CHECKs
-/// each column against the same set. Adding one is a change in three places: the migration's
-/// constraint, the model's constant, and here.
+/// **The icon names are Material's own, and they used to be ours.** This map's keys were once
+/// invented labels (`fridge`, `shelf`, `van`) sitting on top of Material glyphs, which meant the
+/// stored value named nothing outside this file. They are the catalogue's real names now
+/// (`kitchen`, `shelves`, `local_shipping`), so the column, the backend's `icons` table and this map
+/// all say the same word. Material's own naming is the surprise to know: `kitchen` DRAWS a
+/// refrigerator, so the kitchen itself is `countertops`.
+///
+/// The colour names still match `Location::COLOURS`, which CHECKs the column against the same seven.
+/// The icon column is no longer constrained: the catalogue is a table of 4,185 rows that grows with
+/// a re-vendor, so an unknown name falls back here rather than being refused there.
 library;
 
 import 'package:flutter/material.dart' show Icons;
@@ -36,26 +43,26 @@ const String locationFallbackColour = 'slate';
 /// **Ordered from the room inwards**, so the list reads as a place getting smaller rather than as an
 /// alphabet: home, then the rooms, then the furniture, then the containers, then the buildings.
 ///
-/// Two of these are not the glyph their name suggests, and the mismatch is Material's rather than
-/// ours: `Icons.kitchen` draws a REFRIGERATOR, so it belongs to `fridge`, and `kitchen` takes the
-/// countertop. Picking by name without looking would put a fridge on every kitchen.
+/// One of these is not the glyph its name suggests, and the mismatch is Material's rather than ours:
+/// `kitchen` draws a REFRIGERATOR. Picking by name without looking puts a fridge on every kitchen,
+/// which is why the kitchen itself is `countertops`.
 const Map<String, IconData> locationIcons = <String, IconData>{
   'home': Icons.home_outlined,
-  'kitchen': Icons.countertops_outlined,
-  'fridge': Icons.kitchen_outlined,
-  'freezer': Icons.ac_unit_outlined,
-  'pantry': Icons.dining_outlined,
-  'cupboard': Icons.door_sliding_outlined,
-  'shelf': Icons.shelves,
-  'drawer': Icons.inbox_outlined,
-  'box': Icons.inventory_2_outlined,
-  'basket': Icons.shopping_basket_outlined,
-  'crate': Icons.widgets_outlined,
+  'countertops': Icons.countertops_outlined,
+  'kitchen': Icons.kitchen_outlined,
+  'ac_unit': Icons.ac_unit_outlined,
+  'dining': Icons.dining_outlined,
+  'door_sliding': Icons.door_sliding_outlined,
+  'shelves': Icons.shelves,
+  'inbox': Icons.inbox_outlined,
+  'inventory_2': Icons.inventory_2_outlined,
+  'shopping_basket': Icons.shopping_basket_outlined,
+  'widgets': Icons.widgets_outlined,
   'warehouse': Icons.warehouse_outlined,
   'garage': Icons.garage_outlined,
-  'basement': Icons.stairs_outlined,
-  'office': Icons.desk_outlined,
-  'van': Icons.local_shipping_outlined,
+  'stairs': Icons.stairs_outlined,
+  'desk': Icons.desk_outlined,
+  'local_shipping': Icons.local_shipping_outlined,
 };
 
 /// The seven hues a location may carry, in the order a swatch should offer them.

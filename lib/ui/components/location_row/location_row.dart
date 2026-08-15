@@ -26,7 +26,7 @@ import 'location_row.recipe.dart';
 ///   depth: 1,
 ///   productCount: 3,
 ///   itemSummary: '3 ürün',
-///   icon: 'fridge',
+///   icon: 'kitchen',
 ///   colour: 'blue',
 /// )
 /// ```

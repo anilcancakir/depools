@@ -135,7 +135,7 @@ class DemoInventorySeeder extends Seeder
         // where all six fall back to a grey box demonstrates the fallback rather than the feature.
         // Both names are CHECKed against `Location::ICONS` and `::COLOURS`, so a typo here is a
         // constraint violation at seed time rather than a silently untinted row.
-        $kitchen = Location::create(['name' => 'Kitchen', 'icon' => 'kitchen', 'colour' => 'red']);
+        $kitchen = Location::create(['name' => 'Kitchen', 'icon' => 'countertops', 'colour' => 'red']);
         $storeroom = Location::create(['name' => 'Storeroom', 'icon' => 'warehouse', 'colour' => 'violet']);
 
         return [
@@ -143,26 +143,26 @@ class DemoInventorySeeder extends Seeder
             'fridge' => Location::create([
                 'name' => 'Fridge',
                 'parent_location_id' => $kitchen->getKey(),
-                'icon' => 'fridge',
+                'icon' => 'kitchen',
                 'colour' => 'blue',
             ]),
             'freezer' => Location::create([
                 'name' => 'Freezer',
                 'parent_location_id' => $kitchen->getKey(),
-                'icon' => 'freezer',
+                'icon' => 'ac_unit',
                 'colour' => 'teal',
             ]),
             'pantry' => Location::create([
                 'name' => 'Pantry',
                 'parent_location_id' => $kitchen->getKey(),
-                'icon' => 'pantry',
+                'icon' => 'dining',
                 'colour' => 'amber',
             ]),
             'storeroom' => $storeroom,
             'shelfA' => Location::create([
                 'name' => 'Shelf A',
                 'parent_location_id' => $storeroom->getKey(),
-                'icon' => 'shelf',
+                'icon' => 'shelves',
                 'colour' => 'green',
             ]),
         ];

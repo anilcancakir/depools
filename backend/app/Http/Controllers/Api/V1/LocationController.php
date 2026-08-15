@@ -51,7 +51,11 @@ final class LocationController extends Controller
             // mapping, because an icon codepoint cannot survive icon tree-shaking and a hex cannot
             // survive the design-token gate. `Rule::in` against the model's own list, so the
             // vocabulary is stated once in PHP and once in the CHECK that actually enforces it.
-            'icon' => ['nullable', Rule::in(Location::ICONS)],
+            // **Against the TABLE, not a constant.** The icon vocabulary used to be sixteen names
+            // in a CHECK; it is 4,185 rows now, and a list that long belongs in neither a constraint
+            // nor a class constant. `exists` is the same authority the picker reads from, so the two
+            // cannot disagree.
+            'icon' => ['nullable', Rule::exists('icons', 'name')],
             'colour' => ['nullable', Rule::in(Location::COLOURS)],
         ]);
 
