@@ -77,7 +77,7 @@ class SerialFixture {
     final DateTime reference = ProductListItem.dateOnly(today ?? DateTime.now());
     final DateTime? ends = ProductListItem.parseDate(json['warranty_ends_at'] as String?);
     final int? days = ends?.difference(reference).inDays;
-    final String? acquired = ProductListItem.formatDate(json['acquired_at'] as String?);
+    final String? acquired = ProductListItem.formatMoment(json['acquired_at'] as String?);
 
     return SerialFixture(
       serial: json['serial'] as String,
@@ -205,9 +205,12 @@ class LotFixture {
   /// all: the badge above says three days and the box says next Tuesday, and the user is checking
   /// which one the app is going by.
   static String? _openedLabel(Map<String, dynamic> json) {
-    final String? opened = ProductListItem.formatDate(json['opened_at'] as String?);
+    final String? opened = ProductListItem.formatMoment(json['opened_at'] as String?);
     if (opened == null) return null;
 
+    // `formatDate` and NOT `formatMoment`: `stock_lots.expires_at` is a `date` column, so it names a
+    // day rather than an instant. Converting it would move a carton good until the 20th to the 19th
+    // for every reader east of UTC.
     final String? printed = ProductListItem.formatDate(json['expires_at'] as String?);
     if (printed == null) return Lang.get('screens.products.lot_opened', {'date': opened});
 
@@ -215,7 +218,7 @@ class LotFixture {
   }
 
   static String? _receivedLabel(Map<String, dynamic> json) {
-    final String? received = ProductListItem.formatDate(json['received_at'] as String?);
+    final String? received = ProductListItem.formatMoment(json['received_at'] as String?);
 
     return received == null ? null : Lang.get('screens.products.lot_received', {'date': received});
   }
@@ -813,10 +816,37 @@ class ProductListItem {
   static DateTime? parseDate(Object? value) =>
       value is String ? DateTime.tryParse(value) : null;
 
-  /// A date for a line of prose, through the catalogue's own format string.
+  /// A MOMENT for a line of prose, in the reader's own timezone.
+  ///
+  /// **The distinction from [formatDate] is the whole point and it is measured, not stylistic.**
+  /// `stock_lots.received_at` and `opened_at` and `product_serials.acquired_at` are `timestamp`
+  /// columns: they name an instant, so the day they fall on depends on where the reader is.
+  /// `stock_lots.expires_at` and `product_stock.earliest_expires_at` are `date` columns: they name a
+  /// DAY, and converting one to local time shifts it backwards for anybody east of UTC, so a carton
+  /// good until the 20th would read as the 19th.
+  ///
+  /// Seen on one screen, in one frame: the batches card said `Received 15/08/2026` for a movement
+  /// the activity card dated `16/08/2026`. Local time was past midnight and UTC was not, so the
+  /// activity card was right and this one was showing a server instant as if it were the user's.
+  static String? formatMoment(Object? value) {
+    final DateTime? local = momentDate(value);
+
+    return local == null ? null : formatDate(local.toIso8601String());
+  }
+
+  /// The DAY a server instant falls on, for the reader.
+  ///
+  /// Separate from [formatMoment] so it can be tested: `Lang.get` answers the raw KEY in this app's
+  /// test harness, so a formatted string carries no day, no month and no year to assert on. This
+  /// returns the decision rather than the sentence, which is the part that was wrong.
+  static DateTime? momentDate(Object? value) => parseDate(value)?.toLocal();
+
+  /// A calendar DATE for a line of prose, through the catalogue's own format string.
   ///
   /// `time.date_format` rather than a Dart literal, because the order of the parts is a locale
   /// decision and both catalogues already carry it.
+  ///
+  /// No timezone conversion, deliberately: see [formatMoment] for which fields are which.
   static String? formatDate(Object? value) {
     final DateTime? date = parseDate(value);
     if (date == null) return null;
