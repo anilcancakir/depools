@@ -2341,3 +2341,39 @@ ranges, capping the body and re-checking after every redirect: hardened machiner
 validation rule. Linking is also already how an OFF photograph reaches the screen. The cost is real
 and worth naming: a linked picture breaks when the far end moves it. If copying is wanted it should
 arrive as a fetcher with those checks, not as a `file_get_contents` in a controller.
+
+### D119. A location carries an icon, a colour and a photograph, and the photograph wins
+
+`location-assignment.md` already settled that "every node carries an icon, children included, so the
+form asks for one rather than treating it as decoration". Nothing stored one: `locations` holds name,
+path, depth and parent, and the five icons in the app live in `location_fixtures.dart` as raw
+`IconData` constants. Anılcan asked for a custom image, an icon and a colour, and picked all three.
+
+**The icon is a NAMED key from a closed catalogue** (`fridge`, `shelf`, `freezer`, `pantry`, ...),
+stored as a short string and mapped to a `const IconData` in the client. The obvious alternative,
+storing the Material codepoint, is ruled out by the toolchain rather than by taste: `--tree-shake-icons`
+defaults to ON (checked against `flutter build web --help`), so an `IconData` built from a stored int
+is not referenced anywhere the shaker can see and its glyph is dropped from the font. The symptom is
+tofu on a user's own location, and the workaround is `--no-tree-shake-icons`, which ships the entire
+icon font. A named catalogue keeps every icon a constant and makes the SET a design decision, which is
+what it should be: the vocabulary is ours, the same way the unit vocabulary is.
+
+**The colour is a closed set of semantic tints**, each carrying its own `dark:` pair, stored as a key
+the same way. A user-chosen hex is not an option here and the reason is mechanical: `bin/design-tokens`
+fails the build on a raw colour outside the allowlist, and a free hex has no contrast guarantee on
+either surface, so half the palette a colour picker offers would be unreadable in one appearance or
+the other.
+
+**The photograph reuses the product shape**: a `path` on the public disk, as D118 settled. ONE picture
+rather than a gallery, because a location is a place rather than a thing being described from several
+angles: the second photograph of a shelf answers no question the first did not.
+
+**Where both exist, the photograph wins and the icon is the fallback.** That is `ProductThumb`'s rule
+already (a picture when there is one, the initial when there is not), so the app has one answer to
+"what goes in the leading box" rather than two. The alternative, an icon badge over the photograph,
+was rejected on the same grounds `design.md` uses for a list row: two marks in a 40pt box compete, and
+a tree of locations is a table whatever it is built from.
+
+Not decided here: whether a location's colour is allowed to tint anything beyond its own leading box.
+Tinting a whole row would collide with the status colours that already mean something specific
+(`expiring`, `low-stock`), and colour in this app is never the only carrier of meaning.

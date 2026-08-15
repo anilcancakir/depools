@@ -165,7 +165,7 @@ final class ProductImageTest extends TestCase
     {
         // A gallery with no primary renders as a product with no picture, and asking which of one
         // picture should lead is a question with a single answer.
-        Storage::fake(config('products.images.disk'));
+        Storage::fake(config('media.images.disk'));
 
         $product = Product::create(['name' => 'Süt']);
 
@@ -182,7 +182,7 @@ final class ProductImageTest extends TestCase
         $this->assertSame(0, $first['position']);
         $this->assertSame(1, $second['position']);
 
-        Storage::disk(config('products.images.disk'))->assertExists(
+        Storage::disk(config('media.images.disk'))->assertExists(
             str_replace(url('/storage').'/', '', $first['url'])
         );
     }
@@ -267,7 +267,7 @@ final class ProductImageTest extends TestCase
         // Copied rather than linked, and the difference is the licence: `CatalogueContributor` keeps
         // `image_path` null for anything derived from Open Food Facts, so a file in that column is one
         // we may redistribute.
-        $disk = config('products.images.disk');
+        $disk = config('media.images.disk');
 
         Storage::fake($disk);
         Storage::fake(config('filesystems.default'));
@@ -313,7 +313,7 @@ final class ProductImageTest extends TestCase
         // Measured before it was fixed: the disk carries `throw => false`, so `get()` answered NULL
         // and the exception came one line later out of Flysystem's `write()` as
         // `Argument #2 ($contents) must be of type string, null given`.
-        Storage::fake(config('products.images.disk'));
+        Storage::fake(config('media.images.disk'));
         Storage::fake(config('filesystems.default'));
 
         $global = GlobalProduct::create([

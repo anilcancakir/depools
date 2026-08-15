@@ -45,6 +45,28 @@ return new class extends Migration
             $table->string('path')->index();
             $table->unsignedTinyInteger('depth')->default(0);
 
+            // How this node is shown (D119). All three are nullable: a location created by a scan or
+            // by the AI has none of them, and that is the ordinary state rather than an incomplete one.
+            //
+            // **The icon is a NAME from a closed catalogue, never a Material codepoint.** Storing the
+            // codepoint and rebuilding an `IconData` from it is the obvious shape and the toolchain
+            // refuses it: `--tree-shake-icons` defaults to ON, so a glyph no constant references is
+            // dropped from the font and the user's own location renders as tofu. Keeping it would mean
+            // shipping the entire icon font. `CHECK`ed below, because the catalogue is genuinely
+            // closed: it is a design decision, the same way the unit vocabulary is.
+            $table->string('icon', 32)->nullable();
+
+            // A key into the same closed set, each entry carrying its own `dark:` pair. Not a hex: a
+            // free colour has no contrast guarantee on either surface, and `bin/design-tokens` fails
+            // the build on a raw one anyway.
+            $table->string('colour', 32)->nullable();
+
+            // A photograph of the actual shelf, on the public disk, exactly as a product's picture is
+            // stored (D118). ONE rather than a gallery: a location is a place rather than a thing
+            // being described from several angles, so the second photograph of a shelf answers no
+            // question the first did not.
+            $table->string('image_path')->nullable();
+
             $table->timestamps();
             $table->softDeletes();
 
@@ -67,10 +89,50 @@ return new class extends Migration
 
             $table->index('parent_location_id');
         });
+
+        $this->addAppearanceConstraints();
     }
 
     public function down(): void
     {
         Schema::dropIfExists('locations');
+    }
+
+    /**
+     * The two closed vocabularies D119 introduces.
+     *
+     * Raw DDL for the same reason `units` and `product_images` use it: a CHECK constrains rather than
+     * derives, so it is not what D84 rules out.
+     *
+     * Both lists live in three places by necessity (here, the PHP validation, the Dart map), which is
+     * one more than anybody wants. The CHECK is the one that cannot be bypassed, so it is the
+     * authority: a seeder, a console command and a Filament action all reach the model and only one of
+     * them would reach a form request.
+     */
+    private function addAppearanceConstraints(): void
+    {
+        DB::statement("
+            ALTER TABLE locations
+            ADD CONSTRAINT locations_icon_is_known
+            CHECK (icon IS NULL OR icon IN (
+                'home', 'kitchen', 'fridge', 'freezer', 'pantry', 'cupboard',
+                'shelf', 'drawer', 'box', 'basket', 'crate', 'warehouse',
+                'garage', 'basement', 'office', 'van'
+            ))
+        ");
+
+        // Named by HUE, because the user picks one from a swatch and a role name would be a riddle
+        // ("which of my shelves is the primary one?"). The cost is real and worth stating: these are
+        // the only colour names in the schema that are not semantic, so a palette change means
+        // retuning what `blue` resolves to rather than renaming the column's values. That is the
+        // right trade for a personalisation choice, and the wrong one for a STATUS, which is why the
+        // status families stay named for what they mean.
+        DB::statement("
+            ALTER TABLE locations
+            ADD CONSTRAINT locations_colour_is_known
+            CHECK (colour IS NULL OR colour IN (
+                'slate', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'violet'
+            ))
+        ");
     }
 };

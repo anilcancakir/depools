@@ -30,6 +30,11 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     Route::apiResource('locations', LocationController::class)->only(['index', 'store', 'show']);
 
+    // A location's photograph (D119). PUT rather than POST, because a location holds ONE picture:
+    // a second upload replaces the first rather than appending to a gallery, which is what the
+    // product route does and why the two verbs differ.
+    Route::put('locations/{location}/image', [LocationController::class, 'storeImage']);
+
     // The vocabulary a client offers in a picker, and the one deliberate way a tenant extends it. No
     // update and no delete: a unit with products counted in it is what every delta in their ledger is
     // denominated in, so the foreign key is `restrictOnDelete` and a rename would reinterpret history.

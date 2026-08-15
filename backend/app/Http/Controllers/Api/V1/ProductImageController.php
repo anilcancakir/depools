@@ -184,7 +184,7 @@ final class ProductImageController extends Controller
      */
     private function validateStore(Request $request): array
     {
-        $images = config('products.images');
+        $images = config('media.images');
 
         $data = $request->validate([
             'image' => [
@@ -231,7 +231,7 @@ final class ProductImageController extends Controller
             // phone called it, which is not something to put in a public url, and two uploads called
             // `IMG_0001.jpg` must not collide.
             $path = $file->storeAs(
-                config('products.images.directory'),
+                config('media.images.directory'),
                 Str::uuid7()->toString().'.'.$file->extension(),
                 ['disk' => $disk]
             );
@@ -285,7 +285,7 @@ final class ProductImageController extends Controller
         }
 
         $disk = $this->disk();
-        $target = config('products.images.directory').'/'.Str::uuid7()->toString().'.'.pathinfo($source, PATHINFO_EXTENSION);
+        $target = config('media.images.directory').'/'.Str::uuid7()->toString().'.'.pathinfo($source, PATHINFO_EXTENSION);
 
         // Between disks, because the catalogue's own file may live somewhere else entirely; reading
         // and writing the bytes is the one operation that works whatever those two are.
@@ -296,7 +296,7 @@ final class ProductImageController extends Controller
 
     private function disk(): string
     {
-        return config('products.images.disk');
+        return config('media.images.disk');
     }
 
     private function catalogueDisk(): string

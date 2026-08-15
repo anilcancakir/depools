@@ -4,10 +4,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Product images
+    | Uploaded images
     |--------------------------------------------------------------------------
     |
-    | Where a tenant's product photographs are stored and what is accepted.
+    | Where a tenant's photographs are stored and what is accepted. This was
+    | `config/products.php` while a product's gallery was the only thing that
+    | uploaded one; a location carries a photograph too (D119), and the disk,
+    | the size cap and the accepted formats are the same question for both.
+    | Naming it after one of the two would have made the other read as a
+    | borrowed setting.
     |
     | The disk is `public` rather than the application default (`local`), which is
     | the same choice `magic-starter` makes for a profile photo
