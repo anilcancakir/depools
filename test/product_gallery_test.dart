@@ -1,5 +1,6 @@
 import 'package:depools/resources/views/products/product_fixtures.dart';
 import 'package:depools/ui/components/product_gallery/product_gallery.dart';
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 // `show`, because magic's barrel re-exports a `TextDirection` of its own (wind's) that shadows the
@@ -84,6 +85,28 @@ void main() {
       );
 
       expect(find.text('OFF, CC-BY-SA'), findsOneWidget);
+    });
+
+    testWidgets('exactly one picture is marked, however many there are', (WidgetTester tester) async {
+      // **The rule the docblock claims, now actually asserted.** A review round caught that this file
+      // said the tests pin "exactly one picture is marked" while nothing on screen was counted: the
+      // payload test checks the FIELD, which is a different claim, since a component drawing the mark
+      // on every cell would satisfy it.
+      await tester.pumpWidget(
+        wrap(
+          const ProductGallery(
+            name: 'Nutella 400 g',
+            addLabel: 'Add',
+            pictures: <GalleryPicture>[
+              (id: 'a', url: 'https://cdn.example.com/a.jpg', attribution: null, isPrimary: true),
+              (id: 'b', url: 'https://cdn.example.com/b.jpg', attribution: null, isPrimary: false),
+              (id: 'c', url: 'https://cdn.example.com/c.jpg', attribution: null, isPrimary: false),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.check), findsOneWidget);
     });
 
     testWidgets('an upload carries no credit, so nothing is printed', (WidgetTester tester) async {
