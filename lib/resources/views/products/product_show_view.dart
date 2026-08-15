@@ -2,14 +2,18 @@
 // `SelectableRegion` is the widgets-layer primitive underneath it and needs a delegate plus a context
 // menu builder supplied by hand; this is the assembled version. Still a `show` list rather than a bare
 // material import, which the design rules forbid.
-// `Platform` for the one platform question this screen asks: a phone gets its camera and everything
-// else gets a file dialog. `kIsWeb` guards it, because `dart:io`'s `Platform` throws on web.
+// `defaultTargetPlatform` for the one platform question this screen asks: a phone gets its camera and
+// everything else gets a file dialog.
+//
+// **Not `dart:io`'s `Platform`, and not for the reason it looks like.** A release web build compiles
+// and runs with `import 'dart:io' show Platform` behind a `kIsWeb` guard, measured rather than
+// assumed. What makes it the wrong spelling is that the guard has to come FIRST for that to hold: a
+// later edit reordering the condition would break the web build, and nothing in the file says so.
+// `defaultTargetPlatform` has no such trap.
 //
 // `ImagePicker` and `ImageSource` arrive through magic's own barrel, which re-exports them; naming
 // the package here as well is what the analyzer calls an unnecessary import.
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart' show Icons, SelectionArea;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
@@ -388,7 +392,9 @@ class _ProductShowViewState extends State<ProductShowView> {
   /// other platform gets its file dialog, which is what `image_picker` falls back to there anyway.
   Future<XFile?> _pickPicture() {
     final ImagePicker picker = ImagePicker();
-    final bool handheld = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    final bool handheld = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
 
     return picker.pickImage(
       source: handheld ? ImageSource.camera : ImageSource.gallery,

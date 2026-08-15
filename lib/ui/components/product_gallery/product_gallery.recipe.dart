@@ -28,9 +28,14 @@ WindSlotRecipe productGalleryRecipe() {
       'mark': 'absolute -top-1 -right-1 size-5 rounded-full bg-primary flex items-center justify-center',
       'markIcon': 'size-3 text-on-primary',
       // The add control matches a `sm` thumbnail exactly, so the row keeps one rhythm whether it
-      // holds one picture or eight. A dashed edge would need a border style wind does not carry, so
-      // the distinction is the tone plus the glyph.
-      'add': 'size-10 rounded-md bg-surface-container-high border border-color-border '
+      // holds one picture or eight.
+      //
+      // **Card tone plus a hairline, not the input tone.** `design.md` names
+      // `bg-surface-container-high` on anything TAPPABLE as an anti-pattern, and the reason is that
+      // elevation direction flips between appearances: that fill reads as raised on a dark sheet and
+      // recessed on a light one, which is the universal look of a disabled control. A border carries
+      // "pressable" in both, which is why this had one already; the fill was the half that was wrong.
+      'add': 'size-10 rounded-md bg-surface-container border border-color-border '
           'flex items-center justify-center',
       'addIcon': 'size-5 text-fg-muted',
       // Said once under the row rather than per picture: a credit repeated eight times is noise, and

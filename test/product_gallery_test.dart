@@ -99,7 +99,10 @@ void main() {
         ),
       );
 
-      expect(find.byType(Text), findsNothing);
+      // The CREDIT specifically, not "no text at all". A thumbnail falling back to its initial draws
+      // a `Text` too, so the broader assertion passed here only because this picture has a url, and
+      // would have failed for a reason with nothing to do with attribution.
+      expect(find.text('OFF, CC-BY-SA'), findsNothing);
     });
   });
 }
