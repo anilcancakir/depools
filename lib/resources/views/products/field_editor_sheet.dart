@@ -212,7 +212,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
               // editable here: changing what a number MEANS is a different decision from
               // changing the number, and D54 keeps them apart.
               if (widget.unit != null)
-                WText(widget.unit!, className: 'text-sm text-fg-muted axis-min'),
+                WText(unitLabelFor(widget.unit!, _value ?? ''), className: 'text-sm text-fg-muted axis-min'),
             ],
           ),
         );

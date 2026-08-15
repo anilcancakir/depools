@@ -100,13 +100,6 @@ class QuantityStepper extends StatelessWidget {
     this.onRemainderChanged,
   });
 
-  /// The number the unit's plural agrees with.
-  ///
-  /// [value] is what is typed in the field, so it is a string and can be mid-edit, empty, or a
-  /// decimal written with either separator. Anything that is not exactly one reads as plural, which
-  /// is right for an empty field too: the placeholder sits under a unit, not under a count of one.
-  num get _pluralCount => num.tryParse((value ?? '').replaceAll(',', '.')) ?? 2;
-
   @override
   Widget build(BuildContext context) {
     final slots = quantityStepperRecipe()();
@@ -126,7 +119,7 @@ class QuantityStepper extends StatelessWidget {
             // The code resolved to a word, as in `Quantity`, and for the same reason: this is the
             // other place a unit reaches the user beside a number. Pluralised against the value in
             // the field, so a stepper sitting at 1 does not read `1 pieces`.
-            suffix: unit == null ? null : WText(unitLabel(unit!, _pluralCount), className: slots['unit']),
+            suffix: unit == null ? null : WText(unitLabelFor(unit!, value ?? ''), className: slots['unit']),
           ),
         ),
         _button(slots, slots['right'], _incrementIcon, Lang.get('components.quantity_stepper.increment', {'name': semanticName}), onIncrement),
@@ -142,9 +135,12 @@ class QuantityStepper extends StatelessWidget {
               placeholder: remainderPlaceholder ?? placeholder,
               type: InputType.number,
               onChanged: onRemainderChanged,
-              // Always plural, unlike the value above: a remainder is a measured amount and the
-              // measures do not inflect (`500 ml`, `250 g`), so the count cannot be got wrong here.
-              suffix: WText(unitLabel(remainderUnit!, 1), className: slots['unit']),
+              // Resolved against what is typed here, the same way the value's own unit is. An
+              // earlier version pinned this at one and said the opposite in its comment, which
+              // would have read as deliberate to the next person: a remainder is a measured amount
+              // and the measures do not inflect, so it looked like it could not matter. A tenant's
+              // own unit can be a countable word, so it can.
+              suffix: WText(unitLabelFor(remainderUnit!, remainderValue ?? ''), className: slots['unit']),
             ),
           ),
       ],

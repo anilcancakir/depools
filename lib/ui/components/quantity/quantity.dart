@@ -118,13 +118,6 @@ class Quantity extends StatelessWidget {
     this.className,
   });
 
-  /// The number the unit's plural agrees with.
-  ///
-  /// [amount] is the total, which is the right count in every shape this widget renders: a whole
-  /// count, a fractional one, and the case where the caller passes the open remainder as [formatted]
-  /// and the total is what that remainder is.
-  int get _pluralCount => amount == 1 ? 1 : 2;
-
   /// The recipe tone key, derived rather than passed so it cannot drift.
   String get _toneKey {
     if (tone != QuantityTone.neutral) {
@@ -146,17 +139,22 @@ class Quantity extends StatelessWidget {
       ),
       children: [
         WText(formatted),
-        if (unit != null) WText(unitLabel(unit!, _pluralCount), className: unitClassName),
+        // [amount] is the raw total, which is the count this unit belongs to in every shape rendered
+        // here: a whole count, a fractional one, and the case where the caller passes the open
+        // remainder as [formatted] and the total IS that remainder. `unitLabel` takes a `num` and
+        // owns the singular-versus-plural rule, so there is nothing to decide at this call site.
+        if (unit != null) WText(unitLabel(unit!, amount), className: unitClassName),
         // The `+` takes the unit's muted tone rather than the value's. It is a
         // separator, not a figure, and at the value's weight it competed with both
         // numbers it sits between.
         if (remainderFormatted != null) ...[
           WText('+', className: unitClassName),
           WText(remainderFormatted!),
-          // **Pluralised as one**, because the raw remainder never reaches this widget: it takes the
-          // already-formatted string and [amount] is the TOTAL. It costs nothing in practice, since a
-          // remainder is a measured amount and the measures do not inflect (`500 ml`, `250 g`).
-          if (remainderUnit != null) WText(unitLabel(remainderUnit!, 1), className: unitClassName),
+          // Against the remainder's OWN figure rather than [amount], which is the total and would
+          // pluralise the second unit by the first one's count. The raw number never reaches this
+          // widget, so the formatted string is what the count is read from.
+          if (remainderUnit != null)
+            WText(unitLabelFor(remainderUnit!, remainderFormatted ?? ''), className: unitClassName),
         ],
       ],
     );

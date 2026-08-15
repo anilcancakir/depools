@@ -194,7 +194,7 @@ class CountLine {
     // "0 adet + 500 ml": the leading zero is noise, it reads as a contradiction beside a
     // non-zero remainder, and it was long enough to truncate the verdict line it sat in.
     if (whole == 0) return '$inner ${unitLabel(product.contentUnit ?? '', inner)}';
-    return '$head + $inner ${product.contentUnit}';
+    return '$head + $inner ${unitLabel(product.contentUnit ?? '', inner)}';
   }
 
   /// The already-localised verdict line, blind until something is counted (D58).
