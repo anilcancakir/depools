@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/unit_label.dart';
 import 'quantity.recipe.dart';
 
 /// The quantity size axis.
@@ -74,7 +75,16 @@ class Quantity extends StatelessWidget {
   /// The already-formatted value for the active locale, for example `'1.240,00'`.
   final String formatted;
 
-  /// The unit label, for example `'kg'` or `'adet'`.
+  /// The unit CODE, for example `'C62'` or `'KGM'`.
+  ///
+  /// **Resolved to a word here rather than by the caller**, which is the whole reason this parameter
+  /// changed meaning. Since the vocabulary became UN/ECE Rec 20 codes, every screen that printed this
+  /// straight showed `1240 C62` at the user; the scan screen resolved it and nothing else did.
+  /// Pluralisation needs the count, and this widget is the one place that already holds both the
+  /// number and the unit, so it is the only place where the two cannot drift apart.
+  ///
+  /// A code with no entry in the catalogue falls through as it stands, which is right for a tenant's
+  /// own unit: their code IS their word for it (`koli`, `case`).
   final String? unit;
 
   /// An already-formatted second figure for the open unit's remainder.
@@ -108,6 +118,13 @@ class Quantity extends StatelessWidget {
     this.className,
   });
 
+  /// The number the unit's plural agrees with.
+  ///
+  /// [amount] is the total, which is the right count in every shape this widget renders: a whole
+  /// count, a fractional one, and the case where the caller passes the open remainder as [formatted]
+  /// and the total is what that remainder is.
+  int get _pluralCount => amount == 1 ? 1 : 2;
+
   /// The recipe tone key, derived rather than passed so it cannot drift.
   String get _toneKey {
     if (tone != QuantityTone.neutral) {
@@ -129,14 +146,17 @@ class Quantity extends StatelessWidget {
       ),
       children: [
         WText(formatted),
-        if (unit != null) WText(unit!, className: unitClassName),
+        if (unit != null) WText(unitLabel(unit!, _pluralCount), className: unitClassName),
         // The `+` takes the unit's muted tone rather than the value's. It is a
         // separator, not a figure, and at the value's weight it competed with both
         // numbers it sits between.
         if (remainderFormatted != null) ...[
           WText('+', className: unitClassName),
           WText(remainderFormatted!),
-          if (remainderUnit != null) WText(remainderUnit!, className: unitClassName),
+          // **Pluralised as one**, because the raw remainder never reaches this widget: it takes the
+          // already-formatted string and [amount] is the TOTAL. It costs nothing in practice, since a
+          // remainder is a measured amount and the measures do not inflect (`500 ml`, `250 g`).
+          if (remainderUnit != null) WText(unitLabel(remainderUnit!, 1), className: unitClassName),
         ],
       ],
     );

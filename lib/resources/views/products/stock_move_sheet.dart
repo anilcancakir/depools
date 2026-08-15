@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSBottomSheet, MSButton, ButtonIntent;
 
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import 'product_filter_sheet.dart';
@@ -161,11 +162,11 @@ class _StockMoveSheetState extends State<StockMoveSheet> {
     final num remainder = ((here - whole) * (content ?? 1)).round();
 
     return <(num, String, String)>[
-      if (whole >= 1) (1, base, '1 $base'),
+      if (whole >= 1) (1, base, '1 ${unitLabel(base, 1)}'),
       if (whole > 1)
-        (whole, base, Lang.get('screens.stock_move.quick_all', {'amount': whole, 'unit': base})),
+        (whole, base, Lang.get('screens.stock_move.quick_all', {'amount': whole, 'unit': unitLabel(base, whole)})),
       if (remainder > 0 && contentUnit != null)
-        (remainder, contentUnit, Lang.get('screens.stock_move.quick_open', {'amount': remainder, 'unit': contentUnit})),
+        (remainder, contentUnit, Lang.get('screens.stock_move.quick_open', {'amount': remainder, 'unit': unitLabel(contentUnit, remainder)})),
     ];
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/unit_label.dart';
 import '../quantity/quantity.dart';
 import 'receipt_line_row.recipe.dart';
 
@@ -142,7 +143,7 @@ class ReceiptLineRow extends StatelessWidget {
         _ => Lang.get('components.receipt_line_row.label', {
           'name': productName ?? extracted,
           'amount': formatted,
-          'unit': unit ?? '',
+          'unit': unitLabelFor(unit ?? '', formatted),
         }),
       },
       child: WDiv(

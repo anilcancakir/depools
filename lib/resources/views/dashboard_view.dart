@@ -4,6 +4,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show ButtonIntent, MSButton, MSEmptyState, MSPageScaffold;
 
+import '../../app/support/unit_label.dart';
 import '../../ui/components/list_footer/list_footer.dart';
 import '../../ui/components/lot_row/lot_row.dart';
 import '../../ui/components/movement_row/movement_row.dart';
@@ -380,7 +381,10 @@ class DashboardView extends StatelessWidget {
 
     return ProductRow(
       name: product.name,
-      meta: Lang.get('screens.dashboard.stock_meta', {'par': product.parLevel, 'unit': product.unit}),
+      meta: Lang.get('screens.dashboard.stock_meta', {
+        'par': product.parLevel,
+        'unit': unitLabel(product.unit, product.parLevel ?? 1),
+      }),
       amount: product.amount,
       formatted: primary,
       unit: primaryUnit,

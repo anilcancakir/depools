@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSBottomSheet, MSButton, MSInput;
 
+import '../../../app/support/unit_label.dart';
+
 /// Teaching the app a purchase unit it has never seen, without stopping what the user was doing.
 ///
 /// ### Why this is a sheet and not an error
@@ -102,13 +104,13 @@ class _UnitDefinitionSheetState extends State<UnitDefinitionSheet> {
                 placeholder: Lang.get('screens.unit_definition.placeholder'),
                 semanticLabel: Lang.get('screens.unit_definition.factor_label', {
                   'unit': widget.unit,
-                  'base': widget.baseUnit,
+                  'base': unitLabel(widget.baseUnit, 1),
                 }),
                 onChanged: (String next) => setState(() => _factor = num.tryParse(next)),
               ),
             ),
             WText(
-              widget.baseUnit,
+              unitLabel(widget.baseUnit, _factor ?? 1),
               className: 'text-base font-semibold text-fg shrink-0',
             ),
           ],
@@ -124,7 +126,7 @@ class _UnitDefinitionSheetState extends State<UnitDefinitionSheet> {
         'quantity': widget.quantity,
         'unit': widget.unit,
         'total': widget.quantity * _factor!,
-        'base': widget.baseUnit,
+        'base': unitLabel(widget.baseUnit, widget.quantity * _factor!),
       }),
       className: 'text-sm text-fg-muted',
     );
@@ -150,7 +152,7 @@ class _UnitDefinitionSheetState extends State<UnitDefinitionSheet> {
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
-          child: WText(Lang.get('screens.unit_definition.cancel', {'base': widget.baseUnit})),
+          child: WText(Lang.get('screens.unit_definition.cancel', {'base': unitLabel(widget.baseUnit, 1)})),
         ),
       ],
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/unit_label.dart';
 import '../quantity/quantity.dart';
 import 'shopping_row.recipe.dart';
 
@@ -131,7 +132,7 @@ class ShoppingRow extends StatelessWidget {
       onTap: onToggle,
       semanticLabel: Lang.get(
         isChecked ? 'components.shopping_row.label_checked' : 'components.shopping_row.label',
-        {'name': name, 'amount': formatted, 'unit': unit, 'reason': reasonDetail},
+        {'name': name, 'amount': formatted, 'unit': unitLabelFor(unit, formatted), 'reason': reasonDetail},
       ),
       child: WDiv(
         className: slots['root'],

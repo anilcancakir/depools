@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSPageScaffold, MSEmptyState;
 
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'product_fixtures.dart';
@@ -139,7 +140,7 @@ class RunningLowView extends StatelessWidget {
       meta: [
         Lang.get('screens.running_low.meta_target', {
           'par': product.parLevel,
-          'unit': product.unit,
+          'unit': unitLabel(product.unit, product.parLevel ?? 1),
         }),
         if (showsCover)
           Lang.get('screens.running_low.meta_cover', {'days': product.daysOfCover}),

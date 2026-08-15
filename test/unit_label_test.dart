@@ -132,4 +132,39 @@ void main() {
     expect(unitLabel(''), '');
     expect(unitLabel('   '), '');
   });
+
+  group('the count a formatted figure agrees with', () {
+    // Most display sites hold only the string, because formatting is a locale decision belonging to
+    // whoever built the figure, and the unit beside it still has to agree in number.
+    //
+    // **The COUNT is asserted rather than the word**, and that is not a shortcut. Every code falls
+    // back to itself in this harness, for the reason the file docblock records, so
+    // `unitLabelFor('C62', '1')` and `unitLabelFor('C62', '2')` both answer `C62` and an assertion on
+    // them would pass whatever the rule did. The count is the part carrying a decision.
+
+    test('exactly one is one, and nothing else is', () {
+      expect(pluralCountOf('1'), 1);
+      expect(pluralCountOf('2'), isNot(1));
+      expect(pluralCountOf('0'), isNot(1));
+    });
+
+    test('a decimal written with a comma is read as the number it is', () {
+      // `2,5` is how this locale writes it. A parse that did not know would still answer plural, but
+      // by accident rather than by rule, and would then be wrong the day the rule changes.
+      expect(pluralCountOf('2,5'), 2.5);
+    });
+
+    test('a grouped figure is not mistaken for one', () {
+      // `1.240,00` does not parse, and `1.240` parses as 1.24 rather than 1240. Neither is 1, which
+      // is the only distinction this makes, so both read as plural and both are right.
+      expect(pluralCountOf('1.240,00'), isNot(1));
+      expect(pluralCountOf('1.240'), isNot(1));
+    });
+
+    test('an empty or half-typed field reads as plural', () {
+      // The placeholder in a stepper sits under a unit, not under a count of one.
+      expect(pluralCountOf(''), isNot(1));
+      expect(pluralCountOf('-'), isNot(1));
+    });
+  });
 }

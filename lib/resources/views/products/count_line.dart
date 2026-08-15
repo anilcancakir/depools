@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/unit_label.dart';
 import 'product_fixtures.dart';
 
 // The count's domain types, split out of `count_fixtures.dart` because `no_hardcoded_copy_test`
@@ -181,18 +182,18 @@ class CountLine {
   String figure(num value) {
     // A measured unit with no finer content inside it: state the decimal rather than inventing a
     // split. See [hasFinerContent] for the number this printed before.
-    if (!hasFinerContent) return '${ProductListItem.format(value)} ${product.unit}';
+    if (!hasFinerContent) return '${ProductListItem.format(value)} ${unitLabel(product.unit, value)}';
 
     final int whole = value.floor();
     // The same splitter the detail screen's headline uses, so "1 piece + 250 g" cannot come out one
     // way here and another way there.
     final num inner = product.innerFor(value) ?? 0;
-    final String head = '$whole ${product.unit}';
+    final String head = '$whole ${unitLabel(product.unit, whole)}';
     if (inner == 0 || product.contentUnit == null) return head;
     // A zero whole is dropped when there is an inner amount. Half a carton is "500 ml", not
     // "0 adet + 500 ml": the leading zero is noise, it reads as a contradiction beside a
     // non-zero remainder, and it was long enough to truncate the verdict line it sat in.
-    if (whole == 0) return '$inner ${product.contentUnit}';
+    if (whole == 0) return '$inner ${unitLabel(product.contentUnit ?? '', inner)}';
     return '$head + $inner ${product.contentUnit}';
   }
 
