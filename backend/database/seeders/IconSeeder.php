@@ -30,6 +30,53 @@ use RuntimeException;
 final class IconSeeder extends Seeder
 {
     /**
+     * Words this app's users type, added to the icons they mean.
+     *
+     * **Measured, not imagined.** Nine real queries were run against the catalogue as vendored, and
+     * four returned nothing: `pantry`, `cupboard`, `basement` and `warehouse shelf`, plus `freezer`.
+     * The first three are not a matching failure, they are absent: `select count(*) where search_text
+     * like '%pantry%'` answers 0, and so do `cupboard`, `basement`, `cellar` and `larder`. Google's
+     * tags are a general-purpose vocabulary and this is an inventory app, so the words a user reaches
+     * for are not always the words the catalogue was tagged with.
+     *
+     * `freezer` is the fifth and a different kind of miss: nine icons carry `freez`, and every one
+     * says `freeze`, `freezing` or `frozen`. Trigram similarity would reach it (0.42 against
+     * `freezing`, 0.67 against `freeze`) at the cost of per-tag granularity, which means either a
+     * 142,000-row join table or a similarity threshold to tune. One line here does the same job and
+     * is legible.
+     *
+     * **Added to the tags rather than held in a second table**, so there is one place a search reads
+     * from and no second query path to keep in step. The cost is that ours and Google's are mixed in
+     * one column; the comment is the record of which is which, and every entry below is a word an
+     * English-speaking user of THIS product would type.
+     *
+     * Not a translation layer. Turkish still finds nothing, and that is the AI suggestion's job
+     * rather than something to fake here with a list that would go stale in one language and not
+     * the other.
+     *
+     * @var array<string, list<string>>
+     */
+    private const EXTRA_TAGS = [
+        // Rooms and places a tenant keeps stock in.
+        'dining' => ['pantry', 'larder'],
+        'door_sliding' => ['cupboard', 'wardrobe', 'closet'],
+        'stairs' => ['basement', 'cellar'],
+        'kitchen' => ['fridge'],
+        'ac_unit' => ['freezer', 'chest freezer'],
+        'countertops' => ['worktop', 'counter'],
+        'shelves' => ['shelving', 'rack', 'racking'],
+        'inventory_2' => ['carton', 'case'],
+        'local_shipping' => ['van', 'truck', 'delivery vehicle'],
+        'warehouse' => ['depot', 'stockroom', 'storeroom'],
+        'garage' => ['carport'],
+        'inbox' => ['drawer'],
+        'shopping_basket' => ['basket'],
+        'widgets' => ['crate'],
+        'desk' => ['office'],
+        'home' => ['house'],
+    ];
+
+    /**
      * How many rows per statement.
      *
      * The svg text averages 490 bytes, so 500 rows is roughly a quarter of a megabyte per insert:
@@ -96,7 +143,10 @@ final class IconSeeder extends Seeder
                 );
             }
 
-            $tags = implode(', ', $icon['tags'] ?? []);
+            $tags = implode(', ', array_merge(
+                $icon['tags'] ?? [],
+                self::EXTRA_TAGS[$icon['name']] ?? [],
+            ));
 
             $rows[] = [
                 'id' => (string) Str::uuid7(),

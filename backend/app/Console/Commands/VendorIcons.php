@@ -44,7 +44,7 @@ use RuntimeException;
  * ### What the metadata is worth
  *
  * Every icon carries a median of 34 tags plus a category and a `popularity` integer, and the tags
- * are this app's own vocabulary: `shelves` lists inventory, storage, warehouse, goods, products;
+ * are this app's own vocabulary: `shelves` lists inventory, storage, goods, products, retail;
  * `warehouse` lists depot, logistics, stock. That is what the picker searches and what the AI
  * suggestion embeds. No icon set anywhere publishes Turkish tags (checked across Material, Lucide,
  * Tabler, Phosphor, Heroicons, Remix, Iconify and Font Awesome), so Turkish matching has to come
