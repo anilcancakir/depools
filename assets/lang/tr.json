@@ -766,6 +766,7 @@
       "lot_opened": ":date açıldı",
       "lot_opened_printed": ":date açıldı · kutuda :printed yazıyor",
       "lot_received": ":date alındı",
+      "open_note": "1 :unit açık",
       "product_count": ":count ürün",
       "saved": {
         "expired": "Süresi geçenler",

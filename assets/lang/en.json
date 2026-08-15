@@ -766,6 +766,7 @@
       "lot_opened": "Opened :date",
       "lot_opened_printed": "Opened :date · printed :printed",
       "lot_received": "Received :date",
+      "open_note": "1 :unit open",
       "product_count": ":count products",
       "saved": {
         "expired": "Expired",

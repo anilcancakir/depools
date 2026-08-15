@@ -47,10 +47,17 @@ String unitLabel(String code, [num count = 1]) {
 /// locale decision that belongs with whoever built the figure, and the unit beside it still has to
 /// agree in number. Rather than each of them writing its own parse, the rule lives here once.
 ///
-/// Only exactly one is singular, so a failed parse is plural, which is the right answer for both ways
-/// it fails: a grouped Turkish figure like `1.240,00` is never one, and a half-typed field is not one
-/// either. The comma is swapped for a dot first, because `2,5` is how the decimal is written in the
-/// locale this was drawn for.
+/// Only exactly one is singular, so a failed parse is plural: a grouped Turkish figure like
+/// `1.240,00` does not parse and is never one anyway, and an empty field is not one either. The comma
+/// is swapped for a dot first, because `2,5` is how the decimal is written in the locale this was
+/// drawn for.
+///
+/// **A field mid-decimal reads as SINGULAR, and that is measured rather than intended.**
+/// `num.tryParse('1.')` answers `1.0`, so a user who has typed `1,` on the way to `1,5` sees the
+/// singular for those keystrokes. An earlier version of this comment claimed a half-typed field reads
+/// as plural, which was simply false. Left as it is rather than special-cased: the value at that
+/// instant IS one-point-something-not-yet-said, the next keystroke corrects it, and detecting a
+/// trailing separator would be machinery for a state that lasts one character.
 String unitLabelFor(String code, String formatted) {
   return unitLabel(code, pluralCountOf(formatted));
 }

@@ -161,10 +161,18 @@ void main() {
       expect(pluralCountOf('1.240'), isNot(1));
     });
 
-    test('an empty or half-typed field reads as plural', () {
+    test('an empty or unparseable field reads as plural', () {
       // The placeholder in a stepper sits under a unit, not under a count of one.
       expect(pluralCountOf(''), isNot(1));
       expect(pluralCountOf('-'), isNot(1));
+    });
+
+    test('a field stopped mid-decimal reads as one, which is measured and not intended', () {
+      // `num.tryParse('1.')` answers 1.0, so `1,` on the way to `1,5` is singular for a keystroke.
+      // Pinned because it is surprising: an earlier docblock claimed the opposite, and a future
+      // reader deciding to "fix" it should see that the behaviour was known and accepted.
+      expect(pluralCountOf('1,'), 1);
+      expect(pluralCountOf('1,5'), isNot(1));
     });
   });
 }

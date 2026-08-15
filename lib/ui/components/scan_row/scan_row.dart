@@ -161,7 +161,9 @@ class ScanRow extends StatelessWidget {
         _ when pending => Lang.get('components.scan_row.pending_label', {'barcode': barcode}),
         _ when isUnmatched =>
           Lang.get('components.scan_row.unmatched_label', {'barcode': barcode}),
-        _ => [productName ?? barcode, '$count $unit', ?_meta].join(', '),
+        // The unit resolved here too: a screen reader would otherwise say "six C62", which is worse
+        // than seeing it, since there is no surrounding layout to guess from.
+        _ => [productName ?? barcode, '$count ${unitLabel(unit, count)}', ?_meta].join(', '),
       },
       child: WDiv(
         className: slots['root'],
