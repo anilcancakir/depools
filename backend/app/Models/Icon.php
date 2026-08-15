@@ -116,8 +116,21 @@ final class Icon extends Model
             return $query->orderByDesc('popularity');
         }
 
+        // **The user's own text is data, not pattern.** `%` and `_` are LIKE wildcards, and
+        // unescaped they were both reachable from the search box: measured, `%` alone matched all
+        // 4,185 rows and `l_cal shipping` matched `local_shipping`. The second one is why searching
+        // an icon's real name appeared to work at all, since `_` was quietly standing in for the
+        // space that `search_text` puts there. Working by accident is worse than not working,
+        // because it hides the wildcard from anyone reading the query.
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $needle);
+
+        // Now that `_` is literal, the underscore form has to be handled ON PURPOSE. A user pasting
+        // `local_shipping` is naming the icon exactly, which is the one query that must never come
+        // back empty, and `search_text` holds it with a space.
+        $escaped = str_replace('\_', ' ', $escaped);
+
         return $query
-            ->where('search_text', 'like', '%'.$needle.'%')
+            ->where('search_text', 'like', '%'.$escaped.'%')
             ->orderByRaw('CASE WHEN name = ? THEN 0 ELSE 1 END', [$needle])
             ->orderByDesc('popularity');
     }

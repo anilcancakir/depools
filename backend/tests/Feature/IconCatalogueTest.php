@@ -82,6 +82,27 @@ final class IconCatalogueTest extends TestCase
         $this->assertSame(0, Icon::matching('buzdolabı')->count());
     }
 
+    public function test_a_wildcard_typed_into_the_search_box_is_a_character(): void
+    {
+        // **Measured before the escape existed: `%` alone matched all 4,185 rows** and
+        // `l_cal shipping` matched `local_shipping`, because both are LIKE wildcards and the term
+        // went in raw. Thirteen icons genuinely carry `%` in their tags, so that is the honest
+        // answer to typing one.
+        $this->assertSame(13, Icon::matching('%')->count());
+        $this->assertSame(0, Icon::matching('l_cal shipping')->count());
+    }
+
+    public function test_pasting_an_icons_real_name_finds_it(): void
+    {
+        // **This passed before the escape and passed by accident**, which is the more interesting
+        // half: `search_text` holds `local shipping`, and the unescaped `_` was standing in for the
+        // space as a wildcard. Now that `_` is literal the underscore form is translated on purpose,
+        // so the one query that must never come back empty does not depend on a wildcard nobody
+        // reading the query would see.
+        $this->assertSame('local_shipping', Icon::matching('local_shipping')->limit(1)->value('name'));
+        $this->assertSame('local_shipping', Icon::matching('local shipping')->limit(1)->value('name'));
+    }
+
     public function test_the_tags_are_answered_as_a_list(): void
     {
         $icon = Icon::query()->where('name', 'kitchen')->firstOrFail();

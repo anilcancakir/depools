@@ -56,6 +56,13 @@ final class IconSeeder extends Seeder
 
         $handle = fopen($catalogue, 'rb');
 
+        // `fopen` answers false on a permission or path problem, and `fgets(false)` then raises a
+        // TypeError naming an argument rather than the file. A seeder that cannot read its own
+        // catalogue should say which file.
+        if ($handle === false) {
+            throw new RuntimeException("Could not open the icon catalogue at [$catalogue].");
+        }
+
         // Read line by line rather than loading the file: 1.8 MB is not large, but NDJSON exists
         // precisely so this stays a stream, and a catalogue that grows should not change this code.
         while (($line = fgets($handle)) !== false) {
