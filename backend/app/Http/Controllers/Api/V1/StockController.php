@@ -104,9 +104,9 @@ final class StockController extends Controller
     public function transfer(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'product_id' => ['required'],
-            'from_location_id' => ['required'],
-            'to_location_id' => ['required', 'different:from_location_id'],
+            'product_id' => ['required', 'uuid'],
+            'from_location_id' => ['required', 'uuid'],
+            'to_location_id' => ['required', 'uuid', 'different:from_location_id'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'source' => ['nullable', Rule::enum(MovementSource::class)],
         ]);
@@ -156,12 +156,12 @@ final class StockController extends Controller
     public function count(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'location_id' => ['required'],
+            'location_id' => ['required', 'uuid'],
             'lines' => ['required', 'array', 'min:1'],
             // `distinct`, because two lines for one product would have the second one measured against
             // the balance the first one just wrote: it would come back `matched` and read as though the
             // count agreed, when nothing about the shelf was ever checked twice.
-            'lines.*.product_id' => ['required', 'distinct'],
+            'lines.*.product_id' => ['required', 'uuid', 'distinct'],
             // Zero is allowed and is the point of the field. An empty field on the count screen means
             // NOBODY LOOKED and never reaches this endpoint (D58); a zero that arrives here is a
             // counted empty shelf and writes the balance off. `gt:0` would make that uncountable.
@@ -442,8 +442,17 @@ final class StockController extends Controller
     private function validateMove(Request $request, array $extra = []): array
     {
         return $request->validate(array_merge([
-            'product_id' => ['required'],
-            'location_id' => ['required'],
+            // **`uuid`, because without it a malformed id is a 500.** Every key in this schema is a
+            // native `uuid` column, so `findOrFail('not-a-uuid')` reaches PostgreSQL and comes back
+            // as `SQLSTATE[22P02] invalid input syntax for type uuid`: an unhandled query exception,
+            // which a client cannot tell apart from the server being broken.
+            //
+            // **`uuid` and NOT `exists`, deliberately.** A well-formed id belonging to another tenant
+            // has to keep answering 404 through `TeamScope`, and `exists` would make it a 422 that
+            // confirms the row exists somewhere. The shape check refuses garbage; the scope refuses
+            // the neighbour's data; neither does the other's job.
+            'product_id' => ['required', 'uuid'],
+            'location_id' => ['required', 'uuid'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'source' => ['nullable', Rule::enum(MovementSource::class)],
             'idempotency_key' => ['nullable', 'string', 'max:64'],
