@@ -421,23 +421,30 @@ class _ProductShowViewState extends State<ProductShowView> {
     final String? action = await MSBottomSheet.show<String>(
       context,
       title: Lang.get('screens.product.gallery_actions'),
-      body: WDiv(
-        className: 'flex flex-col gap-2',
-        children: [
-          // Absent when it already leads: an action that would change nothing reads as a
-          // question about whether it did.
-          if (!picture.isPrimary)
+      // **A `Builder`, so the pop happens on the SHEET's context and not this screen's.** Every other
+      // sheet here is its own widget, so its `build` context already sits below the sheet route; this
+      // body is built inline, and `Navigator.of` from the screen's context resolves the navigator the
+      // PAGE is on. With a nested navigator in play, which a go_router shell has, that is the wrong
+      // one and the pop takes the page rather than the sheet.
+      body: Builder(
+        builder: (BuildContext sheetContext) => WDiv(
+          className: 'flex flex-col gap-2',
+          children: [
+            // Absent when it already leads: an action that would change nothing reads as a
+            // question about whether it did.
+            if (!picture.isPrimary)
+              OptionRow(
+                label: Lang.get('screens.product.gallery_make_primary'),
+                semanticLabel: Lang.get('screens.product.gallery_make_primary'),
+                onTap: () => Navigator.of(sheetContext).pop('primary'),
+              ),
             OptionRow(
-              label: Lang.get('screens.product.gallery_make_primary'),
-              semanticLabel: Lang.get('screens.product.gallery_make_primary'),
-              onTap: () => Navigator.of(context).pop('primary'),
+              label: Lang.get('screens.product.gallery_remove'),
+              semanticLabel: Lang.get('screens.product.gallery_remove'),
+              onTap: () => Navigator.of(sheetContext).pop('remove'),
             ),
-          OptionRow(
-            label: Lang.get('screens.product.gallery_remove'),
-            semanticLabel: Lang.get('screens.product.gallery_remove'),
-            onTap: () => Navigator.of(context).pop('remove'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
 

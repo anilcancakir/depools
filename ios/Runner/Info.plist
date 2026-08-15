@@ -63,7 +63,11 @@
 	     that rather than asking in the abstract: iOS shows this string in the permission prompt and a
 	     vague one is the most common reason a user refuses. -->
 	<key>NSCameraUsageDescription</key>
-	<string>Depools uses the camera to read barcodes when you scan a product.</string>
+	<string>Depools uses the camera to read barcodes and to take photographs of your products.</string>
+	<!-- Required by image_picker's gallery source. iOS TERMINATES an app that presents the picker
+	     without this key, so its absence is a crash on a device rather than a denied permission. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Depools opens your photo library so you can choose a picture for a product.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
