@@ -2377,3 +2377,34 @@ a tree of locations is a table whatever it is built from.
 Not decided here: whether a location's colour is allowed to tint anything beyond its own leading box.
 Tinting a whole row would collide with the status colours that already mean something specific
 (`expiring`, `low-stock`), and colour in this app is never the only carrier of meaning.
+
+### D120. A tenant's own picture is served by Laravel at `/media`, not by a symlink at `/storage`
+
+D118 put an uploaded picture on the `public` disk and `storage:link` made it loadable, which is
+Laravel's own answer and is the wrong one here. **A Flutter WEB build fetches image bytes through
+XHR**, so a cross-origin picture with no `Access-Control-Allow-Origin` is refused by the browser and
+`errorBuilder` fires. The gallery showed exactly that: the Open Food Facts photograph rendered and
+ours did not, and the only difference between the two responses was that header. A symlink cannot
+carry one, because the web server answers a file it can see before the router ever runs, so no
+middleware is reached.
+
+So the `public` disk is `serve => true` and Laravel answers it through a route, which puts it behind
+the CORS middleware like any other response. `bin/check` now REMOVES a `public/storage` symlink rather
+than creating one, because a stale one from before this change shadows the route with the same files
+and the header disappears again.
+
+**The path is `/media` rather than `/storage` because Laravel refuses the collision**, not because
+the name reads better: `FilesystemServiceProvider::serveFiles` throws "The [public] disk conflicts
+with the [local] disk at [/storage]" when two served disks share a uri, and `local` is already served
+there. Read at the source before writing the config.
+
+**In production the app and the API sit on the same origin behind nginx, so none of this is reached**
+(Anılcan's call). This exists so that `artisan serve` in development behaves like production, where
+the shared origin makes CORS a non-question. It is not a production mechanism, and nginx serving the
+directory directly stays available.
+
+Three separate settings have to hold together and each is one line away from silently breaking every
+picture, so `ProductImageTest` asserts all three at once and each was mutation-checked: without
+`serve` the route is a 404, without `visibility => public` `ServeFile` demands a signed url and
+answers 403, and without `media/*` in `config/cors.php` the response is a 200 that a browser throws
+away. The last is the dangerous one, because it looks fine to `curl` and to every mobile build.

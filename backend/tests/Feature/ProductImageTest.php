@@ -473,6 +473,41 @@ final class ProductImageTest extends TestCase
         });
     }
 
+    public function test_a_stored_picture_is_served_by_laravel_and_carries_a_cross_origin_header(): void
+    {
+        // **A Flutter WEB build fetches image bytes through XHR, so a picture without an
+        // `Access-Control-Allow-Origin` header is refused and the gallery falls back to an initial.**
+        // Measured on the product screen, where the Open Food Facts photograph rendered and ours did
+        // not, the only difference between them being that header.
+        //
+        // Three separate things have to hold for that, and each of them is a one-line config change
+        // away from silently breaking a picture, which is why they are asserted together here rather
+        // than trusted: the disk is SERVED by Laravel (so a request reaches the middleware at all),
+        // `media/*` is in the CORS paths (so the middleware answers), and the disk is `visibility =>
+        // public` (so `ServeFile` does not demand a signed url and 403 every image).
+        //
+        // A symlink at `public/storage` would defeat the first: the web server answers a file it can
+        // see before the router runs. `bin/check` removes one rather than making one now.
+        Storage::fake($disk = config('media.images.disk'), [
+            // `Storage::fake` carries `throw` from the real disk and nothing else, so the url has to be
+            // handed back to it. Read from the config rather than written out, so this still fails if
+            // the served path moves.
+            'url' => config("filesystems.disks.{$disk}.url"),
+            'visibility' => config("filesystems.disks.{$disk}.visibility"),
+        ]);
+
+        Storage::disk($disk)->put('product-images/milk.jpg', 'not really a jpeg');
+
+        $product = $this->productWithPicture();
+        $path = parse_url($product->image_url, PHP_URL_PATH);
+
+        $response = $this->get($path, ['Origin' => 'http://localhost:3000']);
+
+        $response->assertOk();
+        $this->assertSame('not really a jpeg', $response->streamedContent());
+        $this->assertSame('*', $response->headers->get('Access-Control-Allow-Origin'), "[$path] is not readable from a web build");
+    }
+
     public function test_a_picture_belongs_to_the_team_that_owns_the_product(): void
     {
         // `team_id` is stamped from the auth context and is not fillable, so this is really a check
