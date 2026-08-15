@@ -27,7 +27,7 @@ location with a depth.
 
 | Folder | Class | Variant enums | Recipe | Preview | What it is |
 |---|---|---|---|---|---|
-| `app_icon/` | `AppIcon` | - | no | **NO** | A glyph the USER chose, drawn from the catalogue rather than from a bundled font. |
+| `app_icon/` | `AppIcon` | - | yes | yes | A glyph the USER chose, drawn from the catalogue rather than from a bundled font. |
 | `callout/` | `Callout` | CalloutIntent | yes | yes | An inline note with a title and message, tinted by intent. Demonstrates a |
 | `chat_message/` | `ChatMessage` | ChatSpeaker | yes | yes | One line of the transcript. |
 | `choice_chip/` | `ChoiceChip` | - | yes | yes | One tap-answer in an assistant's grouped question card. |

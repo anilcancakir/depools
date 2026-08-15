@@ -37,21 +37,46 @@ class CatalogueIcon {
   /// Creates a [CatalogueIcon].
   const CatalogueIcon({required this.name, required this.title, required this.svg});
 
+  /// The largest svg this will accept.
+  ///
+  /// The vendored catalogue averages 490 bytes and its longest entry is under two thousand, so 16 KB
+  /// is roughly thirty times the worst real icon: comfortably out of the way of anything genuine and
+  /// well short of a payload worth handing to a parser. The bound is here rather than absent because
+  /// `SvgPicture.string` PARSES what it is given, so an oversized string is CPU rather than just
+  /// bytes, and a client should not be the only thing standing between a bad response and a frozen
+  /// frame.
+  static const int _maxSvgBytes = 16 * 1024;
+
   /// Reads one from the API's shape.
   ///
-  /// Returns null rather than throwing on a row missing either field, because one malformed entry
-  /// in a batch of forty should cost that icon and not the screen.
+  /// Returns null rather than throwing on anything unusable, because one malformed entry in a batch
+  /// of forty should cost that icon and not the screen. That is the same reason the caller draws a
+  /// fallback: an icon is an appearance hint.
   static CatalogueIcon? fromMap(Map<String, dynamic> map) {
-    final Object? name = map['name'];
-    final Object? svg = map['svg'];
+    final Object? rawName = map['name'];
+    final Object? rawSvg = map['svg'];
 
-    if (name is! String || svg is! String || name.isEmpty || svg.isEmpty) {
+    if (rawName is! String || rawSvg is! String) {
       return null;
     }
 
+    final String name = rawName.trim();
+    final String svg = rawSvg.trim();
+
+    // Trimmed BEFORE the emptiness test, so a whitespace-only value is rejected rather than stored:
+    // it passes `isEmpty` untrimmed and then renders as nothing, or becomes a semantic label made of
+    // spaces, which is worse than a missing one because a screen reader announces it.
+    if (name.isEmpty || svg.isEmpty || svg.length > _maxSvgBytes) {
+      return null;
+    }
+
+    final Object? rawTitle = map['title'];
+    final String title = rawTitle is String ? rawTitle.trim() : '';
+
     return CatalogueIcon(
       name: name,
-      title: map['title'] is String ? map['title'] as String : name,
+      // The name is a worse label than a real title and a much better one than blank.
+      title: title.isEmpty ? name : title,
       svg: svg,
     );
   }

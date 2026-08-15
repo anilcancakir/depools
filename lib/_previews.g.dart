@@ -49,6 +49,7 @@ import 'preview/shopping_list_screen.preview.dart';
 import 'preview/sidebar_menu.preview.dart';
 import 'preview/stock_take_screen.preview.dart';
 import 'preview/teams_screen.preview.dart';
+import 'ui/components/app_icon/app_icon.preview.dart';
 import 'ui/components/callout/callout.preview.dart';
 import 'ui/components/chat_message/chat_message.preview.dart';
 import 'ui/components/choice_chip/choice_chip.preview.dart';
@@ -87,6 +88,11 @@ import 'ui/components/tag/tag.preview.dart';
 
 List<PreviewEntry> previewEntries() {
   return <PreviewEntry>[
+    PreviewEntry(
+      label: 'AppIcon',
+      slug: 'app_icon',
+      builder: (_) => const AppIconPreview(),
+    ),
     PreviewEntry(
       label: 'AssistantFreshScreen',
       slug: 'assistant_fresh_screen',
