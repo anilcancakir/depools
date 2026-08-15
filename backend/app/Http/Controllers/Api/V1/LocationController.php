@@ -10,6 +10,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 /**
  * Locations.
@@ -113,6 +114,18 @@ final class LocationController extends Controller
             Str::uuid7()->toString().'.'.$request->file('image')->extension(),
             ['disk' => $disk],
         );
+
+        // **`storeAs` answers FALSE rather than raising when the write fails**, because every disk in
+        // this app carries `throw => false`: `FilesystemAdapter::putFileAs` ends
+        // `return $result ? $path : false`. Checked BEFORE the row is written and before the previous
+        // file is deleted, which is the order that matters: the obvious spelling would have stored
+        // `false` as the path and then removed the only picture the location actually had.
+        //
+        // Raised rather than answered as a 422: the request was valid and the DISK failed, so the
+        // client has nothing to correct.
+        if ($path === false) {
+            throw new RuntimeException("Could not write the uploaded picture to the [$disk] disk.");
+        }
 
         $location->forceFill(['image_path' => $path])->save();
 

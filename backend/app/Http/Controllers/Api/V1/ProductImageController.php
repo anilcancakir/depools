@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 /**
  * A product's gallery: add a picture, choose which one leads, remove one.
@@ -235,6 +236,17 @@ final class ProductImageController extends Controller
                 Str::uuid7()->toString().'.'.$file->extension(),
                 ['disk' => $disk]
             );
+
+            // **`storeAs` answers FALSE rather than raising when the write fails**, because every disk
+            // in this app carries `throw => false`: `FilesystemAdapter::putFileAs` ends
+            // `return $result ? $path : false`. Without this the row would be created with `false` in
+            // its path column, which is a picture nothing can load and nothing can explain.
+            //
+            // Raised rather than answered as a 422: the request was valid and the DISK failed, so the
+            // client has nothing to correct.
+            if ($path === false) {
+                throw new RuntimeException("Could not write the uploaded picture to the [$disk] disk.");
+            }
 
             return ['path' => $path, 'source' => 'upload', 'attribution' => null];
         }

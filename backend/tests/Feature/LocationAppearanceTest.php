@@ -105,6 +105,18 @@ final class LocationAppearanceTest extends TestCase
         });
     }
 
+    public function test_the_database_refuses_an_unknown_colour_too(): void
+    {
+        // **Both vocabularies, because the file's own docblock claims both.** A review round caught
+        // that it said "the two closed vocabularies" while only the icon was pinned at this level,
+        // which is the kind of gap where the missing half is the one that breaks.
+        $this->expectException(QueryException::class);
+
+        DB::transaction(function (): void {
+            Location::create(['name' => 'Fridge'])->forceFill(['colour' => '#ff0000'])->save();
+        });
+    }
+
     public function test_a_photograph_is_stored_and_answered_as_a_url(): void
     {
         $disk = config('media.images.disk');
