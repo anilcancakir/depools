@@ -100,13 +100,18 @@ final class Icon extends Model
      * An exact name match is lifted above everything, because a user who typed the icon's name
      * exactly has told us which one they mean.
      *
-     * **This is literal substring matching, and the gap it leaves is measured rather than assumed.**
-     * `fridge` reaches `kitchen`, `shelf` reaches `shelves`, `home` puts the house first. But
-     * `freezer` returns NOTHING, because the nine icons whose text contains `freez` say `freeze`,
-     * `freezing` and `frozen` and none of them says `freezer`; and `buzdolabı` returns nothing
-     * because no icon set publishes Turkish tags. Neither is a defect in this query: closing a
-     * semantic and a cross-language gap is what the embedding step is for, and a trigram similarity
-     * score over a 500-character blob would be noise rather than an answer.
+     * **Every WORD has to match, not the whole string.** `warehouse shelf` used to answer nothing,
+     * because both words are in the catalogue and never adjacent in one icon's text. Splitting on
+     * whitespace and requiring each part turns a two-word query into a narrowing rather than a
+     * near-certain miss, which is how a user describes a place: `warehouse shelf`, `kitchen drawer`.
+     *
+     * **The gap that remains is a vocabulary gap, not a matching one, and it is measured.** `pantry`,
+     * `cupboard`, `basement`, `cellar` and `larder` appear in NO icon's text at all: Google tagged a
+     * general-purpose set and this is an inventory app. Those are handled by adding our own words to
+     * the tags at seed time (`IconSeeder::EXTRA_TAGS`), which is a data fix rather than a query one.
+     *
+     * Turkish still finds nothing, because no icon set anywhere publishes Turkish tags. That is the
+     * AI suggestion's job and not something to fake here.
      */
     public function scopeMatching(Builder $query, string $term): Builder
     {
@@ -127,10 +132,13 @@ final class Icon extends Model
         // Now that `_` is literal, the underscore form has to be handled ON PURPOSE. A user pasting
         // `local_shipping` is naming the icon exactly, which is the one query that must never come
         // back empty, and `search_text` holds it with a space.
-        $escaped = str_replace('\_', ' ', $escaped);
+        $words = preg_split('/\s+/', str_replace('\_', ' ', $escaped), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        foreach ($words as $word) {
+            $query->where('search_text', 'like', '%'.$word.'%');
+        }
 
         return $query
-            ->where('search_text', 'like', '%'.$escaped.'%')
             ->orderByRaw('CASE WHEN name = ? THEN 0 ELSE 1 END', [$needle])
             ->orderByDesc('popularity');
     }

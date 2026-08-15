@@ -2382,7 +2382,7 @@ with their tags, vendored into the repository by `depools:vendor-icons` and rend
 - The metadata is what makes this worth doing rather than merely bigger. Each icon carries a median
   of 34 tags plus a category and Google's `popularity`, the richest of the eight sets compared
   (Tabler ~10, Font Awesome 8-14, Lucide 6-7), and the tags are this app's own vocabulary: `shelves`
-  lists inventory, storage, warehouse, goods. That is what the picker searches and what the AI
+  lists inventory, storage, goods, retail. That is what the picker searches and what the AI
   suggestion will embed. Finding it required not believing the first answer: the metadata is absent
   from `google/material-design-icons` entirely and lives in the Google Fonts API.
 
