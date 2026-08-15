@@ -121,23 +121,27 @@ ensure_vite_manifest() {
         echo "check: asset build failed; any page test will fail on the vite manifest" >&2
 }
 
-# A product picture lands on the `public` disk, which is `storage/app/public`, and
-# nothing serves that without `public/storage` pointing at it. Both are gitignored,
-# so every fresh worktree starts without the link and every uploaded picture answers
-# 403: measured, on the first real upload this endpoint ever took. The command is
-# idempotent and costs nothing when the link is already there.
-ensure_storage_link() {
+# **The opposite of what this used to do, and the reason is CORS.** It ran
+# `storage:link`, because without it an uploaded picture answered 403. A symlink
+# means the web server answers the file before the router runs, so the response
+# carries no `Access-Control-Allow-Origin` and a Flutter WEB build refuses the
+# image: measured on the gallery, where the Open Food Facts photograph rendered and
+# ours did not. The `public` disk is served by Laravel now (D120), at `/media`, so a
+# link at `public/storage` would only shadow the `local` disk's own route with the
+# wrong disk's files. Removed rather than left, because a stale one from before this
+# change breaks the catalogue's pictures.
+remove_stale_storage_link() {
     wants backend || return 0
-    [ -e "$REPO_ROOT/backend/public/storage" ] && return 0
+    [ -L "$REPO_ROOT/backend/public/storage" ] || return 0
 
-    ( cd backend && php artisan storage:link --quiet ) >/dev/null 2>&1 ||
-        echo "check: storage:link failed; an uploaded picture will 403" >&2
+    rm -f "$REPO_ROOT/backend/public/storage"
+    echo "check: removed backend/public/storage; the public disk is served by Laravel now (D120)"
 }
 
 bootstrap_ignored_files
 require_backend_vendor
 ensure_vite_manifest
-ensure_storage_link
+remove_stale_storage_link
 
 # Resolve dependencies BEFORE fanning out, then run the two flutter commands with
 # `--no-pub`. Each of them resolves on its own by default, and concurrently they

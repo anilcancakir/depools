@@ -53,8 +53,9 @@ trait HasStoredImage
         // **Built on the disk the bytes were WRITTEN to, which is not always the default one.** A
         // location's photograph goes to `media.images.disk` while `filesystems.default` is `local`, so
         // the plain `Storage::url` here would answer a url for a disk that does not hold the file.
-        // The two happen to coincide today, because the local disk's fallback is `/storage/<path>` and
-        // the public disk's url is `APP_URL/storage`; point either at s3 and they stop.
+        // They no longer even coincide by accident: the local disk falls back to `/storage/<path>`
+        // while the public disk is served at `APP_URL/media` (D120), so reading the wrong one now
+        // produces a url that resolves to the other disk's route.
         //
         // Typed as `Cloud` rather than `Filesystem` because that is the contract declaring `url()`,
         // which the local adapter provides: an annotation of what the object IS, not a suppression.
