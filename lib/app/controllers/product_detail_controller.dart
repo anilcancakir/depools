@@ -1,6 +1,7 @@
 import 'package:magic/magic.dart';
 
 import '../../resources/views/products/product_fixtures.dart';
+import '../support/mapped_or_null.dart';
 
 /// One product with its lots and units, from `api/v1/products/{id}`.
 ///
@@ -192,8 +193,8 @@ class ProductDetailController extends MagicController
     // so the guard at the top would never refetch it and the screen would sit on the wrong product.
     if (_loadedId != id) return;
 
-    setSuccess(
-      ProductListItem.fromApi(
+    final ProductListItem? product = mappedOrNull(
+      () => ProductListItem.fromApi(
         Map<String, dynamic>.from(data),
         locationLabels: _locationPaths,
         // ONE reference date for the whole payload, the same fix `ProductController` already
@@ -203,6 +204,18 @@ class ProductDetailController extends MagicController
         // itself by a day WITHIN one screen: a badge saying two days above a lot saying three.
         today: DateTime.now(),
       ),
+      describing: 'a product detail payload',
     );
+
+    // A payload this client cannot read is a failed load, not a screen that waits. The same
+    // `_loadedId` guard as above applies: this answer is only allowed to write state while it is
+    // still the product the screen is on.
+    if (product == null) {
+      setError(Lang.get('screens.products.detail_failed'));
+
+      return;
+    }
+
+    setSuccess(product);
   }
 }

@@ -3,6 +3,7 @@ import 'package:magic/magic.dart';
 import '../../resources/views/products/product_filter_sheet.dart';
 import '../../resources/views/products/product_fixtures.dart';
 import '../models/product_filter.dart';
+import '../support/mapped_or_null.dart';
 
 /// The products list, from `api/v1/products`.
 ///
@@ -207,7 +208,14 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
       return;
     }
 
-    final List<ProductListItem> rows = _map(response['data']);
+    final List<ProductListItem>? rows = _mapOrNull(response['data']);
+
+    // A payload this client cannot read is a failed load, not a screen that waits.
+    if (rows == null) {
+      setError(Lang.get('screens.products.load_failed'));
+
+      return;
+    }
 
     _cursor = _cursorOf(response);
     _total = _totalOf(response) ?? rows.length;
@@ -271,10 +279,20 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
       return;
     }
 
+    final List<ProductListItem>? more = _mapOrNull(response['data']);
+
+    // The page the user already has stays, for the same reason a failed request leaves it: an
+    // unreadable FOURTH page is not a reason to replace a readable list with an error panel.
+    if (more == null) {
+      refreshUI();
+
+      return;
+    }
+
     _cursor = _cursorOf(response);
     _loadedPages++;
 
-    setSuccess(<ProductListItem>[...items, ..._map(response['data'])]);
+    setSuccess(<ProductListItem>[...items, ...more]);
   }
 
   /// Loads the first page and then [count] minus one more, for a link that was shared mid-list.
@@ -350,6 +368,13 @@ class ProductController extends MagicController with MagicStateMixin<List<Produc
     };
 
     return true;
+  }
+
+  /// [_map], with a row this client cannot read answered as null rather than thrown.
+  ///
+  /// The reasoning, and the measurement behind it, is in [mappedOrNull].
+  List<ProductListItem>? _mapOrNull(Object? data) {
+    return mappedOrNull(() => _map(data), describing: 'a product list payload');
   }
 
   /// Maps a `data` array into rows.

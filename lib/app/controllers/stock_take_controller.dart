@@ -4,6 +4,7 @@ import '../../resources/views/products/count_line.dart';
 import '../../resources/views/products/product_filter_sheet.dart';
 import '../../resources/views/products/product_fixtures.dart';
 import '../models/product_filter.dart';
+import '../support/mapped_or_null.dart';
 import '../support/scan_outcome.dart';
 import 'product_controller.dart';
 
@@ -163,9 +164,21 @@ class StockTakeController extends MagicController with MagicStateMixin<List<Prod
       return;
     }
 
+    final List<ProductListItem>? more = mappedOrNull(
+      () => _map(response['data']),
+      describing: 'a shelf page',
+    );
+
+    // The rows already on screen stay, for the same reason a failed request leaves them.
+    if (more == null) {
+      refreshUI();
+
+      return;
+    }
+
     _cursor = _cursorOf(response);
 
-    setSuccess(<ProductListItem>[...rows, ..._map(response['data'])]);
+    setSuccess(<ProductListItem>[...rows, ...more]);
   }
 
   /// Commits a physical count of this shelf, then refetches what it changed (D59).
@@ -213,15 +226,20 @@ class StockTakeController extends MagicController with MagicStateMixin<List<Prod
       return null;
     }
 
-    return ScanOutcome.of(
-      code: code,
-      product: ProductListItem.fromApi(
+    final ProductListItem? product = mappedOrNull(
+      () => ProductListItem.fromApi(
         response['data'] as Map<String, dynamic>,
         locationLabels: ProductController.instance.locationLabels,
         today: DateTime.now(),
       ),
-      shelfId: _locationId,
+      describing: 'a scanned product',
     );
+
+    // Null for the same reason a failed request answers null: the caller has to be able to tell "no
+    // such product" from "the answer was unreadable", because only the first means create one.
+    if (product == null) return null;
+
+    return ScanOutcome.of(code: code, product: product, shelfId: _locationId);
   }
 
   /// A per-line refusal is not a failure. The endpoint commits every writable line and names the
@@ -315,7 +333,18 @@ class StockTakeController extends MagicController with MagicStateMixin<List<Prod
       return;
     }
 
-    final List<ProductListItem> fetched = _map(response['data']);
+    final List<ProductListItem>? fetched = mappedOrNull(
+      () => _map(response['data']),
+      describing: 'a shelf payload',
+    );
+
+    // A payload this client cannot read is a failed load, not a shelf that waits forever.
+    if (fetched == null) {
+      _failed = true;
+      setError(Lang.get('screens.products.load_failed'));
+
+      return;
+    }
 
     _cursor = _cursorOf(response);
     _total = _totalOf(response) ?? fetched.length;
