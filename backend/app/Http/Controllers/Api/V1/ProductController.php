@@ -128,7 +128,12 @@ final class ProductController extends Controller
             // A CODE from the shared vocabulary or one this tenant added. `max:16` is the column's
             // shape and [UnitExists] is the vocabulary, which is what replaced this field being free
             // text: an unknown code is a 422 naming the field rather than a new unit nobody meant.
-            'base_unit' => ['required', 'string', 'max:16', new UnitExists],
+            // **Nullable, because the fallback chain exists to answer this.** It was required, which
+            // made every caller state a unit even when the team had already said what it counts in.
+            // `Product::creating` resolves what the caller named, then the team's `default_unit_id`,
+            // then `Unit::fallback()`; a required field here would make the first step the only one.
+            // An unknown CODE is still a 422 naming the field: absent and wrong are different.
+            'base_unit' => ['nullable', 'string', 'max:16', new UnitExists],
             'tracks_expiry' => ['boolean'],
             'default_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
             'opened_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:365'],
