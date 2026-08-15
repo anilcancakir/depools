@@ -139,6 +139,23 @@ final class Product extends Model
      * The exception is deliberate rather than a validation rule, because `update`, `fill` and a
      * Filament action all reach the model and only one of them would reach a request validator.
      */
+    /**
+     * The unit a team defaults new products to, or null when it has not said.
+     *
+     * **Scope-free on purpose.** This runs inside a `creating` hook that a seeder and a queued job
+     * reach as readily as a request, and `TeamScope` fails closed with no auth context: applying it
+     * here would answer null for exactly the callers that cannot pass a team any other way. The team
+     * id is the boundary, the same argument D111 makes for every other derivation outside a request.
+     */
+    private static function defaultUnitIdFor(int|string|null $teamId): int|string|null
+    {
+        if ($teamId === null) {
+            return null;
+        }
+
+        return Team::query()->whereKey($teamId)->value('default_unit_id');
+    }
+
     protected static function booted(): void
     {
         // **The default the column used to carry, moved into PHP.** `base_unit` was a string defaulting
@@ -148,10 +165,24 @@ final class Product extends Model
         //
         // Only when nothing said otherwise, so a caller filling either `base_unit` or `base_unit_id`
         // is untouched.
+        //
+        // **The team's own default sits between "nothing said" and the vocabulary's fallback** (D29,
+        // D32: the unit is inferred, and failing every inference it is editable). A shop that counts
+        // everything in cartons says so once instead of on every product.
+        //
+        // Read from the PRODUCT's team rather than from the auth context, and the difference is not
+        // theoretical: `TeamScope::currentTeamId()` resolves from the authenticated user and answers
+        // null in a seeder, a queued import or a console command, so a product created there would
+        // silently skip the team's default. `team_id` is on the model by now because `BelongsToTeam`
+        // stamps it, and the fallback to the scope covers the ordering being the other way round.
         self::creating(static function (self $product): void {
-            if ($product->base_unit_id === null) {
-                $product->base_unit_id = Unit::fallback()->getKey();
+            if ($product->base_unit_id !== null) {
+                return;
             }
+
+            $product->base_unit_id = self::defaultUnitIdFor(
+                $product->team_id ?? TeamScope::currentTeamId(),
+            ) ?? Unit::fallback()->getKey();
         });
 
         self::updating(static function (self $product): void {

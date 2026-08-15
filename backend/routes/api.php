@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\StockController;
+use App\Http\Controllers\Api\V1\TeamSettingsController;
 use App\Http\Controllers\Api\V1\UnitController;
 use Illuminate\Support\Facades\Route;
 
@@ -42,6 +43,11 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // The icon catalogue: one route for the picker's search and for resolving what is on screen.
     // Global rather than team-scoped, which the controller says out loud.
     Route::get('icons', [IconController::class, 'index']);
+
+    // Team-wide settings, as opposed to the per-user, per-device ones the client keeps locally.
+    // No team parameter anywhere: the team is the authenticated one.
+    Route::get('team/settings', [TeamSettingsController::class, 'show']);
+    Route::put('team/settings', [TeamSettingsController::class, 'update']);
 
     Route::get('units', [UnitController::class, 'index']);
     Route::post('units', [UnitController::class, 'store']);
