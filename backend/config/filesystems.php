@@ -97,8 +97,13 @@ return [
     |
     */
 
-    'links' => [
-        public_path('storage') => storage_path('app/public'),
-    ],
+    // **Deliberately empty, and this is the enforcement rather than the note.**
+    // Laravel's default maps `public/storage` at `storage/app/public`, and running
+    // `storage:link` out of muscle memory would recreate exactly the failure D120
+    // removes: the web server answers a linked file before the router, so the
+    // response carries no CORS header and a Flutter web build refuses the picture.
+    // With nothing here that command has nothing to make, so the mistake is not
+    // available. `bin/check` also removes a link left over from before the change.
+    'links' => [],
 
 ];

@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 /**
@@ -55,6 +56,47 @@ final class ProductImageTest extends TestCase
         $product->makeImagePrimary($image);
 
         return $product->refresh();
+    }
+
+    /**
+     * Fake the media disk without throwing away the config that shapes its urls.
+     *
+     * **`Storage::fake` carries only `throw` from the real disk**, so a bare fake drops the `url` key
+     * and every generated url reverts to the `/storage` fallback. That is how these tests kept passing
+     * while D120 moved the served path to `/media`: they agreed with a config they had stopped reading.
+     * Handing the two url-shaping settings back makes them exercise the real path shape again, and
+     * reading them from the config rather than writing them out is what makes them follow the next move.
+     */
+    private function fakeMediaDisk(): string
+    {
+        $disk = config('media.images.disk');
+
+        Storage::fake($disk, [
+            'url' => config("filesystems.disks.{$disk}.url"),
+            'visibility' => config("filesystems.disks.{$disk}.visibility"),
+        ]);
+
+        return $disk;
+    }
+
+    /**
+     * The disk path behind a url a client was answered.
+     *
+     * **Derived from the disk rather than written out, because the served path MOVED once already.**
+     * These assertions used to strip a literal `url('/storage')`, and D120 put the public disk at
+     * `/media`. They kept passing anyway, which is the part worth naming: every one of them runs on
+     * `Storage::fake`, and a fake carries only `throw` from the real disk, so its url reverts to the
+     * `/storage` fallback and the literal matched again. A green test that agrees with a config it is
+     * no longer reading is worse than a red one.
+     *
+     * `URL::to` around it mirrors what `HasStoredImage` does to build the url in the first place, so
+     * this follows the next move too.
+     */
+    private function diskPathOf(string $url, ?string $disk = null): string
+    {
+        $base = URL::to(Storage::disk($disk ?? config('media.images.disk'))->url(''));
+
+        return ltrim(str_replace($base, '', $url), '/');
     }
 
     public function test_a_stored_path_is_answered_as_a_url(): void
@@ -165,7 +207,7 @@ final class ProductImageTest extends TestCase
     {
         // A gallery with no primary renders as a product with no picture, and asking which of one
         // picture should lead is a question with a single answer.
-        Storage::fake(config('media.images.disk'));
+        $this->fakeMediaDisk();
 
         $product = Product::create(['name' => 'Süt']);
 
@@ -183,7 +225,7 @@ final class ProductImageTest extends TestCase
         $this->assertSame(1, $second['position']);
 
         Storage::disk(config('media.images.disk'))->assertExists(
-            str_replace(url('/storage').'/', '', $first['url'])
+            $this->diskPathOf($first['url'])
         );
     }
 
@@ -269,7 +311,7 @@ final class ProductImageTest extends TestCase
         // we may redistribute.
         $disk = config('media.images.disk');
 
-        Storage::fake($disk);
+        $this->fakeMediaDisk();
         Storage::fake(config('filesystems.default'));
         Storage::disk(config('filesystems.default'))->put('catalogue/ayran.jpg', 'the bytes');
 
@@ -291,7 +333,7 @@ final class ProductImageTest extends TestCase
         $this->assertSame('catalogue', $body['source']);
         $this->assertSame(
             'the bytes',
-            Storage::disk($disk)->get(str_replace(url('/storage').'/', '', $body['url']))
+            Storage::disk($disk)->get($this->diskPathOf($body['url'], $disk))
         );
     }
 
@@ -313,7 +355,7 @@ final class ProductImageTest extends TestCase
         // Measured before it was fixed: the disk carries `throw => false`, so `get()` answered NULL
         // and the exception came one line later out of Flysystem's `write()` as
         // `Argument #2 ($contents) must be of type string, null given`.
-        Storage::fake(config('media.images.disk'));
+        $this->fakeMediaDisk();
         Storage::fake(config('filesystems.default'));
 
         $global = GlobalProduct::create([
@@ -488,13 +530,7 @@ final class ProductImageTest extends TestCase
         //
         // A symlink at `public/storage` would defeat the first: the web server answers a file it can
         // see before the router runs. `bin/check` removes one rather than making one now.
-        Storage::fake($disk = config('media.images.disk'), [
-            // `Storage::fake` carries `throw` from the real disk and nothing else, so the url has to be
-            // handed back to it. Read from the config rather than written out, so this still fails if
-            // the served path moves.
-            'url' => config("filesystems.disks.{$disk}.url"),
-            'visibility' => config("filesystems.disks.{$disk}.visibility"),
-        ]);
+        $disk = $this->fakeMediaDisk();
 
         Storage::disk($disk)->put('product-images/milk.jpg', 'not really a jpeg');
 
