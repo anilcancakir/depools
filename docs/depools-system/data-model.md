@@ -83,6 +83,24 @@ Unique: (`team_id`, `sku`) where `sku` is not null.
 
 **Enforced in three places, one per failure mode (D109), and "at validation" was never one of them.** The vocabulary is a CHECK, because a closed set of values constrains rather than derives. The transition is a model guard, because it compares against another table: `serial -> lot` is refused as soon as one serial row exists, which is permanent because a released serial is kept as evidence, while `lot -> serial` is refused only while a lot still holds stock, so an emptied lot does not block a correction. The write that could create the contradiction is refused by `StockWriter::receive`.
 
+### locations, the appearance columns
+
+Added by D119, because the feature docs already assumed an icon and nothing stored one.
+
+| Column | Type | Notes |
+|---|---|---|
+| `icon` | string(32), nullable | a NAME from a closed catalogue, never a Material codepoint |
+| `colour` | string(32), nullable | a key into a closed palette, each carrying its own `dark:` pair |
+| `image_path` | string, nullable | one photograph, on the public disk, as a product's picture is (D118) |
+
+CHECK on each of `icon` and `colour` against its vocabulary. The icon is a name rather than a
+codepoint because `--tree-shake-icons` defaults to ON, so a glyph no `const` references is dropped
+from the font and a user's own location would render as tofu.
+
+Where a location has both a photograph and an icon, the photograph is shown and the icon is the
+fallback: the same rule `ProductThumb` uses, so the app has one answer to "what goes in the leading
+box" rather than two.
+
 ### product_images
 
 A product's photographs, ordered, with exactly one primary (D118). This replaced the single

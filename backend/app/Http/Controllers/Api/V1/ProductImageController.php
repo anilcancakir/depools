@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 /**
  * A product's gallery: add a picture, choose which one leads, remove one.
@@ -184,7 +185,7 @@ final class ProductImageController extends Controller
      */
     private function validateStore(Request $request): array
     {
-        $images = config('products.images');
+        $images = config('media.images');
 
         $data = $request->validate([
             'image' => [
@@ -231,10 +232,21 @@ final class ProductImageController extends Controller
             // phone called it, which is not something to put in a public url, and two uploads called
             // `IMG_0001.jpg` must not collide.
             $path = $file->storeAs(
-                config('products.images.directory'),
+                config('media.images.directory'),
                 Str::uuid7()->toString().'.'.$file->extension(),
                 ['disk' => $disk]
             );
+
+            // **`storeAs` answers FALSE rather than raising when the write fails**, because every disk
+            // in this app carries `throw => false`: `FilesystemAdapter::putFileAs` ends
+            // `return $result ? $path : false`. Without this the row would be created with `false` in
+            // its path column, which is a picture nothing can load and nothing can explain.
+            //
+            // Raised rather than answered as a 422: the request was valid and the DISK failed, so the
+            // client has nothing to correct.
+            if ($path === false) {
+                throw new RuntimeException("Could not write the uploaded picture to the [$disk] disk.");
+            }
 
             return ['path' => $path, 'source' => 'upload', 'attribution' => null];
         }
@@ -285,7 +297,7 @@ final class ProductImageController extends Controller
         }
 
         $disk = $this->disk();
-        $target = config('products.images.directory').'/'.Str::uuid7()->toString().'.'.pathinfo($source, PATHINFO_EXTENSION);
+        $target = config('media.images.directory').'/'.Str::uuid7()->toString().'.'.pathinfo($source, PATHINFO_EXTENSION);
 
         // Between disks, because the catalogue's own file may live somewhere else entirely; reading
         // and writing the bytes is the one operation that works whatever those two are.
@@ -296,7 +308,7 @@ final class ProductImageController extends Controller
 
     private function disk(): string
     {
-        return config('products.images.disk');
+        return config('media.images.disk');
     }
 
     private function catalogueDisk(): string

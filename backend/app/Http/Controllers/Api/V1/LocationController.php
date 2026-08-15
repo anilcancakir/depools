@@ -7,6 +7,10 @@ use App\Http\Resources\LocationResource;
 use App\Models\Location;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use RuntimeException;
 
 /**
  * Locations.
@@ -43,6 +47,12 @@ final class LocationController extends Controller
             // generator ever changed, and the mixed-version risk D73 names is prevented at
             // generation, not at the boundary.
             'parent_id' => ['nullable', 'uuid'],
+            // D119. Both are KEYS into a closed set, not renderable values: the client owns the
+            // mapping, because an icon codepoint cannot survive icon tree-shaking and a hex cannot
+            // survive the design-token gate. `Rule::in` against the model's own list, so the
+            // vocabulary is stated once in PHP and once in the CHECK that actually enforces it.
+            'icon' => ['nullable', Rule::in(Location::ICONS)],
+            'colour' => ['nullable', Rule::in(Location::COLOURS)],
         ]);
 
         $parent = $data['parent_id'] ?? null;
@@ -52,12 +62,77 @@ final class LocationController extends Controller
         }
 
         return new LocationResource(
-            Location::create(['name' => $data['name'], 'parent_location_id' => $parent]),
+            Location::create([
+                'name' => $data['name'],
+                'parent_location_id' => $parent,
+                'icon' => $data['icon'] ?? null,
+                'colour' => $data['colour'] ?? null,
+            ]),
         );
     }
 
     public function show(string $id): LocationResource
     {
         return new LocationResource(Location::query()->findOrFail($id));
+    }
+
+    /**
+     * Replaces this location's photograph (D119).
+     *
+     * **A PUT rather than a POST, because a location holds ONE picture.** A product has a gallery and
+     * its endpoint appends; here a second upload is the same slot being overwritten, so the verb says
+     * which of the two this is. The previous file is deleted after the row is updated, in that order
+     * for the same reason the gallery does it: an orphaned file is invisible and sweepable, while a
+     * row pointing at bytes that are gone renders as a broken picture the user cannot remove.
+     *
+     * `image_path` is not fillable, deliberately. A path is written by whatever stored the bytes and
+     * never taken from a request, or a caller could aim a location at any file on the disk.
+     */
+    public function storeImage(Request $request, string $id): LocationResource
+    {
+        $location = Location::query()->findOrFail($id);
+        $images = config('media.images');
+
+        $request->validate([
+            'image' => [
+                'required',
+                'file',
+                'image',
+                'mimes:'.implode(',', $images['mimes']),
+                'max:'.$images['max_kilobytes'],
+            ],
+        ]);
+
+        $disk = $images['disk'];
+        $previous = $location->image_path;
+
+        $path = $request->file('image')->storeAs(
+            $images['directory'],
+            // A random name rather than the uploaded one, as for a product picture: the original
+            // carries whatever the phone called it, and two shelves photographed on the same day
+            // must not collide.
+            Str::uuid7()->toString().'.'.$request->file('image')->extension(),
+            ['disk' => $disk],
+        );
+
+        // **`storeAs` answers FALSE rather than raising when the write fails**, because every disk in
+        // this app carries `throw => false`: `FilesystemAdapter::putFileAs` ends
+        // `return $result ? $path : false`. Checked BEFORE the row is written and before the previous
+        // file is deleted, which is the order that matters: the obvious spelling would have stored
+        // `false` as the path and then removed the only picture the location actually had.
+        //
+        // Raised rather than answered as a 422: the request was valid and the DISK failed, so the
+        // client has nothing to correct.
+        if ($path === false) {
+            throw new RuntimeException("Could not write the uploaded picture to the [$disk] disk.");
+        }
+
+        $location->forceFill(['image_path' => $path])->save();
+
+        if (is_string($previous) && $previous !== '') {
+            Storage::disk($disk)->delete($previous);
+        }
+
+        return new LocationResource($location->refresh());
     }
 }

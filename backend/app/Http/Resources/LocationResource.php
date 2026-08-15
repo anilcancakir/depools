@@ -23,6 +23,16 @@ final class LocationResource extends JsonResource
             'full_path' => $this->full_path,
             'parent_id' => $this->parent_location_id,
             'depth' => $this->depth,
+            // How the node is shown (D119). All three are nullable and usually null: a location
+            // created by a scan or by the assistant carries none of them.
+            //
+            // `icon` and `colour` travel as the stored KEYS rather than as anything renderable, which
+            // is the same shape `base_unit` uses: the client owns the mapping, because a codepoint
+            // cannot survive icon tree-shaking and a hex cannot survive the design-token gate.
+            'icon' => $this->icon,
+            'colour' => $this->colour,
+            // A url rather than the path, because a client cannot turn a path into anything.
+            'image_url' => $this->image_url,
             // How many product/location pairs sit here, which the client reads as "does this shelf
             // hold anything". Gated on the caller having asked, so `show` does not pay for a count it
             // does not render.
