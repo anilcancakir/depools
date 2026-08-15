@@ -47,27 +47,35 @@ String unitLabel(String code, [num count = 1]) {
 /// locale decision that belongs with whoever built the figure, and the unit beside it still has to
 /// agree in number. Rather than each of them writing its own parse, the rule lives here once.
 ///
-/// Only exactly one is singular, so a failed parse is plural: a grouped Turkish figure like
-/// `1.240,00` does not parse and is never one anyway, and an empty field is not one either. The comma
-/// is swapped for a dot first, because `2,5` is how the decimal is written in the locale this was
-/// drawn for.
-///
-/// **A field mid-decimal reads as SINGULAR, and that is measured rather than intended.**
-/// `num.tryParse('1.')` answers `1.0`, so a user who has typed `1,` on the way to `1,5` sees the
-/// singular for those keystrokes. An earlier version of this comment claimed a half-typed field reads
-/// as plural, which was simply false. Left as it is rather than special-cased: the value at that
-/// instant IS one-point-something-not-yet-said, the next keystroke corrects it, and detecting a
-/// trailing separator would be machinery for a state that lasts one character.
+/// The rule it uses, and the two cases that make it a rule rather than a parse, are in
+/// [pluralCountOf].
 String unitLabelFor(String code, String formatted) {
   return unitLabel(code, pluralCountOf(formatted));
 }
 
-/// The number a formatted figure should make its unit agree with.
+/// Whether a formatted figure is ONE or MANY, as a count [unitLabel] can take.
+///
+/// Answers 1 or 2 and never the figure itself, which is the whole job: both languages here split only
+/// at one, so every other value is the same answer.
 ///
 /// Separate from [unitLabelFor] so it can be TESTED. The catalogue does not resolve in the test
 /// harness (see `unit_label_test.dart` for the measurement), so every code falls back to itself there
-/// and an assertion on the returned word cannot tell 1 from 2. The count is the part with a rule in
-/// it, so the count is what is exposed and pinned.
+/// and an assertion on the returned word cannot tell 1 from 2. The rule is what is exposed and pinned.
+///
+/// **`num.tryParse` was the first shape and it read one thousand as one.** `'1.000'` parses as `1.0`,
+/// so a grouped figure took the singular. That cannot come from this app's own formatter, checked at
+/// the source rather than assumed: `ProductListItem.format` writes a whole number through
+/// `toString()`, which never groups, and otherwise exactly two decimals. But a TYPED field reaches
+/// here too, so a separator followed by exactly three digits is read as grouping rather than left to
+/// a parse with no locale to consult.
 num pluralCountOf(String formatted) {
-  return num.tryParse(formatted.replaceAll(',', '.')) ?? 2;
+  final String trimmed = formatted.trim();
+
+  // At least a thousand, whichever separator the locale groups with.
+  if (RegExp(r'[.,]\d{3}(\D|$)').hasMatch(trimmed)) return 2;
+
+  // One, and one written as a whole: `1`, `1,0`, `1.00`. A field stopped mid-decimal at `1,` counts
+  // here too, and stays singular deliberately: the value at that instant is
+  // one-point-something-not-yet-said, and the next keystroke settles it.
+  return RegExp(r'^1(?:[.,]0*)?$').hasMatch(trimmed) ? 1 : 2;
 }

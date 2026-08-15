@@ -148,31 +148,36 @@ void main() {
       expect(pluralCountOf('0'), isNot(1));
     });
 
-    test('a decimal written with a comma is read as the number it is', () {
-      // `2,5` is how this locale writes it. A parse that did not know would still answer plural, but
-      // by accident rather than by rule, and would then be wrong the day the rule changes.
-      expect(pluralCountOf('2,5'), 2.5);
+    test('one written as a whole is still one', () {
+      // Either separator, because the app writes the decimal one way in English and the other in
+      // Turkish and this helper is handed the already-formatted string.
+      expect(pluralCountOf('1,0'), 1);
+      expect(pluralCountOf('1.00'), 1);
+      expect(pluralCountOf('1,5'), isNot(1));
     });
 
-    test('a grouped figure is not mistaken for one', () {
-      // `1.240,00` does not parse, and `1.240` parses as 1.24 rather than 1240. Neither is 1, which
-      // is the only distinction this makes, so both read as plural and both are right.
+    test('a GROUPED thousand is not one, which a bare parse got wrong', () {
+      // **This is the case that made the rule a rule.** The first version was
+      // `num.tryParse(s.replaceAll(',', '.'))`, and `num.tryParse('1.000')` answers 1.0, so one
+      // thousand took the singular: `1.000 piece`. A separator followed by exactly three digits is
+      // read as grouping now, whichever separator the locale uses.
+      expect(pluralCountOf('1.000'), isNot(1));
+      expect(pluralCountOf('1,000'), isNot(1));
       expect(pluralCountOf('1.240,00'), isNot(1));
       expect(pluralCountOf('1.240'), isNot(1));
     });
 
-    test('an empty or unparseable field reads as plural', () {
+    test('an empty or unreadable field reads as plural', () {
       // The placeholder in a stepper sits under a unit, not under a count of one.
       expect(pluralCountOf(''), isNot(1));
       expect(pluralCountOf('-'), isNot(1));
     });
 
-    test('a field stopped mid-decimal reads as one, which is measured and not intended', () {
-      // `num.tryParse('1.')` answers 1.0, so `1,` on the way to `1,5` is singular for a keystroke.
-      // Pinned because it is surprising: an earlier docblock claimed the opposite, and a future
-      // reader deciding to "fix" it should see that the behaviour was known and accepted.
+    test('a field stopped mid-decimal reads as one, deliberately', () {
+      // `1,` on the way to `1,5`. The value at that instant is one-point-something-not-yet-said, and
+      // the next keystroke settles it. Pinned so a future reader sees it was decided rather than
+      // missed: an earlier docblock claimed the opposite of what the code did.
       expect(pluralCountOf('1,'), 1);
-      expect(pluralCountOf('1,5'), isNot(1));
     });
   });
 }
