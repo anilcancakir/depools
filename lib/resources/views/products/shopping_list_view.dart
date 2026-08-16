@@ -11,6 +11,7 @@ import '../../../app/support/plural.dart';
 import '../../../app/support/unit_label.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/shopping_row/shopping_row.dart';
+import 'shopping_add_sheet.dart';
 
 /// The shopping list: what to buy, why, and what is already in the trolley.
 ///
@@ -169,6 +170,22 @@ class _ShoppingListViewState extends State<ShoppingListView> {
     );
   }
 
+  /// Ask what to add, and add it.
+  ///
+  /// The list is not a catalogue: what the user types creates no product (D100), so the sheet asks
+  /// for words and a number rather than offering a picker. Nothing is written when it is dismissed.
+  Future<void> _add() async {
+    final ShoppingAddDraft? draft = await ShoppingAddSheet.show(context);
+
+    if (draft == null) return;
+
+    final String? failure = await _controller?.add(draft.name, draft.quantity);
+
+    if (failure == null || !mounted) return;
+
+    MagicFeedback.error(Lang.get('screens.shopping.add_title'), failure);
+  }
+
   /// Nothing to buy, which is the good outcome and has to read like one.
   Widget _buildEmpty() {
     return SectionCard(
@@ -196,7 +213,7 @@ class _ShoppingListViewState extends State<ShoppingListView> {
       className: 'flex flex-col gap-2 pb-2',
       children: [
         MSButton(
-          onPressed: () {},
+          onPressed: _add,
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',

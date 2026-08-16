@@ -50,7 +50,14 @@ return new class extends Migration
             $table->string('name');
 
             $table->decimal('quantity', 12, 3);
-            $table->string('unit', 16)->default('adet');
+
+            // **A Rec 20 CODE, and it used to default to `'adet'`.** Every generated line copies
+            // `products.base_unit`, which is a code (`C62`, `KGM`), so the default put a Turkish
+            // LABEL in a column holding codes: a manual line rendered as "1 adet" on an English
+            // interface, because `unitLabel` had nothing to translate. No default now, and the
+            // writer states the unit; `Unit::DEFAULT_CODE` is the countable answer for a line
+            // somebody typed.
+            $table->string('unit', 16);
 
             // The closed vocabulary. `manual` is a first-class member rather than an absence: the row
             // still says why it is there, which is what `forecasting.md` asks of EVERY line.

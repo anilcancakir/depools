@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ShoppingListItemResource;
 use App\Models\ShoppingListItem;
+use App\Models\Unit;
 use App\Services\ShoppingListGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -71,6 +72,11 @@ final class ShoppingListController extends Controller
             'quantity' => ['required', 'numeric', 'gt:0', 'max:999999'],
             'unit' => ['nullable', 'string', 'max:16'],
         ]);
+
+        // The countable answer for something somebody typed. Defaulted here rather than in the
+        // column, because the column holds Rec 20 codes and a default belongs where the vocabulary
+        // is known: `Unit::DEFAULT_CODE` is `C62`, one piece.
+        $data['unit'] ??= Unit::DEFAULT_CODE;
 
         return new ShoppingListItemResource($this->generator->add($teamId, $data));
     }
