@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSInput;
 
+import '../../../app/support/icon_catalogue.dart';
 import '../../../app/support/location_appearance.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/icon_picker/icon_picker.dart';
@@ -66,7 +69,86 @@ class _LocationFormViewState extends State<LocationFormView> {
   String? _icon;
   String _colour = locationFallbackColour;
 
+  /// Whether the glyph on screen was chosen for the user rather than by them.
+  ///
+  /// Drives the note beside the icon label, and nothing else: a value is a value however it arrived.
+  bool _iconIsAutomatic = false;
+
+  /// Set the moment the user opens the picker and taps, and never unset.
+  ///
+  /// **A suggestion is a DEFAULT and it stops the instant there is an answer.** Without this, typing
+  /// after choosing an icon would quietly replace the choice, which is the one thing an automatic
+  /// value must never do.
+  bool _iconIsUserChosen = false;
+
+  /// The name the last suggestion was asked about, so the same text is never paid for twice.
+  ///
+  /// A model call spends one of the tenant's AI credits, and a form is edited in bursts: without
+  /// this, adding and deleting one character would buy the same answer again.
+  String? _suggestedFor;
+
+  /// Whether a suggestion is in flight, for the note beside the icon label.
+  bool _isSuggesting = false;
+
+  /// The debounce, cancelled on every keystroke and on dispose.
+  Timer? _suggestTimer;
+
+  @override
+  void dispose() {
+    _suggestTimer?.cancel();
+    super.dispose();
+  }
+
   bool get _isValid => _name.trim().isNotEmpty;
+
+  /// Called on every keystroke in the name field.
+  ///
+  /// **700ms, which is a pause rather than a gap between letters.** Shorter and a two-word name
+  /// buys two answers; longer and the glyph lands after the user has moved on to the parent picker.
+  void _onNameChanged(String next) {
+    setState(() => _name = next);
+
+    _suggestTimer?.cancel();
+
+    if (_iconIsUserChosen) return;
+
+    _suggestTimer = Timer(const Duration(milliseconds: 700), _suggest);
+  }
+
+  /// Ask the catalogue what this name looks like, and take the answer only if it still applies.
+  ///
+  /// **Everything is re-checked AFTER the await, not only before it.** The request is roughly 600ms
+  /// against a live provider, which is long enough for the user to tap an icon, clear the field or
+  /// leave the screen, and a response that landed on any of those would overwrite an answer with a
+  /// guess. The name is compared as well as the flags, because a slow response for "Depo" must not
+  /// paint a warehouse on a field that now reads "Buzdolabı".
+  Future<void> _suggest() async {
+    final String name = _name.trim();
+
+    if (name.isEmpty || _iconIsUserChosen || name == _suggestedFor) return;
+
+    _suggestedFor = name;
+
+    setState(() => _isSuggesting = true);
+
+    // `'icons'` is the container key `AppServiceProvider` registers, and it is a SINGLETON: the
+    // suggestion it holds is the same instance the picker and the tree read, so the glyph draws
+    // without a second request.
+    final CatalogueIcon? icon = await Magic.make<IconCatalogue>('icons').suggest(name);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSuggesting = false;
+
+      // Null is ordinary: the model unsure of the name, no credit, the kill switch, or a word the
+      // catalogue does not have. The neutral icon and the picker were already the answer.
+      if (icon == null || _iconIsUserChosen || _name.trim() != name) return;
+
+      _icon = icon.name;
+      _iconIsAutomatic = true;
+    });
+  }
 
   /// The depth this location would land at.
   int get _depth {
@@ -126,7 +208,7 @@ class _LocationFormViewState extends State<LocationFormView> {
             MSInput(
               className: 'bg-surface-container',
               placeholder: Lang.get('screens.location_form.name_placeholder'),
-              onChanged: (String next) => setState(() => _name = next),
+              onChanged: _onNameChanged,
             ),
           ],
         ),
@@ -153,14 +235,45 @@ class _LocationFormViewState extends State<LocationFormView> {
       className: 'flex flex-col gap-1.5',
       children: [
         WText(Lang.get('screens.location_form.icon'), className: 'text-sm font-medium text-fg'),
+        // **Above the grid, not below it.** Measured at 390x844: fifty tiles at six per row put
+        // anything under the picker well past the fold, so a note explaining the glyph that is
+        // already highlighted at the top would only ever be read on a desktop.
+        ?_buildIconNote(),
         IconPicker(
           selected: _icon,
-          onSelected: (String name) => setState(() => _icon = name),
+          onSelected: (String name) => setState(() {
+            _icon = name;
+            _iconIsUserChosen = true;
+            _iconIsAutomatic = false;
+          }),
           searchPlaceholder: Lang.get('screens.location_form.icon_search'),
           searchingLabel: Lang.get('screens.location_form.icon_searching'),
           emptyLabel: Lang.get('screens.location_form.icon_empty'),
         ),
       ],
+    );
+  }
+
+  /// One line saying where the glyph came from, or nothing.
+  ///
+  /// **The note is what makes an automatic value honest.** A glyph that simply appears reads as a
+  /// value the user set and forgot, so they stop looking at it; saying it was chosen for them is
+  /// what turns it into a default they can disagree with. `text-ai` because DESIGN.md gives that
+  /// family to anything the app inferred, and borrowing another status colour would make a hint read
+  /// as a warning.
+  Widget? _buildIconNote() {
+    if (_isSuggesting) {
+      return WText(
+        Lang.get('screens.location_form.icon_suggesting'),
+        className: 'text-xs text-fg-muted',
+      );
+    }
+
+    if (!_iconIsAutomatic) return null;
+
+    return WText(
+      Lang.get('screens.location_form.icon_auto'),
+      className: 'text-xs text-ai',
     );
   }
 

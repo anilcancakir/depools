@@ -86,6 +86,39 @@ class _IconPickerState extends State<IconPicker> {
   void initState() {
     super.initState();
     _search('');
+    _holdSelected();
+  }
+
+  @override
+  void didUpdateWidget(IconPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.selected != widget.selected) {
+      _holdSelected();
+    }
+  }
+
+  /// Make sure the catalogue holds the SELECTED icon, whatever the grid is currently showing.
+  ///
+  /// **A selection made outside this grid was invisible**, and there are two ways to make one: the
+  /// automatic suggestion on the location form, and opening the form for a location that already
+  /// has an icon. The grid shows the fifty most popular for an empty query, so anything outside
+  /// that fifty left the screen saying an icon was chosen while showing no chosen icon.
+  ///
+  /// Held rather than searched, because the name is exact: `resolve` batches it with whatever else
+  /// the frame wants and the pinned tile below then draws from the same cache as every other glyph.
+  Future<void> _holdSelected() async {
+    final String? name = widget.selected;
+
+    if (name == null) return;
+
+    final IconCatalogue catalogue = widget.catalogue ?? Magic.make<IconCatalogue>('icons');
+
+    if (catalogue.held(name) != null) return;
+
+    await catalogue.resolve(name);
+
+    if (mounted) setState(() {});
   }
 
   @override
@@ -121,6 +154,8 @@ class _IconPickerState extends State<IconPicker> {
   Widget build(BuildContext context) {
     final Map<String, String> slots = iconPickerRecipe()(variants: {});
 
+    final List<CatalogueIcon> tiles = _tiles;
+
     return WDiv(
       className: slots['root'],
       children: [
@@ -129,7 +164,7 @@ class _IconPickerState extends State<IconPicker> {
           placeholder: widget.searchPlaceholder,
           onChanged: _onChanged,
         ),
-        if (_results.isEmpty)
+        if (tiles.isEmpty)
           WText(
             _searching ? widget.searchingLabel : widget.emptyLabel,
             className: slots['status'],
@@ -138,11 +173,33 @@ class _IconPickerState extends State<IconPicker> {
           WDiv(
             className: slots['grid'],
             children: [
-              for (final CatalogueIcon icon in _results) _tile(icon),
+              for (final CatalogueIcon icon in tiles) _tile(icon),
             ],
           ),
       ],
     );
+  }
+
+  /// The results, with the selected icon pinned FIRST when the search did not return it.
+  ///
+  /// Pinned rather than merely highlighted somewhere in the list, because the answer to "what is
+  /// chosen" has to be on screen without scrolling a grid of fifty. A search that DOES contain it
+  /// is left alone: moving a result out of its own ranking to the front would make the grid reorder
+  /// itself under the user's cursor.
+  ///
+  /// It also survives a search that matched nothing, which is the state where knowing what is
+  /// currently chosen matters most: the user is one bad query away from losing sight of it.
+  List<CatalogueIcon> get _tiles {
+    final String? name = widget.selected;
+
+    if (name == null || _results.any((CatalogueIcon icon) => icon.name == name)) {
+      return _results;
+    }
+
+    final CatalogueIcon? selected =
+        (widget.catalogue ?? Magic.make<IconCatalogue>('icons')).held(name);
+
+    return selected == null ? _results : <CatalogueIcon>[selected, ..._results];
   }
 
   /// One icon in the grid.

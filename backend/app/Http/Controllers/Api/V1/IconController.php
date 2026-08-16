@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Icon;
+use App\Services\IconSuggester;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -65,13 +66,52 @@ final class IconController extends Controller
             ? Icon::query()->whereIn('name', $data['names'])->orderBy('name')->get()
             : Icon::matching($data['q'] ?? '')->limit(self::SEARCH_LIMIT)->get();
 
-        return response()->json([
-            'data' => $icons->map(fn (Icon $icon): array => [
-                'name' => $icon->name,
-                'title' => $icon->title,
-                'category' => $icon->category,
-                'svg' => $icon->svg,
-            ])->all(),
+        return response()->json(['data' => $icons->map(self::payload(...))->all()]);
+    }
+
+    /**
+     * The icon a place's name suggests, or null.
+     *
+     * ### POST, for a read
+     *
+     * Every other read here is a GET and this one is not, because it SPENDS something: a model call
+     * and one of the tenant's AI credits. A GET is the verb browsers, proxies and clients feel free
+     * to repeat, and the one thing this must not be is silently retried.
+     *
+     * ### Null is the ordinary answer, not an error
+     *
+     * The kill switch, an empty balance, a provider timeout, a model unsure of the name and a name
+     * no term matched all arrive as `icon: null`, and the client answers all five the same way: the
+     * neutral icon, with the picker one tap away. A 422 or a 503 for any of them would put a failure
+     * on screen for a feature whose whole promise is that the manual path never stopped working.
+     */
+    public function suggest(Request $request, IconSuggester $suggester): JsonResponse
+    {
+        $data = $request->validate([
+            // The same bound `LocationController` puts on a name, so a suggestion cannot be the way
+            // to send a paragraph to a model, and a name the form accepts is never one this refuses.
+            'name' => ['required', 'string', 'max:255'],
         ]);
+
+        $icon = $suggester->forName($data['name']);
+
+        return response()->json([
+            'data' => ['icon' => $icon === null ? null : self::payload($icon)],
+        ]);
+    }
+
+    /**
+     * One icon as the client reads it, in the one shape both endpoints answer.
+     *
+     * @return array<string, mixed>
+     */
+    private static function payload(Icon $icon): array
+    {
+        return [
+            'name' => $icon->name,
+            'title' => $icon->title,
+            'category' => $icon->category,
+            'svg' => $icon->svg,
+        ];
     }
 }

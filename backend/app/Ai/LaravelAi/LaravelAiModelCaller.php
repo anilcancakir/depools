@@ -5,7 +5,18 @@ namespace App\Ai\LaravelAi;
 use App\Ai\Contracts\ModelCaller;
 use App\Ai\ModelAnswer;
 use Closure;
-use Laravel\Ai\Enums\FinishReason;
+// **`Responses\Data`, not `Enums`, and the difference was a total outage.** The pinned v0.10.3
+// carries this enum here; `Laravel\Ai\Enums\FinishReason` does not exist in it. The import
+// therefore raised a class-not-found on the line that maps a SUCCESSFUL response, after the HTTP
+// call had been made and billed. `GatewayRunner` catches `Throwable`, records `provider_error` and
+// moves on, so every model call in the application returned null through both chain entries and
+// nothing anywhere said why. Measured against a live provider: 12 names, 12 nulls, roughly 700ms
+// each, which is the shape of two real round trips rather than a config problem.
+//
+// Nothing in the suite could see it, and that is structural rather than an oversight: every AI test
+// binds a fake `ModelCaller`, and this class is the one thing the fake replaces. So the check is
+// `bin/check`-visible instead, as an assertion that the class exists.
+use Laravel\Ai\Responses\Data\FinishReason;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 

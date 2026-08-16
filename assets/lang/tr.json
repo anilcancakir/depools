@@ -555,7 +555,9 @@
       },
       "icon_search": "İkon arayın",
       "icon_searching": "Aranıyor",
-      "icon_empty": "Eşleşen ikon yok"
+      "icon_empty": "Eşleşen ikon yok",
+      "icon_auto": "Ada göre otomatik seçildi",
+      "icon_suggesting": "İkon seçiliyor"
     },
     "locations": {
       "title": "Konumlar",

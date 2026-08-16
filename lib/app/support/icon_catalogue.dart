@@ -158,6 +158,39 @@ class IconCatalogue {
     return icons;
   }
 
+  /// The icon a place's NAME suggests, or null when there is nothing worth defaulting to.
+  ///
+  /// **Null is the ordinary answer and every reason for it looks the same from here**: the kill
+  /// switch, an empty credit balance, a provider timeout, a model unsure of the name, and a name
+  /// whose English words match nothing in the catalogue. The caller shows the neutral icon with the
+  /// picker one tap away, which is what it would have shown anyway.
+  ///
+  /// POST rather than GET, matching the endpoint: this spends a model call and one of the tenant's
+  /// AI credits, and a GET is the verb clients and proxies feel free to repeat.
+  Future<CatalogueIcon?> suggest(String name) async {
+    final dynamic response = await Http.post('/icons/suggest', data: <String, dynamic>{'name': name});
+
+    if (!response.successful) {
+      return null;
+    }
+
+    final Object? raw = response['data']?['icon'];
+
+    if (raw is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final CatalogueIcon? icon = CatalogueIcon.fromMap(raw);
+
+    if (icon != null) {
+      // Held like any other, so the form draws it without a second request and the tree that
+      // follows already has it.
+      _held[icon.name] = icon;
+    }
+
+    return icon;
+  }
+
   /// Fetch everything wanted so far, in one request.
   Future<void> _drain() async {
     final List<String> names = _wanted.toList();

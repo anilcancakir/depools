@@ -555,7 +555,9 @@
       },
       "icon_search": "Search icons",
       "icon_searching": "Searching",
-      "icon_empty": "No matching icon"
+      "icon_empty": "No matching icon",
+      "icon_auto": "Chosen automatically from the name",
+      "icon_suggesting": "Choosing an icon"
     },
     "locations": {
       "title": "Locations",
