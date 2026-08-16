@@ -160,10 +160,11 @@ return new class extends Migration
             CHECK ((entered_quantity IS NULL) = (entered_unit IS NULL))
         ');
 
-        // `<> 0` rather than `> 0`, deliberately. This is the magnitude the user typed and `delta`
-        // carries the sign, but only the inbound path has ever been written, so the outbound
-        // convention (2 or -2 for "2 koli out") is genuinely undecided. Refusing zero is true under
-        // either convention; assuming positive would freeze a choice nobody has made.
+        // `<> 0` rather than `> 0`. The convention is now settled in `MovementContext`, which stores
+        // the magnitude unsigned on every path that writes it, so `> 0` would also hold today. It
+        // stays as it is because the column is the figure a PERSON typed and the sign is `delta`'s
+        // job: a row carrying two signs can have them disagree, and `<> 0` is true under either
+        // convention while `> 0` would have to be revisited if an outbound path ever wanted `-2`.
         DB::statement('
             ALTER TABLE stock_movements
             ADD CONSTRAINT stock_movements_entered_quantity_is_not_zero

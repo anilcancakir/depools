@@ -11,6 +11,7 @@ use App\Models\Unit;
 use App\Rules\UnitExists;
 use App\Services\BarcodeLinker;
 use App\Services\CatalogueContributor;
+use App\Services\MovementContext;
 use App\Services\StockLedger;
 use App\Services\StockWriter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -81,6 +82,7 @@ final class StockController extends Controller
                 $data['lot_code'] ?? null,
                 $request->user()->getKey(),
                 $data['idempotency_key'] ?? null,
+                MovementContext::fromRequest($data),
             );
 
             return response()->json(['data' => ['movement_id' => $movement->getKey()]], 201);
@@ -109,6 +111,7 @@ final class StockController extends Controller
                 $reason,
                 $this->source($data),
                 $request->user()->getKey(),
+                MovementContext::fromRequest($data),
             );
 
             // A list, because a consumption spanning two lots is two ledger facts and the client's
@@ -622,6 +625,25 @@ final class StockController extends Controller
             'quantity' => ['required', 'numeric', 'gt:0'],
             'source' => ['nullable', Rule::enum(MovementSource::class)],
             'idempotency_key' => ['nullable', 'string', 'max:64'],
+
+            // **When it happened, which is not when it was typed.** `StockMovement` carries the case:
+            // a receipt entered on Tuesday for a Sunday shop has to age from Sunday, or every
+            // forecast built on it is two days optimistic. The column and its index existed from the
+            // start and nothing could set them.
+            //
+            // `before_or_equal:now` because stock can be recorded late and cannot be recorded early:
+            // a movement dated tomorrow would make a forecast read a delivery that has not happened.
+            'occurred_at' => ['nullable', 'date', 'before_or_equal:now'],
+
+            // What the person actually typed, beside the base-unit quantity (D90). Without these a
+            // delivery keyed as `2 koli` reads back as `24 adet` on every surface that renders it.
+            //
+            // **The pair travels together**, mirrored from the CHECK constraint that already refuses a
+            // half-filled pair: a quantity with no unit reads as base units and silently contradicts
+            // what the person typed, which is the failure the two columns exist to prevent. Without
+            // these two rules the database's refusal reaches the client as a 422 carrying raw SQL.
+            'entered_quantity' => ['nullable', 'required_with:entered_unit', 'numeric', 'gt:0'],
+            'entered_unit' => ['nullable', 'required_with:entered_quantity', 'string', 'max:16', new UnitExists],
         ], $extra));
     }
 

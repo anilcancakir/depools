@@ -78,6 +78,7 @@ final class StockWriter
         ?string $lotCode = null,
         ?string $actorId = null,
         ?string $idempotencyKey = null,
+        ?MovementContext $context = null,
     ): StockMovement {
         if ($quantity <= 0) {
             throw new RuntimeException('An inbound movement must bring in a positive quantity.');
@@ -96,14 +97,17 @@ final class StockWriter
         }
 
         return DB::transaction(function () use (
-            $product, $location, $quantity, $source, $expiresAt, $lotCode, $actorId, $idempotencyKey
+            $product, $location, $quantity, $source, $expiresAt, $lotCode, $actorId, $idempotencyKey,
+            $context
         ): StockMovement {
             $lot = $this->newLot($product, [
                 'location_id' => $location->getKey(),
                 'initial_quantity' => $quantity,
                 'expires_at' => $expiresAt,
                 'lot_code' => $lotCode,
-                'received_at' => now(),
+                // The lot arrived when the movement says it did, so a backdated receipt ages its
+                // stock from the same moment its ledger row does.
+                'received_at' => $context?->occurredAt ?? now(),
             ]);
 
             // The lot already holds `initial_quantity`, so the movement's delta would double it if
@@ -119,6 +123,8 @@ final class StockWriter
                 $source,
                 $actorId,
                 $idempotencyKey,
+                null,
+                $context,
             );
 
             $this->ledger->rebuildProductStock($product, $location->getKey());
@@ -143,6 +149,7 @@ final class StockWriter
         MovementReason $reason = MovementReason::Consumption,
         MovementSource $source = MovementSource::Manual,
         ?string $actorId = null,
+        ?MovementContext $context = null,
     ): Collection {
         if ($quantity <= 0) {
             throw new RuntimeException('An outbound movement must take out a positive quantity.');
@@ -152,7 +159,7 @@ final class StockWriter
             throw new RuntimeException('consume() writes an outflow; use the reason that names it.');
         }
 
-        return DB::transaction(function () use ($product, $location, $quantity, $reason, $source, $actorId): Collection {
+        return DB::transaction(function () use ($product, $location, $quantity, $reason, $source, $actorId, $context): Collection {
             $lots = $this->ledger->fefoLots($product, $location->getKey());
             $available = (float) $lots->sum(static fn (StockLot $lot): float => (float) $lot->remaining_quantity);
 
@@ -165,7 +172,7 @@ final class StockWriter
                 );
             }
 
-            $written = $this->takeOut($lots, $quantity, $reason, $source, $actorId);
+            $written = $this->takeOut($lots, $quantity, $reason, $source, $actorId, $context);
 
             $this->ledger->rebuildProductStock($product, $location->getKey());
 
@@ -379,9 +386,26 @@ final class StockWriter
         MovementReason $reason,
         MovementSource $source,
         ?string $actorId,
+        ?MovementContext $context = null,
     ): Collection {
         $remaining = $quantity;
         $written = collect();
+
+        // **`occurred_at` travels every row, the typed figure travels only when there is one row.**
+        // A FEFO outflow turns ONE request into as many movements as it crosses lots, and the figure
+        // the person typed describes the request rather than any of those rows: on all of them it
+        // sums to more than they said, on one of them it contradicts that row's own delta. So the
+        // invariant is "when `entered_quantity` is present it describes THIS row's delta", and the
+        // condition for that is simply that the first lot covers the whole amount.
+        //
+        // Which is the ordinary case rather than a corner: the out sheet's "250 ml" of a one-litre
+        // carton is one lot, and it is exactly the conversion D90 exists to keep. Only a request
+        // that genuinely drains one lot into the next loses it.
+        $first = $lots->first();
+
+        if ($first === null || (float) $first->remaining_quantity < $quantity) {
+            $context = $context?->withoutEnteredFigure();
+        }
 
         foreach ($lots as $lot) {
             if ($remaining <= 0) {
@@ -393,7 +417,7 @@ final class StockWriter
             $this->markOpenedIfPartial($lot, $take);
 
             $written->push(
-                $this->append($lot, -$take, $reason, $source, $actorId),
+                $this->append($lot, -$take, $reason, $source, $actorId, null, null, $context),
             );
 
             $remaining -= $take;
@@ -463,6 +487,7 @@ final class StockWriter
         ?string $actorId,
         ?string $idempotencyKey = null,
         ?StockLot $reference = null,
+        ?MovementContext $context = null,
     ): StockMovement {
         $movement = new StockMovement([
             'product_id' => $lot->product_id,
@@ -474,7 +499,20 @@ final class StockWriter
             'actor_type' => $actorId === null ? ActorType::System : ActorType::User,
             'actor_id' => $actorId,
             'idempotency_key' => $idempotencyKey,
-            'occurred_at' => now(),
+
+            // **What the person typed, kept beside the derived `delta`** (D90). The magnitude is
+            // stored as given: the sign is the delta's job, and a row that carried both would let
+            // them disagree.
+            'entered_quantity' => $context?->enteredQuantity === null
+                ? null
+                : abs($context->enteredQuantity),
+            'entered_unit' => $context?->enteredUnit,
+
+            // **When it HAPPENED, defaulting to now.** A receipt entered on Tuesday for a Sunday
+            // shop has to age from Sunday, or every forecast built on it is two days optimistic.
+            // The column and its index have carried that intent since the table was created and
+            // nothing could set it, so every row's `occurred_at` equalled its `created_at`.
+            'occurred_at' => $context?->occurredAt ?? now(),
         ]);
 
         // Same reasoning as [newLot]: the movement's tenant is the lot's, which is the product's.
