@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSInput;
 
+import '../../../app/models/location_node.dart';
+import '../../../app/controllers/location_controller.dart';
 import '../../../app/support/icon_catalogue.dart';
 import '../../../app/support/location_appearance.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
@@ -12,7 +14,6 @@ import '../../../ui/components/icon_picker/icon_picker.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 import 'location_fixtures.dart';
-import 'location_index_view.dart' show LocationNode;
 
 /// Creating or renaming a place, which the two "Konum ekle" buttons could not do.
 ///
@@ -40,8 +41,14 @@ import 'location_index_view.dart' show LocationNode;
 /// this screen rather than a separate one.
 @immutable
 class LocationFormView extends StatefulWidget {
+  /// The tree to pick a parent from, or null to read [LocationController].
+  ///
+  /// The preview passes [locationTree]; the route passes nothing. Same split as the locations index,
+  /// and the same reason: a catalog with no backend still has to render this screen.
+  final List<LocationNode>? nodes;
+
   /// Creates the [LocationFormView] for a new location.
-  const LocationFormView({super.key});
+  const LocationFormView({super.key, this.nodes});
 
   @override
   State<LocationFormView> createState() => _LocationFormViewState();
@@ -99,9 +106,45 @@ class _LocationFormViewState extends State<LocationFormView> {
   /// The debounce, cancelled on every keystroke and on dispose.
   Timer? _suggestTimer;
 
+  /// Whether the save is in flight, so the button cannot be pressed twice.
+  ///
+  /// A second press before the first answers creates the location TWICE, and there is no unique
+  /// constraint on a name to stop it: two shelves called "Raf A" under the same parent is a legal
+  /// tree. So this is the only thing preventing it.
+  bool _saving = false;
+
+  /// The controller, or null when the caller supplied its own tree.
+  LocationController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.nodes != null) return;
+
+    final LocationController controller = LocationController.instance
+      ..addListener(_onControllerChanged);
+
+    // Same `onInit` contract as the index: `Magic.findOrPut` registers the instance and nothing
+    // else calls `onInit` for a plain `StatefulWidget`, so without this the parent picker would
+    // offer nothing to a tenant who has a tree.
+    if (!controller.initialized) controller.onInit();
+
+    _controller = controller;
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The tree this form picks a parent from.
+  List<LocationNode> get _tree =>
+      widget.nodes ?? _controller?.nodes ?? const <LocationNode>[];
+
   @override
   void dispose() {
     _suggestTimer?.cancel();
+    _controller?.removeListener(_onControllerChanged);
     super.dispose();
   }
 
@@ -196,7 +239,7 @@ class _LocationFormViewState extends State<LocationFormView> {
   }
 
   LocationNode? _parentOf(String path) {
-    for (final LocationNode node in locationTree) {
+    for (final LocationNode node in _tree) {
       if (node.path == path) return node;
     }
     return null;
@@ -207,7 +250,7 @@ class _LocationFormViewState extends State<LocationFormView> {
   /// Filtered rather than validated: a parent that cannot legally take a child is not a choice the
   /// user should be able to make and then be told off for.
   List<LocationNode> get _parentOptions =>
-      locationTree.where((LocationNode n) => n.depth + 2 <= _maxDepth).toList();
+      _tree.where((LocationNode n) => n.depth + 2 <= _maxDepth).toList();
 
   /// The path this location will have, shown while it is still being decided.
   ///
@@ -400,20 +443,87 @@ class _LocationFormViewState extends State<LocationFormView> {
     );
   }
 
+  /// Write the location, then go back to a tree that shows it.
+  ///
+  /// **The failure is a toast, not the screen's error state.** A refused write changed nothing, so
+  /// blanking a form the user has just filled in would cost them the typing as well as the write.
+  /// That is the same contract `ProductDetailController`'s writes have.
+  Future<void> _save() async {
+    final LocationController? controller = _controller;
+
+    // Null only in the preview, where there is no session to write with. The catalog renders the
+    // button because it is part of the screen; pressing it does nothing rather than throwing.
+    if (controller == null) return;
+
+    setState(() => _saving = true);
+
+    final String? failure = await controller.create(
+      name: _name.trim(),
+      parentId: _parentOf(_parentPath ?? '')?.id,
+      icon: _icon,
+      colour: _colour,
+    );
+
+    if (!mounted) return;
+
+    setState(() => _saving = false);
+
+    if (failure != null) {
+      MagicFeedback.error(Lang.get('screens.location_form.title'), failure);
+
+      return;
+    }
+
+    MagicFeedback.success(
+      Lang.get('screens.location_form.title'),
+      Lang.get('screens.location_form.saved'),
+    );
+
+    MagicRoute.to('/locations');
+  }
+
+  /// The same three starter places the empty state offers, from the form.
+  ///
+  /// Reachable here too because this is where a user lands from "Add a location" without having
+  /// seen the empty state, and typing three names one at a time is the thing the template exists to
+  /// spare them. It navigates back for the same reason the save does: the result is a tree.
+  Future<void> _seedTemplate() async {
+    final LocationController? controller = _controller;
+
+    if (controller == null) return;
+
+    setState(() => _saving = true);
+
+    final String? failure = await controller.createTemplate();
+
+    if (!mounted) return;
+
+    setState(() => _saving = false);
+
+    if (failure != null) {
+      MagicFeedback.error(Lang.get('screens.location_form.title'), failure);
+
+      return;
+    }
+
+    MagicRoute.to('/locations');
+  }
+
   Widget _buildFooter() {
     return WDiv(
       className: 'flex flex-col gap-2',
       children: [
         MSButton(
-          onPressed: _isValid ? () {} : null,
-          disabled: !_isValid,
+          onPressed: _isValid && !_saving ? _save : null,
+          disabled: !_isValid || _saving,
           intent: _isValid ? ButtonIntent.primary : ButtonIntent.secondary,
           fullWidth: true,
           className: 'justify-center',
           child: WText(Lang.get('screens.location_form.save')),
         ),
         MSButton(
-          onPressed: () {},
+          onPressed: _saving ? null : _seedTemplate,
+          disabled: _saving,
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',

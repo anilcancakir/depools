@@ -557,7 +557,9 @@
       "icon_searching": "Searching",
       "icon_empty": "No matching icon",
       "icon_auto": "Chosen automatically from the name",
-      "icon_suggesting": "Choosing an icon"
+      "icon_suggesting": "Choosing an icon",
+      "save_failed": "The location could not be saved",
+      "saved": "Location added"
     },
     "locations": {
       "title": "Locations",
@@ -575,7 +577,14 @@
       "empty_description": "Stock goes into a location, so you need at least one. Start with top-level places like Kitchen and Pantry, and add shelves later.",
       "empty_template": "Start from a template",
       "node_count": ":count locations",
-      "all_of_them": "all :count of them"
+      "all_of_them": "all :count of them",
+      "summary_products": ":count product|:count products",
+      "summary_children": ":count sub-location|:count sub-locations",
+      "summary_empty": "Empty",
+      "load_failed": "Locations could not be loaded",
+      "template_kitchen": "Kitchen",
+      "template_pantry": "Pantry",
+      "template_storage": "Storage"
     },
     "mcp": {
       "title": "Connect your own assistant",

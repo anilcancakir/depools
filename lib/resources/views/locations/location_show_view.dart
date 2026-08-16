@@ -3,13 +3,13 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show ButtonIntent, ConfirmDialogVariant, MSButton, MSEmptyState, MagicStarterConfirmDialog;
 
+import '../../../app/models/location_node.dart';
 import '../../../ui/components/location_row/location_row.dart';
 import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
 import '../products/product_fixtures.dart';
 import 'location_fixtures.dart';
-import 'location_index_view.dart' show LocationNode;
 
 /// What is in one place, including everything nested under it.
 ///

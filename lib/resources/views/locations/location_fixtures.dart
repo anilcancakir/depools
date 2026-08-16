@@ -1,4 +1,5 @@
-import 'location_index_view.dart' show LocationNode;
+import '../../../app/models/location_node.dart';
+
 
 /// The demo location tree.
 ///

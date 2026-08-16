@@ -557,7 +557,9 @@
       "icon_searching": "Aranıyor",
       "icon_empty": "Eşleşen ikon yok",
       "icon_auto": "Ada göre otomatik seçildi",
-      "icon_suggesting": "İkon seçiliyor"
+      "icon_suggesting": "İkon seçiliyor",
+      "save_failed": "Konum kaydedilemedi",
+      "saved": "Konum eklendi"
     },
     "locations": {
       "title": "Konumlar",
@@ -575,7 +577,14 @@
       "empty_description": "Stok bir konuma girer, o yüzden en az bir konum gerekir. Mutfak ve Kiler gibi ana konumlarla başlanır, rafları sonra eklenir.",
       "empty_template": "Hazır şablonla başla",
       "node_count": ":count konum",
-      "all_of_them": ":count konumun hepsi"
+      "all_of_them": ":count konumun hepsi",
+      "summary_products": ":count ürün",
+      "summary_children": ":count alt konum",
+      "summary_empty": "Boş",
+      "load_failed": "Konumlar yüklenemedi",
+      "template_kitchen": "Mutfak",
+      "template_pantry": "Kiler",
+      "template_storage": "Depo"
     },
     "mcp": {
       "title": "Kendi asistanınıza bağlanın",

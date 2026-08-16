@@ -3,11 +3,11 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSEmptyState, MSInput, MSPageScaffold;
 
+import '../../app/models/location_node.dart';
 import '../../ui/components/location_row/location_row.dart';
 import '../../ui/components/product_row/product_row.dart';
 import '../../ui/components/section_card/section_card.dart';
 import 'locations/location_fixtures.dart';
-import 'locations/location_index_view.dart' show LocationNode;
 import 'products/product_fixtures.dart';
 
 /// Finding a thing, wherever it is, whatever kind of thing it is.
