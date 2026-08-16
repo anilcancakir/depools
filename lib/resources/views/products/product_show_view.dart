@@ -42,6 +42,7 @@ import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/product_thumb/product_thumb.dart';
 import '../../../app/models/movement_entry.dart';
 import '../../../app/support/movement_copy.dart';
+import '../../../app/support/plural.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -1073,7 +1074,7 @@ class _ProductShowViewState extends State<ProductShowView> {
       unit: _product.unit,
       remainderFormatted: open?.formatted,
       remainderUnit: open?.unit,
-      lotsLabel: Lang.get('screens.product.lot_count', {'count': lots.length}),
+      lotsLabel: plural('screens.product.lot_count', lots.length, {'count': lots.length}),
       expiryLabel: soonest.isOpen
           ? Lang.get('screens.product.open_soonest', {'label': soonest.expiryLabel})
           : soonest.expiryLabel,
@@ -1114,7 +1115,11 @@ class _ProductShowViewState extends State<ProductShowView> {
     // lots add up to `amount`, which is what the hand-written version could not do.
     return SectionCard(
       label: Lang.get('screens.product.lots_group'),
-      count: Lang.get('screens.product.lot_count', {'count': _product.lots.length}),
+      count: plural(
+        'screens.product.lot_count',
+        _product.lots.length,
+        {'count': _product.lots.length},
+      ),
       children: [
         for (final LotFixture lot in _product.lots)
           LotRow(

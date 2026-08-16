@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/products/expiring_fixtures.dart';
 import '../resources/views/products/dates_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -28,5 +29,5 @@ class DatesScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const DatesView();
+  static Widget _build(BuildContext context) => DatesView(rows: datedLots());
 }

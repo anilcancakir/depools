@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/plural.dart';
+
 import '../../../app/models/product_filter.dart';
 import '../../../app/support/unit_label.dart';
 import 'product_filter_sheet.dart';
@@ -903,7 +905,11 @@ class ProductListItem {
     if (days < 0) return Lang.get('components.expiry_badge.expired');
     if (days == 0) return Lang.get('components.expiry_badge.today');
 
-    return Lang.get('components.expiry_badge.days', {'days': days});
+    // **`plural`, because a badge reading "1 days" is the most-rendered string in the app.** It sits
+    // on every product row, every lot row and every dated row, and it went unnoticed for as long as
+    // the screens drew Turkish fixtures: Turkish does not inflect after a numeral, so `1 gün` was
+    // right and the English half was never on screen beside a 1.
+    return plural('components.expiry_badge.days', days, {'days': days});
   }
 
   /// The neutral window used when a product declares no shelf life.

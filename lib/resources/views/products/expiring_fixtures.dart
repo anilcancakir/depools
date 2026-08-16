@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:magic/magic.dart';
+
 import 'product_filter_sheet.dart' show FilterOption;
 import 'product_fixtures.dart';
 
@@ -37,6 +39,70 @@ class DatedLot {
   /// Where it is.
   final String locationId;
 
+  /// Where it is, as the user reads it. Null in a fixture, which groups by id instead.
+  final String? locationName;
+
+  /// Reads one from `DatedThingResource`, or null when the payload cannot make a row.
+  ///
+  /// **The label is composed HERE rather than sent.** The endpoint carries the facts and this turns
+  /// them into a sentence, the same division `MovementResource` and `SerialFixture.fromApi` already
+  /// use: a server that sent "Açık · 2 gün" would be deciding the user's language from an HTTP
+  /// header.
+  ///
+  /// `today` is injectable for the same reason `SerialFixture.fromApi` takes it: a test that cannot
+  /// fix "now" is a test that changes its own answer at midnight.
+  static DatedLot? fromApi(Map<String, dynamic> json, {DateTime? today}) {
+    final Object? name = json['product_name'];
+    final DateTime? binding = ProductListItem.parseDate(json['binding_date'] as String?);
+
+    // A row with no name or no date cannot be rendered OR acted on, which is different from a row
+    // missing an optional field.
+    if (name is! String || binding == null) return null;
+
+    final DateTime reference = ProductListItem.dateOnly(today ?? DateTime.now());
+    final int days = binding.difference(reference).inDays;
+
+    final bool isOpen = json['is_open'] == true;
+    final bool isWarranty = json['kind'] == 'warranty';
+
+    final num quantity = num.tryParse('${json['quantity']}') ?? 0;
+
+    return DatedLot(
+      productName: name,
+      // **A warranty says so, because the badge alone cannot.** "2 days" on a drill and "2 days" on
+      // a carton of milk are different problems, and D28 reuses the badge deliberately: the label is
+      // what carries the difference.
+      label: isWarranty
+          ? Lang.get('screens.dates.warranty_label', {
+              'label': ProductListItem.expiryLabelFor(days),
+            })
+          : isOpen
+          ? Lang.get('screens.dates.opened_label', {
+              'label': ProductListItem.expiryLabelFor(days),
+            })
+          : ProductListItem.expiryLabelFor(days),
+      daysUntilExpiry: days,
+      remaining: quantity,
+      formatted: ProductListItem.format(quantity),
+      unit: json['unit'] is String ? json['unit'] as String : '',
+      isOpen: isOpen,
+      // An opened lot says when it was opened, a sealed one when it arrived: the same choice
+      // `LotFixture.fromApi` makes, because only one of the two is the clock the row is on.
+      receivedLabel: isOpen
+          ? _momentLabel('screens.products.lot_opened', json['opened_at'])
+          : _momentLabel('screens.products.lot_received', json['received_at']),
+      lotCode: json['lot_code'] as String?,
+      locationId: json['location_id'] is String ? json['location_id'] as String : '',
+      locationName: json['location_name'] as String?,
+    );
+  }
+
+  static String? _momentLabel(String key, Object? raw) {
+    final String? formatted = ProductListItem.formatMoment(raw as String?);
+
+    return formatted == null ? null : Lang.get(key, <String, dynamic>{'date': formatted});
+  }
+
   /// Creates a [DatedLot].
   const DatedLot({
     required this.productName,
@@ -49,6 +115,7 @@ class DatedLot {
     this.isOpen = false,
     this.receivedLabel,
     this.lotCode,
+    this.locationName,
   });
 
   /// Whether the date has already passed.

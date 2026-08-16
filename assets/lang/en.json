@@ -470,11 +470,14 @@
       "horizon_selected": ":days days, selected range",
       "horizon_apply": "Show what falls within :days days",
       "expired_group": "Expired",
-      "lot_count": ":count batches",
+      "lot_count": ":count batch|:count batches",
       "row_stock_out": ":product, :label, remove stock",
       "row_waste": ":product, :label, record waste",
       "empty_title": "No upcoming dates",
-      "empty_description": "Expiry and warranty dates appear here once they fall inside the selected range. Products with no date never appear."
+      "empty_description": "Expiry and warranty dates appear here once they fall inside the selected range. Products with no date never appear.",
+      "warranty_label": "Warranty · :label",
+      "opened_label": "Opened · :label",
+      "load_failed": "Dates could not be loaded"
     },
     "field_editor": {
       "quick_group": "Quick answers",
@@ -660,7 +663,7 @@
       "locations_empty": "Not in a location yet",
       "locations_empty_note": "You are asked for a location when stock comes in, and it is suggested for you after that.",
       "locations_group": "Locations",
-      "lot_count": ":count batches",
+      "lot_count": ":count batch|:count batches",
       "lots_empty": "No batches",
       "lots_empty_note": "Every stock-in opens a batch. Once a date is entered, this is where you see which batch to use first.",
       "lots_group": "Batches",
@@ -1185,7 +1188,7 @@
       "placeholder": "Rendered on the server"
     },
     "expiry_badge": {
-      "days": ":days days",
+      "days": ":days day|:days days",
       "expired": "Expired",
       "today": "Today"
     },

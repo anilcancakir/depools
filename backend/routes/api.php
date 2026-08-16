@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\BarcodeController;
+use App\Http\Controllers\Api\V1\ExpiringController;
 use App\Http\Controllers\Api\V1\IconController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
@@ -75,6 +76,10 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // because that is also its tenancy: the product resolves through its own scope first, so
     // another tenant's is a 404 before a movement is touched.
     Route::get('products/{product}/movements', [ProductMovementController::class, 'index']);
+
+    // **What is running out of time**, which is the middle of the product's three promises and the
+    // one nothing answered. Lots and warranties in one list, because the screen treats them alike.
+    Route::get('expiring', [ExpiringController::class, 'index']);
 
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 
