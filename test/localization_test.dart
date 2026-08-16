@@ -183,6 +183,44 @@ void main() {
       }
     });
 
+    test('every piped key is read through plural, never through Lang.get', () {
+      // **Piping a key without sweeping its callers is worse than the bug it fixes.** `Lang.get`
+      // returns the whole value, so a key that gained a `|` renders `1 location|1 locations` at the
+      // user: a plural defect turned into a visibly broken string.
+      //
+      // Nearly walked into exactly that: `screens.location.location_count` gained a pipe for the
+      // detail screen while the search screen still read it with `Lang.get`, on a screen the change
+      // was not about.
+      final RegExp call = RegExp(r"Lang\.get\(\s*'([^']+)'");
+      final Set<String> piped = <String>{
+        for (final MapEntry<String, String> entry in en.entries)
+          if (entry.value.contains('|')) entry.key,
+        for (final MapEntry<String, String> entry in tr.entries)
+          if (entry.value.contains('|')) entry.key,
+      };
+
+      final List<String> offenders = <String>[];
+
+      for (final FileSystemEntity file in Directory('lib').listSync(recursive: true)) {
+        if (file is! File || !file.path.endsWith('.dart')) continue;
+
+        final String source = file.readAsStringSync();
+
+        for (final RegExpMatch match in call.allMatches(source)) {
+          if (piped.contains(match.group(1))) {
+            offenders.add('${file.path}: ${match.group(1)}');
+          }
+        }
+      }
+
+      expect(
+        offenders,
+        isEmpty,
+        reason: 'these read a plural key with Lang.get, so the pipe renders at the user:\n'
+            '${offenders.join('\n')}',
+      );
+    });
+
     test('a locale that inflects carries a pipe wherever the other one does', () {
       // Turkish does not inflect after a numeral, so a `tr` value with no pipe is correct rather
       // than incomplete. English is the other way round: a pipe in `tr` and none in `en` means the

@@ -10,6 +10,7 @@ import 'package:magic_starter/magic_starter.dart'
         MSPageScaffold,
         MSSegmentedControl;
 
+import '../../../../app/support/plural.dart';
 import '../../../app/models/app_preferences.dart';
 import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/location_row/location_row.dart';
@@ -332,7 +333,7 @@ class _LocationIndexViewState extends State<LocationIndexView> {
 
     return SectionCard(
       label: _isWholeTree ? Lang.get('screens.locations.layout_group') : Lang.get('screens.locations.matches_group'),
-      count: Lang.get('screens.locations.node_count', {'count': nodes.length}),
+      count: plural('screens.locations.node_count', nodes.length, {'count': nodes.length}),
       children: [
         for (final LocationNode node in nodes)
           LocationRow(
@@ -352,12 +353,16 @@ class _LocationIndexViewState extends State<LocationIndexView> {
             // is `Mutfak › Buzdolabı`: spaces, a `›`, and Turkish letters, none of which survive a
             // raw interpolation into a URL. It was invisible under the hash strategy, which never
             // sends the fragment anywhere; with real URLs the address bar now carries it, so an
-            // unencoded space ends the path and the route matches nothing.
+            // unencoded space ends the path and the route matches nothing. A uuid needs no
+            // encoding, which is a second reason the id is the right thing to send.
             //
-            // Encoding makes it legal, not correct: the route is `/locations/:id` and this hands it
-            // a path, which is the same fixture-era stand-in `ProductRow` carries for a product
-            // without an id. It resolves when the tree is wired to the endpoint.
-            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(node.path)}'),
+            // **It hands over the ID now**, which is what resolved the stand-in this comment used
+            // to describe: the row sent an encoded PATH because the fixture had no id to send, and
+            // the detail screen could not look a node up by it.
+            //
+            // Null only in the preview catalog, where there is no row to open. A dead tap there is
+            // the honest outcome: the alternative is a screen the catalog cannot render.
+            onTap: node.id == null ? null : () => MagicRoute.to('/locations/${node.id}'),
           ),
         // Ten locations do not need paging, and pretending otherwise would be a footer
         // that never fires. It states the total instead, which is the number worth having

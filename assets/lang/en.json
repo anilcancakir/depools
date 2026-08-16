@@ -513,9 +513,9 @@
       "back": "Locations",
       "add_child": "Add a location inside",
       "here_group": "Held here",
-      "product_count": ":count products",
+      "product_count": ":count product|:count products",
       "children_group": "Locations inside",
-      "location_count": ":count locations",
+      "location_count": ":count location|:count locations",
       "empty_title": "Nothing here",
       "empty_description": "This location holds no products yet. Incoming stock can be placed here.",
       "stock_in": "Add stock here",
@@ -525,7 +525,8 @@
       "delete_blocked": "It cannot be deleted while it holds products or locations. Move what is inside somewhere else first.",
       "delete_title": "Delete \":name\"?",
       "delete_description": "The location is removed for good. Its name still appears in past movements.",
-      "delete_confirm": "Delete"
+      "delete_confirm": "Delete",
+      "load_failed": "The products here could not be loaded"
     },
     "location_form": {
       "title": "New location",
@@ -576,7 +577,7 @@
       "empty_title": "No locations yet",
       "empty_description": "Stock goes into a location, so you need at least one. Start with top-level places like Kitchen and Pantry, and add shelves later.",
       "empty_template": "Start from a template",
-      "node_count": ":count locations",
+      "node_count": ":count location|:count locations",
       "all_of_them": "all :count of them",
       "summary_products": ":count product|:count products",
       "summary_children": ":count sub-location|:count sub-locations",

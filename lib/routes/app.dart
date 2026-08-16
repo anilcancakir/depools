@@ -121,7 +121,12 @@ void registerAppRoutes() {
       MagicRoute.page('/locations', () => const LocationIndexView()).name('locations');
       // Literal before the parameter, for the reason `/products/new` states.
       MagicRoute.page('/locations/new', () => const LocationFormView()).name('location-create');
-      MagicRoute.page('/locations/:id', () => LocationShowView()).name('location');
+      // The id travels, for the reason `/products/:id` states: without it the screen has no way to
+      // know which location it is showing.
+      MagicRoute.page(
+        '/locations/:id',
+        (String id) => LocationShowView(id: id),
+      ).name('location');
       MagicRoute.page('/stock-take', () => const StockTakeView()).name('stock-take');
 
       // Capture. The scanner is the barcode path; the assistant is the sentence path and is
