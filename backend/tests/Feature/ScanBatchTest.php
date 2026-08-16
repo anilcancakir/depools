@@ -669,6 +669,30 @@ final class ScanBatchTest extends TestCase
         $this->assertSame(2, StockMovement::query()->count());
     }
 
+    public function test_an_empty_key_is_no_key_rather_than_a_shared_one(): void
+    {
+        // A review round asked whether `''` produces per-line keys like `:0`, which unrelated empty
+        // batches would then collide on and replay each other. Measured through the HTTP stack
+        // rather than reasoned about, because the answer lives in middleware: Laravel's global
+        // `ConvertEmptyStringsToNull` turns it into null before validation, so it is the no-key path
+        // and each batch is written in full. Whitespace too, via `TrimStrings` first.
+        //
+        // Kept as a test rather than closed as a non-issue, for the same reason the blank-unit case
+        // above is: it is the middleware that makes it true and nothing in this controller says so.
+        // Remove that middleware and this goes red, which is the warning the next person needs.
+        foreach (['' => 'Süt', '  ' => 'Ekmek'] as $key => $product) {
+            $this->postJson('/api/v1/stock/receive-batch', [
+                'location_id' => $this->shelf->getKey(),
+                'idempotency_key' => $key,
+                'lines' => [['name' => $product, 'quantity' => 1]],
+            ])->assertCreated();
+        }
+
+        // Two deliveries, not one replayed, and no row carries a key at all.
+        $this->assertSame(2, StockMovement::query()->count());
+        $this->assertSame(0, StockMovement::query()->whereNotNull('idempotency_key')->count());
+    }
+
     public function test_the_race_is_recognised_by_the_index_that_fires(): void
     {
         // **What the concurrent-retry catch matches on, pinned against the real database.**
