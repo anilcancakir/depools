@@ -279,11 +279,21 @@ class _LocationFormViewState extends State<LocationFormView> {
         ?_buildIconNote(),
         IconPicker(
           selected: _icon,
-          onSelected: (String name) => setState(() {
-            _icon = name;
-            _iconIsUserChosen = true;
-            _iconIsAutomatic = false;
-          }),
+          onSelected: (String name) {
+            // **The queued suggestion is cancelled, not merely ignored.** `_suggest` already refuses
+            // to overwrite a chosen icon, so the glyph was safe either way, and two things were not:
+            // a timer that fires after the tap spends one of the tenant's credits on an answer
+            // nobody will see, and a request already in flight leaves "Choosing an icon" on screen
+            // under a value the user has just picked.
+            _suggestTimer?.cancel();
+
+            setState(() {
+              _icon = name;
+              _iconIsUserChosen = true;
+              _iconIsAutomatic = false;
+              _isSuggesting = false;
+            });
+          },
           searchPlaceholder: Lang.get('screens.location_form.icon_search'),
           searchingLabel: Lang.get('screens.location_form.icon_searching'),
           emptyLabel: Lang.get('screens.location_form.icon_empty'),
