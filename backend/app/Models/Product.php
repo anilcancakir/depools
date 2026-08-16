@@ -50,6 +50,11 @@ final class Product extends Model
         'tracking_mode',
         'par_level',
         'reorder_point',
+        // **Fillable because the unit inference reads it.** It was absent, so a create naming a
+        // category silently dropped it and the `creating` hook below saw null: the category half of
+        // D32 could never fire, and nothing said so. Found by a test that asserted kilograms and got
+        // the countable default.
+        'product_category_id',
     ];
 
     /**
@@ -156,6 +161,31 @@ final class Product extends Model
         return Team::query()->whereKey($teamId)->value('default_unit_id');
     }
 
+    /**
+     * The unit this product's category implies, or null when it implies nothing.
+     *
+     * **Scope-free, like its sibling above and for the same reason.** This runs inside `creating`,
+     * which a seeder, a scan batch and a queued import all reach without an auth context, and the
+     * taxonomy is shared anyway: a category row carries `team_id = NULL`.
+     *
+     * Two lookups rather than a join, because both are keyed reads and the second only happens for
+     * the small set of branches the map covers. Returning null when the code is somehow absent from
+     * the units table is deliberate: the caller falls through to the fallback rather than a create
+     * failing over an inference.
+     */
+    private static function categoryUnitIdFor(int|string|null $categoryId): int|string|null
+    {
+        if ($categoryId === null) {
+            return null;
+        }
+
+        $category = ProductCategory::query()->withoutGlobalScopes()->find($categoryId);
+
+        $code = $category?->defaultUnitCode();
+
+        return $code === null ? null : Unit::findByCode($code)?->getKey();
+    }
+
     protected static function booted(): void
     {
         // **The default the column used to carry, moved into PHP.** `base_unit` was a string defaulting
@@ -180,9 +210,15 @@ final class Product extends Model
                 return;
             }
 
+            // **Team first, category second, and the order is the argument.** The team's default is
+            // something a person decided ("we count everything in cartons"); the category is an
+            // inference. An inference does not get to overrule a decision, so it only runs when the
+            // team has not made one.
             $product->base_unit_id = self::defaultUnitIdFor(
                 $product->team_id ?? TeamScope::currentTeamId(),
-            ) ?? Unit::fallback()->getKey();
+            )
+                ?? self::categoryUnitIdFor($product->product_category_id)
+                ?? Unit::fallback()->getKey();
         });
 
         self::updating(static function (self $product): void {

@@ -67,21 +67,35 @@ final class CatalogTest extends TestCase
 
     public function test_two_shared_categories_cannot_claim_the_same_path(): void
     {
-        ProductCategory::create(['name_tr' => 'Süt Ürünleri', 'path' => 'Yiyecek > Süt Ürünleri', 'depth' => 1]);
+        ProductCategory::create([
+            'name_en' => 'Dairy',
+            'name_tr' => 'Süt Ürünleri',
+            'path' => 'Yiyecek > Süt Ürünleri',
+            'depth' => 1,
+        ]);
 
         $this->expectException(QueryException::class);
 
         // A shared row carries `team_id = NULL`, and in a normal unique index NULL is distinct from
         // NULL, so this would be accepted and the Google seed could double itself on a re-run.
         // `UNIQUE NULLS NOT DISTINCT` is what refuses it.
-        ProductCategory::create(['name_tr' => 'Süt Ürünleri', 'path' => 'Yiyecek > Süt Ürünleri', 'depth' => 1]);
+        ProductCategory::create([
+            'name_en' => 'Dairy',
+            'name_tr' => 'Süt Ürünleri',
+            'path' => 'Yiyecek > Süt Ürünleri',
+            'depth' => 1,
+        ]);
     }
 
     public function test_the_taxonomy_depth_cap_is_googles_own_seven_levels(): void
     {
         $this->expectException(QueryException::class);
 
-        ProductCategory::create(['name_tr' => 'Derin', 'path' => 'a > b > c > d > e > f > g > h', 'depth' => 7]);
+        ProductCategory::create([
+            'name_en' => 'Deep',
+            'path' => 'a > b > c > d > e > f > g > h',
+            'depth' => 7,
+        ]);
     }
 
     public function test_open_food_facts_is_not_a_source_the_shared_catalog_accepts(): void

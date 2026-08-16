@@ -89,7 +89,13 @@ return new class extends Migration
 
             // Only a tenant's own unit carries one. A shared row's label comes from the locale
             // catalogue keyed on `code`, because a name column would be one language pretending to be
-            // all of them, which is the mistake `product_categories.name_tr` already makes.
+            // all of them.
+            //
+            // This used to point at `product_categories.name_tr` as the mistake it was avoiding, and
+            // that table now carries a column PER LOCALE with English required, which is the other
+            // honest answer: two columns for two languages, rather than one column that means
+            // whichever the writer had in mind. Units take this route instead because their
+            // vocabulary is closed and code-keyed; a category's is neither.
             $table->string('name')->nullable();
 
             // How many REFERENCE units one of this unit equals: `GRM` is `0.001` of `KGM`. Six
