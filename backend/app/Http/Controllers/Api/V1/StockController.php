@@ -380,7 +380,15 @@ final class StockController extends Controller
             try {
                 return $this->writeBatch($data, $location, $products, $source, $actorId);
             } catch (QueryException $e) {
-                if (! str_contains((string) ($e->errorInfo[0] ?? ''), '23505')) {
+                // Both, because either alone is a guess, matching the shape `ProductController` and
+                // `CatalogueTranslator` already use: `23505` is PostgreSQL's unique-violation code
+                // and is stable in a way message text is not, and the index name is what says the
+                // violation was OUR rule rather than another constraint on the same insert. A batch
+                // creates products and lots as well as movements, so there are other unique indexes
+                // reachable from here, and absorbing one of those would answer a real failure with a
+                // 200.
+                if ($e->getCode() !== '23505'
+                    || ! str_contains($e->getMessage(), 'stock_movements_team_id_idempotency_key_unique')) {
                     throw $e;
                 }
 

@@ -12,8 +12,11 @@ use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\Unit;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -664,5 +667,55 @@ final class ScanBatchTest extends TestCase
         ])->assertCreated();
 
         $this->assertSame(2, StockMovement::query()->count());
+    }
+
+    public function test_the_race_is_recognised_by_the_index_that_fires(): void
+    {
+        // **What the concurrent-retry catch matches on, pinned against the real database.**
+        //
+        // The catch absorbs a violation of `(team_id, idempotency_key)` and rethrows everything
+        // else, because a batch also inserts products, barcodes and lots, and absorbing one of those
+        // would answer a real failure with a 200. It identifies ours by SQLSTATE plus index name.
+        //
+        // Neither string can be checked by the sequential tests above: they never enter the catch,
+        // since the pre-write lookup answers first. A wrong index name would therefore turn the
+        // catch into a rethrow and put the 500 back, with the whole suite still green. So this
+        // asserts the two values directly, by making the constraint fire.
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'taken',
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ])->assertCreated();
+
+        $existing = StockMovement::query()->firstOrFail();
+
+        // Its own savepoint, because PostgreSQL aborts the whole transaction on a violation and
+        // `RefreshDatabase` runs the entire test inside one.
+        try {
+            DB::transaction(function () use ($existing): void {
+                DB::table('stock_movements')->insert([
+                    'id' => (string) Str::uuid7(),
+                    'team_id' => $existing->team_id,
+                    'product_id' => $existing->product_id,
+                    'location_id' => $existing->location_id,
+                    'stock_lot_id' => $existing->stock_lot_id,
+                    'delta' => 1,
+                    'reason' => MovementReason::Purchase->value,
+                    'source' => 'manual',
+                    'actor_type' => 'user',
+                    'idempotency_key' => $existing->idempotency_key,
+                    'occurred_at' => now(),
+                    'created_at' => now(),
+                ]);
+            });
+
+            $this->fail('The unique index on (team_id, idempotency_key) did not fire.');
+        } catch (QueryException $e) {
+            $this->assertSame('23505', $e->getCode());
+            $this->assertStringContainsString(
+                'stock_movements_team_id_idempotency_key_unique',
+                $e->getMessage(),
+            );
+        }
     }
 }

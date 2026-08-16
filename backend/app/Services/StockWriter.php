@@ -39,13 +39,6 @@ final class StockWriter
     public function __construct(private readonly StockLedger $ledger) {}
 
     /**
-     * Bring stock in. Creates the lot the movement references.
-     *
-     * A lot is created for EVERY inbound movement, dated or not, because the lot is the unit
-     * expiry attaches to and a non-perishable simply has a null date. Making the lot conditional
-     * would mean two shapes of inbound stock and a branch at every consumer of it.
-     */
-    /**
      * Every movement written under a batch key, keyed by its own per-line key.
      *
      * **Matched by prefix, so the caller sees lines it did not ask about.** A retry that sends fewer
@@ -94,6 +87,13 @@ final class StockWriter
             ->keyBy('idempotency_key');
     }
 
+    /**
+     * Bring stock in. Creates the lot the movement references.
+     *
+     * A lot is created for EVERY inbound movement, dated or not, because the lot is the unit
+     * expiry attaches to and a non-perishable simply has a null date. Making the lot conditional
+     * would mean two shapes of inbound stock and a branch at every consumer of it.
+     */
     public function receive(
         Product $product,
         Location $location,
