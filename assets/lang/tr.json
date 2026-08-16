@@ -913,7 +913,8 @@
       "locations_group": "Konumlar",
       "places_group": "Konumlarınız",
       "empty_title": "\":query\" bulunamadı",
-      "empty_description": "Ürün adı, marka, SKU ya da konum adıyla arayabilirsiniz."
+      "empty_description": "Ürün adı, marka, SKU ya da konum adıyla arayabilirsiniz.",
+      "load_failed": "Arama yapılamadı"
     },
     "settings": {
       "title": "Ayarlar",
