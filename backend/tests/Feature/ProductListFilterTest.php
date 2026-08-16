@@ -178,12 +178,17 @@ final class ProductListFilterTest extends TestCase
         $stocked = $this->product('Tornavida', ['par_level' => 1]);
         $this->writer->receive($stocked, $this->pantry, 9);
 
-        // At the target exactly, which counts: the client's predicate is `<=`.
+        // **At the target exactly, which does NOT count.** This read `<=` and the comment here said
+        // "which counts: the client's predicate is `<=`". The client's predicate was indeed `<=`,
+        // and both were wrong about the boundary: `forecasting.md` computes how much to buy as the
+        // target minus what is on hand, so a product at exactly its target puts a line reading
+        // "buy 0" on the shopping list, and the running-low screen is a strict subset of that list.
+        // All three predicates are `<` now.
         $atTarget = $this->product('Çekiç', ['par_level' => 2]);
         $this->writer->receive($atTarget, $this->pantry, 2);
 
         $this->assertEqualsCanonicalizing(
-            [$low->getKey(), $atTarget->getKey()],
+            [$low->getKey()],
             $this->ids(['stock_state' => 'below_par']),
         );
     }

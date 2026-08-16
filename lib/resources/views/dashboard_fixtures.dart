@@ -27,14 +27,14 @@ DashboardSummary dashboardFixture() {
     expiredCount: expired.length,
     approachingCount: approaching.length,
     outOfStockCount: outOfStock.length,
-    // The fixture's `belowTarget` INCLUDES the out-of-stock rows, and the endpoint's two counters do
+    // The fixture's `runningLow` INCLUDES the out-of-stock rows, and the endpoint's two counters do
     // not overlap, so the preview subtracts to match what the server would answer. Getting this
     // wrong would make the catalog show a total the real screen never produces.
-    belowTargetCount: belowTarget.where((ProductListItem p) => !p.isOut).length,
+    belowTargetCount: runningLow.where((ProductListItem p) => !p.isOut).length,
     expired: expired,
     approaching: approaching,
     outOfStock: outOfStock,
-    belowTarget: belowTarget.where((ProductListItem p) => !p.isOut).toList(),
+    belowTarget: runningLow.where((ProductListItem p) => !p.isOut).toList(),
     activity: _activity,
   );
 }

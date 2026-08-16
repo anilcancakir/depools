@@ -7,7 +7,9 @@ use App\Models\Barcode;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\Scopes\TeamScope;
+use App\Services\MovementContext;
 use App\Services\StockWriter;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -118,10 +120,47 @@ class DemoInventorySeeder extends Seeder
         // serial-tracked product, because its quantity is the count of its serials and a lot would be
         // a second, disagreeing answer. It sits here as the row that exercises that branch.
 
+        // The tablets specifically, out of every product here: they are already below their target,
+        // so giving them a history is what puts a row in the running-low screen's TOP group, with a
+        // real days-of-cover figure beside it. On any other product the history would exist and the
+        // screen that exists to show it would still be empty.
+        $this->seedConsumptionHistory($writer, $products['tablets'], $locations['storeroom'], $today);
+
         $this->command?->info(
             'Seeded '.$products->count().' products across '.count($locations).' locations, '
             .'through StockWriter.',
         );
+    }
+
+    /**
+     * Enough past demand for one product to earn a real forecast.
+     *
+     * **Without this the demo has no product above the bottom tier**, so the running-low screen's
+     * top group and every days-of-cover figure are unreachable in the seeded account: the demo would
+     * show the honesty gate and never what the gate lets through.
+     *
+     * Twelve demands clears `ConsumptionForecast::FORECAST_THRESHOLD`, and buying on the same days
+     * gives the tenant a measurable shopping rhythm, which is the other half of the reorder point
+     * (D48). Both series go through `StockWriter`, so the forecast is computed by the same hook a
+     * real consumption uses rather than being written into the table by the seeder.
+     */
+    private function seedConsumptionHistory(
+        StockWriter $writer,
+        Product $product,
+        Location $location,
+        CarbonInterface $today,
+    ): void {
+        // Every three days for thirty-six, and each cycle receives exactly what it consumes, so the
+        // product's final quantity is whatever the block above left it at. A history that also moved
+        // the balance would silently retune every other screen this fixture feeds.
+        //
+        // The oldest first, so the ledger reads in the order it would have happened.
+        for ($daysAgo = 36; $daysAgo >= 3; $daysAgo -= 3) {
+            $at = new MovementContext($today->copy()->subDays($daysAgo));
+
+            $writer->receive($product, $location, 2, context: $at);
+            $writer->consume($product, $location, 2, context: $at);
+        }
     }
 
     /**

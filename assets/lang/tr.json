@@ -835,7 +835,7 @@
     "running_low": {
       "title": "Azalanlar",
       "subtitle": ":short ürün · :out stok bitti",
-      "subtitle_empty": "Hedefin altında ürün yok",
+      "subtitle_empty": "Azalan ürün yok",
       "out_group": "Stok bitti",
       "product_count": ":count ürün",
       "tier_forecast": "Tahmine göre",
@@ -846,8 +846,10 @@
       "note_target": "Geçmiş yok · sadece hedef seviye",
       "meta_target": "Hedef :par :unit",
       "meta_cover": ":days günlük kaldı",
-      "empty_title": "Hedefin altında ürün yok",
-      "empty_description": "Hedef seviyesi belirlenmiş ürünler o seviyenin altına düştüğünde burada listelenir. Hedefi olmayan ürünler hiç görünmez."
+      "empty_title": "Azalan ürün yok",
+      "empty_description": "Stoğu biten ürünler ve belirlenen hedef seviyeye düşen ürünler burada listelenir.",
+      "meta_no_target": "Hedef belirlenmedi",
+      "load_failed": "Liste yüklenemedi"
     },
     "scan": {
       "title": "Barkod tara",

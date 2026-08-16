@@ -66,7 +66,7 @@ final class SearchController extends Controller
         $filter = new ProductListQuery(['query' => $needle], Carbon::today());
 
         $products = $filter->apply(
-            Product::query()->with(['stock', 'tags', 'unit', 'primaryImage'])->withCount('movements'),
+            Product::query()->with(['stock', 'tags', 'unit', 'primaryImage', 'forecast'])->withCount('movements'),
         )->limit(self::LIMIT)->get();
 
         return response()->json([

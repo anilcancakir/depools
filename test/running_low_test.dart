@@ -10,7 +10,7 @@ void main() {
       // missing from one of them is a contradiction the user would see immediately. This
       // app has already shipped a list and a detail page disagreeing about one product.
       final Set<String> onList = shoppingLines.map((l) => l.name).toSet();
-      final List<String> missing = belowTarget
+      final List<String> missing = runningLow
           .map((p) => p.name)
           .where((name) => !onList.contains(name))
           .toList();
@@ -21,7 +21,7 @@ void main() {
     test('the shopping list is a superset, not an equal', () {
       // Asserting equality would assert something false: the list also carries expiring
       // and manual rows. This locks in the DIRECTION of the containment.
-      final Set<String> short = belowTarget.map((p) => p.name).toSet();
+      final Set<String> short = runningLow.map((p) => p.name).toSet();
       expect(shoppingLines.length, greaterThan(short.length));
     });
 
@@ -29,7 +29,7 @@ void main() {
       final int grouped =
           outOfStock.length + ForecastTier.values.fold(0, (sum, t) => sum + lowInTier(t).length);
 
-      expect(grouped, belowTarget.length);
+      expect(grouped, runningLow.length);
     });
 
     test('only the forecast tier carries a days-of-cover figure', () {

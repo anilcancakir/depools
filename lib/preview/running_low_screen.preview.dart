@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/products/running_low_fixtures.dart';
 import '../resources/views/products/running_low_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -27,5 +28,8 @@ class RunningLowScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const RunningLowView();
+  // The fixture is PASSED rather than reached for. The screen reads `RunningLowController` when
+  // `rows` is null, and the catalog is unauthenticated and offline, so a preview that let it do
+  // that would fire a request and draw an error.
+  static Widget _build(BuildContext context) => RunningLowView(rows: runningLow);
 }

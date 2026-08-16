@@ -53,11 +53,44 @@ final class ProductResource extends JsonResource
             // tuned. `Product::expiryThresholdDays` is now the only implementation and this is how it
             // reaches the screen.
             'expiry_threshold_days' => $this->resource->expiryThresholdDays(),
-            // How much history exists, which is the only thing that decides what may be CLAIMED about
-            // this product: `forecasting.md` gates a rate on roughly ten movements, and below that the
-            // client shows context or nothing rather than a number. Gated on the caller having asked,
-            // so a detail request does not pay for a count it will not render.
+            // How much this product has been touched, in total: deliveries, counts, transfers and
+            // consumption alike. Gated on the caller having asked, so a detail request does not pay
+            // for a count it will not render.
+            //
+            // **It used to be the certainty gate and it is not any more.** The comment here read
+            // "the only thing that decides what may be CLAIMED about this product", which was the
+            // client deriving its tier from this number, and a product received ten times and never
+            // consumed came out as a full forecast. `forecast.movement_count` below is the figure
+            // that gate is built on: days demand actually happened.
             'movements_count' => $this->whenCounted('movements'),
+            // **What may be CLAIMED about this product, decided by the server.**
+            //
+            // The client used to derive the tier itself, from `movements_count` against a copy of
+            // the ten in Dart, and that was wrong twice over. `withCount('movements')` counts EVERY
+            // movement, so ten deliveries and no consumption read as a full forecast; and the
+            // threshold then existed in two languages, free to drift. The forecast row counts only
+            // the days demand actually happened, and its own CHECK ties the tier to the rate.
+            //
+            // Absent where the relation was not loaded, and null inside it where the product has no
+            // forecast row at all. Both mean the same thing to the client and it treats them alike.
+            'forecast' => $this->whenLoaded('forecast', fn (): ?array => $this->forecast === null ? null : [
+                'tier' => $this->forecast->tier,
+                'movement_count' => $this->forecast->movement_count,
+                // Divided at read against whatever is on hand right now, which is why it lives on
+                // the resource and not in a column: a stored copy could disagree with the
+                // `quantity` field beside it in this same payload.
+                'days_of_cover' => $this->whenLoaded(
+                    'stock',
+                    fn (): ?float => $this->forecast->daysOfCover((float) $this->stock->sum('quantity')),
+                ),
+            ]),
+            // The inferred reorder point, present only where the running-low query computed one.
+            // Rate times how often this tenant shops (D48), so it is a fact about the tenant as much
+            // as about the product and cannot be a column on either.
+            'inferred_reorder_point' => $this->when(
+                $this->inferred_reorder_point !== null,
+                fn (): float => (float) $this->inferred_reorder_point,
+            ),
             // Formatted to the column's own precision rather than cast from the summed float.
             // `product_stock.quantity` is `decimal:3`, so a per-location row arrives as `6.000`
             // while the raw sum arrives as `6`, and a client rendering both would show one
