@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ProductMovementController;
 use App\Http\Controllers\Api\V1\RunningLowController;
 use App\Http\Controllers\Api\V1\SearchController;
+use App\Http\Controllers\Api\V1\ShoppingListController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\TeamSettingsController;
 use App\Http\Controllers\Api\V1\UnitController;
@@ -25,9 +26,12 @@ use Illuminate\Support\Facades\Route;
 | route would not leak another tenant's rows, it would return NOTHING and look like a broken
 | feature. Failing closed is the right default and a guard is still required.
 |
-| Paths are English and plural here while the app's own URLs are Turkish. A screen's URL is read by
-| the person using the product; an API path is read by whoever maintains the client, and mixing the
-| two vocabularies inside one codebase costs more than it buys.
+| Paths are English and plural, and so are the app's own URLs. This comment used to say the app's
+| were Turkish, on the argument that a screen's URL is read by the person using the product: the
+| premise is right and the conclusion does not follow, because the primary market is outside Turkey
+| (D116) and the default locale is `en`, so that reader cannot read a Turkish path either.
+| `.claude/rules/backend.md` records the correction and `test/routes/route_paths_test.dart` enforces
+| it.
 |
 | No route accepts a team identifier in any form. `data-model.md`'s first tenancy rule is that
 | `team_id` comes from the auth context only, and the surest way to keep that true is for the
@@ -97,6 +101,14 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // `expiring`: the result is already bounded by the question, and a screen answering "what do I
     // need to deal with" is unusable a page at a time.
     Route::get('running-low', [RunningLowController::class, 'index']);
+
+    // **What to buy**, which is the action half of D57's pair, and the only one of the three
+    // forecasting surfaces with state: a tick and a hand-typed line have nowhere else to live. A
+    // tick is NOT a stock movement (D47), so nothing under here reaches `StockWriter`.
+    Route::get('shopping', [ShoppingListController::class, 'index']);
+    Route::post('shopping', [ShoppingListController::class, 'store']);
+    Route::put('shopping/{shopping}', [ShoppingListController::class, 'update']);
+    Route::delete('shopping/{shopping}', [ShoppingListController::class, 'destroy']);
 
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 

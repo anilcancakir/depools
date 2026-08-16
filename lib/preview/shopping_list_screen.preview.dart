@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/products/shopping_fixtures.dart';
 import '../resources/views/products/shopping_list_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -28,5 +29,8 @@ class ShoppingListScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const ShoppingListView();
+  // The fixture is PASSED rather than reached for. The screen reads `ShoppingController` when
+  // `lines` is null, and the catalog is unauthenticated and offline, so a preview that let it do
+  // that would fire a request and draw an error.
+  static Widget _build(BuildContext context) => ShoppingListView(lines: shoppingLines);
 }
