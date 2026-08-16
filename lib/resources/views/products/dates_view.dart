@@ -4,6 +4,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSPageScaffold, MSEmptyState;
 
 import '../../../app/controllers/expiring_controller.dart';
+import '../../../app/support/plural.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -212,7 +213,7 @@ class _DatesViewState extends State<DatesView> {
   Widget _buildExpired(List<DatedLot> rows) {
     return SectionCard(
       label: Lang.get('screens.dates.expired_group'),
-      count: Lang.get('screens.dates.lot_count', {'count': rows.length}),
+      count: plural('screens.dates.lot_count', rows.length, {'count': rows.length}),
       children: [for (final DatedLot row in rows) _buildRow(row, isExpired: true)],
     );
   }
@@ -221,7 +222,11 @@ class _DatesViewState extends State<DatesView> {
   Widget _buildLocation(String path, List<DatedLot> rows) {
     return SectionCard(
       label: path,
-      count: '${rows.length} parti',
+      // **This was `'${rows.length} parti'`, a Turkish sentence built in Dart.** It survived
+      // `no_hardcoded_copy_test` because an interpolated string is not a literal the guard can see,
+      // and it survived review because the screen rendered fixtures: every name around it was
+      // Turkish too, so one more read as data. Real rows in an English tenant is what exposed it.
+      count: plural('screens.dates.lot_count', rows.length, {'count': rows.length}),
       collapsible: true,
       children: [for (final DatedLot row in rows) _buildRow(row)],
     );
