@@ -59,7 +59,22 @@ return new class extends Migration
             // The frozen inputs the sentence is rendered from. All nullable, because which ones exist is
             // exactly what the certainty tier decides: only the top tier has a days figure at all.
             $table->unsignedSmallInteger('reason_days')->nullable();
+
+            // **The middle tier's bucket, as a CODE rather than a number.** D46 says two to nine
+            // movements earns a bucket and never a figure at any precision, so the constraint below
+            // forbids `reason_days` here; without something in its place the sentence collapses to
+            // "geçmiş az" and loses the half `forecasting.md` actually specifies ("Yaklaşık bir
+            // hafta · geçmiş az"). A code cannot be misread as a measurement, which is the whole
+            // property the day figure fails.
+            $table->string('reason_bucket', 16)->nullable();
             $table->decimal('reason_on_hand', 12, 3)->nullable();
+
+            // Which clock an `expiring` line's date is on. An opened pot runs on the after-opening
+            // limit rather than the printed one (D27), and the sentence has to say which: "3 gün
+            // ömür" about a sealed carton with a week on the box reads as the app being wrong
+            // rather than as the pot being open. Null on every other reason, like the rest of the
+            // frozen inputs, because which ones exist is what the reason decides.
+            $table->boolean('reason_lot_is_open')->nullable();
             $table->decimal('reason_target', 12, 3)->nullable();
             $table->unsignedSmallInteger('reason_movement_count')->nullable();
 
@@ -101,6 +116,19 @@ return new class extends Migration
             ALTER TABLE shopping_list_items
             ADD CONSTRAINT shopping_list_items_only_the_top_tier_states_days
             CHECK (reason_days IS NULL OR reason IN ('running_out', 'expiring'))
+        ");
+
+        // The bucket's own closed vocabulary, and the mirror of the rule above: only the tier that
+        // may NOT state a figure states a bucket. Both directions matter, because a top-tier line
+        // carrying a bucket would be hedging about something it can measure.
+        DB::statement("
+            ALTER TABLE shopping_list_items
+            ADD CONSTRAINT shopping_list_items_bucket_is_known
+            CHECK (
+                reason_bucket IS NULL
+                OR (reason = 'roughly_due'
+                    AND reason_bucket IN ('days', 'week', 'fortnight', 'month', 'rare'))
+            )
         ");
 
         // A quantity of zero is not a thing to buy. `forecasting.md` rounds up to a whole base unit for

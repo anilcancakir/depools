@@ -9,6 +9,7 @@ use App\Models\Scopes\TeamScope;
 use App\Models\StockLot;
 use App\Models\StockMovement;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -196,9 +197,16 @@ final class StockLedger
      *
      * @return Collection<int, StockLot>
      */
-    public function lotsBindingBy(CarbonInterface $until): Collection
+    public function lotsBindingBy(CarbonInterface $until, ?string $teamId = null): Collection
     {
         return StockLot::query()
+            // **The crossing, stated only when the caller has a team to state** (D111). The dates
+            // endpoint runs inside a request and lets `TeamScope` answer; `ShoppingList` is handed a
+            // team id by its own caller and passes it here, so the list and the shortages it merges
+            // with cannot end up scoped by two different things.
+            ->when($teamId !== null, fn ($query) => $query
+                ->withoutGlobalScope(TeamScope::class)
+                ->where('stock_lots.team_id', $teamId))
             // **A depleted lot is history rather than a task.** Nothing is left to save, so a row for
             // it would be a job the user cannot do.
             ->where('remaining_quantity', '>', 0)
@@ -297,5 +305,29 @@ final class StockLedger
         ])->save();
 
         return $stock;
+    }
+
+    /**
+     * When this tenant's stock last changed, or null if it never has.
+     *
+     * The projection's own clock rather than the ledger's, and that is the cheaper of two correct
+     * answers: `rebuildProductStock` rewrites a `product_stock` row on every movement, so the newest
+     * `updated_at` there moves whenever a movement lands, over a table with one row per
+     * product-location pair instead of one per event.
+     *
+     * It exists so a materialised view of stock can ask whether it is out of date without inventing
+     * a timer. `ShoppingList` is the caller: a TTL there would show a user the list from before the
+     * consumption they just recorded, which is the screen contradicting the user's own last action.
+     *
+     * **Scope-free and keyed on the team it was given** (D111), so a console command asking gets an
+     * answer rather than a silent null.
+     */
+    public function stockChangedAt(string $teamId): ?CarbonInterface
+    {
+        $at = ProductStock::query()->withoutGlobalScopes()
+            ->where('team_id', $teamId)
+            ->max('updated_at');
+
+        return $at === null ? null : Carbon::parse($at);
     }
 }

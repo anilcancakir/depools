@@ -12,6 +12,8 @@ import 'package:magic_starter/magic_starter.dart'
         MSSkeleton,
         SkeletonShape;
 
+import '../../../app/models/shopping_line.dart';
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/chat_message/chat_message.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
@@ -371,12 +373,12 @@ class AssistantView extends StatelessWidget {
         child: WText(Lang.get('screens.assistant.shopping_open')),
       ),
       children: [
-        for (final ShoppingFixture line in pendingLines.take(3))
+        for (final ShoppingLine line in pendingLines.take(3))
           ShoppingRow(
             name: line.name,
-            amount: line.amount,
+            amount: line.quantity,
             formatted: line.formatted,
-            unit: line.unit,
+            unit: unitLabel(line.unit, line.quantity),
             reason: line.reason,
             reasonDetail: line.reasonDetail,
             onToggle: () {},

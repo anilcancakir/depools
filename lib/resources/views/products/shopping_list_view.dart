@@ -5,9 +5,12 @@ import '../../../ui/layouts/app_page_scaffold.dart';
 import 'package:magic_starter/magic_starter.dart'
     show MSButton, ButtonIntent, MSEmptyState;
 
+import '../../../app/controllers/shopping_controller.dart';
+import '../../../app/models/shopping_line.dart';
+import '../../../app/support/plural.dart';
+import '../../../app/support/unit_label.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/shopping_row/shopping_row.dart';
-import 'shopping_fixtures.dart';
 
 /// The shopping list: what to buy, why, and what is already in the trolley.
 ///
@@ -39,39 +42,90 @@ import 'shopping_fixtures.dart';
 /// That is what every list app converged on and the reason is the same here: progress you
 /// can see, and a shorter list to re-scan at the next aisle.
 @immutable
-class ShoppingListView extends StatelessWidget {
+class ShoppingListView extends StatefulWidget {
+  /// Lines supplied by the caller, which is how the preview catalog stays offline.
+  ///
+  /// Null means "read [ShoppingController]", which is what the route does. The state class only
+  /// touches the controller when this is null, so previewing this screen issues no request.
+  final List<ShoppingLine>? lines;
+
+  /// Creates the [ShoppingListView], reading from [ShoppingController].
+  const ShoppingListView({super.key, this.lines});
+
+  /// Creates the view with nothing to buy.
+  const ShoppingListView.empty({super.key}) : lines = const <ShoppingLine>[];
+
+  @override
+  State<ShoppingListView> createState() => _ShoppingListViewState();
+}
+
+class _ShoppingListViewState extends State<ShoppingListView> {
   static const IconData _addIcon = Icons.add;
   static const IconData _receiptIcon = Icons.receipt_long_outlined;
   static const IconData _emptyIcon = Icons.shopping_basket_outlined;
 
-  /// Whether there is anything on the list.
+  /// The controller, or null when the caller supplied its own lines.
+  ShoppingController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.lines != null) return;
+
+    final ShoppingController controller = ShoppingController.instance
+      ..addListener(_onControllerChanged);
+
+    // `Magic.findOrPut` registers the instance and nothing calls `onInit` for a plain
+    // `StatefulWidget`, so without this the screen says there is nothing to buy.
+    if (!controller.initialized) controller.onInit();
+
+    _controller = controller;
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  List<ShoppingLine> get _all => widget.lines ?? _controller?.lines ?? const <ShoppingLine>[];
+
+  /// Whether there is an answer, as opposed to no answer YET.
   ///
-  /// The empty list is not a failure state and must not read as one: it means nothing is
-  /// running out, which is the outcome the whole forecasting feature exists to produce.
-  final bool hasLines;
+  /// The empty list is not a failure state and must not read as one: it means nothing is running
+  /// out, which is the outcome the whole forecasting feature exists to produce. Which also makes it
+  /// the one thing this screen must not say while the request is still in flight.
+  bool get _hasAnswer => widget.lines != null || (_controller?.loaded ?? false);
 
-  /// Creates the [ShoppingListView] mid-trip.
-  const ShoppingListView({super.key}) : hasLines = true;
+  List<ShoppingLine> get _pending =>
+      _all.where((ShoppingLine l) => !l.isChecked).toList(growable: false);
 
-  /// Creates the view with nothing to buy.
-  const ShoppingListView.empty({super.key}) : hasLines = false;
+  List<ShoppingLine> get _checked =>
+      _all.where((ShoppingLine l) => l.isChecked).toList(growable: false);
 
   @override
   Widget build(BuildContext context) {
+    final bool anything = _hasAnswer && _all.isNotEmpty;
+
     return AppPageScaffold(
       title: Lang.get('screens.shopping.title'),
-      subtitle: hasLines
+      subtitle: anything
           ? Lang.get('screens.shopping.subtitle', {
-              'pending': pendingLines.length,
-              'checked': checkedLines.length,
+              'pending': _pending.length,
+              'checked': _checked.length,
             })
           : Lang.get('screens.shopping.subtitle_empty'),
       // Pinned rather than trailing (D70): a shopping list is as long as the shop, so the
       // actions that finish it cannot live at the end of it.
       footer: _buildActions(),
-      children: hasLines
-          ? [_buildPending(), if (checkedLines.isNotEmpty) _buildChecked()]
-          : [_buildEmpty()],
+      children: anything
+          ? [if (_pending.isNotEmpty) _buildPending(), if (_checked.isNotEmpty) _buildChecked()]
+          : [if (_hasAnswer) _buildEmpty()],
     );
   }
 
@@ -79,19 +133,8 @@ class ShoppingListView extends StatelessWidget {
   Widget _buildPending() {
     return SectionCard(
       label: Lang.get('screens.shopping.pending_group'),
-      count: Lang.get('screens.shopping.product_count', {'count': pendingLines.length}),
-      children: [
-        for (final ShoppingFixture line in pendingLines)
-          ShoppingRow(
-            name: line.name,
-            amount: line.amount,
-            formatted: line.formatted,
-            unit: line.unit,
-            reason: line.reason,
-            reasonDetail: line.reasonDetail,
-            onToggle: () {},
-          ),
-      ],
+      count: plural('screens.shopping.product_count', _pending.length, {'count': _pending.length}),
+      children: [for (final ShoppingLine line in _pending) _buildRow(line)],
     );
   }
 
@@ -99,21 +142,30 @@ class ShoppingListView extends StatelessWidget {
   Widget _buildChecked() {
     return SectionCard(
       label: Lang.get('screens.shopping.checked_group'),
-      count: Lang.get('screens.shopping.product_count', {'count': checkedLines.length}),
+      count: plural('screens.shopping.product_count', _checked.length, {'count': _checked.length}),
       collapsible: true,
-      children: [
-        for (final ShoppingFixture line in checkedLines)
-          ShoppingRow(
-            name: line.name,
-            amount: line.amount,
-            formatted: line.formatted,
-            unit: line.unit,
-            reason: line.reason,
-            reasonDetail: line.reasonDetail,
-            isChecked: true,
-            onToggle: () {},
-          ),
-      ],
+      children: [for (final ShoppingLine line in _checked) _buildRow(line)],
+    );
+  }
+
+  /// One line.
+  ///
+  /// **`reasonDetail` is composed on the model, from evidence the server sent** (D98). Nothing here
+  /// decides what a line may claim: the payload already withheld the figure a tier is not allowed,
+  /// so the shape of the sentence is settled before it reaches a widget.
+  Widget _buildRow(ShoppingLine line) {
+    return ShoppingRow(
+      name: line.name,
+      amount: line.quantity,
+      formatted: line.formatted,
+      unit: unitLabel(line.unit, line.quantity),
+      reason: line.reason,
+      reasonDetail: line.reasonDetail,
+      isChecked: line.isChecked,
+      // Optimistic, because the user is standing in a shop tapping down a list and a round trip
+      // per tap would make the screen feel like it is arguing with them. A tick is NOT a stock
+      // movement (D47): the receipt below is what closes that loop.
+      onToggle: () => _controller?.toggle(line),
     );
   }
 
@@ -159,7 +211,7 @@ class ShoppingListView extends StatelessWidget {
         // Appears only once something is in the trolley, because that is when it means
         // anything. Absent rather than disabled: a disabled primary button is visually
         // indistinguishable from a live one in this theme, measured.
-        if (hasLines && checkedLines.isNotEmpty) ...[
+        if (_checked.isNotEmpty) ...[
           WText(Lang.get('screens.shopping.receipt_hint'), className: 'text-xs text-fg-muted'),
           MSButton(
             // The receipt review screen exists and this is its natural entry: the user has just
