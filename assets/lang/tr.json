@@ -528,7 +528,8 @@
       "delete_blocked": "İçinde ürün ya da alt konum olduğu sürece silinemez. Önce içindekileri başka bir konuma taşıyın.",
       "delete_title": "\":name\" silinsin mi?",
       "delete_description": "Konum kalıcı olarak kaldırılır. Geçmiş hareketlerde adı görünmeye devam eder.",
-      "delete_confirm": "Sil"
+      "delete_confirm": "Sil",
+      "load_failed": "Bu konumdaki ürünler yüklenemedi"
     },
     "location_form": {
       "title": "Yeni konum",

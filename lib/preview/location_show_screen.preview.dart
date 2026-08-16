@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/locations/location_fixtures.dart';
+import '../resources/views/products/product_fixtures.dart';
 import '../resources/views/locations/location_show_view.dart';
 import 'responsive_screen_preview.dart';
 
@@ -14,6 +16,11 @@ class LocationShowScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveScreenPreview(builder: (BuildContext context) => LocationShowView());
+    return ResponsiveScreenPreview(builder: (BuildContext context) => LocationShowView.preview(
+        nodes: locationTree,
+        held: productFixtures
+            .where((ProductListItem p) => p.locationSummary == 'Kiler \u203a Raf 1')
+            .toList(),
+      ));
   }
 }

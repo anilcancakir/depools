@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSEmptyState, MSInput, MSPageScaffold;
 
+import '../../../app/support/plural.dart';
 import '../../app/models/location_node.dart';
 import '../../ui/components/location_row/location_row.dart';
 import '../../ui/components/product_row/product_row.dart';
@@ -149,7 +150,11 @@ class _SearchViewState extends State<SearchView> {
   Widget _buildLocations(List<LocationNode> locations) {
     return SectionCard(
       label: Lang.get('screens.search.locations_group'),
-      count: Lang.get('screens.location.location_count', {'count': locations.length}),
+      count: plural(
+        'screens.location.location_count',
+        locations.length,
+        {'count': locations.length},
+      ),
       children: [
         for (final LocationNode node in locations)
           LocationRow(
@@ -172,7 +177,7 @@ class _SearchViewState extends State<SearchView> {
 
     return SectionCard(
       label: Lang.get('screens.search.places_group'),
-      count: Lang.get('screens.location.location_count', {'count': roots.length}),
+      count: plural('screens.location.location_count', roots.length, {'count': roots.length}),
       children: [
         for (final LocationNode node in roots)
           LocationRow(
