@@ -36,7 +36,10 @@ final class StockWriter
      */
     private const COUNT_EPSILON = 0.0005;
 
-    public function __construct(private readonly StockLedger $ledger) {}
+    public function __construct(
+        private readonly StockLedger $ledger,
+        private readonly ConsumptionForecast $forecast = new ConsumptionForecast,
+    ) {}
 
     /**
      * Every movement written under a batch key, keyed by its own per-line key.
@@ -175,6 +178,17 @@ final class StockWriter
             $written = $this->takeOut($lots, $quantity, $reason, $source, $actorId, $context);
 
             $this->ledger->rebuildProductStock($product, $location->getKey());
+
+            // **Only here, and only for consumption.** The forecast reads the demand series, and the
+            // only reason that counts as demand is `consumption`: a transfer moved shelves, a count
+            // corrects the record, and waste is deliberately kept out so it cannot inflate the rate.
+            // So this is the one write path that can change the answer, and refreshing anywhere else
+            // would be a full ledger walk producing the number it already had.
+            //
+            // Inside the transaction, so a forecast can never describe a movement that rolled back.
+            if ($reason === MovementReason::Consumption) {
+                $this->forecast->refresh($product);
+            }
 
             return $written;
         });
