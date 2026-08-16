@@ -128,10 +128,21 @@ void main() async {
       // `items-start` rather than `items-center` so the control aligns with the TITLE and does
       // not drift downward when the subtitle wraps to two lines.
       //
-      // The constraint this accepts: below `sm` the starter gives the title block `sm:flex-1`,
-      // so the title takes its intrinsic width and a genuinely long one could overflow rather
-      // than shrink. Every title in this app is one or two short words. A longer one is the
-      // signal to reach for `inlineActions`, which `MSPageScaffold` does not forward today.
+      // **The constraint this accepts, and it has since been measured rather than predicted.**
+      // Below `sm` the starter gives the title block `sm:flex-1` only, so the title takes its
+      // intrinsic width and a long one overflows rather than shrinking. This paragraph used to
+      // end "every title in this app is one or two short words"; the product screen's title is
+      // the product's name, and "Dishwasher Tablets" beside three icon buttons reported
+      // `A RenderFlex overflowed by 40 pixels` at 390. Confirmed by reverting this one line,
+      // which removed the stripe and the exception entirely.
+      //
+      // **The fix is upstream and merged, waiting on a release.** `inlineActions` sets both
+      // halves of this decision (the row container AND `flex-1 min-w-0` on the title row), and
+      // `MSPageScaffold` does not forward the argument, so magic_starter#92 moved the flag onto
+      // `MagicStarterPageHeaderTheme` where the container class already lives. The moment the
+      // package is bumped past `0.0.1-alpha.19`, this override gains `inlineActions: true` and
+      // the paragraph above becomes history. Until then the overflow is live on any screen whose
+      // title is long, which today means the product screen.
       containerClassName:
           'w-full flex flex-row items-start justify-between gap-3 pb-4 '
           'border-b border-color-border',
