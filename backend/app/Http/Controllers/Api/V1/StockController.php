@@ -56,6 +56,14 @@ final class StockController extends Controller
      */
     private const MAX_BATCH_KEY = 60;
 
+    /**
+     * How close two quantities have to be to count as the same line.
+     *
+     * Half of `decimal(_, 3)`'s smallest step, so every difference the column can actually hold is a
+     * different delivery and nothing else is. Same reasoning as `StockWriter::COUNT_EPSILON`.
+     */
+    private const SAME_QUANTITY = 0.0005;
+
     public function __construct(
         private readonly StockWriter $writer,
         private readonly StockLedger $ledger,
@@ -370,7 +378,7 @@ final class StockController extends Controller
         // lost the response, not the delivery. Without this a retry appends the batch again, and on
         // an append-only ledger a duplicate is undone by writing a compensating movement rather than
         // by deleting a row.
-        if (($replay = $this->replayOf($data['idempotency_key'] ?? null, count($data['lines']))) !== null) {
+        if (($replay = $this->replayOf($data, $location)) !== null) {
             return response()->json(['data' => ['lines' => $replay]], 200);
         }
 
@@ -395,7 +403,7 @@ final class StockController extends Controller
                     throw $e;
                 }
 
-                $replay = $this->replayOf($data['idempotency_key'] ?? null, count($data['lines']));
+                $replay = $this->replayOf($data, $location);
 
                 // Null would mean the violation was not ours to absorb, so it propagates.
                 if ($replay === null) {
@@ -460,6 +468,50 @@ final class StockController extends Controller
     }
 
     /**
+     * Whether the movements under a key describe the request being made now.
+     *
+     * Checked against what the LEDGER already stores rather than a request fingerprint in a new
+     * column, because the movement carries every part of a line that can be checked:
+     *
+     * - the LOCATION, since the same key aimed at another shelf is a different delivery;
+     * - the PRODUCT, when the line names one. A line carrying a card creates a product this call has
+     *   not made, so there is nothing to compare its identity to and location plus quantity is the
+     *   handle there;
+     * - the QUANTITY, as the movement's magnitude rather than its signed delta, because every row a
+     *   batch writes is inbound and the sign is the ledger's rather than the request's.
+     *
+     * Compared with a tolerance, not `===`. The column is `decimal(_, 3)` and the request carries
+     * JSON, so `1.0` against `'1.000'` is the same delivery and an exact comparison would 409 an
+     * honest retry.
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     * @param  array<int, string>  $keys
+     * @param  Collection<string, StockMovement>  $existing
+     */
+    private function sameBatch(array $lines, array $keys, Collection $existing, Location $location): bool
+    {
+        foreach ($lines as $index => $line) {
+            $movement = $existing[$keys[$index]];
+
+            if ($movement->location_id !== $location->getKey()) {
+                return false;
+            }
+
+            $productId = $line['product_id'] ?? null;
+
+            if ($productId !== null && $movement->product_id !== $productId) {
+                return false;
+            }
+
+            if (abs(abs((float) $movement->delta) - (float) $line['quantity']) > self::SAME_QUANTITY) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * The lines a previous attempt already wrote, or null when this batch is new.
      *
      * **Three outcomes, and the third is the one worth being loud about.** None present means write.
@@ -472,13 +524,20 @@ final class StockController extends Controller
      * Rebuilt from the movements rather than from a stored copy of the response. Each row carries its
      * product, which is everything the client needs.
      *
+     * @param  array<string, mixed>  $data  the validated payload, because a replay has to be the
+     *                                      same REQUEST and not merely the same key
      * @return array<int, array<string, mixed>>|null
      */
-    private function replayOf(?string $batchKey, int $lineCount): ?array
+    private function replayOf(array $data, Location $location): ?array
     {
+        $batchKey = $data['idempotency_key'] ?? null;
+
         if ($batchKey === null) {
             return null;
         }
+
+        $lines = $data['lines'];
+        $lineCount = count($lines);
 
         // **Every key under this batch, by PREFIX rather than the indices this request happens to
         // ask about.** Looking up `:0..:n` for the CURRENT line count made a shorter retry of a
@@ -493,8 +552,16 @@ final class StockController extends Controller
 
         $keys = array_map(fn (int $i): string => self::lineKey($batchKey, $i), range(0, $lineCount - 1));
 
+        // **A key names a REQUEST, so a replay has to be the same request.** The count and the key
+        // set alone let a retry carrying different lines, or the same lines aimed at another shelf,
+        // read as a complete replay: the client was answered 200 with the FIRST batch's movements
+        // and read that as "my delivery landed" when nothing of it had. That is the mirror of the
+        // bug idempotency exists to prevent, and the quieter half of it, because it writes nothing
+        // and says it did.
         abort_if(
-            $existing->count() !== $lineCount || array_diff($keys, $existing->keys()->all()) !== [],
+            $existing->count() !== $lineCount
+                || array_diff($keys, $existing->keys()->all()) !== []
+                || ! $this->sameBatch($lines, $keys, $existing, $location),
             409,
             'This key already names a different batch. Refusing rather than answering about lines '
             .'nobody asked for or appending on top of what is there.',
