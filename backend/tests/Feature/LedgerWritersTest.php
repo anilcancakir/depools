@@ -75,6 +75,12 @@ final class LedgerWritersTest extends TestCase
                 // and was right to: a read in a controller is one refactor away from a write that
                 // bypasses `StockWriter`.
                 'app/Services/StockLedger.php',
+                // Buckets consumption into a day grid to smooth a consumption rate. A READ, and it
+                // reads `stock_movements` rather than `product_stock` because a projection is a
+                // balance and a rate needs the history behind it. Its own service rather than a
+                // method on `StockLedger` for the same reason `StockConsistency` is: the ledger
+                // answers questions about stock, this one answers a question about time.
+                'app/Services/ConsumptionForecast.php',
             ],
             'stock_lots' => [
                 'app/Services/StockWriter.php',
