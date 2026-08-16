@@ -313,9 +313,16 @@ final class ProductListQuery
                 // A target the user actually chose. Without the null guard every product holding a
                 // little would report as running low, and "below target" has to mean something
                 // somebody decided.
+                //
+                // **`<`, and it was `<=`.** The old comment on the test said "at the target exactly,
+                // which counts: the client's predicate is `<=`", and that was true of the client and
+                // wrong about the boundary. `forecasting.md` computes how much to buy as the target
+                // minus what is on hand, so a product sitting exactly at its target produces a
+                // shopping line reading "buy 0", and the running-low screen is a strict subset of
+                // that list. Two of a target of two is the amount the user asked to keep.
                 $query->whereNotNull('products.par_level')
                     ->where('stock_totals.total_quantity', '>', 0)
-                    ->whereColumn('stock_totals.total_quantity', '<=', 'products.par_level');
+                    ->whereColumn('stock_totals.total_quantity', '<', 'products.par_level');
                 break;
         }
     }

@@ -834,10 +834,10 @@
     },
     "running_low": {
       "title": "Running low",
-      "subtitle": ":short products · :out out of stock",
-      "subtitle_empty": "Nothing below its target",
+      "subtitle": ":short running low · :out out of stock",
+      "subtitle_empty": "Nothing running low",
       "out_group": "Out of stock",
-      "product_count": ":count products",
+      "product_count": ":count product|:count products",
       "tier_forecast": "By forecast",
       "tier_rough": "Little history",
       "tier_target": "By target",
@@ -845,9 +845,11 @@
       "note_rough": "Little history · a rough range only",
       "note_target": "No history · target level only",
       "meta_target": "Target :par :unit",
-      "meta_cover": ":days days left",
-      "empty_title": "Nothing below its target",
-      "empty_description": "Products with a target level appear here once they fall below it. Products with no target never appear."
+      "meta_cover": ":days day left|:days days left",
+      "empty_title": "Nothing running low",
+      "empty_description": "Products appear here when they run out, and when they fall to or below a target level you have set.",
+      "meta_no_target": "No target set",
+      "load_failed": "The list could not be loaded"
     },
     "scan": {
       "title": "Scan a barcode",

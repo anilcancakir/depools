@@ -509,6 +509,20 @@ final class Product extends Model
     }
 
     /**
+     * What the ledger says about how fast this is used, or nothing yet.
+     *
+     * A `HasOne` because `product_forecasts` carries a unique index on `product_id`: the recompute
+     * is an upsert, so two rows would mean two screens reading two answers.
+     *
+     * Absent for a product nothing has consumed, and that absence is meaningful rather than a gap
+     * to default away: it is the honest "no history" the bottom tier exists to say.
+     */
+    public function forecast(): HasOne
+    {
+        return $this->hasOne(ProductForecast::class);
+    }
+
+    /**
      * The current quantity, summed from the ledger rather than read from a column.
      *
      * Slow by construction and correct by construction. `product_stock` exists so list screens do

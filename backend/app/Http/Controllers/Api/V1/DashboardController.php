@@ -125,7 +125,7 @@ final class DashboardController extends Controller
         $filter = new ProductListQuery($criteria, $today);
 
         $rows = $filter->apply(
-            Product::query()->with(['stock', 'tags', 'unit', 'primaryImage'])->withCount('movements'),
+            Product::query()->with(['stock', 'tags', 'unit', 'primaryImage', 'forecast'])->withCount('movements'),
         )->limit(self::PREVIEW)->get();
 
         return [

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ProductMovementController;
+use App\Http\Controllers\Api\V1\RunningLowController;
 use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\TeamSettingsController;
@@ -91,6 +92,11 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // **What is running out of time**, which is the middle of the product's three promises and the
     // one nothing answered. Lots and warranties in one list, because the screen treats them alike.
     Route::get('expiring', [ExpiringController::class, 'index']);
+
+    // **What is short**, which is the diagnosis half of D57's pair. Flat and unpaginated like
+    // `expiring`: the result is already bounded by the question, and a screen answering "what do I
+    // need to deal with" is unusable a page at a time.
+    Route::get('running-low', [RunningLowController::class, 'index']);
 
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 

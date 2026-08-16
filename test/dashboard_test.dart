@@ -44,15 +44,15 @@ void main() {
     });
 
     test('out of stock is contained in below target, so the stock card must de-duplicate', () {
-      // The dashboard pulls the out-of-stock rows to the front of `belowTarget` rather than
+      // The dashboard pulls the out-of-stock rows to the front of `runningLow` rather than
       // appending them, and this is what makes that necessary rather than stylistic. If the
       // containment ever inverts, appending would be correct and the pull would drop rows.
-      final Set<String> low = belowTarget.map((ProductListItem p) => p.name).toSet();
+      final Set<String> low = runningLow.map((ProductListItem p) => p.name).toSet();
 
       for (final ProductListItem p in outOfStock) {
         expect(low, contains(p.name), reason: '${p.name} is out of stock but not below target');
       }
-      expect(outOfStock.length, lessThan(belowTarget.length));
+      expect(outOfStock.length, lessThan(runningLow.length));
     });
 
     test('every source the dashboard reads is non-empty, so no card is dead code', () {
@@ -62,7 +62,7 @@ void main() {
       expect(productFixtures, isNotEmpty);
       expect(locationOptions, isNotEmpty);
       expect(datedLots(), isNotEmpty);
-      expect(belowTarget, isNotEmpty);
+      expect(runningLow, isNotEmpty);
       expect(pendingLines, isNotEmpty);
       expect(activityEntries, isNotEmpty);
     });
@@ -72,7 +72,7 @@ void main() {
       // fewer it would be unreachable code that nobody had rendered.
       final List<int> totals = <int>[
         expiredRows().length + datedLots().where((DatedLot l) => !l.isExpired).length,
-        belowTarget.length,
+        runningLow.length,
         activityEntries.length,
       ];
 
@@ -87,7 +87,7 @@ void main() {
           expiredRows().isEmpty &&
           approachingByLocation().isEmpty &&
           outOfStock.isEmpty &&
-          belowTarget.isEmpty;
+          runningLow.isEmpty;
 
       expect(calm, isFalse, reason: 'the demo tenant is deliberately mid-work, not caught up');
     });

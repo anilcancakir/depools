@@ -81,6 +81,11 @@ final class LedgerWritersTest extends TestCase
                 // method on `StockLedger` for the same reason `StockConsistency` is: the ledger
                 // answers questions about stock, this one answers a question about time.
                 'app/Services/ConsumptionForecast.php',
+                // Measures the gaps between `purchase` DAYS to answer how often this tenant shops,
+                // which is the lead time a reorder point is multiplied by (D48). A READ, and
+                // tenant-wide rather than per product, which is why it is not a method on the
+                // forecast: when the user next gets to a shop is a fact about the user.
+                'app/Services/RestockRhythm.php',
             ],
             'stock_lots' => [
                 'app/Services/StockWriter.php',
@@ -107,6 +112,11 @@ final class LedgerWritersTest extends TestCase
                 // Counts its own pairs, so a screen can ask whether a shelf holds anything without
                 // reading the product list. A relation declaration and nothing else.
                 'app/Models/Location.php',
+                // Sums the projection to decide what is short. A READ, and it reads the projection
+                // rather than the ledger for the reason the projection exists: a shortage is a
+                // question about the current balance, and walking the movements per product would
+                // aggregate the whole ledger to draw one screen.
+                'app/Services/RunningLowQuery.php',
             ],
         ];
     }

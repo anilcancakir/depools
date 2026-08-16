@@ -388,21 +388,50 @@ class ProductListItem {
   /// user chose, or every product with a little stock would report as running low.
   final num? parLevel;
 
-  /// How many non-zero movements this product has, which is the only thing that decides
-  /// which certainty tier it is in.
+  /// How many times this product has been touched, in total.
   ///
-  /// `forecasting.md` gates hard on this: below roughly ten movements no forecast is shown
-  /// at all, because a household consumes a given item two to eight times a month and a
-  /// confident number from three points is how a prediction feature loses its credibility
-  /// on the first wrong guess. Ten is a reasoned starting point rather than a sourced
-  /// constant, and the doc says so.
+  /// Deliveries, counts, transfers and consumption alike. **It is not the certainty gate and
+  /// it used to be**: this field decided [tier] locally, against a copy of the ten in Dart,
+  /// and a product delivered ten times and never consumed came out claiming a full forecast.
+  /// [demandCount] is the figure the gate is built on.
   final int movementCount;
 
-  /// Days of cover, and ONLY set when [movementCount] supports a forecast.
+  /// Which of `forecasting.md`'s three certainty tiers this product sits in.
+  ///
+  /// **The server decides it, and that is the point.** The tier is a promise about what a
+  /// sentence may claim, so it has to come from the same place the rate does: the shopping
+  /// list turns it into the SHAPE of a sentence (D46) and the running-low list turns it into
+  /// a group heading, and neither may say more than the history supports. Deriving it here
+  /// put the threshold in two languages, free to drift, and read it off the wrong number.
+  ///
+  /// Defaults to the floor rather than to a guess. A payload with no forecast attached
+  /// describes a product nothing has consumed, which is exactly what [ForecastTier.target]
+  /// means.
+  final ForecastTier tier;
+
+  /// How many DAYS demand actually happened, which is what the tier is decided on.
+  ///
+  /// `forecasting.md` gates hard on this: below roughly ten, no forecast is shown at all,
+  /// because a household consumes a given item two to eight times a month and a confident
+  /// number from three points is how a prediction feature loses its credibility on the first
+  /// wrong guess. Ten is a reasoned starting point rather than a sourced constant.
+  final int demandCount;
+
+  /// Days of cover, and ONLY set when the history supports a rate.
   ///
   /// Null is the normal case here and not a gap: it is the honest output for a product
   /// whose history cannot carry a rate. Nothing derives a figure from it when it is null.
+  ///
+  /// Divided by the server against the same quantity it sent in [amount], so the two cannot
+  /// describe different amounts of the same product.
   final int? daysOfCover;
+
+  /// The inferred reorder point, in base units, or null where none could be inferred.
+  ///
+  /// The consumption rate multiplied by how often this tenant shops (D48). It arrives rather
+  /// than being computed here because half of it is a fact about the tenant: the same product
+  /// has a different reorder point for a household that shops weekly and one that shops daily.
+  final num? reorderPoint;
 
   /// Days until the date that actually matters, whichever comes first.
   ///
@@ -543,6 +572,11 @@ class ProductListItem {
     final String? contentUnit = json['content_unit'] as String?;
     final String baseUnit = json['base_unit'] as String;
 
+    // Absent when the caller did not ask for it, and null inside when the product has never been
+    // consumed. Both mean the same thing and both land on the bottom tier, so neither is special
+    // cased: `_tierFrom` reads one nullable map.
+    final Map<String, dynamic>? forecast = json['forecast'] as Map<String, dynamic>?;
+
     return ProductListItem(
       id: json['id'] as String?,
       lots: <LotFixture>[
@@ -578,6 +612,13 @@ class ProductListItem {
       shelfLifeDays: json['default_shelf_life_days'] as int?,
       statedThresholdDays: json['expiry_threshold_days'] as int?,
       movementCount: json['movements_count'] as int? ?? 0,
+      tier: _tierFrom(forecast),
+      demandCount: forecast?['movement_count'] as int? ?? 0,
+      // Rounded DOWN, and that is the safe direction here rather than a formatting choice: 2.9
+      // days of cover shown as 3 promises a day the product does not have. Truncating turns
+      // "just under three" into "two", which is the error a user can absorb.
+      daysOfCover: toNumOrNull(forecast?['days_of_cover'])?.floor(),
+      reorderPoint: toNumOrNull(json['inferred_reorder_point']),
       daysUntilExpiry: days,
       expiryLabel: days == null ? null : expiryLabelFor(days),
       locationIds: locationIds,
@@ -611,7 +652,10 @@ class ProductListItem {
     this.tags = const {},
     this.parLevel,
     this.movementCount = 0,
+    this.tier = ForecastTier.target,
+    this.demandCount = 0,
     this.daysOfCover,
+    this.reorderPoint,
     this.daysUntilExpiry,
     this.expiryLabel,
     this.shelfLifeDays,
@@ -801,6 +845,19 @@ class ProductListItem {
         if (row is Map<dynamic, dynamic>) Map<String, dynamic>.from(row),
   ];
 
+  /// The certainty tier the server decided, or the floor when it sent none.
+  ///
+  /// An unrecognised value also lands on the floor rather than throwing. The vocabulary is closed
+  /// by a CHECK constraint so a fourth value cannot arrive from this server, and the failure
+  /// direction still has to be the safe one: claiming less than the history supports is the whole
+  /// point of the tier, and a screen that crashed on a payload would be worse at it than a screen
+  /// that under-claims.
+  static ForecastTier _tierFrom(Map<String, dynamic>? forecast) => switch (forecast?['tier']) {
+    'forecast' => ForecastTier.forecast,
+    'rough' => ForecastTier.rough,
+    _ => ForecastTier.target,
+  };
+
   /// A decimal that PostgreSQL sends as a string, or null.
   ///
   /// `decimal:3` arrives as `'6.000'` rather than as a number, so every threshold on this row
@@ -984,27 +1041,30 @@ class ProductListItem {
   /// attention list forever. Opening something shelf-stable is not an event.
   bool get isOpenAndPerishable => hasOpenUnit && openDaysRemaining != null;
 
-  /// Whether stock has fallen to or below the user's own target level.
+  /// Whether stock has fallen BELOW the user's own target level.
   ///
   /// Requires a target the user actually set. Without the null guard, every product
   /// holding a small amount would report as running low, and "below par" has to mean
   /// something someone chose.
-  bool get isBelowPar => parLevel != null && amount > 0 && amount <= parLevel!;
+  ///
+  /// **`<`, and it was `<=` until the shopping list made the boundary decidable.** How much
+  /// to buy is the target minus what is on hand, so a product sitting at exactly its target
+  /// produces a line reading "buy 0". Two of a target of two is not a shortage: it is the
+  /// amount the user asked to keep. The trigger the app INFERS is a different thing and is
+  /// still at-or-below, because a reorder point is by definition the level you act on
+  /// ([isBelowReorderPoint]).
+  bool get isBelowPar => parLevel != null && amount > 0 && amount < parLevel!;
 
   /// Whether the earliest lot is already past its date.
   bool get isExpired => daysUntilExpiry != null && daysUntilExpiry! < 0;
 
-  /// Which of `forecasting.md`'s three certainty tiers this product sits in.
+  /// Whether stock has fallen to or below the reorder point the server inferred.
   ///
-  /// The tier is what tells a user how much to trust a ranking, so it is a property of the
-  /// product rather than of any screen: the shopping list turns it into the SHAPE of a
-  /// sentence (D46) and the running-low list turns it into a group heading, and both read
-  /// it from here so they cannot disagree about which tier a product is in.
-  ForecastTier get tier {
-    if (movementCount >= 10) return ForecastTier.forecast;
-    if (movementCount >= 2) return ForecastTier.rough;
-    return ForecastTier.target;
-  }
+  /// Rate times how often this tenant shops (D48), which is why the number arrives rather
+  /// than being computed here: half of it is a fact about the tenant, not about the product.
+  /// Null unless the server sent one, and it only does for a product with enough history.
+  bool get isBelowReorderPoint =>
+      reorderPoint != null && amount > 0 && amount <= reorderPoint!;
 
   /// Whether stock has run out entirely, which is not "running low" but its own state.
   bool get isOut => amount == 0;
@@ -1087,6 +1147,8 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   ProductListItem(
     name: 'Pınar Süt Tam Yağlı 1 lt',
     movementCount: 9,
+    tier: ForecastTier.rough,
+    demandCount: 9,
     brand: 'Pınar',
     // Sealed cartons in the pantry, the open one in the fridge. A product genuinely
     // split across locations is what keeps the location filter honest.
@@ -1163,6 +1225,8 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   ProductListItem(
     name: 'Vanilya Tozu 3\'lü',
     movementCount: 3,
+    tier: ForecastTier.rough,
+    demandCount: 3,
     brand: 'Dr. Oetker',
     locationIds: {'loc-pantry'},
     locationSummary: 'Kiler › Raf 1',
@@ -1196,6 +1260,8 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   ProductListItem(
     name: 'Bulgur',
     movementCount: 12,
+    tier: ForecastTier.forecast,
+    demandCount: 12,
     daysOfCover: 4,
     brand: 'Duru',
     locationIds: {'loc-drawer'},
@@ -1213,6 +1279,8 @@ const List<ProductListItem> productFixtures = <ProductListItem>[
   ProductListItem(
     name: 'Kıyma',
     movementCount: 14,
+    tier: ForecastTier.forecast,
+    demandCount: 14,
     daysOfCover: 0,
     brand: 'Dana',
     locationIds: {'loc-freezer'},

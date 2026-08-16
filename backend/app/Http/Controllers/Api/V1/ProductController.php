@@ -93,7 +93,7 @@ final class ProductController extends Controller
 
         $page = $filter->apply(
             Product::query()
-                ->with(['stock', 'tags', 'unit', 'primaryImage'])
+                ->with(['stock', 'tags', 'unit', 'primaryImage', 'forecast'])
                 // One aggregate for the whole page rather than a query per row. The count decides
                 // which certainty tier the client is allowed to speak in, so a list without it can
                 // only render the most cautious one for everything.
@@ -310,7 +310,7 @@ final class ProductController extends Controller
     public function show(string $id): ProductResource
     {
         $product = Product::query()
-            ->with(['stock', 'tags', 'lots', 'serials', 'unit', 'primaryImage', 'images'])
+            ->with(['stock', 'tags', 'lots', 'serials', 'unit', 'primaryImage', 'images', 'forecast'])
             ->withCount('movements')
             ->findOrFail($id);
 
