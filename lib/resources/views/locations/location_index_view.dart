@@ -13,6 +13,8 @@ import 'package:magic_starter/magic_starter.dart'
 import '../../../app/models/app_preferences.dart';
 import '../../../ui/components/list_footer/list_footer.dart';
 import '../../../ui/components/location_row/location_row.dart';
+import '../../../app/controllers/location_controller.dart';
+import '../../../app/models/location_node.dart';
 import 'location_fixtures.dart';
 import '../../../ui/components/section_card/section_card.dart';
 
@@ -31,50 +33,6 @@ enum LocationScope {
   /// Only empty places, which is what a user looks for when deciding where to put
   /// something new.
   empty,
-}
-
-/// One node in the fixture tree.
-@immutable
-class LocationNode {
-  /// The location's own name.
-  final String name;
-
-  /// Depth, 0 for a root.
-  final int depth;
-
-  /// Products in the subtree.
-  final int productCount;
-
-  /// The already-formatted contents line.
-  final String summary;
-
-  /// The full ancestor path, used when the tree is filtered and the indent loses meaning.
-  final String path;
-
-  /// The location's icon NAME, from `locations.icon`.
-  ///
-  /// **Every node draws one, children included.** A tree where only roots carry a glyph
-  /// makes the children look like text under a heading rather than like places, and a
-  /// shelf is as much a place as a room is. The column is nullable, so the fallback lives
-  /// in `location_appearance.dart` rather than in a condition on the row.
-  final String? icon;
-
-  /// The location's hue NAME, from `locations.colour`.
-  ///
-  /// Also nullable, and also resolved through the same fallback: a location the user never
-  /// tinted is neutral rather than absent.
-  final String? colour;
-
-  /// Creates a [LocationNode].
-  const LocationNode({
-    required this.name,
-    required this.depth,
-    required this.productCount,
-    required this.summary,
-    required this.path,
-    this.icon,
-    this.colour,
-  });
 }
 
 /// The location hierarchy: where a tenant keeps things.
@@ -103,7 +61,49 @@ class LocationNode {
 /// to semi-auto and the user is told why. So the dial is a request, not a guarantee, and
 /// the screen says so rather than implying the setting is the last word.
 @immutable
-class LocationIndexView extends StatelessWidget {
+class LocationIndexView extends StatefulWidget {
+  /// Whether the tenant has no locations yet.
+  final bool isEmpty;
+
+  /// Which locations are shown.
+  final LocationScope scope;
+
+  /// Nodes supplied by the caller, which is how the preview catalog stays offline.
+  ///
+  /// Null means "read [LocationController]", which is what the route does. The preview passes
+  /// [locationTree] instead, and that is not a second fixture in a wired screen: it is the same
+  /// contract filled from a different source, and it is the only way the catalog can render this
+  /// screen with no backend and no authenticated tenant behind it. Same split as the product list.
+  ///
+  /// The state class only touches the controller when this is null, so a preview never instantiates
+  /// it and never issues a request.
+  final List<LocationNode>? nodes;
+
+  /// Creates the [LocationIndexView], reading from [LocationController].
+  const LocationIndexView({super.key, this.nodes}) : isEmpty = false, scope = LocationScope.all;
+
+  /// Creates the view for a tenant with no locations yet.
+  const LocationIndexView.empty({super.key})
+    : nodes = const <LocationNode>[],
+      isEmpty = true,
+      scope = LocationScope.all;
+
+  /// Creates the view narrowed to empty places, which is its own reviewable state.
+  ///
+  /// **A filtered tree loses its ancestors, and that is the case worth seeing.** Filtering
+  /// to empty shelves hides the rooms they sit in, so a row indented two levels under
+  /// nothing reads as broken. The filtered view shows each match with its PATH instead of
+  /// its indent, which is the one place `LocationRow`'s own-name rule has to give way:
+  /// with no tree on screen, the path is the only context left.
+  const LocationIndexView.filtered({super.key, this.nodes})
+    : isEmpty = false,
+      scope = LocationScope.empty;
+
+  @override
+  State<LocationIndexView> createState() => _LocationIndexViewState();
+}
+
+class _LocationIndexViewState extends State<LocationIndexView> {
   static const IconData _addIcon = Icons.add_outlined;
   static const IconData _emptyIcon = Icons.location_on_outlined;
   static const IconData _searchIcon = Icons.search_outlined;
@@ -113,28 +113,80 @@ class LocationIndexView extends StatelessWidget {
 
   static const List<PlacementAutomation> _dial = PlacementAutomation.values;
 
-  /// Whether the tenant has no locations yet.
-  final bool isEmpty;
+  /// The controller, or null when the caller supplied its own nodes.
+  LocationController? _controller;
 
-  /// Which locations are shown.
-  final LocationScope scope;
-
-  /// Creates the [LocationIndexView].
-  const LocationIndexView({super.key}) : isEmpty = false, scope = LocationScope.all;
-
-  /// Creates the view for a tenant with no locations yet.
-  const LocationIndexView.empty({super.key}) : isEmpty = true, scope = LocationScope.all;
-
-  /// Creates the view narrowed to empty places, which is its own reviewable state.
+  /// Whether the starter template is being written, so it cannot be started twice.
   ///
-  /// **A filtered tree loses its ancestors, and that is the case worth seeing.** Filtering
-  /// to empty shelves hides the rooms they sit in, so a row indented two levels under
-  /// nothing reads as broken. The filtered view shows each match with its PATH instead of
-  /// its indent, which is the one place `LocationRow`'s own-name rule has to give way:
-  /// with no tree on screen, the path is the only context left.
-  const LocationIndexView.filtered({super.key})
-    : isEmpty = false,
-      scope = LocationScope.empty;
+  /// Three creates with no unique constraint behind them: a second tap would give the tenant six
+  /// locations with three pairs of identical names, which is a legal tree and an obviously wrong one.
+  bool _seeding = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.nodes != null) return;
+
+    final LocationController controller = LocationController.instance
+      ..addListener(_onControllerChanged);
+
+    // **`onInit` has to be called here, and nothing else calls it.** `Magic.findOrPut` only
+    // registers the instance, and the framework's only caller of `onInit` is `MagicView`, which this
+    // screen is not. A controller reached through `.instance` from a plain `StatefulWidget`
+    // therefore never initialises, and the screen would show "No locations yet" against a tenant who
+    // has forty, with no request in the server log at all. The product list hit exactly this.
+    if (!controller.initialized) controller.onInit();
+
+    _controller = controller;
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Write the three starter places, then let the tree redraw with them.
+  ///
+  /// The failure is a toast rather than the screen's error state: the empty state is still the
+  /// truth, and replacing it with an error would take away the two buttons that are the way out.
+  Future<void> _seedTemplate() async {
+    final LocationController? controller = _controller;
+
+    // Null only in the preview, which renders the empty state as a design case with no session.
+    if (controller == null) return;
+
+    setState(() => _seeding = true);
+
+    final String? failure = await controller.createTemplate();
+
+    if (!mounted) return;
+
+    setState(() => _seeding = false);
+
+    if (failure != null) {
+      MagicFeedback.error(Lang.get('screens.locations.title'), failure);
+    }
+  }
+
+  /// Everything the screen has, whatever the source.
+  List<LocationNode> get _all =>
+      widget.nodes ?? _controller?.nodes ?? const <LocationNode>[];
+
+  /// Whether the tenant genuinely has no locations, as opposed to not having them yet.
+  ///
+  /// A fetch that has not answered is NOT empty: the empty state offers to create a first location,
+  /// so showing it while the tree is in flight invites a tenant with forty shelves to make a
+  /// forty-first.
+  bool get _isEmpty => widget.nodes != null
+      ? widget.isEmpty
+      : (_controller?.loaded ?? false) && _all.isEmpty;
+
 
   /// The tree, flattened in reading order with its depths.
   ///
@@ -151,14 +203,14 @@ class LocationIndexView extends StatelessWidget {
   };
 
   /// The nodes the current scope admits.
-  List<LocationNode> get _visible => switch (scope) {
-    LocationScope.all => locationTree,
-    LocationScope.stocked => locationTree.where((n) => n.productCount > 0).toList(),
-    LocationScope.empty => locationTree.where((n) => n.productCount == 0).toList(),
+  List<LocationNode> get _visible => switch (widget.scope) {
+    LocationScope.all => _all,
+    LocationScope.stocked => _all.where((LocationNode n) => n.productCount > 0).toList(),
+    LocationScope.empty => _all.where((LocationNode n) => n.productCount == 0).toList(),
   };
 
   /// Whether the tree is being shown whole, which decides indent versus path.
-  bool get _isWholeTree => scope == LocationScope.all;
+  bool get _isWholeTree => widget.scope == LocationScope.all;
 
   /// The already-localised label for a dial position.
   static String _dialLabel(PlacementAutomation value) => switch (value) {
@@ -180,19 +232,19 @@ class LocationIndexView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int roots = locationTree.where((n) => n.depth == 0).length;
+    final int roots = _all.where((LocationNode n) => n.depth == 0).length;
 
     return MSPageScaffold(
       title: Lang.get('screens.locations.title'),
-      subtitle: isEmpty
+      subtitle: _isEmpty
           ? null
-          : Lang.get('screens.locations.subtitle', {'total': locationTree.length, 'roots': roots}),
+          : Lang.get('screens.locations.subtitle', {'total': _all.length, 'roots': roots}),
       // **No header action while the list is empty.** The empty state already carries a
       // full-width `Konum ekle`, so rendering the icon button too put the same action on screen
       // twice, both in primary blue, on the one screen where the call to action has to be
       // unambiguous. The labelled button is the better of the two for a first-run user, so the
       // icon waits until there is a list to add to.
-      actions: isEmpty
+      actions: _isEmpty
           ? const <Widget>[]
           : [
               MSButton(
@@ -203,7 +255,7 @@ class LocationIndexView extends StatelessWidget {
               ),
             ],
       children: [
-        if (isEmpty)
+        if (_isEmpty)
           _buildEmpty()
         else ...[
           // The dial goes ABOVE the tree because the tree does not end. See
@@ -247,7 +299,7 @@ class LocationIndexView extends StatelessWidget {
         ),
         MSSegmentedControl<LocationScope>(
           options: _scopes.map(_scopeLabel).toList(),
-          selectedIndex: _scopes.indexOf(scope),
+          selectedIndex: _scopes.indexOf(widget.scope),
           onChanged: (_) {},
         ),
       ],
@@ -391,7 +443,12 @@ class LocationIndexView extends StatelessWidget {
           child: WText(Lang.get('screens.locations.add')),
         ),
         MSButton(
-          onPressed: () => MagicRoute.to('/locations/new'),
+          // **It used to route to the form, which is what the button above it does.** Two buttons
+          // with different labels doing the same thing is worse than one, and the template is the
+          // whole reason a first-run user would take the second: it hands them three places to put
+          // things instead of one form to fill in three times.
+          onPressed: _seeding ? null : _seedTemplate,
+          disabled: _seeding,
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',

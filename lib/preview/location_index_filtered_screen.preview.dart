@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/locations/location_fixtures.dart';
 import '../resources/views/locations/location_index_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -19,5 +20,5 @@ class LocationIndexFilteredScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const LocationIndexView.filtered();
+  static Widget _build(BuildContext context) => const LocationIndexView.filtered(nodes: locationTree);
 }
