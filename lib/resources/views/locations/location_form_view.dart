@@ -87,6 +87,12 @@ class _LocationFormViewState extends State<LocationFormView> {
   /// this, adding and deleting one character would buy the same answer again.
   String? _suggestedFor;
 
+  /// What that name suggested, so typing back to it restores the glyph rather than paying again.
+  ///
+  /// Null is a real answer here and it is kept as one: a name the model was unsure of stays unsure,
+  /// and re-deriving it would spend a credit to be told the same thing.
+  String? _suggestedIcon;
+
   /// Whether a suggestion is in flight, for the note beside the icon label.
   bool _isSuggesting = false;
 
@@ -106,7 +112,21 @@ class _LocationFormViewState extends State<LocationFormView> {
   /// **700ms, which is a pause rather than a gap between letters.** Shorter and a two-word name
   /// buys two answers; longer and the glyph lands after the user has moved on to the parent picker.
   void _onNameChanged(String next) {
-    setState(() => _name = next);
+    setState(() {
+      _name = next;
+
+      // **A derived value does not outlive what it was derived from.** Without this the glyph from
+      // the previous name stayed on screen under a note claiming it came from the current one, and
+      // it stayed there for good when the next suggestion answered null: the form would then SAVE
+      // a picture chosen for a name the user had typed over.
+      //
+      // Cleared on the keystroke rather than when the replacement lands, because the window between
+      // them is a second of the screen saying something untrue.
+      if (_iconIsAutomatic) {
+        _icon = null;
+        _iconIsAutomatic = false;
+      }
+    });
 
     _suggestTimer?.cancel();
 
@@ -125,9 +145,26 @@ class _LocationFormViewState extends State<LocationFormView> {
   Future<void> _suggest() async {
     final String name = _name.trim();
 
-    if (name.isEmpty || _iconIsUserChosen || name == _suggestedFor) return;
+    if (name.isEmpty || _iconIsUserChosen) return;
+
+    // Typed back to a name already asked about: re-apply what it answered instead of buying it
+    // again. Reached whenever an edit is undone, which the clear above made ordinary rather than
+    // rare, since deleting a character and putting it back now goes through here.
+    if (name == _suggestedFor) {
+      final String? held = _suggestedIcon;
+
+      if (held != null) {
+        setState(() {
+          _icon = held;
+          _iconIsAutomatic = true;
+        });
+      }
+
+      return;
+    }
 
     _suggestedFor = name;
+    _suggestedIcon = null;
 
     setState(() => _isSuggesting = true);
 
@@ -147,6 +184,7 @@ class _LocationFormViewState extends State<LocationFormView> {
 
       _icon = icon.name;
       _iconIsAutomatic = true;
+      _suggestedIcon = icon.name;
     });
   }
 
