@@ -28,6 +28,16 @@ class ProductDetailController extends MagicController
 
   List<MovementEntry> _movements = const <MovementEntry>[];
 
+  int? _movementTotal;
+
+  /// How many entries the product has, as the SERVER counts them.
+  ///
+  /// **Not `movements.length`, because the endpoint paginates at 25.** The card's header says how
+  /// many entries there are, and a product counted weekly for a year has hundreds: reading the list
+  /// would make the header say 25 forever and disagree with the "All" link beside it. Null when the
+  /// fetch failed, which is why the caller falls back to the list rather than printing nothing.
+  int? get movementTotal => _movementTotal;
+
   /// The product's ledger entries, newest first.
   ///
   /// Empty is a real answer twice over: a product nobody has moved yet, and a fetch that failed
@@ -247,11 +257,16 @@ class ProductDetailController extends MagicController
       return const <MovementEntry>[];
     }
 
-    return data
-        .whereType<Map<String, dynamic>>()
-        .map(MovementEntry.fromMap)
-        .whereType<MovementEntry>()
-        .toList();
+    return <MovementEntry>[
+      for (final dynamic row in data)
+        // **`Map<dynamic, dynamic>` and then convert, which is what every other reader here does**
+        // (`ProductListItem._mapList`, `ProductListItem.fromApi`). `whereType<Map<String, dynamic>>`
+        // was narrower than the whole codebase: it happens to match what this HTTP layer decodes
+        // today, and the day it decodes one level less precisely this would drop every row and show
+        // an empty audit trail with no error anywhere.
+        if (row is Map<dynamic, dynamic>)
+          ?MovementEntry.fromMap(Map<String, dynamic>.from(row)),
+    ];
   }
 
   Future<void> load(String id, {bool force = false}) async {
@@ -347,6 +362,12 @@ class ProductDetailController extends MagicController
             ) ??
             const <MovementEntry>[]
         : const <MovementEntry>[];
+
+    // Laravel's paginated resource carries `meta.total`; measured on the live endpoint rather than
+    // taken from the docs. Null when the fetch failed or the shape is not what we expect, so the
+    // card can tell "no answer" from "no entries".
+    final Object? meta = movementResponse.successful ? movementResponse['meta'] : null;
+    _movementTotal = meta is Map && meta['total'] is int ? meta['total'] as int : null;
 
     setSuccess(product);
   }

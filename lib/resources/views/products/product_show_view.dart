@@ -1198,7 +1198,12 @@ class _ProductShowViewState extends State<ProductShowView> {
 
     return SectionCard(
       label: Lang.get('screens.product.activity_group'),
-      count: Lang.get('screens.product.activity_count', {'count': entries.length}),
+      // The SERVER's count, falling back to what is on screen. The endpoint pages at 25, so a
+      // product with a long history would otherwise be headed `25 entries` forever while the "All"
+      // link beside it opened something longer.
+      count: Lang.get('screens.product.activity_count', {
+        'count': _controller?.movementTotal ?? entries.length,
+      }),
       // Collapsible, unlike the sections above it. This is the audit trail: a user
       // reads it when a number looks wrong, not on every visit, and it is the one
       // section that keeps growing. It still starts open, because a section a new
