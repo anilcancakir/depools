@@ -290,15 +290,24 @@ final class StockWriter
     }
 
     /**
-     * Move stock between locations as exactly two equal and opposite movements (invariant 5).
+     * Move stock between locations as equal and opposite movements (invariant 5).
      *
-     * ### What the two halves share
+     * ### One PAIR per source lot, walking FEFO
+     *
+     * A move of three from a shelf holding a lot of one and a lot of five is two pairs, not one:
+     * expiry belongs to a lot, so the amount leaving each one is its own fact and the lot it
+     * arrives in has to carry that lot's date. Invariant 5 is per pair, which is the reading that
+     * survives: every outbound row is equal and opposite to exactly one inbound row.
+     *
+     * The single-lot case, which is most of them, still writes exactly one pair.
+     *
+     * ### What the two halves of a pair share
      *
      * The doc requires a shared reference and names receipts, invoices and shopping lists as the
      * things a reference usually points at. A transfer has no such document, so both halves point
-     * at the DESTINATION LOT, which a transfer creates exactly one of. It is a real row, both
-     * halves genuinely share it, and it answers the question the reference exists for: which move
-     * was this part of. A grouping column would answer the same question with a second mechanism.
+     * at the DESTINATION LOT that pair created. It is a real row, both halves genuinely share it,
+     * and it answers the question the reference exists for: which move was this part of. A grouping
+     * column would answer the same question with a second mechanism.
      *
      * ### Why not one movement with two locations
      *
@@ -306,7 +315,11 @@ final class StockWriter
      * carrying both ends would have to be counted twice with opposite signs by every reader, and
      * the first reader to forget would silently make stock appear or vanish.
      *
-     * @return array{0: StockMovement, 1: StockMovement} outbound then inbound
+     * @return array{0: Collection<int, StockMovement>, 1: Collection<int, StockMovement>} outbound
+     *                                                                                     then
+     *                                                                                     inbound,
+     *                                                                                     paired by
+     *                                                                                     index
      */
     public function transfer(
         Product $product,
@@ -315,12 +328,13 @@ final class StockWriter
         float $quantity,
         MovementSource $source = MovementSource::Manual,
         ?string $actorId = null,
+        ?MovementContext $context = null,
     ): array {
         if ($from->is($to)) {
             throw new RuntimeException('A transfer needs two different locations.');
         }
 
-        return DB::transaction(function () use ($product, $from, $to, $quantity, $source, $actorId): array {
+        return DB::transaction(function () use ($product, $from, $to, $quantity, $source, $actorId, $context): array {
             $sourceLots = $this->ledger->fefoLots($product, $from->getKey());
             $available = (float) $sourceLots->sum(static fn (StockLot $lot): float => (float) $lot->remaining_quantity);
 
@@ -330,38 +344,66 @@ final class StockWriter
                 );
             }
 
-            $sourceLot = $sourceLots->first();
+            $out = collect();
+            $in = collect();
+            $remaining = $quantity;
 
-            // The destination lot inherits the source's dates. A carton does not become fresher by
-            // being carried to another shelf, and losing the date here is how a transfer would
-            // quietly drop a product out of the expiry list.
-            $destinationLot = $this->newLot($product, [
-                'location_id' => $to->getKey(),
-                'initial_quantity' => 0,
-                'expires_at' => $sourceLot->expires_at,
-                'lot_code' => $sourceLot->lot_code,
-                'opened_at' => $sourceLot->opened_at,
-                'received_at' => $sourceLot->received_at,
-            ]);
-            $destinationLot->forceFill(['remaining_quantity' => 0])->save();
+            // **One pair per SOURCE LOT, walking FEFO, and this used to be one pair against the
+            // first lot alone.** The availability check above sums every lot on the shelf, so a
+            // request larger than the first one passed it and then debited the whole amount from
+            // that lot. `StockLot::recompute` clamps at `max($remaining, 0)`, so the overdraft did
+            // not surface as a negative lot: it vanished, and the untouched lots still counted in
+            // full. Measured on two lots of 1 and 5 with a move of 3: six units existed and eight
+            // remained.
+            //
+            // Splitting also fixes the quieter half. The destination inherited the FIRST lot's
+            // dates for the whole amount, so three units crossing a September lot and a December
+            // lot all arrived stamped September, and two of them aged three months early.
+            foreach ($sourceLots as $sourceLot) {
+                if ($remaining <= 0) {
+                    break;
+                }
 
-            $out = $this->append(
-                $sourceLot,
-                -$quantity,
-                MovementReason::TransferOut,
-                $source,
-                $actorId,
-                reference: $destinationLot,
-            );
+                $take = min($remaining, (float) $sourceLot->remaining_quantity);
 
-            $in = $this->append(
-                $destinationLot,
-                $quantity,
-                MovementReason::TransferIn,
-                $source,
-                $actorId,
-                reference: $destinationLot,
-            );
+                // The destination lot inherits ITS OWN source's dates. A carton does not become
+                // fresher by being carried to another shelf, and losing the date here is how a
+                // transfer would quietly drop a product out of the expiry list.
+                $destinationLot = $this->newLot($product, [
+                    'location_id' => $to->getKey(),
+                    'initial_quantity' => 0,
+                    'expires_at' => $sourceLot->expires_at,
+                    'lot_code' => $sourceLot->lot_code,
+                    'opened_at' => $sourceLot->opened_at,
+                    'received_at' => $sourceLot->received_at,
+                ]);
+                $destinationLot->forceFill(['remaining_quantity' => 0])->save();
+
+                // Invariant 5 holds PER PAIR: each half is equal and opposite to its partner and
+                // both carry the destination lot as their reference, so "which move was this part
+                // of" still has one answer for every row.
+                $out->push($this->append(
+                    $sourceLot,
+                    -$take,
+                    MovementReason::TransferOut,
+                    $source,
+                    $actorId,
+                    reference: $destinationLot,
+                    context: $context,
+                ));
+
+                $in->push($this->append(
+                    $destinationLot,
+                    $take,
+                    MovementReason::TransferIn,
+                    $source,
+                    $actorId,
+                    reference: $destinationLot,
+                    context: $context,
+                ));
+
+                $remaining -= $take;
+            }
 
             $this->ledger->rebuildProductStock($product, $from->getKey());
             $this->ledger->rebuildProductStock($product, $to->getKey());

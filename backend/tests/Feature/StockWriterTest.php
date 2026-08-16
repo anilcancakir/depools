@@ -6,6 +6,7 @@ use App\Enums\MovementReason;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\StockLot;
 use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\User;
@@ -124,21 +125,48 @@ final class StockWriterTest extends TestCase
         $this->assertNull($this->product->lots()->first()->opened_at);
     }
 
-    public function test_invariant_5_a_transfer_is_two_equal_and_opposite_movements(): void
+    public function test_invariant_5_a_transfer_is_pairs_of_equal_and_opposite_movements(): void
     {
+        // One lot on the shelf, so one pair. The invariant is stated PER PAIR because a move
+        // crossing two lots writes two of them, and the case below asserts it there as well.
         $this->writer->receive($this->product, $this->store, 10, expiresAt: '2026-09-01');
 
         [$out, $in] = $this->writer->transfer($this->product, $this->store, $this->kitchen, 4);
 
-        $this->assertSame(-4.0, (float) $out->delta);
-        $this->assertSame(4.0, (float) $in->delta);
-        $this->assertSame(MovementReason::TransferOut, $out->reason);
-        $this->assertSame(MovementReason::TransferIn, $in->reason);
+        $this->assertCount(1, $out);
+        $this->assertCount(1, $in);
 
-        // Shared reference: both halves point at the destination lot, which a transfer creates
-        // exactly one of, so "which move was this part of" has a single answer.
-        $this->assertSame($out->reference_id, $in->reference_id);
-        $this->assertNotNull($out->reference_id);
+        $this->assertSame(-4.0, (float) $out->first()->delta);
+        $this->assertSame(4.0, (float) $in->first()->delta);
+        $this->assertSame(MovementReason::TransferOut, $out->first()->reason);
+        $this->assertSame(MovementReason::TransferIn, $in->first()->reason);
+
+        // Shared reference: both halves point at the destination lot their own pair created, so
+        // "which move was this part of" has a single answer.
+        $this->assertSame($out->first()->reference_id, $in->first()->reference_id);
+        $this->assertNotNull($out->first()->reference_id);
+    }
+
+    public function test_invariant_5_holds_for_every_pair_of_a_split_transfer(): void
+    {
+        $this->writer->receive($this->product, $this->store, 1, expiresAt: '2026-09-01');
+        $this->writer->receive($this->product, $this->store, 5, expiresAt: '2026-12-31');
+
+        [$out, $in] = $this->writer->transfer($this->product, $this->store, $this->kitchen, 3);
+
+        $this->assertCount(2, $out);
+        $this->assertCount(2, $in);
+
+        foreach ($out as $index => $movement) {
+            $partner = $in[$index];
+
+            $this->assertSame(-(float) $movement->delta, (float) $partner->delta);
+            // Each pair carries its OWN destination lot, so two pairs never share a reference: that
+            // is what keeps "which move was this part of" answerable per row.
+            $this->assertSame($movement->reference_id, $partner->reference_id);
+        }
+
+        $this->assertNotSame($out[0]->reference_id, $out[1]->reference_id);
     }
 
     public function test_a_transfer_moves_the_total_without_changing_it(): void
@@ -162,6 +190,65 @@ final class StockWriterTest extends TestCase
         // here is how a transfer would quietly remove a product from the expiry list.
         $arrived = $this->product->lots()->where('location_id', $this->kitchen->getKey())->first();
         $this->assertSame('2026-09-01', $arrived->expires_at->toDateString());
+    }
+
+    public function test_a_transfer_larger_than_its_first_lot_does_not_invent_stock(): void
+    {
+        // **Measured before it was fixed: six units existed and eight remained.** The availability
+        // check summed ALL the source lots and the debit went against the FIRST one, and
+        // `StockLot::recompute` clamps at `max($remaining, 0)`, so the overdraft did not surface as a
+        // negative lot. It vanished, and the shelf it left behind still counted the untouched lot in
+        // full.
+        //
+        // The dates are what force two lots: FEFO orders by expiry, so the one-unit lot is first.
+        $this->writer->receive($this->product, $this->store, 1, expiresAt: '2026-09-01');
+        $this->writer->receive($this->product, $this->store, 5, expiresAt: '2026-12-31');
+
+        $this->writer->transfer($this->product, $this->store, $this->kitchen, 3);
+
+        // The ledger is the arbiter: six in, nothing consumed, six on hand across both shelves.
+        $this->assertSame('6.000', $this->product->quantityFromLedger());
+
+        $byLocation = ProductStock::pluck('quantity', 'location_id');
+        $this->assertSame('3.000', $byLocation[$this->store->getKey()]);
+        $this->assertSame('3.000', $byLocation[$this->kitchen->getKey()]);
+
+        // And no lot was driven past empty on the way, which is the shape the clamp was hiding.
+        foreach ($this->product->lots as $lot) {
+            $this->assertGreaterThanOrEqual(0, (float) $lot->remaining_quantity);
+        }
+    }
+
+    public function test_a_transfer_crossing_two_lots_keeps_each_ones_own_date(): void
+    {
+        // The quieter half of the same defect. The destination inherited the FIRST source lot's
+        // dates for the WHOLE amount, so moving three across a September lot and a December lot
+        // stamped all three with September: two units aged three months early, and the expiry list
+        // that reads `received_at` and `expires_at` believed it.
+        $this->writer->receive($this->product, $this->store, 1, expiresAt: '2026-09-01');
+        $this->writer->receive($this->product, $this->store, 5, expiresAt: '2026-12-31');
+
+        $this->writer->transfer($this->product, $this->store, $this->kitchen, 3);
+
+        $arrived = $this->product->lots()
+            ->where('location_id', $this->kitchen->getKey())
+            ->get()
+            ->keyBy(static fn (StockLot $lot): string => $lot->expires_at->toDateString());
+
+        $this->assertSame(['2026-09-01', '2026-12-31'], $arrived->keys()->sort()->values()->all());
+        $this->assertSame('1.000', $arrived['2026-09-01']->remaining_quantity);
+        $this->assertSame('2.000', $arrived['2026-12-31']->remaining_quantity);
+    }
+
+    public function test_a_transfer_of_more_than_the_shelf_holds_is_refused(): void
+    {
+        // Unchanged by the split above, and worth pinning beside it: the availability check is what
+        // stops the FEFO walk from running out of lots half way.
+        $this->writer->receive($this->product, $this->store, 2);
+
+        $this->expectException(RuntimeException::class);
+
+        $this->writer->transfer($this->product, $this->store, $this->kitchen, 3);
     }
 
     public function test_a_transfer_to_the_same_location_is_refused(): void
