@@ -27,11 +27,14 @@ final class ProductSerialResource extends JsonResource
             'location_id' => $this->location_id,
             'serial' => $this->serial,
             'warranty_ends_at' => $this->warranty_ends_at?->toDateString(),
-            'acquired_at' => $this->acquired_at?->toDateString(),
+            // `timestamp` columns, so they travel as INSTANTS: truncating one in the server's
+            // timezone loses the offset the client needs to name the reader's own day. See
+            // `StockLotResource` for the measurement that found this.
+            'acquired_at' => $this->acquired_at?->toIso8601String(),
             // Non-null means the unit is gone: sold, written off or otherwise released. Counted out
             // of every total and kept in the list, which is why this travels rather than the row
             // being filtered server-side.
-            'released_at' => $this->released_at?->toDateString(),
+            'released_at' => $this->released_at?->toIso8601String(),
         ];
     }
 }

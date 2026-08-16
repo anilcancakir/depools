@@ -35,8 +35,16 @@ final class StockLotResource extends JsonResource
             'lot_code' => $this->lot_code,
             'expires_at' => $this->expires_at?->toDateString(),
             'binding_expires_at' => $this->bindingDate()?->toDateString(),
-            'received_at' => $this->received_at?->toDateString(),
-            'opened_at' => $this->opened_at?->toDateString(),
+            // **An INSTANT, not a date string, and the difference is a day on screen.** This is a
+            // `timestamp` column, and `toDateString()` truncated it in the SERVER's timezone: the
+            // client received `2026-08-15` with no time and no offset, so it could not tell which
+            // day that was for the reader. Measured: the batches card said `Received 15/08/2026`
+            // while the activity card, which reads the movement's own timestamp, said `16/08/2026`.
+            //
+            // The true `date` columns below keep `toDateString()`, because they name a DAY rather
+            // than a moment and converting one would move it for readers west of UTC.
+            'received_at' => $this->received_at?->toIso8601String(),
+            'opened_at' => $this->opened_at?->toIso8601String(),
             // Formatted to the column's own scale for the reason `ProductResource` records: the
             // client renders lot remainders next to the product total, and one of them arriving as
             // `1` while the other arrives as `1.000` shows the same quantity two ways on one screen.
