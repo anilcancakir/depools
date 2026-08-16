@@ -40,6 +40,8 @@ import '../../../ui/components/product_gallery/product_gallery.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
 import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/product_thumb/product_thumb.dart';
+import '../../../app/models/movement_entry.dart';
+import '../../../app/support/movement_copy.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -1181,28 +1183,27 @@ class _ProductShowViewState extends State<ProductShowView> {
 
   Widget _buildMovements() {
     if (widget.isNew) {
-      return SectionCard(
-        label: Lang.get('screens.product.activity_group'),
-        children: [
-          WDiv(
-            // Full width so MSEmptyState's own `items-center` has something to centre
-            // in; see the note in ProductIndexView for why a `justify-center` row is
-            // the wrong tool here.
-            className: 'w-full',
-            child: MSEmptyState(
-              icon: _emptyMovementsIcon,
-              title: Lang.get('screens.product.activity_empty'),
-              description:
-                  Lang.get('screens.product.activity_empty_note'),
-            ),
-          ),
-        ],
-      );
+      return _buildMovementsEmpty();
+    }
+
+    final List<MovementEntry> entries = _controller?.movements ?? const <MovementEntry>[];
+
+    // **Empty is a real answer twice over**: a product nobody has moved yet, and a movement fetch
+    // that failed while the product itself loaded. The card cannot tell those apart and does not
+    // need to, because it says the same thing either way. What matters is that neither invents a
+    // row, which is what this screen did before.
+    if (entries.isEmpty) {
+      return _buildMovementsEmpty();
     }
 
     return SectionCard(
       label: Lang.get('screens.product.activity_group'),
-      count: Lang.get('screens.product.activity_count', {'count': 9}),
+      // The SERVER's count, falling back to what is on screen. The endpoint pages at 25, so a
+      // product with a long history would otherwise be headed `25 entries` forever while the "All"
+      // link beside it opened something longer.
+      count: Lang.get('screens.product.activity_count', {
+        'count': _controller?.movementTotal ?? entries.length,
+      }),
       // Collapsible, unlike the sections above it. This is the audit trail: a user
       // reads it when a number looks wrong, not on every visit, and it is the one
       // section that keeps growing. It still starts open, because a section a new
@@ -1227,54 +1228,82 @@ class _ProductShowViewState extends State<ProductShowView> {
         ),
       ),
       children: [
-        const MovementRow(
-          // demo-data-start: the movement rows, standing in for ledger entries
-          reason: 'Satın alındı',
-          // demo-data-end
-          deltaAmount: 2,
-          delta: '+2',
-          unit: 'adet',
-          // demo-data-start: the movement rows, standing in for ledger entries
-          meta: 'Fiş taraması · 5 Ağu 18:22',
-          // demo-data-end
-          direction: MovementDirection.inbound,
-        ),
-        const MovementRow(
-          // demo-data-start: the movement rows, standing in for ledger entries
-          reason: 'Tüketildi',
-          // demo-data-end
-          deltaAmount: -1,
-          delta: '-1',
-          unit: 'adet',
-          // demo-data-start: the movement rows, standing in for ledger entries
-          meta: 'Anılcan · bugün 09:14',
-          // demo-data-end
-          direction: MovementDirection.outbound,
-        ),
-        const MovementRow(
-          reason: 'Zayi: bozuldu',
-          deltaAmount: -1,
-          delta: '-1',
-          unit: 'adet',
-          // demo-data-start: the movement rows, standing in for ledger entries
-          meta: 'Anılcan · bugün 09:15',
-          // demo-data-end
-          direction: MovementDirection.waste,
-        ),
-        const MovementRow(
-          // demo-data-start: the movement rows, standing in for ledger entries
-          reason: 'Sayım düzeltmesi',
-          // demo-data-end
-          deltaAmount: 1,
-          delta: '+1',
-          unit: 'adet',
-          // demo-data-start: the movement rows, standing in for ledger entries
-          meta: 'Asistan onaylı · dün 21:40',
-          // demo-data-end
-          direction: MovementDirection.correction,
+        // **Every row here used to be invented**, the same three for every product and in Turkish:
+        // `Satın alındı`, `Tüketildi`, `Zayi: bozuldu`, with `unit: 'adet'` from before the Rec 20
+        // change and a meta line naming a person who had not touched this product. They sat behind
+        // `demo-data-start` markers, so the hardcoded-copy gate exempted them by design and nothing
+        // could see it. That exemption is right for a product NAME standing in for a tenant's own
+        // and wrong for a movement reason, which is app copy the server names as an enum.
+        for (final MovementEntry entry in entries) _buildMovementRow(entry),
+      ],
+    );
+  }
+
+  /// The card when there is nothing to show.
+  ///
+  /// One state for three cases: a product being created, a product nobody has moved, and a fetch
+  /// that failed. They read the same to a user, and pretending to distinguish them would mean
+  /// inventing a sentence about a request they never made.
+  Widget _buildMovementsEmpty() {
+    return SectionCard(
+      label: Lang.get('screens.product.activity_group'),
+      children: [
+        WDiv(
+          // Full width so MSEmptyState's own `items-center` has something to centre in; see the note
+          // in ProductIndexView for why a `justify-center` row is the wrong tool here.
+          className: 'w-full',
+          child: MSEmptyState(
+            icon: _emptyMovementsIcon,
+            title: Lang.get('screens.product.activity_empty'),
+            description: Lang.get('screens.product.activity_empty_note'),
+          ),
         ),
       ],
     );
+  }
+
+  /// One ledger entry.
+  ///
+  /// The reason and the actor become words HERE, from this app's own catalogues, because the server
+  /// sends an enum and a type. The unit is what the person typed when they typed one (D90): a
+  /// delivery keyed as "2 koli" reads back as "24 adet" otherwise, which is true and not what
+  /// anybody entered.
+  Widget _buildMovementRow(MovementEntry entry) {
+    // **`.abs()` on BOTH, because the sign is the delta's job.** It was only on the fallback, so a
+    // negative `entered_quantity` would have rendered `+-1` and pluralised on a negative number.
+    // Latent rather than live: nothing writes that column yet (D90 declares it and no writer fills
+    // it), which is exactly the kind of thing that lands the day something does.
+    final double amount = (entry.enteredQuantity ?? entry.delta).abs();
+    final String? unit = entry.enteredUnit ?? _resolved?.unit;
+    final String? actor = movementActorLabel(entry.actorType, entry.actorName);
+
+    return MovementRow(
+      reason: movementReasonLabel(entry.reason),
+      deltaAmount: entry.delta,
+      // The SIGN comes from the delta and the magnitude from what was entered, because those are two
+      // different facts: the ledger knows the direction, the person knows the number they said.
+      delta: '${entry.delta < 0 ? '-' : '+'}${ProductListItem.format(amount)}',
+      unit: unit == null ? null : unitLabelFor(unit, ProductListItem.format(amount)),
+      meta: _movementMeta(entry, actor),
+      direction: movementDirection(entry.reason, entry.delta),
+    );
+  }
+
+  /// The row's second line: who and where and when, whichever of those are known.
+  ///
+  /// Joined rather than templated, because a movement can be missing any of them: an import has no
+  /// actor, a correction has no location. A separator between two absent facts would leave a stray
+  /// dot, which is the shape of small wrongness a screen accumulates.
+  String? _movementMeta(MovementEntry entry, String? actor) {
+    final List<String> parts = <String>[
+      ?actor,
+      ?entry.locationName,
+      // Through the catalogue's own format string, like every other date on this screen: the order
+      // of the parts is a locale decision and both catalogues already carry it.
+      ?ProductListItem.formatDate(entry.at?.toLocal().toIso8601String()),
+    ];
+
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   /// Two actions of equal weight, because stock out and stock in are equally

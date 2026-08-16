@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\IconController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
+use App\Http\Controllers\Api\V1\ProductMovementController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\TeamSettingsController;
 use App\Http\Controllers\Api\V1\UnitController;
@@ -65,6 +66,11 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // and may legitimately return a product the tenant does not own. Folding them would let the
     // count screen offer to count somebody else's catalogue entry.
     Route::get('barcode/resolve', [BarcodeController::class, 'resolve']);
+
+    // The audit trail, which the product screen's activity card reads. Nested under the product
+    // because that is also its tenancy: the product resolves through its own scope first, so
+    // another tenant's is a 404 before a movement is touched.
+    Route::get('products/{product}/movements', [ProductMovementController::class, 'index']);
 
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 

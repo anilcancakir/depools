@@ -1218,6 +1218,23 @@
       "note": "Only your team sees it. Pick a short code and the word you use for it.",
       "required": "This one is needed",
       "save": "Add"
+    },
+    "movement_row": {
+      "reasons": {
+        "purchase": "Bought",
+        "consumption": "Used",
+        "waste": "Wasted",
+        "stock_take": "Count adjustment",
+        "correction": "Correction",
+        "transfer_in": "Moved in",
+        "transfer_out": "Moved out",
+        "return": "Returned"
+      },
+      "actors": {
+        "assistant": "Assistant",
+        "mcp_client": "Connected app",
+        "system": "System"
+      }
     }
   },
   "units": {

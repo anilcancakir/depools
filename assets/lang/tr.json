@@ -1218,6 +1218,23 @@
       "note": "Yalnızca ekibiniz görür. Kısa bir kod ve kullandığınız kelimeyi girin.",
       "required": "Bu alan gerekli",
       "save": "Ekle"
+    },
+    "movement_row": {
+      "reasons": {
+        "purchase": "Satın alındı",
+        "consumption": "Tüketildi",
+        "waste": "Zayi",
+        "stock_take": "Sayım düzeltmesi",
+        "correction": "Düzeltme",
+        "transfer_in": "Transfer girişi",
+        "transfer_out": "Transfer çıkışı",
+        "return": "İade"
+      },
+      "actors": {
+        "assistant": "Asistan",
+        "mcp_client": "Bağlı uygulama",
+        "system": "Sistem"
+      }
     }
   },
   "units": {

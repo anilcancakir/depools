@@ -4,6 +4,7 @@
 import 'package:magic/magic.dart';
 
 import '../../resources/views/products/product_fixtures.dart';
+import '../models/movement_entry.dart';
 import '../support/mapped_or_null.dart';
 
 /// One product with its lots and units, from `api/v1/products/{id}`.
@@ -24,6 +25,25 @@ class ProductDetailController extends MagicController
   static ProductDetailController get instance => Magic.findOrPut(ProductDetailController.new);
 
   String? _loadedId;
+
+  List<MovementEntry> _movements = const <MovementEntry>[];
+
+  int? _movementTotal;
+
+  /// How many entries the product has, as the SERVER counts them.
+  ///
+  /// **Not `movements.length`, because the endpoint paginates at 25.** The card's header says how
+  /// many entries there are, and a product counted weekly for a year has hundreds: reading the list
+  /// would make the header say 25 forever and disagree with the "All" link beside it. Null when the
+  /// fetch failed, which is why the caller falls back to the list rather than printing nothing.
+  int? get movementTotal => _movementTotal;
+
+  /// The product's ledger entries, newest first.
+  ///
+  /// Empty is a real answer twice over: a product nobody has moved yet, and a fetch that failed
+  /// while the product itself loaded. The card cannot tell those apart and does not need to, because
+  /// it says the same thing either way; what matters is that neither invents a row.
+  List<MovementEntry> get movements => _movements;
 
   Map<String, String> _locationPaths = const <String, String>{};
   Map<String, String> _locationNames = const <String, String>{};
@@ -227,6 +247,28 @@ class ProductDetailController extends MagicController
   ///
   /// [force] is for after a write: receiving stock changes the lots this screen is drawing, and
   /// the guard would otherwise serve the pre-write copy.
+  /// The entries in a payload, skipping any row that cannot be drawn.
+  ///
+  /// A single malformed entry costs that row rather than the card: an audit trail missing one line
+  /// is a smaller lie than one that refuses to render at all, and `mappedOrNull` around the whole
+  /// thing still catches a payload that is not a list.
+  static List<MovementEntry> _readMovements(Object? data) {
+    if (data is! List) {
+      return const <MovementEntry>[];
+    }
+
+    return <MovementEntry>[
+      for (final dynamic row in data)
+        // **`Map<dynamic, dynamic>` and then convert, which is what every other reader here does**
+        // (`ProductListItem._mapList`, `ProductListItem.fromApi`). `whereType<Map<String, dynamic>>`
+        // was narrower than the whole codebase: it happens to match what this HTTP layer decodes
+        // today, and the day it decodes one level less precisely this would drop every row and show
+        // an empty audit trail with no error anywhere.
+        if (row is Map<dynamic, dynamic>)
+          ?MovementEntry.fromMap(Map<String, dynamic>.from(row)),
+    ];
+  }
+
   Future<void> load(String id, {bool force = false}) async {
     if (!force && _loadedId == id && isSuccess) return;
 
@@ -241,10 +283,14 @@ class ProductDetailController extends MagicController
       // Encoded, even though an id is a uuid today. It arrives from a route parameter, so the one
       // thing that must not depend on trust is whether it can break out of the path.
       Http.get('/products/${Uri.encodeComponent(id)}'),
+      // The audit trail, in the same round rather than after it. It is one of the sections this
+      // screen renders, so fetching it second would make the card pop in after everything else.
+      Http.get('/products/${Uri.encodeComponent(id)}/movements'),
     ]);
 
     final dynamic locationResponse = responses[0];
     final dynamic productResponse = responses[1];
+    final dynamic movementResponse = responses[2];
 
     if (!locationResponse.successful || !productResponse.successful) {
       if (_loadedId == id) setError(Lang.get('screens.products.detail_failed'));
@@ -304,6 +350,24 @@ class ProductDetailController extends MagicController
 
       return;
     }
+
+    // **A failed movement fetch is not a failed screen.** The product loaded; the audit trail is one
+    // section of it. Treating this like the product's own failure would black out a working page
+    // over the part a user reads least often, so the card falls back to its empty state and
+    // everything else is on screen.
+    _movements = movementResponse.successful
+        ? mappedOrNull(
+              () => _readMovements(movementResponse['data']),
+              describing: 'a product movement payload',
+            ) ??
+            const <MovementEntry>[]
+        : const <MovementEntry>[];
+
+    // Laravel's paginated resource carries `meta.total`; measured on the live endpoint rather than
+    // taken from the docs. Null when the fetch failed or the shape is not what we expect, so the
+    // card can tell "no answer" from "no entries".
+    final Object? meta = movementResponse.successful ? movementResponse['meta'] : null;
+    _movementTotal = meta is Map && meta['total'] is int ? meta['total'] as int : null;
 
     setSuccess(product);
   }
