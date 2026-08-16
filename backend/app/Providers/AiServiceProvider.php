@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Ai\Contracts\IconSuggestionGateway;
 use App\Ai\Contracts\ModelCaller;
 use App\Ai\Contracts\ProductEnrichmentGateway;
+use App\Ai\LaravelAi\LaravelAiIconSuggestionGateway;
 use App\Ai\LaravelAi\LaravelAiModelCaller;
 use App\Ai\LaravelAi\LaravelAiProductEnrichmentGateway;
 use Illuminate\Support\ServiceProvider;
@@ -15,7 +17,7 @@ use Illuminate\Support\ServiceProvider;
  * `architecture.md` says a `laravel/ai` breaking change has to touch and nothing else: keeping it in
  * one file is what makes that claim checkable instead of aspirational.
  *
- * Both bindings are `bind` rather than `singleton`. A gateway holds no state between calls, and a
+ * Every binding is `bind` rather than `singleton`. A gateway holds no state between calls, and a
  * singleton would outlive a test's swap of it inside the same process.
  */
 final class AiServiceProvider extends ServiceProvider
@@ -24,5 +26,6 @@ final class AiServiceProvider extends ServiceProvider
     {
         $this->app->bind(ModelCaller::class, LaravelAiModelCaller::class);
         $this->app->bind(ProductEnrichmentGateway::class, LaravelAiProductEnrichmentGateway::class);
+        $this->app->bind(IconSuggestionGateway::class, LaravelAiIconSuggestionGateway::class);
     }
 }

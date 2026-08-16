@@ -493,4 +493,46 @@ final class AiGatewayTest extends TestCase
 
         $this->assertCount(1, AiUsageEvent::query()->distinct()->pluck('action_id'));
     }
+
+    public function test_every_package_symbol_the_real_caller_names_exists(): void
+    {
+        // **The blind spot in every test above, closed.** They all bind a fake [ModelCaller], which
+        // is the one class that touches `laravel/ai`, so nothing here can see that class break.
+        //
+        // It had broken. `LaravelAiModelCaller` imported `Laravel\Ai\Enums\FinishReason`, which does
+        // not exist in the pinned v0.10.3 (it is `Responses\Data\FinishReason`), and the reference
+        // sits on the line that maps a SUCCESSFUL response. So every model call in the application
+        // made its HTTP request, was billed for it, then raised a class-not-found that
+        // `GatewayRunner` recorded as `provider_error` before moving on. Measured against a live
+        // provider: twelve names, twelve nulls, roughly 700ms each. The whole AI half of the product
+        // was inert and the suite was green.
+        //
+        // **Reflected over the imports rather than asserting that one class**, because D6 pins a
+        // v0.x on a monthly minor cadence whose minors can break: the next rename is the failure
+        // worth catching, not this one. `architecture.md` says a `laravel/ai` break should touch
+        // implementation classes, and this is what makes that a build failure instead of a silent
+        // outage.
+        $files = glob(app_path('Ai/LaravelAi/*.php')) ?: [];
+
+        $this->assertNotEmpty($files, 'No implementation classes found to check.');
+
+        $checked = 0;
+
+        foreach ($files as $file) {
+            preg_match_all('/^use (Laravel\\\\Ai\\\\[^;]+);$/m', (string) file_get_contents($file), $matches);
+
+            foreach ($matches[1] as $symbol) {
+                $checked++;
+
+                $this->assertTrue(
+                    class_exists($symbol) || interface_exists($symbol) || enum_exists($symbol),
+                    basename($file).' imports '.$symbol.', which the installed laravel/ai does not have.',
+                );
+            }
+        }
+
+        // The loop passing over nothing would be a green test that checks nothing, and a rename of
+        // the directory is exactly how that would happen.
+        $this->assertGreaterThan(0, $checked);
+    }
 }

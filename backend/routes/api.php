@@ -45,6 +45,10 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // Global rather than team-scoped, which the controller says out loud.
     Route::get('icons', [IconController::class, 'index']);
 
+    // POST for a read, because it spends a model call and one of the tenant's credits. The
+    // controller carries the argument.
+    Route::post('icons/suggest', [IconController::class, 'suggest']);
+
     // Team-wide settings, as opposed to the per-user, per-device ones the client keeps locally.
     // No team parameter anywhere: the team is the authenticated one.
     Route::get('team/settings', [TeamSettingsController::class, 'show']);
