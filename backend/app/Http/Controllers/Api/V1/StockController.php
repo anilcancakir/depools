@@ -128,6 +128,12 @@ final class StockController extends Controller
             'to_location_id' => ['required', 'uuid', 'different:from_location_id'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'source' => ['nullable', Rule::enum(MovementSource::class)],
+
+            // When it happened, as on `receive` and `consume`. The entered pair is NOT taken here,
+            // for the reason `takeOut` records: a move can cross lots, and a figure that describes
+            // the request rather than the row it sits on either sums to more than the person said
+            // or contradicts its own delta.
+            'occurred_at' => ['nullable', 'date', 'before_or_equal:now'],
         ]);
 
         $product = Product::query()->findOrFail($data['product_id']);
@@ -142,10 +148,14 @@ final class StockController extends Controller
                 (float) $data['quantity'],
                 $this->source($data),
                 $request->user()->getKey(),
+                MovementContext::fromRequest($data),
             );
 
+            // **Every id, not the first pair's two.** A move crossing two lots writes two pairs,
+            // because expiry belongs to a lot and each arriving lot carries its own source's date.
+            // Sending two ids of four would describe half of what was written.
             return response()->json([
-                'data' => ['movement_ids' => [$out->getKey(), $in->getKey()]],
+                'data' => ['movement_ids' => $out->pluck('id')->concat($in->pluck('id'))->all()],
             ], 201);
         });
     }
