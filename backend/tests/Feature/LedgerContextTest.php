@@ -247,10 +247,16 @@ final class LedgerContextTest extends TestCase
     {
         // **The test `ProductMovementsTest` said it could not write.** A backdated entry was
         // unreachable through any write path, so the ordering fix in that PR was correct and
-        // unprovable. It is provable now: the row written SECOND happened first, and comes second.
+        // unprovable.
+        //
+        // **The write order is the backwards one on purpose, and the first version of this test got
+        // it wrong.** It wrote the backdated row FIRST, which put `created_at` and `occurred_at` in
+        // the same order, so the assertion held under either sort and the test could not fail for
+        // the reason it claimed. Written this way the two orders disagree: sorting by write time
+        // answers `[1, 9]` and sorting by event time answers `[9, 1]`.
+        $this->receive(['quantity' => 9])->assertCreated();
         $this->receive(['quantity' => 1, 'occurred_at' => now()->subDays(5)->toIso8601String()])
             ->assertCreated();
-        $this->receive(['quantity' => 9])->assertCreated();
 
         $deltas = array_map(
             static fn (array $row): float => (float) $row['delta'],
