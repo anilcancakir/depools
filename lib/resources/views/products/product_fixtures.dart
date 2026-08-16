@@ -812,7 +812,12 @@ class ProductListItem {
 
   static DateTime dateOnly(DateTime value) => DateTime(value.year, value.month, value.day);
 
-  /// A `YYYY-MM-DD` from the API, or null when the field was absent or unparseable.
+  /// Any ISO-8601 string the API sends, or null when the field was absent or unparseable.
+  ///
+  /// **Both shapes reach here and they mean different things**, which is why [formatDate] and
+  /// [formatMoment] exist above rather than one function. A bare `2026-08-20` is a calendar DAY and
+  /// Dart parses it as local midnight with `isUtc == false`; a `2026-08-15T22:39:57+00:00` is an
+  /// INSTANT and carries its offset. This just parses; the caller decides which it was handed.
   static DateTime? parseDate(Object? value) =>
       value is String ? DateTime.tryParse(value) : null;
 
