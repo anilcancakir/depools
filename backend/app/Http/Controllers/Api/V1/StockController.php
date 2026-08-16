@@ -14,6 +14,7 @@ use App\Services\CatalogueContributor;
 use App\Services\StockLedger;
 use App\Services\StockWriter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -39,6 +40,21 @@ use RuntimeException;
  */
 final class StockController extends Controller
 {
+    /**
+     * The longest batch this endpoint accepts.
+     *
+     * Named because [MAX_BATCH_KEY] is derived from it: the per-line suffix is `:` plus an index up
+     * to 199, so the two have to move together or a key overflows its column.
+     */
+    private const MAX_BATCH_LINES = 200;
+
+    /**
+     * The longest batch key, leaving room for the suffix inside `varchar(64)`.
+     *
+     * `64 - strlen(':199')`. A key at the column's full width overflowed on write.
+     */
+    private const MAX_BATCH_KEY = 60;
+
     public function __construct(
         private readonly StockWriter $writer,
         private readonly StockLedger $ledger,
@@ -167,6 +183,7 @@ final class StockController extends Controller
             // counted empty shelf and writes the balance off. `gt:0` would make that uncountable.
             'lines.*.counted_quantity' => ['required', 'numeric', 'min:0'],
             'source' => ['nullable', Rule::enum(MovementSource::class)],
+
         ]);
 
         $location = Location::query()->findOrFail($data['location_id']);
@@ -282,7 +299,10 @@ final class StockController extends Controller
             // another tenant is untouched by this and still 404s through the scope, which is tenancy
             // rule 2 and has to stay that way.
             'location_id' => ['required', 'uuid'],
-            'lines' => ['required', 'array', 'min:1', 'max:200'],
+            // **`list`, because the per-line key is built from the INDEX.** `array` alone accepts a
+            // JSON object, whose keys are strings, and `lineKey()` would then be handed one and
+            // raise a TypeError: a 500 where the client deserved a 422.
+            'lines' => ['required', 'array', 'list', 'min:1', 'max:'.self::MAX_BATCH_LINES],
             'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
 
             // One or the other, enforced in BOTH directions and across the WHOLE card. `required_without`
@@ -309,6 +329,16 @@ final class StockController extends Controller
             'lines.*.contribute' => ['nullable', 'boolean'],
 
             'source' => ['nullable', Rule::enum(MovementSource::class)],
+            // **A whole batch's key, which is not the same shape as `receive`'s.** The unique index
+            // is `(team_id, idempotency_key)` and it is PER MOVEMENT, so one key cannot go on every
+            // row of a batch. Each line gets `"{key}:{index}"` instead, and the index is the line's
+            // position in the request, so retrying the same payload produces the same keys.
+            //
+            // **60, not 64, and the arithmetic is the reason.** The column is `varchar(64)` and this
+            // endpoint takes at most 200 lines, so the longest suffix is `:199`, four characters. A
+            // 64-character key would have overflowed the column on write, which is a database error
+            // rather than a refusal the client can read.
+            'idempotency_key' => ['nullable', 'string', 'max:'.self::MAX_BATCH_KEY],
         ]);
 
         $location = Location::query()->findOrFail($data['location_id']);
@@ -333,7 +363,59 @@ final class StockController extends Controller
         // delivery, which is exactly the audit distinction the ledger exists to keep.
         $source = $this->source($data);
 
+        // **A replay is answered before anything is written**, which is the whole point: the client
+        // lost the response, not the delivery. Without this a retry appends the batch again, and on
+        // an append-only ledger a duplicate is undone by writing a compensating movement rather than
+        // by deleting a row.
+        if (($replay = $this->replayOf($data['idempotency_key'] ?? null, count($data['lines']))) !== null) {
+            return response()->json(['data' => ['lines' => $replay]], 200);
+        }
+
         return $this->guard(function () use ($data, $location, $products, $source, $actorId): JsonResponse {
+            // **The window between the lookup above and this insert is real**, and two concurrent
+            // retries both pass it: one wins, the other meets the unique index. That arrived as a
+            // 500, which is the failure idempotency exists to prevent, so the loser is answered with
+            // the winner's result. Catching the CONSTRAINT rather than any query exception, because
+            // a genuine database fault has to keep failing loudly.
+            try {
+                return $this->writeBatch($data, $location, $products, $source, $actorId);
+            } catch (QueryException $e) {
+                // Both, because either alone is a guess, matching the shape `ProductController` and
+                // `CatalogueTranslator` already use: `23505` is PostgreSQL's unique-violation code
+                // and is stable in a way message text is not, and the index name is what says the
+                // violation was OUR rule rather than another constraint on the same insert. A batch
+                // creates products and lots as well as movements, so there are other unique indexes
+                // reachable from here, and absorbing one of those would answer a real failure with a
+                // 200.
+                if ($e->getCode() !== '23505'
+                    || ! str_contains($e->getMessage(), 'stock_movements_team_id_idempotency_key_unique')) {
+                    throw $e;
+                }
+
+                $replay = $this->replayOf($data['idempotency_key'] ?? null, count($data['lines']));
+
+                // Null would mean the violation was not ours to absorb, so it propagates.
+                if ($replay === null) {
+                    throw $e;
+                }
+
+                return response()->json(['data' => ['lines' => $replay]], 200);
+            }
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  Collection<string, Product>  $products
+     */
+    private function writeBatch(
+        array $data,
+        Location $location,
+        $products,
+        MovementSource $source,
+        int|string $actorId,
+    ): JsonResponse {
+        return (function () use ($data, $location, $products, $source, $actorId): JsonResponse {
             // One transaction around the whole batch, and it is all or nothing: `receiveLines` catches
             // nothing, so any refusal propagates out of here and every line rolls back, including the
             // products earlier lines created. That is the atomicity this endpoint exists for, since a
@@ -346,11 +428,94 @@ final class StockController extends Controller
             // later statement, because nothing continues. The savepoint is real (the writer opens its
             // own nested transaction) and it is simply not load-bearing here.
             $written = DB::transaction(
-                fn (): array => $this->receiveLines($data['lines'], $location, $products, $source, $actorId),
+                fn (): array => $this->receiveLines(
+                    $data['lines'],
+                    $location,
+                    $products,
+                    $source,
+                    $actorId,
+                    $data['idempotency_key'] ?? null,
+                ),
             );
 
             return response()->json(['data' => ['lines' => $written]], 201);
-        });
+        })();
+    }
+
+    /**
+     * One line's key inside a batch.
+     *
+     * The index is the line's POSITION in the request, so the same payload retried produces the same
+     * keys and the unique index on `(team_id, idempotency_key)` does the rest. A client that reorders
+     * its lines between attempts defeats this, which is a fair trade: the alternative is hashing the
+     * line's content, and then editing a quantity before retrying would look like a different
+     * delivery rather than a correction.
+     */
+    private static function lineKey(?string $batchKey, int $index): ?string
+    {
+        return $batchKey === null ? null : "{$batchKey}:{$index}";
+    }
+
+    /**
+     * The lines a previous attempt already wrote, or null when this batch is new.
+     *
+     * **Three outcomes, and the third is the one worth being loud about.** None present means write.
+     * All present means the client lost the response rather than the delivery, so the previous
+     * result is rebuilt and answered with a 200 instead of a 201, which is how a caller can tell.
+     * SOME present cannot happen from this endpoint, because the whole batch runs in one
+     * transaction: if it is true anyway, something else wrote those keys and continuing would append
+     * a partial duplicate on top of it, so it refuses.
+     *
+     * Rebuilt from the movements rather than from a stored copy of the response. Each row carries its
+     * product, which is everything the client needs.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function replayOf(?string $batchKey, int $lineCount): ?array
+    {
+        if ($batchKey === null) {
+            return null;
+        }
+
+        // **Every key under this batch, by PREFIX rather than the indices this request happens to
+        // ask about.** Looking up `:0..:n` for the CURRENT line count made a shorter retry of a
+        // longer batch look complete: send three lines under a key that recorded five, find three,
+        // and the count matches while `:3` and `:4` sit there unreported. The prefix finds all of
+        // them, so the mismatch below sees it.
+        $existing = $this->writer->movementsForBatch($batchKey);
+
+        if ($existing->isEmpty()) {
+            return null;
+        }
+
+        $keys = array_map(fn (int $i): string => self::lineKey($batchKey, $i), range(0, $lineCount - 1));
+
+        abort_if(
+            $existing->count() !== $lineCount || array_diff($keys, $existing->keys()->all()) !== [],
+            409,
+            'This key already names a different batch. Refusing rather than answering about lines '
+            .'nobody asked for or appending on top of what is there.',
+        );
+
+        return array_map(function (string $key) use ($existing): array {
+            $movement = $existing[$key];
+
+            return [
+                'product_id' => $movement->product_id,
+                'product_name' => $movement->product?->name,
+                // **`false`, always, and Anılcan chose this reading.** The flag answers "did THIS
+                // call create the product", and a replay created nothing: the row was already in the
+                // catalogue. The alternative, reporting what the first attempt reported, would mean
+                // storing the flag on the ledger purely to reconstruct a response, which is a column
+                // that exists for the API rather than for the stock.
+                //
+                // The cost is that a retry shows a different sentence than the first attempt would
+                // have: "stocked 3 you already had" instead of "added 3 products". Both are true of
+                // the moment they describe.
+                'created' => false,
+                'movement_id' => $movement->getKey(),
+            ];
+        }, $keys);
     }
 
     /**
@@ -364,10 +529,11 @@ final class StockController extends Controller
         $products,
         MovementSource $source,
         int|string $actorId,
+        ?string $batchKey,
     ): array {
         $written = [];
 
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
             $product = isset($line['product_id'])
                 ? $products[$line['product_id']]
                 : $this->createFromLine($line);
@@ -380,7 +546,7 @@ final class StockController extends Controller
                 null,
                 null,
                 $actorId,
-                null,
+                self::lineKey($batchKey, $index),
             );
 
             $written[] = [

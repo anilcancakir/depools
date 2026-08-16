@@ -39,6 +39,30 @@ final class StockWriter
     public function __construct(private readonly StockLedger $ledger) {}
 
     /**
+     * Every movement written under a batch key, keyed by its own per-line key.
+     *
+     * **Matched by prefix, so the caller sees lines it did not ask about.** A retry that sends fewer
+     * lines than the first attempt would otherwise find exactly what it looked for and read as a
+     * complete replay while later rows sat there unreported.
+     *
+     * `%` and `_` are LIKE wildcards and the key comes from a request, so they are escaped: without
+     * it a key of `%` would match every batch this tenant ever recorded. The same hole was measured
+     * on the icon search, where `%` alone answered all 4,185 rows.
+     *
+     * @return Collection<string, StockMovement>
+     */
+    public function movementsForBatch(string $batchKey): Collection
+    {
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $batchKey);
+
+        return StockMovement::query()
+            ->where('idempotency_key', 'like', $escaped.':%')
+            ->with('product')
+            ->get()
+            ->keyBy('idempotency_key');
+    }
+
+    /**
      * Bring stock in. Creates the lot the movement references.
      *
      * A lot is created for EVERY inbound movement, dated or not, because the lot is the unit
