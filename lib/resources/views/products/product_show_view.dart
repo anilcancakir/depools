@@ -1269,7 +1269,11 @@ class _ProductShowViewState extends State<ProductShowView> {
   /// delivery keyed as "2 koli" reads back as "24 adet" otherwise, which is true and not what
   /// anybody entered.
   Widget _buildMovementRow(MovementEntry entry) {
-    final double amount = entry.enteredQuantity ?? entry.delta.abs();
+    // **`.abs()` on BOTH, because the sign is the delta's job.** It was only on the fallback, so a
+    // negative `entered_quantity` would have rendered `+-1` and pluralised on a negative number.
+    // Latent rather than live: nothing writes that column yet (D90 declares it and no writer fills
+    // it), which is exactly the kind of thing that lands the day something does.
+    final double amount = (entry.enteredQuantity ?? entry.delta).abs();
     final String? unit = entry.enteredUnit ?? _resolved?.unit;
     final String? actor = movementActorLabel(entry.actorType, entry.actorName);
 
