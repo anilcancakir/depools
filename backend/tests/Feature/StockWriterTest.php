@@ -10,6 +10,7 @@ use App\Models\StockLot;
 use App\Models\StockMovement;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\MovementContext;
 use App\Services\StockLedger;
 use App\Services\StockWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -238,6 +239,46 @@ final class StockWriterTest extends TestCase
         $this->assertSame(['2026-09-01', '2026-12-31'], $arrived->keys()->sort()->values()->all());
         $this->assertSame('1.000', $arrived['2026-09-01']->remaining_quantity);
         $this->assertSame('2.000', $arrived['2026-12-31']->remaining_quantity);
+    }
+
+    public function test_a_split_transfer_drops_an_entered_figure_it_cannot_place(): void
+    {
+        // The endpoint does not offer the entered pair, and this is not enforced by that: `transfer`
+        // is a public method, so the invariant `takeOut` states belongs with the code that would
+        // break it. On every row of a split the figure sums to more than the person said, and on one
+        // row it contradicts that row's own delta.
+        $this->writer->receive($this->product, $this->store, 1, expiresAt: '2026-09-01');
+        $this->writer->receive($this->product, $this->store, 5, expiresAt: '2026-12-31');
+
+        $yesterday = now()->subDay();
+
+        [$out, $in] = $this->writer->transfer(
+            $this->product, $this->store, $this->kitchen, 3,
+            context: new MovementContext($yesterday, 3, 'C62'),
+        );
+
+        foreach ($out->concat($in) as $movement) {
+            // When it happened is not ambiguous under a split, so it travels every row.
+            $this->assertSame($yesterday->toDateString(), $movement->occurred_at->toDateString());
+            $this->assertNull($movement->entered_quantity);
+            $this->assertNull($movement->entered_unit);
+        }
+    }
+
+    public function test_a_single_pair_transfer_keeps_the_entered_figure(): void
+    {
+        // One lot covers it, so each row's own delta IS the amount typed and the invariant holds.
+        $this->writer->receive($this->product, $this->store, 10, expiresAt: '2026-09-01');
+
+        [$out, $in] = $this->writer->transfer(
+            $this->product, $this->store, $this->kitchen, 0.25,
+            context: new MovementContext(null, 250, 'MLT'),
+        );
+
+        foreach ($out->concat($in) as $movement) {
+            $this->assertSame(250.0, (float) $movement->entered_quantity);
+            $this->assertSame('MLT', $movement->entered_unit);
+        }
     }
 
     public function test_a_transfer_of_more_than_the_shelf_holds_is_refused(): void

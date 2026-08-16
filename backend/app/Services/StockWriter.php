@@ -348,6 +348,15 @@ final class StockWriter
             $in = collect();
             $remaining = $quantity;
 
+            // **The entered figure survives only a single-pair move**, the same rule `takeOut`
+            // applies and for the same reason: on every row of a split it sums to more than the
+            // person said, and on one row it contradicts that row's own delta. Enforced HERE rather
+            // than left to the endpoint not offering the pair, because this is a public method and
+            // the invariant belongs with the code that would break it.
+            if ($sourceLots->isEmpty() || (float) $sourceLots->first()->remaining_quantity < $quantity) {
+                $context = $context?->withoutEnteredFigure();
+            }
+
             // **One pair per SOURCE LOT, walking FEFO, and this used to be one pair against the
             // first lot alone.** The availability check above sums every lot on the shelf, so a
             // request larger than the first one passed it and then debited the whole amount from
