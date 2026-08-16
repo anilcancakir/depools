@@ -474,7 +474,10 @@
       "row_stock_out": ":product, :label, remove stock",
       "row_waste": ":product, :label, record waste",
       "empty_title": "No upcoming dates",
-      "empty_description": "Expiry and warranty dates appear here once they fall inside the selected range. Products with no date never appear."
+      "empty_description": "Expiry and warranty dates appear here once they fall inside the selected range. Products with no date never appear.",
+      "warranty_label": "Warranty · :label",
+      "opened_label": "Opened · :label",
+      "load_failed": "Dates could not be loaded"
     },
     "field_editor": {
       "quick_group": "Quick answers",

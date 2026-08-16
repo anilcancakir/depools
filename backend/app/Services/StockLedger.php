@@ -8,6 +8,7 @@ use App\Models\ProductStock;
 use App\Models\Scopes\TeamScope;
 use App\Models\StockLot;
 use App\Models\StockMovement;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -146,6 +147,58 @@ final class StockLedger
 
             return $dateA <=> $dateB;
         })->values();
+    }
+
+    /**
+     * Lots whose binding date falls on or before [$until], with their product and place.
+     *
+     * **Here rather than in the controller, and `LedgerWritersTest` is what said so.** It refuses any
+     * file outside `app/Models` and `app/Services` that can reach `stock_lots`, INCLUDING for a read.
+     * That looks strict for a query and it is the right shape: a controller that learns to read the
+     * ledger directly is one refactor away from writing to it, and D81 exists because the previous
+     * MVP did exactly that.
+     *
+     * ### Two passes, because the deadline is computed rather than stored
+     *
+     * A lot's real deadline is `StockLot::bindingDate()`, the earlier of the printed date and the
+     * opened-shelf-life one, and D84 keeps that derivation out of the database. So SQL narrows to a
+     * candidate set it can express and PHP decides the rest.
+     *
+     * The candidate set is the union of two things: every lot whose PRINTED date already qualifies,
+     * and every OPENED lot whose product declares a shelf life. The second half is the one SQL
+     * cannot judge, and it is bounded by how few opened lots a real shelf has.
+     *
+     * @return Collection<int, StockLot>
+     */
+    public function lotsBindingBy(CarbonInterface $until): Collection
+    {
+        return StockLot::query()
+            // **A depleted lot is history rather than a task.** Nothing is left to save, so a row for
+            // it would be a job the user cannot do.
+            ->where('remaining_quantity', '>', 0)
+            ->where(function ($query) use ($until): void {
+                $query->where('expires_at', '<=', $until)
+                    ->orWhere(function ($inner): void {
+                        $inner->whereNotNull('opened_at')
+                            ->whereHas('product', function ($product): void {
+                                $product->whereNotNull('opened_shelf_life_days');
+                            });
+                    });
+            })
+            // The caller renders the product's name and the place, so both travel rather than being
+            // fetched per row.
+            ->with(['product', 'location'])
+            ->get()
+            ->filter(function (StockLot $lot) use ($until): bool {
+                $binding = $lot->bindingDate();
+
+                return $binding !== null && $binding->lessThanOrEqualTo($until);
+            })
+            ->each(function (StockLot $lot): void {
+                // Computed once here rather than again in the sort and again in the resource.
+                $lot->binding_date = $lot->bindingDate();
+            })
+            ->values();
     }
 
     /**

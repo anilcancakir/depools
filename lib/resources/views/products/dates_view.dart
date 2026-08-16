@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSPageScaffold, MSEmptyState;
 
+import '../../../app/controllers/expiring_controller.dart';
 import '../../../ui/components/choice_chip/choice_chip.dart';
 import '../../../ui/components/lot_row/lot_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -53,11 +54,18 @@ class DatesView extends StatefulWidget {
   /// has to read like one.
   final bool hasRows;
 
-  /// Creates the [DatesView].
-  const DatesView({super.key}) : hasRows = true;
+  /// Rows supplied by the caller, which is how the preview catalog stays offline.
+  ///
+  /// Null means "read [ExpiringController]", which is what the route does. The preview passes the
+  /// fixture, and the state class only touches the controller when this is null, so previewing this
+  /// screen never issues a request.
+  final List<DatedLot>? rows;
+
+  /// Creates the [DatesView], reading from [ExpiringController].
+  const DatesView({super.key, this.rows}) : hasRows = true;
 
   /// Creates the view with nothing approaching.
-  const DatesView.empty({super.key}) : hasRows = false;
+  const DatesView.empty({super.key}) : rows = const <DatedLot>[], hasRows = false;
 
   @override
   State<DatesView> createState() => _DatesViewState();
@@ -69,17 +77,86 @@ class _DatesViewState extends State<DatesView> {
 
   int _horizon = defaultHorizonDays;
 
+  /// The controller, or null when the caller supplied its own rows.
+  ExpiringController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.rows != null) return;
+
+    final ExpiringController controller = ExpiringController.instance
+      ..addListener(_onControllerChanged);
+
+    // Same `onInit` contract every wired screen here needs: `Magic.findOrPut` registers the
+    // instance and nothing calls `onInit` for a plain `StatefulWidget`, so without this the screen
+    // would report that nothing is going off, which is the one wrong answer this screen can give.
+    if (!controller.initialized) controller.onInit();
+
+    _controller = controller;
+    _horizon = controller.horizon;
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Everything inside the current horizon, whatever the source.
+  List<DatedLot> get _all => widget.rows ?? _controller?.rows ?? const <DatedLot>[];
+
+  /// Whether there is anything to show, as opposed to nothing YET.
+  ///
+  /// An empty list is the good outcome here, so it cannot be shown until it is an answer: "nothing
+  /// is running out" while the request is in flight is the one wrong thing this screen can say.
+  bool get _hasAnswer => widget.rows != null || (_controller?.loaded ?? false);
+
+  /// Rows already past their date, which lead and do not fold.
+  List<DatedLot> get _expired =>
+      _all.where((DatedLot row) => row.isExpired).toList();
+
+  /// Rows still good, grouped by where they are, in the order the payload lists them.
+  ///
+  /// **Grouped by the location's own NAME from the row**, rather than by walking a separate
+  /// location list. `forecasting.md` asks for the grouping because a cafe's morning check is a walk
+  /// to the fridge, then the freezer, then the dry store, and the walk is what the order has to
+  /// match. The rows arrive sorted by date, so a location appears where its most urgent row does.
+  Map<String, List<DatedLot>> get _approaching {
+    final Map<String, List<DatedLot>> grouped = <String, List<DatedLot>>{};
+
+    for (final DatedLot row in _all) {
+      if (row.isExpired) continue;
+
+      grouped.putIfAbsent(row.locationName ?? row.locationId, () => <DatedLot>[]).add(row);
+    }
+
+    return grouped;
+  }
+
+  /// Ask for a different horizon, which is a REQUEST rather than a filter over what is held.
+  void _setHorizon(int days) {
+    setState(() => _horizon = days);
+
+    _controller?.load(horizon: days);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<DatedLot> expired = widget.hasRows ? expiredRows(horizonDays: _horizon) : const [];
-    final Map<String, List<DatedLot>> groups = widget.hasRows
-        ? approachingByLocation(horizonDays: _horizon)
-        : const {};
+    final List<DatedLot> expired = _hasAnswer ? _expired : const <DatedLot>[];
+    final Map<String, List<DatedLot>> groups = _hasAnswer
+        ? _approaching
+        : const <String, List<DatedLot>>{};
     final int approaching = groups.values.fold(0, (sum, rows) => sum + rows.length);
 
     return MSPageScaffold(
       title: Lang.get('screens.dates.title'),
-      subtitle: widget.hasRows
+      subtitle: _hasAnswer && (expired.isNotEmpty || groups.isNotEmpty)
           ? Lang.get('screens.dates.subtitle', {
               'days': _horizon,
               'approaching': approaching,
@@ -87,11 +164,11 @@ class _DatesViewState extends State<DatesView> {
             })
           : Lang.get('screens.dates.subtitle_empty'),
       children: [
-        if (widget.hasRows) _buildHorizon(),
+        if (_hasAnswer) _buildHorizon(),
         if (expired.isNotEmpty) _buildExpired(expired),
         for (final MapEntry<String, List<DatedLot>> group in groups.entries)
           _buildLocation(group.key, group.value),
-        if (expired.isEmpty && groups.isEmpty) _buildEmpty(),
+        if (_hasAnswer && expired.isEmpty && groups.isEmpty) _buildEmpty(),
       ],
     );
   }
@@ -119,7 +196,7 @@ class _DatesViewState extends State<DatesView> {
                 semanticLabel: days == _horizon
                     ? Lang.get('screens.dates.horizon_selected', {'days': days})
                     : Lang.get('screens.dates.horizon_apply', {'days': days}),
-                onTap: () => setState(() => _horizon = days),
+                onTap: () => _setHorizon(days),
               ),
           ],
         ),

@@ -474,7 +474,10 @@
       "row_stock_out": ":product, :label, stok çıkar",
       "row_waste": ":product, :label, zayi kaydet",
       "empty_title": "Yaklaşan tarih yok",
-      "empty_description": "Son kullanma ve garanti tarihleri seçilen aralığa girdiğinde burada listelenir. Tarihi olmayan ürünler hiç görünmez."
+      "empty_description": "Son kullanma ve garanti tarihleri seçilen aralığa girdiğinde burada listelenir. Tarihi olmayan ürünler hiç görünmez.",
+      "warranty_label": "Garanti · :label",
+      "opened_label": "Açık · :label",
+      "load_failed": "Tarihler yüklenemedi"
     },
     "field_editor": {
       "quick_group": "Hazır cevaplar",
