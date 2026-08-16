@@ -80,6 +80,9 @@ class ProductDetailController extends MagicController
     String? expiresAt,
     String? lotCode,
   }) {
+    // No entered pair here, deliberately: the in sheet asks for an amount in the product's own unit
+    // and passes it through, so there is no conversion to record. The endpoint accepts the pair for
+    // the day a caller does convert.
     return _write(productId, '/stock/receive', <String, dynamic>{
       'location_id': locationId,
       'quantity': quantity,
@@ -99,12 +102,30 @@ class ProductDetailController extends MagicController
     required String locationId,
     required num quantity,
     required String reason,
+    num? enteredQuantity,
+    String? enteredUnit,
   }) {
     return _write(productId, '/stock/consume', <String, dynamic>{
       'location_id': locationId,
       'quantity': quantity,
       'reason': reason,
+      ..._entered(enteredQuantity, enteredUnit),
     });
+  }
+
+  /// What the person actually typed, for a write whose `quantity` was converted (D90).
+  ///
+  /// `quantity` on every endpoint is in the product's BASE unit, so a sheet handing back "250 ml" of
+  /// a one-litre carton sends `0.25`. Without these the ledger keeps only the 0.25 and the activity
+  /// card reads back "0,25 adet" for something nobody said.
+  ///
+  /// **The pair is all or nothing**, mirroring the CHECK constraint the column carries: a quantity
+  /// with no unit reads as base units and contradicts what was typed, which is the failure the two
+  /// columns exist to prevent. So one without the other sends neither.
+  Map<String, dynamic> _entered(num? quantity, String? unit) {
+    if (quantity == null || unit == null || unit.isEmpty) return const <String, dynamic>{};
+
+    return <String, dynamic>{'entered_quantity': quantity, 'entered_unit': unit};
   }
 
   /// Moves stock between two locations, then reloads.

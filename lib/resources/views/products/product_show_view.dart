@@ -282,6 +282,12 @@ class _ProductShowViewState extends State<ProductShowView> {
       locationId: locationId,
       quantity: quantity,
       reason: reason,
+
+      // **Only when the conversion above actually converted something.** Sending the pair for a
+      // figure already in base units would store the delta twice under a second name, and every
+      // extra column on an append-only row is one more thing that can disagree with the ledger.
+      enteredQuantity: draft.unit == product.unit ? null : draft.amount,
+      enteredUnit: draft.unit == product.unit ? null : draft.unit,
     );
 
     _report(failure, Lang.get('screens.stock_out.title'), Lang.get('screens.stock_out.done'));
