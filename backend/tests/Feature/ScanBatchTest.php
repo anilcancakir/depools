@@ -736,6 +736,72 @@ final class ScanBatchTest extends TestCase
         $this->assertSame(1, StockMovement::query()->count());
     }
 
+    public function test_the_same_key_carrying_a_different_card_is_refused(): void
+    {
+        // A card line creates its product, so there is no id to compare, and location plus quantity
+        // alone let a completely different delivery through: same shelf, same one line, same one
+        // unit, another product entirely.
+        $key = 'batch-recarded';
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [['name' => 'Ekmek', 'quantity' => 1]],
+        ])->assertStatus(409);
+
+        $this->assertSame(1, Product::query()->count());
+    }
+
+    public function test_the_same_card_with_a_different_unit_or_brand_is_refused(): void
+    {
+        // The other two fields `createFromLine` writes. Both are part of what the card says the
+        // product IS, so a retry that changes either is a different request.
+        $key = 'batch-refielded';
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [['name' => 'Süt', 'brand' => 'Pınar', 'base_unit' => 'C62', 'quantity' => 1]],
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [['name' => 'Süt', 'brand' => 'Sütaş', 'base_unit' => 'C62', 'quantity' => 1]],
+        ])->assertStatus(409);
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [['name' => 'Süt', 'brand' => 'Pınar', 'base_unit' => 'LTR', 'quantity' => 1]],
+        ])->assertStatus(409);
+    }
+
+    public function test_a_retry_omitting_the_unit_is_still_the_same_card(): void
+    {
+        // **`createFromLine` defaults a missing unit, so the comparison has to apply the same
+        // default.** Without it the stored `C62` would disagree with a line that never said one, and
+        // the honest retry of a card that took the default would 409.
+        $key = 'batch-defaulted';
+
+        $payload = [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [['name' => 'Bir şey', 'quantity' => 1]],
+        ];
+
+        $this->postJson('/api/v1/stock/receive-batch', $payload)->assertCreated();
+        $this->postJson('/api/v1/stock/receive-batch', $payload)->assertOk();
+
+        $this->assertSame(1, StockMovement::query()->count());
+    }
+
     public function test_a_reordered_retry_of_the_same_lines_is_refused(): void
     {
         // The per-line key is built from the INDEX, so the same two lines swapped are two different

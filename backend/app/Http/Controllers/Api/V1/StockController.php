@@ -468,15 +468,44 @@ final class StockController extends Controller
     }
 
     /**
+     * Whether the product a movement points at is the one this card line would have created.
+     *
+     * Reachable only for a card line, and only on the replay path, so the product IS one
+     * `createFromLine` made rather than one matched from the catalogue: this endpoint never links a
+     * card to an existing product, it refuses a barcode the tenant already uses.
+     *
+     * **The barcode is deliberately not compared.** It is the one card field that does not live on
+     * the product row, so checking it means loading the links and repeating `BarcodeResolver`'s own
+     * GTIN-14 normalisation here, which is a second place that has to agree with it. A retry
+     * differing ONLY in barcode, with the name, brand, unit and quantity all identical, is not a
+     * lost-response retry, and its cost is a link not made rather than stock in the wrong place: the
+     * next scan of that barcode creates it.
+     *
+     * @param  array<string, mixed>  $line
+     */
+    private function sameCard(array $line, ?Product $product): bool
+    {
+        if ($product === null) {
+            return false;
+        }
+
+        return $product->name === ($line['name'] ?? null)
+            && $product->brand === ($line['brand'] ?? null)
+            && $product->base_unit === ($line['base_unit'] ?? Unit::DEFAULT_CODE);
+    }
+
+    /**
      * Whether the movements under a key describe the request being made now.
      *
      * Checked against what the LEDGER already stores rather than a request fingerprint in a new
      * column, because the movement carries every part of a line that can be checked:
      *
      * - the LOCATION, since the same key aimed at another shelf is a different delivery;
-     * - the PRODUCT, when the line names one. A line carrying a card creates a product this call has
-     *   not made, so there is nothing to compare its identity to and location plus quantity is the
-     *   handle there;
+     * - the PRODUCT. A line naming an id is compared against the movement's product directly. A line
+     *   carrying a CARD created its product, so the comparison is against what the card would have
+     *   written: `name` verbatim (the model stores it unchanged and only derives `name_normalized`
+     *   from it), `brand`, and `base_unit` WITH the same default `createFromLine` applies, or a
+     *   retry omitting the unit would disagree with the row its first attempt wrote;
      * - the QUANTITY, as the movement's magnitude rather than its signed delta, because every row a
      *   batch writes is inbound and the sign is the ledger's rather than the request's.
      *
@@ -499,7 +528,11 @@ final class StockController extends Controller
 
             $productId = $line['product_id'] ?? null;
 
-            if ($productId !== null && $movement->product_id !== $productId) {
+            if ($productId !== null) {
+                if ($movement->product_id !== $productId) {
+                    return false;
+                }
+            } elseif (! $this->sameCard($line, $movement->product)) {
                 return false;
             }
 
