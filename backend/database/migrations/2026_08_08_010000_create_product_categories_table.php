@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ProductCategory;
+use Database\Seeders\TaxonomySeeder;
 use FlutterSdk\MagicStarter\Support\MigrationHelper;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -58,12 +59,18 @@ return new class extends Migration
             // tenant's own category, and anything mapped in from Open Food Facts.
             $table->unsignedInteger('google_id')->nullable()->unique();
 
-            // Turkish is required and English is optional, which is the honest shape for a
-            // Turkey-first product. The Google seed fills both from its two locale files; a tenant
-            // typing one name fills `name_tr` only, and the application falls back to it rather than
-            // storing a Turkish string in an English column and calling it a translation.
-            $table->string('name_tr');
-            $table->string('name_en')->nullable();
+            // **English is required and Turkish is optional, which is the reverse of what this said.**
+            // The original read "Turkish is required and English is optional, which is the honest
+            // shape for a Turkey-first product", and that premise is no longer the product's:
+            // `AGENTS.md` says the primary market is outside Turkey and the default locale is
+            // English. A required column is the one every row must be able to fill, and the row a
+            // tenant types is filled in whatever language they use.
+            //
+            // The Google seed fills both from its two locale files, so nothing is lost either way;
+            // what changes is which one a tenant's own category is allowed to omit, and the fallback
+            // in `ProductCategory::label` now runs the other direction.
+            $table->string('name_en');
+            $table->string('name_tr')->nullable();
 
             // Materialised, like `locations.path`, and free here because the seed file already
             // carries it. `depth` is capped at Google's own 7 by a check below.
@@ -74,7 +81,8 @@ return new class extends Migration
 
             $table->index(['team_id', 'path']);
             // The cascade reaches this table by name, and the fold is the same one `products` uses.
-            $table->index('name_tr');
+            // Indexed on the REQUIRED name, for the same reason it is the required one.
+            $table->index('name_en');
         });
 
         Schema::table('product_categories', function (Blueprint $table): void {
@@ -87,6 +95,16 @@ return new class extends Migration
         });
 
         $this->addConstraints();
+
+        // **Filled here, the way `units` and `icons` fill theirs, because this is REFERENCE data.**
+        // `DatabaseSeeder` refuses to run outside local and testing, correctly, since it creates a
+        // demo account with a known password. The taxonomy is the opposite kind of thing: it is the
+        // shared vocabulary `location_category_affinity` counts over, so a production database
+        // without it has a suggestion engine with nothing to say and no error explaining why.
+        //
+        // Invoking the seeder rather than repeating its loop keeps one implementation, and leaves
+        // `db:seed --class=TaxonomySeeder` as the way to re-run it after `depools:vendor-taxonomy`.
+        (new TaxonomySeeder)->run();
     }
 
     /**

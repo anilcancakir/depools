@@ -81,16 +81,83 @@ final class ProductCategory extends Model
     }
 
     /**
-     * The label for a locale, falling back to Turkish rather than to nothing.
+     * The unit a product in this category is most likely counted in, or null for the ordinary case.
      *
-     * `name_en` is nullable because a tenant typing one name fills only `name_tr`, and storing that
-     * Turkish string in the English column would be calling it a translation. So the fallback is
-     * explicit and lives here rather than in each view.
+     * ### Five entries, not 5,595
+     *
+     * D32 says `base_unit` is inferred "from the name, from the category, and failing both it is
+     * editable". A row per node is not hand-authorable and would be mostly wrong anyway: the
+     * countable default is right for the overwhelming majority of the taxonomy, so what is worth
+     * mapping is the small set of branches where it is WRONG.
+     *
+     * The five below are the food branches sold by weight. Everything else, including the ones that
+     * look like they belong here, is deliberately absent:
+     *
+     * - **Beverages** is bottles and cartons, which are counted.
+     * - **Dairy** is cartons and tubs.
+     * - **Bakery** and **Snack Foods** are packets.
+     * - **Eggs** is counted, which is exactly why `Meat, Seafood & Eggs` is not mapped as a whole
+     *   and its Meat and Seafood children are mapped individually. Google's own grouping bundles a
+     *   counted thing with two weighed ones.
+     *
+     * ### Matched by path prefix rather than by walking parents
+     *
+     * `path` is materialised, so a descendant carries its ancestors in the string and one comparison
+     * answers for the whole branch: `Fruits & Vegetables > Fresh & Frozen Vegetables > Carrots`
+     * resolves without loading a single parent row.
+     *
+     * The boundary matters. A bare `str_starts_with` would let a future `Fruits & Vegetables Extra`
+     * inherit from a branch it does not belong to, so the comparison is the path itself or the path
+     * plus the separator.
+     */
+    public function defaultUnitCode(): ?string
+    {
+        foreach (self::WEIGHED_BRANCHES as $branch => $code) {
+            if ($this->path === $branch || str_starts_with((string) $this->path, $branch.' > ')) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The branches whose products are weighed, and what they are weighed in.
+     *
+     * Keyed by PATH rather than by `google_id`, which is the opposite of what D87 says about the
+     * stable key, and the reason is that this map has to survive a database with no taxonomy in it:
+     * a test that creates one category should be able to exercise the mapping without the seed. The
+     * `google_id` is in the comment beside each so a renamed path can be traced back.
+     *
+     * `KGM` is Rec 20's kilogram, which the units table seeds.
+     */
+    private const WEIGHED_BRANCHES = [
+        // 4628
+        'Food, Beverages & Tobacco > Food Items > Meat, Seafood & Eggs > Meat' => 'KGM',
+        // 4629
+        'Food, Beverages & Tobacco > Food Items > Meat, Seafood & Eggs > Seafood' => 'KGM',
+        // 430
+        'Food, Beverages & Tobacco > Food Items > Fruits & Vegetables' => 'KGM',
+        // 431
+        'Food, Beverages & Tobacco > Food Items > Grains, Rice & Cereal' => 'KGM',
+        // 433
+        'Food, Beverages & Tobacco > Food Items > Nuts & Seeds' => 'KGM',
+    ];
+
+    /**
+     * The label for a locale, falling back to English rather than to nothing.
+     *
+     * `name_tr` is the nullable one: a tenant typing a single name fills the required English
+     * column, whatever language they typed it in, and storing it in `name_tr` as well would be
+     * calling it a translation. So the fallback is explicit and lives here rather than in each view.
+     *
+     * The direction reversed with the column: this used to fall back to Turkish, from a migration
+     * written when the product was Turkey-first.
      */
     public function label(string $locale): string
     {
-        return $locale === 'en'
-            ? ($this->name_en ?? $this->name_tr)
-            : $this->name_tr;
+        return $locale === 'tr'
+            ? ($this->name_tr ?? $this->name_en)
+            : $this->name_en;
     }
 }
