@@ -687,7 +687,9 @@
       "stock_in": "Stok ekle",
       "stock_out": "Stok çıkar",
       "total_stock": "Toplam stok",
-      "write_failed": "Değişiklik kaydedilemedi"
+      "write_failed": "Değişiklik kaydedilemedi",
+      "target_field": "Hedef seviye",
+      "target_none": "Belirlenmedi"
     },
     "product_draft": {
       "title": "Yeni ürün",
@@ -849,7 +851,8 @@
       "empty_title": "Azalan ürün yok",
       "empty_description": "Stoğu biten ürünler ve belirlenen hedef seviyeye düşen ürünler burada listelenir.",
       "meta_no_target": "Hedef belirlenmedi",
-      "load_failed": "Liste yüklenemedi"
+      "load_failed": "Liste yüklenemedi",
+      "save_failed": "Değişiklik kaydedilemedi"
     },
     "scan": {
       "title": "Barkod tara",
@@ -1136,6 +1139,13 @@
       "result": ":quantity :unit = :total :base olarak kaydedilir",
       "save": "Kaydet",
       "cancel": ":base olarak devam et"
+    },
+    "target": {
+      "title": "Hedef seviye",
+      "none_yet": "Henüz hedef belirlenmedi",
+      "current": "Şu an :value :unit",
+      "saved": "Hedef kaydedildi",
+      "cleared": "Hedef kaldırıldı"
     }
   },
   "components": {

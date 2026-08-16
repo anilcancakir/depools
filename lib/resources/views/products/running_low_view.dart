@@ -10,6 +10,7 @@ import '../../../ui/components/product_row/product_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import 'product_fixtures.dart';
 import 'stock_in_sheet.dart';
+import 'target_sheet.dart';
 
 /// What is short: the second of `forecasting.md`'s three surfaces.
 ///
@@ -236,8 +237,41 @@ class _RunningLowViewState extends State<RunningLowView> {
       // column the width the cover figure needs. An expiry badge still renders: `_buildBadge`
       // ranks expiry above stock level, and a short product that is also going off is worth
       // saying, because that one has a deadline reordering cannot fix.
-      onTap: () => StockInSheet.show(context, product: product),
+      //
+      // **The tap answers the question the row raised.** With a target, "this is short" is
+      // almost always answered by "I bought some", so it opens stock-in. With none, the row is
+      // saying the app has nothing to measure against, and `forecasting.md` wants the target
+      // asked at exactly the moment it becomes useful: this row IS that moment, and stock-in
+      // would leave the product unmeasurable however much of it the user added.
+      onTap: par == null
+          ? () => _askForTarget(context, product)
+          : () => StockInSheet.show(context, product: product),
     );
+  }
+
+  /// Ask how much of this to keep, and write the answer.
+  ///
+  /// Nothing is written when the sheet is dismissed, which is why the decision travels as a
+  /// [TargetDecision] rather than as a nullable number: "no target, deliberately" and "I changed
+  /// my mind" both carry a null value and must not become the same request.
+  Future<void> _askForTarget(BuildContext context, ProductListItem product) async {
+    final String? id = product.id;
+
+    if (id == null) return;
+
+    final TargetDecision decision = await TargetSheet.show(
+      context,
+      unit: product.unit,
+      current: product.parLevel,
+    );
+
+    if (!decision.isDecision) return;
+
+    final String? failure = await _controller?.setTarget(id, decision.value);
+
+    if (failure == null || !mounted) return;
+
+    MagicFeedback.error(Lang.get('screens.target.title'), failure);
   }
 
   /// Nothing short, which is the good outcome.

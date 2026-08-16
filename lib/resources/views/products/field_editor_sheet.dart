@@ -66,6 +66,18 @@ class FieldEditorSheet extends StatefulWidget {
   /// What kind of control to show.
   final FieldEditorKind kind;
 
+  /// Whether saving clears an `otomatik` mark on this field.
+  ///
+  /// **True by default, because every caller until the target sheet was editing a DRAFT** whose
+  /// values the app had inferred (D53). The note under the buttons exists so the mark disappearing
+  /// is not a surprise.
+  ///
+  /// It was tied to `provenance != null`, which conflated two different things: the provenance line
+  /// says where a value came from, and a saved product's target has a provenance worth stating
+  /// ("no target set yet") and no mark to remove. The sheet then promised to clear something that
+  /// was never there.
+  final bool clearsMark;
+
   /// The one-tap answers, in order. The current value belongs first when there is one.
   final List<String> quickAnswers;
 
@@ -91,6 +103,7 @@ class FieldEditorSheet extends StatefulWidget {
     this.value,
     this.unit,
     this.kind = FieldEditorKind.text,
+    this.clearsMark = true,
     this.quickAnswers = const <String>[],
     this.options = const <String>[],
     this.suggestedOption,
@@ -106,6 +119,7 @@ class FieldEditorSheet extends StatefulWidget {
     String? value,
     String? unit,
     FieldEditorKind kind = FieldEditorKind.text,
+    bool clearsMark = true,
     List<String> quickAnswers = const <String>[],
     List<String> options = const <String>[],
     String? suggestedOption,
@@ -122,6 +136,7 @@ class FieldEditorSheet extends StatefulWidget {
         value: value,
         unit: unit,
         kind: kind,
+        clearsMark: clearsMark,
         quickAnswers: quickAnswers,
         options: options,
         suggestedOption: suggestedOption,
@@ -251,7 +266,7 @@ class _FieldEditorSheetState extends State<FieldEditorSheet> {
       children: [
         // Saying what saving DOES to the mark, because the mark disappearing is otherwise
         // a surprise: the user changed nothing and the `otomatik` label went away.
-        if (widget.provenance != null)
+        if (widget.clearsMark && widget.provenance != null)
           WText(Lang.get('screens.field_editor.clears_mark'), className: 'text-xs text-fg-muted'),
         MSButton(
           onPressed: () => Navigator.of(context).pop(_value),

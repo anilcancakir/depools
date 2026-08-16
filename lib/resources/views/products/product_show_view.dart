@@ -55,6 +55,7 @@ import 'product_fixtures.dart';
 import 'stock_in_sheet.dart';
 import 'stock_move_sheet.dart';
 import 'stock_out_sheet.dart';
+import 'target_sheet.dart';
 
 /// Product detail: everything known about one product the tenant holds.
 ///
@@ -829,7 +830,55 @@ class _ProductShowViewState extends State<ProductShowView> {
             value: _product.categoryLabel,
           ),
         ),
+        // **The one field here that actually saves.** The four above open the editor and discard
+        // what it returns, which predates this change and stays that way: wiring them is a
+        // validator per field and their own PR. This one is here because without it a target can
+        // be set once from a running-low row and never changed, and the natural place to change a
+        // product's own settings is the product.
+        DraftField(
+          label: Lang.get('screens.product.target_field'),
+          value: _product.parLevel == null
+              ? Lang.get('screens.product.target_none')
+              : '${_product.parLevel} ${unitLabel(_product.unit, _product.parLevel!)}',
+          onTap: _editTarget,
+        ),
       ],
+    );
+  }
+
+  /// Ask how much of this to keep, and write the answer.
+  ///
+  /// Nothing is written when the sheet is dismissed. "No target, deliberately" and "I changed my
+  /// mind" both carry a null value, which is why the decision travels as a [TargetDecision] rather
+  /// than as a nullable number.
+  Future<void> _editTarget() async {
+    final ProductListItem product = _product;
+    final ProductDetailController? controller = _controller;
+    final String? productId = product.id;
+
+    if (controller == null || productId == null) return;
+
+    final TargetDecision decision = await TargetSheet.show(
+      context,
+      unit: product.unit,
+      current: product.parLevel,
+    );
+
+    if (!decision.isDecision) return;
+
+    final String? failure = await controller.setTarget(productId, decision.value);
+
+    if (!mounted) return;
+
+    if (failure != null) {
+      MagicFeedback.error(Lang.get('screens.target.title'), failure);
+
+      return;
+    }
+
+    MagicFeedback.success(
+      Lang.get('screens.target.title'),
+      Lang.get(decision.value == null ? 'screens.target.cleared' : 'screens.target.saved'),
     );
   }
 

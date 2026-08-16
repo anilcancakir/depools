@@ -91,4 +91,35 @@ class RunningLowController extends MagicController with MagicStateMixin<List<Pro
 
     setSuccess(rows);
   }
+
+  /// Set or clear how much of a product to keep on hand, then rebuild the list.
+  ///
+  /// **Here rather than through `ProductDetailController`**, which also owns a `setTarget`. Two
+  /// callers of one endpoint is two callers; routing this one through the detail controller would
+  /// make it fetch the whole product, its lots and its movements to write one number, and leave
+  /// that controller holding a product the user is not looking at.
+  ///
+  /// The reload is unconditional, because setting a target is exactly what changes who is on this
+  /// screen: the product the user just answered about either joins the list or leaves it.
+  ///
+  /// Returns the server's own sentence on a refusal and null on success. Blanking a screen the user
+  /// is reading, over a write that changed nothing, is worse than the failure.
+  Future<String?> setTarget(String productId, num? parLevel) async {
+    final dynamic response = await Http.put(
+      '/products/${Uri.encodeComponent(productId)}/target',
+      data: <String, dynamic>{'par_level': parLevel},
+    );
+
+    if (!response.successful) {
+      final dynamic message = response['message'];
+
+      return message is String && message.isNotEmpty
+          ? message
+          : Lang.get('screens.running_low.save_failed');
+    }
+
+    await load();
+
+    return null;
+  }
 }

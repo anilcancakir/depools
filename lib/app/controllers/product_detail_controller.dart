@@ -264,6 +264,37 @@ class ProductDetailController extends MagicController
     return null;
   }
 
+  /// Set or clear how much of this product to keep on hand.
+  ///
+  /// **The one number the app asks a person for.** The creation form deliberately does not ask
+  /// (`forecasting.md` wants the target asked at the moment it becomes useful), so until this
+  /// existed a product could only reach the shortage surfaces by running out entirely.
+  ///
+  /// Null clears it, which is a real answer rather than a mistake: the product stays reachable
+  /// through the out-of-stock arm, because running out needs no threshold to be true.
+  ///
+  /// Returns the server's own sentence on a refusal and null on success, like every other write
+  /// here: blanking a screen the user is reading, over a write that changed nothing, is worse than
+  /// the failure itself.
+  Future<String?> setTarget(String productId, num? parLevel) async {
+    final response = await Http.put(
+      '/products/${Uri.encodeComponent(productId)}/target',
+      data: <String, dynamic>{'par_level': parLevel},
+    );
+
+    if (!response.successful) {
+      final dynamic message = response['message'];
+
+      return message is String && message.isNotEmpty
+          ? message
+          : Lang.get('screens.product.write_failed');
+    }
+
+    await load(productId, force: true);
+
+    return null;
+  }
+
   /// Fetches one product, unless it is already the one held.
   ///
   /// [force] is for after a write: receiving stock changes the lots this screen is drawing, and
