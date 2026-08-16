@@ -50,6 +50,12 @@ final class MovementResource extends JsonResource
             'actor_type' => $this->actor_type?->value,
             'actor_name' => $this->whenLoaded('actor', fn (): ?string => $this->actor?->name),
 
+            // **Only where the caller loaded it, which is the dashboard.** A product's own activity
+            // card is nested under that product and already knows the name, so paying for it there
+            // would be a join per row for a word already on screen. A feed that SPANS products
+            // cannot say what changed without it.
+            'product_name' => $this->whenLoaded('product', fn (): ?string => $this->product?->name),
+
             'location_name' => $this->whenLoaded('location', fn (): ?string => $this->location?->name),
             'note' => $this->note,
             // **`occurred_at`, the business event time, not `created_at`.** They differ whenever an

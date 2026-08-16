@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/dashboard_fixtures.dart';
 import '../resources/views/dashboard_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -15,5 +16,5 @@ class DashboardScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const DashboardView();
+  static Widget _build(BuildContext context) => DashboardView(summary: dashboardFixture());
 }

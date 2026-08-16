@@ -4,6 +4,11 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show ButtonIntent, MSButton, MSEmptyState, MSPageScaffold;
 
+import '../../app/controllers/dashboard_controller.dart';
+import '../../app/models/movement_entry.dart';
+import '../../app/support/movement_copy.dart';
+import '../../app/models/dashboard_summary.dart';
+import '../../app/support/plural.dart';
 import '../../app/support/unit_label.dart';
 import '../../ui/components/list_footer/list_footer.dart';
 import '../../ui/components/lot_row/lot_row.dart';
@@ -12,10 +17,8 @@ import '../../ui/components/product_row/product_row.dart';
 import '../../ui/components/section_card/section_card.dart';
 import '../../ui/components/setup_step/setup_step.dart';
 import '../../ui/components/stat_card/stat_card.dart';
-import 'products/activity_fixtures.dart';
 import 'products/expiring_fixtures.dart';
 import 'products/product_fixtures.dart';
-import 'products/running_low_fixtures.dart';
 import 'products/shopping_fixtures.dart';
 
 /// The landing page, and the one screen whose job is a QUESTION rather than a list.
@@ -58,17 +61,7 @@ import 'products/shopping_fixtures.dart';
 /// a grid, `items-stretch` makes a row's cells match its tallest, so the four values sit on one
 /// baseline at every width without anything being measured in Dart.
 @immutable
-class DashboardView extends StatelessWidget {
-  static const IconData _iconScan = Icons.qr_code_scanner_outlined;
-  static const IconData _iconAssistant = Icons.auto_awesome_outlined;
-  static const IconData _iconCount = Icons.checklist_outlined;
-  static const IconData _iconReceipt = Icons.receipt_long_outlined;
-  static const IconData _iconShelf = Icons.photo_camera_outlined;
-  static const IconData _iconCalm = Icons.check_circle_outline;
-
-  /// How many rows a dashboard card shows before it defers to its own screen.
-  static const int _rowCap = 3;
-
+class DashboardView extends StatefulWidget {
   /// Whether the tenant has any stock at all.
   ///
   /// **"Caught up" and "not started" are not the same empty screen, and treating them as one was a
@@ -81,11 +74,19 @@ class DashboardView extends StatelessWidget {
   /// Whether the dates source could not be read.
   final bool datesFailed;
 
-  /// Creates the [DashboardView].
-  const DashboardView({super.key}) : hasStock = true, datesFailed = false;
+  /// A summary supplied by the caller, which is how the preview catalog stays offline.
+  ///
+  /// Null means "read [DashboardController]", which is what the route does. The previews pass one
+  /// built from the fixtures, so previewing this screen never issues a request.
+  final DashboardSummary? summary;
+
+  /// Creates the [DashboardView], reading from [DashboardController].
+  const DashboardView({super.key, this.summary}) : hasStock = true, datesFailed = false;
 
   /// Creates the view for a tenant that has not added anything yet.
-  const DashboardView.fresh({super.key}) : hasStock = false, datesFailed = false;
+  const DashboardView.fresh({super.key, this.summary})
+    : hasStock = false,
+      datesFailed = false;
 
   /// Creates the view with one section's source unavailable, which is its own reviewable state.
   ///
@@ -93,37 +94,113 @@ class DashboardView extends StatelessWidget {
   /// leaves the rest of the page working, and this screen is where that claim is testable: it
   /// reads from four sources, so a dates request that times out must not take the four counters,
   /// the capture actions and the shortage list with it.
-  const DashboardView.sectionFailed({super.key}) : hasStock = true, datesFailed = true;
+  const DashboardView.sectionFailed({super.key, this.summary})
+    : hasStock = true,
+      datesFailed = true;
+
+  @override
+  State<DashboardView> createState() => _DashboardViewState();
+}
+
+class _DashboardViewState extends State<DashboardView> {
+  static const IconData _iconScan = Icons.qr_code_scanner_outlined;
+  static const IconData _iconAssistant = Icons.auto_awesome_outlined;
+  static const IconData _iconCount = Icons.checklist_outlined;
+  static const IconData _iconReceipt = Icons.receipt_long_outlined;
+  static const IconData _iconShelf = Icons.photo_camera_outlined;
+  static const IconData _iconCalm = Icons.check_circle_outline;
+
+  /// How many rows a dashboard card shows before it defers to its own screen.
+  static const int _rowCap = 3;
+
+  DashboardController? _controller;
+
+  bool get datesFailed => widget.datesFailed;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.summary != null) return;
+
+    final DashboardController controller = DashboardController.instance
+      ..addListener(_onChanged);
+
+    // The same `onInit` contract every wired screen here needs. Getting it wrong on THIS screen is
+    // the worst version: a controller that never initialises reports no stock, and a tenant with
+    // forty products is shown the first-run setup steps.
+    if (!controller.initialized) {
+      controller.onInit();
+    } else {
+      // **Re-asked on every visit, unlike the other screens.** A user comes back here after doing
+      // the thing the dashboard told them to do, and a cached "1 expired" after they have just
+      // thrown that carton away is the screen contradicting itself. Quiet, so the drawn copy stays
+      // on screen while the answer is in flight.
+      controller.load(quiet: true);
+    }
+
+    _controller = controller;
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// What the screen draws, whatever the source.
+  DashboardSummary? get _summary => widget.summary ?? _controller?.summary;
 
   @override
   Widget build(BuildContext context) {
-    final List<DatedLot> expired = hasStock ? expiredRows() : const <DatedLot>[];
-    final List<DatedLot> approaching = hasStock
-        ? approachingByLocation().values.expand((List<DatedLot> rows) => rows).toList()
-        : const <DatedLot>[];
-    final List<ProductListItem> out = hasStock ? outOfStock : const <ProductListItem>[];
-    final List<ProductListItem> low = hasStock ? belowTarget : const <ProductListItem>[];
-    final int products = hasStock ? productFixtures.length : 0;
-    final int locations = hasStock ? locationOptions.length : 0;
-    final bool isCalm = expired.isEmpty && approaching.isEmpty && out.isEmpty && low.isEmpty;
+    final DashboardSummary? summary = _summary;
+
+    // **Nothing until there is an answer, and this screen more than any other.** It has two SHAPES
+    // rather than a full and an empty one, so guessing wrong shows a tenant with forty products the
+    // setup steps for a brand new account.
+    if (summary == null) return const SizedBox.shrink();
+
+    final List<DatedLot> expired = summary.expired;
+    final List<DatedLot> approaching = summary.approaching;
+    final List<ProductListItem> out = summary.outOfStock;
+    final List<ProductListItem> low = summary.belowTarget;
+    final int products = summary.products;
+    final int locations = summary.locations;
+    final bool isCalm = summary.expiredCount == 0 &&
+        summary.approachingCount == 0 &&
+        summary.outOfStockCount == 0 &&
+        summary.belowTargetCount == 0;
 
     // A fresh tenant gets a different screen, not a thinner one. The counters, the four cards and
     // the movement history all describe stock, and every one of them would render as a zero or an
     // empty state: six ways of saying the same nothing.
-    if (!hasStock) return _buildFirstRun(context);
+    if (!summary.hasStock) return _buildFirstRun(context);
 
     return MSPageScaffold(
       title: Lang.get('screens.dashboard.title'),
       // The scope of everything below, so a counter reading 6 is legible as six OF something.
       subtitle: Lang.get('screens.dashboard.subtitle', {'products': products, 'locations': locations}),
       children: [
-        _buildCounters(expired.length, approaching.length, out.length, low.length),
+        // **The COUNTERS are the whole set and the lists are the first three.** Passing the list
+        // lengths would make every card say "3" however many products are actually short, which is
+        // the disagreement between a figure and the page it links to that this screen exists to
+        // avoid.
+        _buildCounters(
+          summary.expiredCount,
+          summary.approachingCount,
+          summary.outOfStockCount,
+          summary.belowTargetCount,
+        ),
         _buildCapture(context),
         if (isCalm) _buildCalm(),
         if (expired.isNotEmpty || approaching.isNotEmpty) _buildDates(expired, approaching),
         if (out.isNotEmpty || low.isNotEmpty) _buildStock(out, low),
         if (pendingLines.isNotEmpty) _buildShopping(),
-        _buildActivity(),
+        _buildActivity(summary.activity),
       ],
     );
   }
@@ -330,7 +407,11 @@ class DashboardView extends StatelessWidget {
       // a card that could not read them is the header-contradicts-its-list defect again.
       count: datesFailed
           ? null
-          : Lang.get('screens.dashboard.count_batches', {'count': rows.length}),
+          : plural(
+              'screens.dashboard.count_batches',
+              _summary?.expiredCount ?? 0 + (_summary?.approachingCount ?? 0),
+              {'count': (_summary?.expiredCount ?? 0) + (_summary?.approachingCount ?? 0)},
+            ),
       action: datesFailed ? null : _seeAll('/dates', Lang.get('screens.dashboard.dates_action')),
       error: datesFailed ? Lang.get('screens.dashboard.dates_failed') : null,
       onRetry: datesFailed ? () {} : null,
@@ -348,7 +429,11 @@ class DashboardView extends StatelessWidget {
             isOpen: row.isOpen,
             openedLabel: row.receivedLabel,
           ),
-        _hiddenCount(rows.length, Lang.get('screens.dashboard.unit_batches')),
+        _hiddenCount(
+          (_summary?.expiredCount ?? 0) + (_summary?.approachingCount ?? 0),
+          rows.take(_rowCap).length,
+          Lang.get('screens.dashboard.unit_batches'),
+        ),
       ],
     );
   }
@@ -365,26 +450,45 @@ class DashboardView extends StatelessWidget {
 
     return SectionCard(
       label: Lang.get('screens.dashboard.stock_group'),
-      count: Lang.get('screens.dashboard.count_products', {'count': rows.length}),
+      count: plural(
+        'screens.dashboard.count_products',
+        _shortTotal,
+        {'count': _shortTotal},
+      ),
       action: _seeAll('/running-low', Lang.get('screens.dashboard.stock_action')),
       children: [
         for (final ProductListItem p in rows.take(_rowCap)) _productRow(p),
-        _hiddenCount(rows.length, Lang.get('screens.dashboard.unit_products')),
+        _hiddenCount(_shortTotal, rows.take(_rowCap).length, Lang.get('screens.dashboard.unit_products')),
       ],
     );
   }
+
+  /// How many products are short in total, which is what the card's count says.
+  ///
+  /// The two sets do not overlap: `below_par` requires stock above zero, so a product holding
+  /// nothing is out of stock and NOT below target. Adding them is therefore a count rather than a
+  /// double count, and the endpoint's own test pins that.
+  int get _shortTotal =>
+      (_summary?.outOfStockCount ?? 0) + (_summary?.belowTargetCount ?? 0);
 
   /// One short product, rendered by the list screen's own row.
   Widget _productRow(ProductListItem product) {
     final (String primary, String? primaryUnit) = product.primaryFigure;
     final (String, String?)? remainder = product.remainderFigure;
 
+    // **A product with no target is still out of stock**, and the endpoint answers that set without
+    // requiring one. The fixture always carried a target, so this line had never been handed a null
+    // and rendered "Target null piece" the first time real rows arrived.
+    final num? par = product.parLevel;
+
     return ProductRow(
       name: product.name,
-      meta: Lang.get('screens.dashboard.stock_meta', {
-        'par': product.parLevel,
-        'unit': unitLabel(product.unit, product.parLevel ?? 1),
-      }),
+      meta: par == null
+          ? Lang.get('screens.dashboard.stock_no_target')
+          : Lang.get('screens.dashboard.stock_meta', {
+              'par': par,
+              'unit': unitLabel(product.unit, par),
+            }),
       amount: product.amount,
       formatted: primary,
       unit: primaryUnit,
@@ -415,26 +519,54 @@ class DashboardView extends StatelessWidget {
   }
 
   /// What the app did last, so an automatic write is never a surprise.
-  Widget _buildActivity() {
-    final List<ActivityFixture> rows = activityEntries;
-
+  ///
+  /// **The tenant's whole ledger, not one product's.** That is the difference from the product
+  /// screen's own card, and it is why the row leads with the PRODUCT here: on a feed that spans
+  /// products, "Purchase" alone says something moved without saying what.
+  Widget _buildActivity(List<MovementEntry> rows) {
     return SectionCard(
       label: Lang.get('screens.dashboard.activity_group'),
-      count: Lang.get('screens.dashboard.count_changes', {'count': rows.length}),
+      count: plural('screens.dashboard.count_changes', rows.length, {'count': rows.length}),
       collapsible: true,
       children: [
-        for (final ActivityFixture entry in rows.take(_rowCap))
-          MovementRow(
-            reason: entry.product,
-            deltaAmount: entry.deltaAmount,
-            delta: entry.delta,
-            unit: entry.unit,
-            meta: entry.meta,
-            direction: entry.direction,
-            note: entry.note,
-          ),
-        _hiddenCount(rows.length, Lang.get('screens.dashboard.unit_changes')),
+        for (final MovementEntry entry in rows.take(_rowCap)) _activityRow(entry),
+        // The activity feed is the one card whose total IS what it was sent: the endpoint answers the
+        // last few and there is no separate figure for "every movement ever", which is not a number
+        // anybody wants on a dashboard.
+        _hiddenCount(rows.length, rows.take(_rowCap).length, Lang.get('screens.dashboard.unit_changes')),
       ],
+    );
+  }
+
+  /// One ledger entry, composed the same way the product screen composes its own.
+  ///
+  /// The two differ in exactly one place, and it is the one the feed's scope decides: the headline
+  /// is the product name where the payload carries one, with the reason falling to the meta line
+  /// beside the place and the time. A product's own card does the reverse, because the name is
+  /// already in its header.
+  Widget _activityRow(MovementEntry entry) {
+    // `.abs()` on both, because the sign is the delta's job: a negative entered figure would render
+    // `+-1` and pluralise on a negative number.
+    final double amount = (entry.enteredQuantity ?? entry.delta).abs();
+    final String? unit = entry.enteredUnit;
+    final String reason = movementReasonLabel(entry.reason);
+
+    final List<String> meta = <String>[
+      reason,
+      ?movementActorLabel(entry.actorType, entry.actorName),
+      ?entry.locationName,
+      ?ProductListItem.formatDate(entry.at?.toLocal().toIso8601String()),
+    ];
+
+    return MovementRow(
+      reason: entry.productName ?? reason,
+      deltaAmount: entry.delta,
+      delta: '${entry.delta < 0 ? '-' : '+'}${ProductListItem.format(amount)}',
+      unit: unit == null ? null : unitLabelFor(unit, ProductListItem.format(amount)),
+      // The reason is dropped from the meta when it is already the headline, which happens only for
+      // a row whose product the payload could not name.
+      meta: (entry.productName == null ? meta.skip(1) : meta).join(' · '),
+      direction: movementDirection(entry.reason, entry.delta),
     );
   }
 
@@ -486,13 +618,25 @@ class DashboardView extends StatelessWidget {
   /// Worth knowing for the next hunt: this only reports on the FIRST paint after a restart, because
   /// Flutter announces an overflow once per `RenderFlex` instance. Re-navigating to the screen
   /// showed a clean buffer and made it look fixed when it was not.
-  Widget _hiddenCount(int total, String noun) {
-    if (total <= _rowCap) return const SizedBox.shrink();
+  /// How many the card is not showing.
+  ///
+  /// **[total] is the whole set and [shown] is what the payload actually sent**, and they are two
+  /// different numbers now that the server caps its preview. The first version passed the preview
+  /// length as the total, so a card headed "5 batches" showed three rows and said "+1 more": the
+  /// header and the footer disagreed by exactly what the endpoint had trimmed.
+  Widget _hiddenCount(int total, int shown, String noun) {
+    final int hidden = total - shown;
+
+    if (hidden <= 0) return const SizedBox.shrink();
 
     return ListFooter(
       state: ListFooterState.end,
-      pageSize: _rowCap,
-      totalLabel: Lang.get('screens.dashboard.hidden_more', {'count': total - _rowCap, 'noun': noun}),
+      pageSize: shown,
+      totalLabel: plural(
+        'screens.dashboard.hidden_more',
+        hidden,
+        {'count': hidden, 'noun': noun},
+      ),
     );
   }
 }

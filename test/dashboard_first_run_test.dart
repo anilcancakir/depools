@@ -1,3 +1,4 @@
+import 'package:depools/resources/views/dashboard_fixtures.dart';
 import 'package:depools/resources/views/dashboard_view.dart';
 import 'package:depools/ui/components/setup_step/setup_step.dart';
 import 'package:flutter/widgets.dart';
@@ -39,13 +40,13 @@ void main() {
   }
 
   testWidgets('a fresh tenant gets the setup checklist, not four zeroes', (tester) async {
-    await pump(tester, const DashboardView.fresh());
+    await pump(tester, DashboardView.fresh(summary: dashboardFreshFixture()));
 
     expect(find.byType(SetupStep), findsNWidgets(3));
   });
 
   testWidgets('exactly one step is current, so there is one next thing to do', (tester) async {
-    await pump(tester, const DashboardView.fresh());
+    await pump(tester, DashboardView.fresh(summary: dashboardFreshFixture()));
 
     final Iterable<SetupStep> steps = tester.widgetList<SetupStep>(find.byType(SetupStep));
     final int current = steps.where((s) => s.state == SetupStepState.current).length;
@@ -56,7 +57,7 @@ void main() {
   });
 
   testWidgets('every step offers a way to do it', (tester) async {
-    await pump(tester, const DashboardView.fresh());
+    await pump(tester, DashboardView.fresh(summary: dashboardFreshFixture()));
 
     for (final SetupStep step in tester.widgetList<SetupStep>(find.byType(SetupStep))) {
       expect(step.actionLabel, isNotNull, reason: '${step.title} has no action');
@@ -65,7 +66,7 @@ void main() {
   });
 
   testWidgets('a populated tenant does not get the checklist', (tester) async {
-    await pump(tester, const DashboardView());
+    await pump(tester, DashboardView(summary: dashboardFixture()));
 
     // The populated dashboard overflows in this harness because every string renders as its own
     // key and a key is longer than the copy it stands for. Consumed rather than worked around: it

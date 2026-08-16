@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/dashboard_fixtures.dart';
 import '../resources/views/dashboard_view.dart';
 import 'responsive_screen_preview.dart';
 
@@ -16,7 +17,7 @@ class DashboardFailedScreenPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ResponsiveScreenPreview(
-      builder: (BuildContext context) => const DashboardView.sectionFailed(),
+      builder: (BuildContext context) => DashboardView.sectionFailed(summary: dashboardFixture()),
     );
   }
 }
