@@ -584,4 +584,85 @@ final class ScanBatchTest extends TestCase
             'lines' => [['name' => 'Süt', 'quantity' => 1]],
         ])->assertCreated();
     }
+
+    public function test_a_key_long_enough_to_overflow_its_column_is_refused(): void
+    {
+        // **The column is `varchar(64)` and each line stores `"{key}:{index}"`.** At 200 lines the
+        // longest suffix is `:199`, so a 64-character key overflowed on write: a database error
+        // rather than a refusal the client can read. The bound is 60 and this is the arithmetic.
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => str_repeat('k', 61),
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ])->assertStatus(422)->assertJsonValidationErrors('idempotency_key');
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => str_repeat('k', 60),
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ])->assertCreated();
+    }
+
+    public function test_lines_sent_as_an_object_are_refused_rather_than_crashing(): void
+    {
+        // `array` alone accepts a JSON object, whose keys are strings, and the per-line key is built
+        // from the INDEX: `lineKey()` would be handed `"a"` and raise a TypeError, so the client got
+        // a 500 where it deserved a 422.
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'lines' => ['a' => ['name' => 'Süt', 'quantity' => 1]],
+        ])->assertStatus(422)->assertJsonValidationErrors('lines');
+    }
+
+    public function test_reusing_a_key_for_a_shorter_batch_is_refused(): void
+    {
+        // **This read as a complete replay.** The lookup asked for `:0..:n` where n came from the
+        // CURRENT request, so a two-line retry of a three-line batch found two, matched its own
+        // count, and answered success while the third movement sat there unreported. Matching by
+        // prefix is what lets the mismatch be seen.
+        $key = 'batch-shrink';
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [
+                ['name' => 'Süt', 'quantity' => 1],
+                ['name' => 'Ekmek', 'quantity' => 1],
+                ['name' => 'Peynir', 'quantity' => 1],
+            ],
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => $key,
+            'lines' => [
+                ['name' => 'Süt', 'quantity' => 1],
+                ['name' => 'Ekmek', 'quantity' => 1],
+            ],
+        ])->assertStatus(409);
+
+        // And nothing was appended on top of the three that were already there.
+        $this->assertSame(3, StockMovement::query()->count());
+    }
+
+    public function test_a_wildcard_key_does_not_match_every_batch(): void
+    {
+        // `%` is a LIKE wildcard and the key comes from a request. Unescaped, a batch keyed `%`
+        // would have matched every batch this tenant ever recorded and replayed one of them. The
+        // same hole was measured on the icon search, where `%` alone answered all 4,185 rows.
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'real-batch',
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ])->assertCreated();
+
+        // A fresh write, not a replay of the batch above.
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => '%',
+            'lines' => [['name' => 'Ekmek', 'quantity' => 1]],
+        ])->assertCreated();
+
+        $this->assertSame(2, StockMovement::query()->count());
+    }
 }

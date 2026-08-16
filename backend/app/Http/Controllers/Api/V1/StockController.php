@@ -14,6 +14,7 @@ use App\Services\CatalogueContributor;
 use App\Services\StockLedger;
 use App\Services\StockWriter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -39,6 +40,21 @@ use RuntimeException;
  */
 final class StockController extends Controller
 {
+    /**
+     * The longest batch this endpoint accepts.
+     *
+     * Named because [MAX_BATCH_KEY] is derived from it: the per-line suffix is `:` plus an index up
+     * to 199, so the two have to move together or a key overflows its column.
+     */
+    private const MAX_BATCH_LINES = 200;
+
+    /**
+     * The longest batch key, leaving room for the suffix inside `varchar(64)`.
+     *
+     * `64 - strlen(':199')`. A key at the column's full width overflowed on write.
+     */
+    private const MAX_BATCH_KEY = 60;
+
     public function __construct(
         private readonly StockWriter $writer,
         private readonly StockLedger $ledger,
@@ -283,7 +299,10 @@ final class StockController extends Controller
             // another tenant is untouched by this and still 404s through the scope, which is tenancy
             // rule 2 and has to stay that way.
             'location_id' => ['required', 'uuid'],
-            'lines' => ['required', 'array', 'min:1', 'max:200'],
+            // **`list`, because the per-line key is built from the INDEX.** `array` alone accepts a
+            // JSON object, whose keys are strings, and `lineKey()` would then be handed one and
+            // raise a TypeError: a 500 where the client deserved a 422.
+            'lines' => ['required', 'array', 'list', 'min:1', 'max:'.self::MAX_BATCH_LINES],
             'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
 
             // One or the other, enforced in BOTH directions and across the WHOLE card. `required_without`
@@ -314,7 +333,12 @@ final class StockController extends Controller
             // is `(team_id, idempotency_key)` and it is PER MOVEMENT, so one key cannot go on every
             // row of a batch. Each line gets `"{key}:{index}"` instead, and the index is the line's
             // position in the request, so retrying the same payload produces the same keys.
-            'idempotency_key' => ['nullable', 'string', 'max:64'],
+            //
+            // **60, not 64, and the arithmetic is the reason.** The column is `varchar(64)` and this
+            // endpoint takes at most 200 lines, so the longest suffix is `:199`, four characters. A
+            // 64-character key would have overflowed the column on write, which is a database error
+            // rather than a refusal the client can read.
+            'idempotency_key' => ['nullable', 'string', 'max:'.self::MAX_BATCH_KEY],
         ]);
 
         $location = Location::query()->findOrFail($data['location_id']);
@@ -348,6 +372,42 @@ final class StockController extends Controller
         }
 
         return $this->guard(function () use ($data, $location, $products, $source, $actorId): JsonResponse {
+            // **The window between the lookup above and this insert is real**, and two concurrent
+            // retries both pass it: one wins, the other meets the unique index. That arrived as a
+            // 500, which is the failure idempotency exists to prevent, so the loser is answered with
+            // the winner's result. Catching the CONSTRAINT rather than any query exception, because
+            // a genuine database fault has to keep failing loudly.
+            try {
+                return $this->writeBatch($data, $location, $products, $source, $actorId);
+            } catch (QueryException $e) {
+                if (! str_contains((string) ($e->errorInfo[0] ?? ''), '23505')) {
+                    throw $e;
+                }
+
+                $replay = $this->replayOf($data['idempotency_key'] ?? null, count($data['lines']));
+
+                // Null would mean the violation was not ours to absorb, so it propagates.
+                if ($replay === null) {
+                    throw $e;
+                }
+
+                return response()->json(['data' => ['lines' => $replay]], 200);
+            }
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  Collection<string, Product>  $products
+     */
+    private function writeBatch(
+        array $data,
+        Location $location,
+        $products,
+        MovementSource $source,
+        int|string $actorId,
+    ): JsonResponse {
+        return (function () use ($data, $location, $products, $source, $actorId): JsonResponse {
             // One transaction around the whole batch, and it is all or nothing: `receiveLines` catches
             // nothing, so any refusal propagates out of here and every line rolls back, including the
             // products earlier lines created. That is the atomicity this endpoint exists for, since a
@@ -371,7 +431,7 @@ final class StockController extends Controller
             );
 
             return response()->json(['data' => ['lines' => $written]], 201);
-        });
+        })();
     }
 
     /**
@@ -409,19 +469,24 @@ final class StockController extends Controller
             return null;
         }
 
-        $keys = array_map(fn (int $i): string => self::lineKey($batchKey, $i), range(0, $lineCount - 1));
-
-        $existing = $this->writer->movementsForKeys($keys);
+        // **Every key under this batch, by PREFIX rather than the indices this request happens to
+        // ask about.** Looking up `:0..:n` for the CURRENT line count made a shorter retry of a
+        // longer batch look complete: send three lines under a key that recorded five, find three,
+        // and the count matches while `:3` and `:4` sit there unreported. The prefix finds all of
+        // them, so the mismatch below sees it.
+        $existing = $this->writer->movementsForBatch($batchKey);
 
         if ($existing->isEmpty()) {
             return null;
         }
 
+        $keys = array_map(fn (int $i): string => self::lineKey($batchKey, $i), range(0, $lineCount - 1));
+
         abort_if(
-            $existing->count() !== $lineCount,
+            $existing->count() !== $lineCount || array_diff($keys, $existing->keys()->all()) !== [],
             409,
-            'This batch was partially recorded under the same key, which one transaction cannot '
-            .'produce. Refusing rather than appending on top of it.',
+            'This key already names a different batch. Refusing rather than answering about lines '
+            .'nobody asked for or appending on top of what is there.',
         );
 
         return array_map(function (string $key) use ($existing): array {
