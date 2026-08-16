@@ -45,6 +45,31 @@ final class StockWriter
      * expiry attaches to and a non-perishable simply has a null date. Making the lot conditional
      * would mean two shapes of inbound stock and a branch at every consumer of it.
      */
+    /**
+     * The movements a batch already wrote under this key, keyed by that key.
+     *
+     * **Here rather than in the controller, and the guard is what said so.** `LedgerWritersTest`
+     * refuses any file outside `app/Models` and `app/Services` that can reach `stock_movements`,
+     * including for a READ. That rule looks strict for a query and it is the right shape: a
+     * controller that learns to read the ledger directly is one refactor away from writing to it,
+     * and D81 exists because the previous MVP did exactly that.
+     *
+     * Empty means the batch is new. A count short of the lines asked for means something wrote SOME
+     * of these keys, which one transaction cannot produce; the caller decides what to do about it,
+     * because the writer's job is to answer what is there.
+     *
+     * @param  list<string>  $keys
+     * @return Collection<string, StockMovement>
+     */
+    public function movementsForKeys(array $keys): Collection
+    {
+        return StockMovement::query()
+            ->whereIn('idempotency_key', $keys)
+            ->with('product')
+            ->get()
+            ->keyBy('idempotency_key');
+    }
+
     public function receive(
         Product $product,
         Location $location,

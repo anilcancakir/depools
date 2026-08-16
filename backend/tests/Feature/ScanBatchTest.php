@@ -458,4 +458,130 @@ final class ScanBatchTest extends TestCase
                 $kiler->getKey(),
             ]);
     }
+
+    public function test_a_retried_batch_is_recorded_once(): void
+    {
+        // **The case this exists for: the server committed and the client never heard.** Without a
+        // key the user's retry appends the whole batch again, and on an append-only ledger a
+        // duplicate is undone by writing a compensating movement rather than by deleting a row.
+        $payload = [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'batch-abc',
+            'lines' => [
+                ['name' => 'Süt', 'quantity' => 2],
+                ['name' => 'Ekmek', 'quantity' => 1],
+            ],
+        ];
+
+        $first = $this->postJson('/api/v1/stock/receive-batch', $payload)->assertCreated()->json('data.lines');
+        $second = $this->postJson('/api/v1/stock/receive-batch', $payload)->assertOk()->json('data.lines');
+
+        // Two lines written, not four.
+        $this->assertSame(2, StockMovement::query()->count());
+
+        // And the same movements come back, so the client can clear its batch either way.
+        $this->assertSame(
+            array_column($first, 'movement_id'),
+            array_column($second, 'movement_id'),
+        );
+    }
+
+    public function test_a_replay_reports_that_it_created_nothing(): void
+    {
+        // **Anılcan's call, and it is a reading rather than a bug.** `created` answers "did THIS call
+        // put the product in the catalogue", and a replay did not: the row was already there. The
+        // alternative would mean storing the flag on the ledger purely so a response could be
+        // reconstructed, which is a column that exists for the API rather than for the stock.
+        $payload = [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'batch-def',
+            'lines' => [['name' => 'Süt', 'quantity' => 2]],
+        ];
+
+        $first = $this->postJson('/api/v1/stock/receive-batch', $payload)->assertCreated()->json('data.lines');
+        $second = $this->postJson('/api/v1/stock/receive-batch', $payload)->assertOk()->json('data.lines');
+
+        $this->assertTrue($first[0]['created']);
+        $this->assertFalse($second[0]['created']);
+    }
+
+    public function test_a_replay_answers_200_rather_than_201(): void
+    {
+        // The one way a caller can tell a replay from a fresh write, since the body is otherwise the
+        // same shape. Asserted on its own because it is the whole contract for that.
+        $payload = [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'batch-ghi',
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ];
+
+        $this->postJson('/api/v1/stock/receive-batch', $payload)->assertStatus(201);
+        $this->postJson('/api/v1/stock/receive-batch', $payload)->assertStatus(200);
+    }
+
+    public function test_a_batch_with_no_key_is_written_every_time(): void
+    {
+        // The key is optional, and without one there is nothing to match on. Stated as a test so the
+        // absence reads as a decision: a client that does not send one gets the old behaviour rather
+        // than a silent refusal.
+        $payload = [
+            'location_id' => $this->shelf->getKey(),
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ];
+
+        $this->postJson('/api/v1/stock/receive-batch', $payload)->assertCreated();
+        $this->postJson('/api/v1/stock/receive-batch', $payload)->assertCreated();
+
+        $this->assertSame(2, StockMovement::query()->count());
+    }
+
+    public function test_a_different_key_is_a_different_delivery(): void
+    {
+        // Two identical payloads under two keys are two deliveries, because that is what a user
+        // taking the same box off the shelf twice means.
+        $lines = [['name' => 'Süt', 'quantity' => 1]];
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'one',
+            'lines' => $lines,
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'two',
+            'lines' => $lines,
+        ])->assertCreated();
+
+        $this->assertSame(2, StockMovement::query()->count());
+    }
+
+    public function test_another_tenant_cannot_collide_with_our_key(): void
+    {
+        // The unique index is `(team_id, idempotency_key)`, so `batch-abc` means something different
+        // in each tenant. Asserted because a global key would let one tenant's retry silently answer
+        // another's batch, which is the worst shape this feature could take.
+        $payload = [
+            'location_id' => $this->shelf->getKey(),
+            'idempotency_key' => 'shared-key',
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ];
+
+        $this->postJson('/api/v1/stock/receive-batch', $payload)->assertCreated();
+
+        /** @var User $other */
+        $other = User::factory()->createOne(['email' => 'other@example.com', 'locale' => 'en']);
+        $theirTeam = Team::create(['name' => 'Beta', 'user_id' => $other->getKey()]);
+        $other->forceFill(['current_team_id' => $theirTeam->getKey()])->save();
+        $this->actingAs($other->refresh(), 'sanctum');
+
+        $theirLocation = Location::create(['name' => 'Their shelf']);
+
+        // Their own batch under the same key is a fresh write, not a replay of ours.
+        $this->postJson('/api/v1/stock/receive-batch', [
+            'location_id' => $theirLocation->getKey(),
+            'idempotency_key' => 'shared-key',
+            'lines' => [['name' => 'Süt', 'quantity' => 1]],
+        ])->assertCreated();
+    }
 }
