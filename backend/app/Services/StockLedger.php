@@ -150,6 +150,32 @@ final class StockLedger
     }
 
     /**
+     * The tenant's most recent ledger entries, across every product.
+     *
+     * **Here rather than in a controller, for the reason `LedgerWritersTest` enforces**: no file
+     * outside the models and the services may reach `stock_movements`, including for a read. The
+     * per-product feed lives in `ProductMovementController` and goes through this same rule via the
+     * relation; this one has no product to hang off, so it needs its own reader.
+     *
+     * Ordered by `occurred_at`, not by write time, and the model says why: a receipt entered on
+     * Tuesday for a Sunday shop belongs where it happened. `id` breaks the tie, because a batch
+     * writes many rows in the same second and without it their order changes between reads.
+     *
+     * @return Collection<int, StockMovement>
+     */
+    public function recentMovements(int $limit): Collection
+    {
+        return StockMovement::query()
+            // The row names its product, its place and who did it, so all three travel rather than
+            // being fetched per row by a card that renders three of them.
+            ->with(['product', 'location', 'actor'])
+            ->latest('occurred_at')
+            ->latest('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
      * Lots whose binding date falls on or before [$until], with their product and place.
      *
      * **Here rather than in the controller, and `LedgerWritersTest` is what said so.** It refuses any

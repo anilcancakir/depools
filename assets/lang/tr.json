@@ -453,13 +453,15 @@
       "calm_group": "Durum",
       "calm_title": "Bekleyen iş yok",
       "calm_description": "Süresi geçen, tarihi yaklaşan veya hedefin altına düşen ürün yok. Yeni bir giriş için yukarıdaki eylemleri kullanın.",
-      "hidden_more": "+:count :noun",
+      "hidden_more": ":count :noun daha",
       "count_batches": ":count parti",
       "count_products": ":count ürün",
       "count_changes": ":count hareket",
       "capture_receipt": "Fiş tara",
       "capture_shelf": "Raf fotoğrafı",
-      "dates_failed": "Tarihler yüklenemedi"
+      "dates_failed": "Tarihler yüklenemedi",
+      "load_failed": "Panel yüklenemedi",
+      "stock_no_target": "Hedef belirlenmemiş"
     },
     "dates": {
       "title": "Yaklaşan tarihler",

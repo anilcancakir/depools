@@ -453,13 +453,15 @@
       "calm_group": "Status",
       "calm_title": "Nothing waiting",
       "calm_description": "Nothing has expired, is nearing its date, or has fallen below target. Use the actions above to add something new.",
-      "hidden_more": "+:count :noun",
+      "hidden_more": ":count more :noun",
       "count_batches": ":count batches",
       "count_products": ":count products",
       "count_changes": ":count changes",
       "capture_receipt": "Scan receipt",
       "capture_shelf": "Shelf photo",
-      "dates_failed": "Could not load dates"
+      "dates_failed": "Could not load dates",
+      "load_failed": "The dashboard could not be loaded",
+      "stock_no_target": "No target set"
     },
     "dates": {
       "title": "Upcoming dates",

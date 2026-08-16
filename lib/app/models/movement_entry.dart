@@ -33,6 +33,13 @@ class MovementEntry {
   /// Where it happened, already named.
   final String? locationName;
 
+  /// WHICH product changed, on a feed that spans products.
+  ///
+  /// Null on a product's own activity card, and correctly so: that card is nested under the product
+  /// and the endpoint does not pay for a join to repeat a name already in the header. The dashboard
+  /// feed has no such header, so a row without this says only that something moved.
+  final String? productName;
+
   /// When it HAPPENED, which is not when it was written.
   ///
   /// `occurred_at` rather than `created_at`: a receipt entered on Tuesday for a Sunday shop has to
@@ -48,6 +55,7 @@ class MovementEntry {
     this.actorType,
     this.actorName,
     this.locationName,
+    this.productName,
     this.at,
   });
 
@@ -74,6 +82,7 @@ class MovementEntry {
       actorType: map['actor_type'] is String ? map['actor_type'] as String : null,
       actorName: map['actor_name'] is String ? map['actor_name'] as String : null,
       locationName: map['location_name'] is String ? map['location_name'] as String : null,
+      productName: map['product_name'] is String ? map['product_name'] as String : null,
       at: map['occurred_at'] is String ? DateTime.tryParse(map['occurred_at'] as String) : null,
     );
   }
