@@ -210,7 +210,7 @@ class LotFixture {
 
     // `formatDate` and NOT `formatMoment`: `stock_lots.expires_at` is a `date` column, so it names a
     // day rather than an instant. Converting it would move a carton good until the 20th to the 19th
-    // for every reader east of UTC.
+    // for every reader WEST of UTC, where a UTC midnight is the previous evening.
     final String? printed = ProductListItem.formatDate(json['expires_at'] as String?);
     if (printed == null) return Lang.get('screens.products.lot_opened', {'date': opened});
 
@@ -822,12 +822,20 @@ class ProductListItem {
   /// `stock_lots.received_at` and `opened_at` and `product_serials.acquired_at` are `timestamp`
   /// columns: they name an instant, so the day they fall on depends on where the reader is.
   /// `stock_lots.expires_at` and `product_stock.earliest_expires_at` are `date` columns: they name a
-  /// DAY, and converting one to local time shifts it backwards for anybody east of UTC, so a carton
-  /// good until the 20th would read as the 19th.
+  /// DAY, and a day must not be converted at all.
+  ///
+  /// **WEST of UTC, not east, and the correction matters because it is the whole hazard.** An
+  /// earlier version of this note had it backwards. Measured with `dart`: UTC midnight on the 20th
+  /// is 03:00 on the 20th at `+03`, so a reader east of UTC sees the same day; at `-05` it is 19:00
+  /// on the NINETEENTH. So converting a calendar day moves it backwards for readers west of UTC,
+  /// and a carton good until the 20th would read as the 19th for them.
+  ///
+  /// The same measurement corrected a second thing: `DateTime.parse('2026-08-20')` answers a LOCAL
+  /// midnight with `isUtc == false`, so `toLocal()` on a bare date is a no-op. The hazard is not
+  /// Dart quietly reinterpreting the string; it is a `Z`-terminated instant being read as a day.
   ///
   /// Seen on one screen, in one frame: the batches card said `Received 15/08/2026` for a movement
-  /// the activity card dated `16/08/2026`. Local time was past midnight and UTC was not, so the
-  /// activity card was right and this one was showing a server instant as if it were the user's.
+  /// the activity card dated `16/08/2026`. Local time was past midnight and UTC was not.
   static String? formatMoment(Object? value) {
     final DateTime? local = momentDate(value);
 

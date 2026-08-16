@@ -9,8 +9,11 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// The fix is not "convert everything", which is what these tests exist to stop. `received_at`,
 /// `opened_at` and `acquired_at` are `timestamp` columns and name an instant; `expires_at` and
-/// `earliest_expires_at` are `date` columns and name a DAY. Converting a day to local time shifts it
-/// backwards for every reader east of UTC, moving a carton good until the 20th to the 19th.
+/// `earliest_expires_at` are `date` columns and name a DAY.
+///
+/// Converting a day moves it backwards for readers WEST of UTC, where a UTC midnight is the previous
+/// evening. An earlier version of this file said east, which is the opposite: measured with `dart`,
+/// UTC midnight on the 20th is 03:00 the same day at `+03` and 19:00 the day before at `-05`.
 ///
 /// **These assert on `momentDate`, not on the formatted string, and that is not a shortcut.**
 /// `Lang.get` answers the raw key in this harness, so every formatter returns `time.date_format`
@@ -50,13 +53,23 @@ void main() {
   });
 
   group('a calendar date is left alone', () {
-    test('a bare date would move if it were treated as a moment', () {
-      // **The trap, stated as a test so nobody closes it by converting everything.** Parsed as an
-      // instant, `2026-08-20` is midnight UTC, and midnight UTC is the previous evening anywhere
-      // west of it. That is why there are two formatters rather than one.
-      final DateTime asInstant = ProductListItem.momentDate('2026-08-20')!;
+    test('a bare date is parsed as local, so converting it is a no-op', () {
+      // **This asserted `anyOf(19, 20)` and could not fail**, which the review caught. Measured with
+      // `dart` afterwards: `DateTime.parse('2026-08-20')` answers a LOCAL midnight with
+      // `isUtc == false`, so the day never moves whatever timezone the suite runs in. Asserting the
+      // actual behaviour rather than a range that covers both outcomes.
+      expect(ProductListItem.parseDate('2026-08-20')!.isUtc, isFalse);
+      expect(ProductListItem.momentDate('2026-08-20')!.day, 20);
+    });
 
-      expect(asInstant.day, anyOf(19, 20));
+    test('a Z-terminated midnight is the previous day west of UTC', () {
+      // The real hazard, and the reason the two formatters exist: an INSTANT at UTC midnight names
+      // different days on either side of the line. Computed from the machine's own offset rather
+      // than hardcoded, so the assertion holds wherever the suite runs and still says something.
+      final DateTime instant = ProductListItem.momentDate('2026-08-20T00:00:00Z')!;
+      final Duration offset = DateTime.now().timeZoneOffset;
+
+      expect(instant.day, offset.isNegative ? 19 : 20);
     });
 
     test('the date parser keeps the day it was given', () {
