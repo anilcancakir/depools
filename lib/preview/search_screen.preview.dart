@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/locations/location_fixtures.dart';
 import '../resources/views/search_view.dart';
 import 'responsive_screen_preview.dart';
 
@@ -14,6 +15,6 @@ class SearchScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveScreenPreview(builder: (BuildContext context) => const SearchView());
+    return ResponsiveScreenPreview(builder: (BuildContext context) => const SearchView(places: locationTree));
   }
 }

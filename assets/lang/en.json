@@ -806,7 +806,7 @@
       "lot_opened_printed": "Opened :date · printed :printed",
       "lot_received": "Received :date",
       "open_note": "1 :unit open",
-      "product_count": ":count products",
+      "product_count": ":count product|:count products",
       "saved": {
         "expired": "Expired",
         "expiring": "Expiring soon",
@@ -913,7 +913,8 @@
       "locations_group": "Locations",
       "places_group": "Your locations",
       "empty_title": "Nothing matched \":query\"",
-      "empty_description": "You can search by product name, brand, SKU or location name."
+      "empty_description": "You can search by product name, brand, SKU or location name.",
+      "load_failed": "The search could not be run"
     },
     "settings": {
       "title": "Settings",

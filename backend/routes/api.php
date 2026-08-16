@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ProductMovementController;
+use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\TeamSettingsController;
 use App\Http\Controllers\Api\V1\UnitController;
@@ -82,6 +83,10 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // four loading states and two counters computed either side of midnight; the controller carries
     // the argument.
     Route::get('dashboard', DashboardController::class);
+
+    // **One box, two kinds of answer.** Two calls the client made itself could disagree about a
+    // spinner, and the screen's whole value is that one field answers both questions.
+    Route::get('search', SearchController::class);
 
     // **What is running out of time**, which is the middle of the product's three promises and the
     // one nothing answered. Lots and warranties in one list, because the screen treats them alike.

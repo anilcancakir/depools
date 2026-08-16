@@ -8,7 +8,8 @@ import '../../app/models/location_node.dart';
 import '../../ui/components/location_row/location_row.dart';
 import '../../ui/components/product_row/product_row.dart';
 import '../../ui/components/section_card/section_card.dart';
-import 'locations/location_fixtures.dart';
+import '../../app/controllers/location_controller.dart';
+import '../../app/controllers/search_controller.dart';
 import 'products/product_fixtures.dart';
 
 /// Finding a thing, wherever it is, whatever kind of thing it is.
@@ -43,8 +44,15 @@ import 'products/product_fixtures.dart';
 /// reasoning that keeps the assistant's fresh state from being an empty transcript.
 @immutable
 class SearchView extends StatefulWidget {
+  /// The tree offered before anything is typed, or null to read [LocationController].
+  ///
+  /// The preview passes the fixture, which is how the catalog renders this screen with no server.
+  /// The RESULTS have no such escape and do not need one: a preview of a search that has not been
+  /// typed into shows the places card, which is exactly this list.
+  final List<LocationNode>? places;
+
   /// Creates the [SearchView].
-  const SearchView({super.key});
+  const SearchView({super.key, this.places});
 
   @override
   State<SearchView> createState() => _SearchViewState();
@@ -54,36 +62,49 @@ class _SearchViewState extends State<SearchView> {
   static const IconData _searchIcon = Icons.search_outlined;
   static const IconData _noMatchIcon = Icons.search_off_outlined;
 
-  String _query = '';
+  SearchController? _search;
+  LocationController? _tree;
 
-  String get _needle => _query.trim().toLowerCase();
+  @override
+  void initState() {
+    super.initState();
 
-  bool get _hasQuery => _needle.isNotEmpty;
+    final SearchController search = SearchController.instance..addListener(_onChanged);
 
-  /// Products whose name, brand or SKU contains the query.
-  ///
-  /// SKU is included because a user who has one uses it, and a code is exactly the kind of thing
-  /// somebody types in full rather than browses for.
-  List<ProductListItem> get _products {
-    if (!_hasQuery) return const <ProductListItem>[];
-    return productFixtures.where((ProductListItem p) {
-      return p.name.toLowerCase().contains(_needle) ||
-          (p.brand?.toLowerCase().contains(_needle) ?? false) ||
-          (p.sku?.toLowerCase().contains(_needle) ?? false) ||
-          (p.categoryLabel?.toLowerCase().contains(_needle) ?? false);
-    }).toList();
+    if (!search.initialized) search.onInit();
+
+    _search = search;
+
+    if (widget.places != null) return;
+
+    final LocationController tree = LocationController.instance..addListener(_onChanged);
+
+    if (!tree.initialized) tree.onInit();
+
+    _tree = tree;
   }
 
-  /// Locations whose own name or ancestor path contains the query.
-  ///
-  /// The PATH is searched, not only the name, so "Kiler raf" finds `Kiler › Raf 1`. A user
-  /// describes where something is by the route to it, not by the leaf's name alone.
-  List<LocationNode> get _locations {
-    if (!_hasQuery) return const <LocationNode>[];
-    return locationTree
-        .where((LocationNode n) => n.path.toLowerCase().contains(_needle))
-        .toList();
+  @override
+  void dispose() {
+    _search?.removeListener(_onChanged);
+    _tree?.removeListener(_onChanged);
+    super.dispose();
   }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _hasQuery => _search?.hasQuery ?? false;
+
+  /// Matching products, from the server.
+  List<ProductListItem> get _products => _search?.results.products ?? const <ProductListItem>[];
+
+  /// Matching locations, likewise.
+  List<LocationNode> get _locations => _search?.results.locations ?? const <LocationNode>[];
+
+  /// Every location the app knows about, for the places card.
+  List<LocationNode> get _places => widget.places ?? _tree?.nodes ?? const <LocationNode>[];
 
   @override
   Widget build(BuildContext context) {
@@ -118,14 +139,16 @@ class _SearchViewState extends State<SearchView> {
       className: 'h-11 bg-surface-container-high',
       placeholder: Lang.get('screens.search.placeholder'),
       prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
-      onChanged: (String next) => setState(() => _query = next),
+      // Debounced in the controller rather than here, because the wait belongs with the request:
+      // a field that debounced its own `setState` would also delay the letters appearing.
+      onChanged: (String next) => _search?.search(next),
     );
   }
 
   Widget _buildProducts(List<ProductListItem> products) {
     return SectionCard(
       label: Lang.get('screens.search.products_group'),
-      count: Lang.get('screens.products.product_count', {'count': products.length}),
+      count: plural('screens.products.product_count', products.length, {'count': products.length}),
       children: [
         for (final ProductListItem item in products)
           ProductRow(
@@ -163,9 +186,11 @@ class _SearchViewState extends State<SearchView> {
             name: node.path,
             depth: 0,
             productCount: node.productCount,
-            itemSummary: node.summary,
+            itemSummary: node.summary.isEmpty ? null : node.summary,
             icon: node.icon,
-            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(node.path)}'),
+            // The id, like every other row that opens a location: the path was the fixture-era
+            // stand-in and the detail screen cannot look a node up by it.
+            onTap: node.id == null ? null : () => MagicRoute.to('/locations/${node.id}'),
           ),
       ],
     );
@@ -173,7 +198,7 @@ class _SearchViewState extends State<SearchView> {
 
   /// Where things are kept, offered before anything is typed.
   Widget _buildPlaces() {
-    final List<LocationNode> roots = locationTree.where((LocationNode n) => n.depth == 0).toList();
+    final List<LocationNode> roots = _places.where((LocationNode n) => n.depth == 0).toList();
 
     return SectionCard(
       label: Lang.get('screens.search.places_group'),
@@ -184,9 +209,11 @@ class _SearchViewState extends State<SearchView> {
             name: node.name,
             depth: 0,
             productCount: node.productCount,
-            itemSummary: node.summary,
+            itemSummary: node.summary.isEmpty ? null : node.summary,
             icon: node.icon,
-            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(node.path)}'),
+            // The id, like every other row that opens a location: the path was the fixture-era
+            // stand-in and the detail screen cannot look a node up by it.
+            onTap: node.id == null ? null : () => MagicRoute.to('/locations/${node.id}'),
           ),
       ],
     );
@@ -200,7 +227,7 @@ class _SearchViewState extends State<SearchView> {
           className: 'w-full',
           child: MSEmptyState(
             icon: _noMatchIcon,
-            title: Lang.get('screens.search.empty_title', {'query': _query.trim()}),
+            title: Lang.get('screens.search.empty_title', {'query': _search?.query ?? ''}),
             description: Lang.get('screens.search.empty_description'),
           ),
         ),
