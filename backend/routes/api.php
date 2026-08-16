@@ -110,6 +110,17 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     Route::put('shopping/{shopping}', [ShoppingListController::class, 'update']);
     Route::delete('shopping/{shopping}', [ShoppingListController::class, 'destroy']);
 
+    // **How much of this to keep on hand**, which is the one number the app asks a person for. Its
+    // own route rather than a general product update: one field, named for its question, and a
+    // general endpoint would have to accept fields no screen sends yet. The reorder point is
+    // deliberately not settable here (D48): the app infers it from the tenant's shopping rhythm and
+    // the phrase "lead time" never reaches the interface.
+    //
+    // Declared before the resource out of habit rather than necessity: `products/by-barcode` HAS to
+    // be, because it collides with `GET products/{product}` on the same verb and segment count, and
+    // this one cannot collide with anything the resource generates.
+    Route::put('products/{product}/target', [ProductController::class, 'updateTarget']);
+
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 
     // The gallery, nested because a picture has no meaning away from its product. Both ids resolve

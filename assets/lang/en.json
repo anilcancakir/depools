@@ -687,7 +687,9 @@
       "stock_in": "Put stock in",
       "stock_out": "Take stock out",
       "total_stock": "Total stock",
-      "write_failed": "The change could not be saved"
+      "write_failed": "The change could not be saved",
+      "target_field": "Target level",
+      "target_none": "Not set"
     },
     "product_draft": {
       "title": "New product",
@@ -849,7 +851,8 @@
       "empty_title": "Nothing running low",
       "empty_description": "Products appear here when they run out, and when they fall to or below a target level you have set.",
       "meta_no_target": "No target set",
-      "load_failed": "The list could not be loaded"
+      "load_failed": "The list could not be loaded",
+      "save_failed": "The change could not be saved"
     },
     "scan": {
       "title": "Scan a barcode",
@@ -1136,6 +1139,13 @@
       "result": ":quantity :unit is recorded as :total :base",
       "save": "Save",
       "cancel": "Continue in :base"
+    },
+    "target": {
+      "title": "Target level",
+      "none_yet": "No target set yet",
+      "current": "Currently :value :unit",
+      "saved": "Target saved",
+      "cleared": "Target removed"
     }
   },
   "components": {

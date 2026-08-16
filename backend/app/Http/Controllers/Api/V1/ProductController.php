@@ -323,4 +323,45 @@ final class ProductController extends Controller
 
         return new ProductResource($product);
     }
+
+    /**
+     * Set or clear how much of this product to keep on hand.
+     *
+     * ### Its own route rather than a general `PATCH products/{id}`
+     *
+     * One field, named for the question it answers, the way `products/by-barcode` and
+     * `team/settings` are. A general update endpoint would have to decide what else it accepts, and
+     * every extra field would be one with no caller: the detail screen's other editors are still
+     * unwired, and shipping a validator for them would be guessing at what they will send.
+     *
+     * ### The reorder point is NOT settable, and that is D48
+     *
+     * The obvious sibling field is deliberately absent. "What is the supplier lead time for milk?"
+     * is the kind of question that ends a household user's relationship with a product, and
+     * `product.md` is explicit that our user does not understand reorder points and should not have
+     * to. The app infers that threshold from the tenant's own shopping rhythm; the target is the one
+     * number a person is asked for.
+     *
+     * ### Null clears it
+     *
+     * Explicitly, because "I no longer want a target on this" is a real answer. A cleared target
+     * does not remove the product from the shopping surfaces: running out needs no threshold to be
+     * true, so it can still reach the out-of-stock group, which is the honest behaviour rather than
+     * a hole.
+     */
+    public function updateTarget(Request $request, string $id): ProductResource
+    {
+        $product = Product::query()->findOrFail($id);
+
+        $data = $request->validate([
+            // `present` rather than `required`, so a null is a value and not an omission. Laravel's
+            // global `ConvertEmptyStringsToNull` already turns an empty field into null before this
+            // runs, which is exactly the clear the user meant.
+            'par_level' => ['present', 'nullable', 'numeric', 'gt:0', 'max:999999'],
+        ]);
+
+        $product->fill($data)->save();
+
+        return new ProductResource($product->load(['stock', 'tags', 'unit', 'primaryImage', 'forecast']));
+    }
 }
