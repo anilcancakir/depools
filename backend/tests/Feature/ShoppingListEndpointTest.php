@@ -403,6 +403,36 @@ final class ShoppingListEndpointTest extends TestCase
         $this->assertSame(['Bulaşık deterjanı'], array_column($this->lines(), 'name'));
     }
 
+    public function test_a_manual_line_defaults_to_a_unit_code_and_not_a_label(): void
+    {
+        // **The column holds Rec 20 codes and used to default to `'adet'`.** Every generated line
+        // copies `products.base_unit`, which is a code, so the default put a Turkish LABEL in a
+        // column of codes and a hand-typed line rendered as "1 adet" on an English interface,
+        // because the client had nothing to translate. Seen on screen, not in the schema.
+        $this->postJson('/api/v1/shopping', ['name' => 'Bulaşık deterjanı', 'quantity' => 1])
+            ->assertCreated()
+            ->assertJsonPath('data.unit', 'C62');
+    }
+
+    public function test_a_manual_line_keeps_a_unit_the_caller_states(): void
+    {
+        $this->postJson('/api/v1/shopping', [
+            'name' => 'Un',
+            'quantity' => 2,
+            'unit' => 'KGM',
+        ])->assertCreated()->assertJsonPath('data.unit', 'KGM');
+    }
+
+    public function test_a_manual_line_keeps_the_quantity_it_was_given(): void
+    {
+        // The client had a defect this could not have caught on its own, and it is here so the
+        // server half is pinned while the sheet's own half is fixed: the box showed one number and
+        // the model held another, so typing 2 over a selected 1 submitted 1.
+        $this->postJson('/api/v1/shopping', ['name' => 'Bulaşık deterjanı', 'quantity' => 2])
+            ->assertCreated()
+            ->assertJsonPath('data.quantity', '2.000');
+    }
+
     public function test_a_manual_line_creates_no_product(): void
     {
         // The pricing consequence D100 records: creating a product consumes D4's unique-SKU meter,

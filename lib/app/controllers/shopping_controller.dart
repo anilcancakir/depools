@@ -89,6 +89,31 @@ class ShoppingController extends MagicController with MagicStateMixin<List<Shopp
     await load();
   }
 
+  /// Add something by hand.
+  ///
+  /// It may not be in the catalogue at all, and naming it creates no product (D100). Returns the
+  /// server's own sentence on a refusal and null on success.
+  Future<String?> add(String name, num quantity) async {
+    final dynamic response = await Http.post(
+      '/shopping',
+      data: <String, dynamic>{'name': name, 'quantity': quantity},
+    );
+
+    if (!response.successful) {
+      final dynamic message = response['message'];
+
+      return message is String && message.isNotEmpty
+          ? message
+          : Lang.get('screens.shopping.save_failed');
+    }
+
+    // A refetch rather than appending locally: the server decides where a manual line sorts, and
+    // guessing here would put it somewhere the next load moves it from.
+    await load();
+
+    return null;
+  }
+
   /// Take a line off the list.
   Future<void> remove(ShoppingLine line) async {
     setSuccess(lines.where((ShoppingLine l) => l.id != line.id).toList(growable: false));
