@@ -45,11 +45,16 @@ final class ProductMovementController extends Controller
             // The actor and the location are what the row's meta line says, so loading them here is
             // the difference between one query and one per row on a screen that shows twenty-five.
             ->with(['actor', 'location'])
-            ->latest('created_at')
-            // **`id` after `created_at`, because a batch writes many rows in the same second.** A
-            // receive of eight lines shares one timestamp to the second, and without a tiebreaker
-            // their order is whatever the planner chose, which changes between pages and makes a
-            // cursor skip or repeat a row.
+            // **`occurred_at`, not `created_at`, and the model says why: "a receipt entered on
+            // Tuesday for a Sunday shop has to age from Sunday".** Ordering by write time puts a
+            // backdated entry at the top of a feed it belongs in the middle of. The schema agrees:
+            // it carries an index on `(team_id, product_id, occurred_at)` built for exactly this
+            // query, which ordering by `created_at` does not use.
+            ->latest('occurred_at')
+            // **`id` after it, because a batch writes many rows in the same second.** A receive of
+            // eight lines shares one timestamp to the second, and without a tiebreaker their order
+            // is whatever the planner chose, which changes between pages and makes a cursor skip or
+            // repeat a row.
             ->latest('id')
             ->paginate(self::PER_PAGE);
 

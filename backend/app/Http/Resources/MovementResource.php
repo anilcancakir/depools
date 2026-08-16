@@ -52,7 +52,11 @@ final class MovementResource extends JsonResource
 
             'location_name' => $this->whenLoaded('location', fn (): ?string => $this->location?->name),
             'note' => $this->note,
-            'created_at' => $this->created_at?->toIso8601String(),
+            // **`occurred_at`, the business event time, not `created_at`.** They differ whenever an
+            // entry is backdated, and the date on an audit row has to be when the thing happened.
+            // `created_at` is not sent at all rather than sent alongside: two timestamps on one row
+            // is an invitation for a client to pick the wrong one.
+            'occurred_at' => $this->occurred_at?->toIso8601String(),
         ];
     }
 }

@@ -80,6 +80,29 @@ final class ProductMovementsTest extends TestCase
         $this->assertSame([MovementReason::Waste->value, MovementReason::Purchase->value], $reasons);
     }
 
+    public function test_the_row_is_dated_by_when_it_happened_not_by_when_it_was_written(): void
+    {
+        // **`occurred_at`, not `created_at`, because the model draws the distinction and the schema
+        // built an index on it:** "a receipt entered on Tuesday for a Sunday shop has to age from
+        // Sunday". This endpoint answered `created_at` and ordered by it, so a backdated entry would
+        // have shown the day it was typed and sat at the top of a feed it belongs in the middle of.
+        //
+        // **What this test CANNOT do, said out loud: create a backdated entry.** `StockWriter` sets
+        // `occurred_at => now()` and takes no parameter for it, and `StockMovement` is append-only,
+        // so the guard refuses an update: "Correct a mistake by writing a compensating movement".
+        // The state the fix is for is therefore unreachable through any write path today. Inserting
+        // one directly would be a test arranging a world no caller has, which certifies the fixture
+        // rather than the behaviour, so this asserts the field that is now sent and the gap is
+        // recorded as its own task.
+        $this->writer()->receive($this->product, $this->location, 2);
+
+        $body = $this->getJson("/api/v1/products/{$this->product->getKey()}/movements")->json('data');
+
+        $this->assertArrayHasKey('occurred_at', $body[0]);
+        $this->assertArrayNotHasKey('created_at', $body[0]);
+        $this->assertStringStartsWith(now()->toDateString(), $body[0]['occurred_at']);
+    }
+
     public function test_the_actor_is_a_name_when_a_person_did_it(): void
     {
         $this->writer()->receive($this->product, $this->location, 1, actorId: $this->user->getKey());

@@ -33,7 +33,10 @@ class MovementEntry {
   /// Where it happened, already named.
   final String? locationName;
 
-  /// When, as sent. Parsed by the caller that formats it.
+  /// When it HAPPENED, which is not when it was written.
+  ///
+  /// `occurred_at` rather than `created_at`: a receipt entered on Tuesday for a Sunday shop has to
+  /// read as Sunday, or the audit trail disagrees with the forecast built on the same rows.
   final DateTime? at;
 
   /// Creates a [MovementEntry].
@@ -71,7 +74,7 @@ class MovementEntry {
       actorType: map['actor_type'] is String ? map['actor_type'] as String : null,
       actorName: map['actor_name'] is String ? map['actor_name'] as String : null,
       locationName: map['location_name'] is String ? map['location_name'] as String : null,
-      at: map['created_at'] is String ? DateTime.tryParse(map['created_at'] as String) : null,
+      at: map['occurred_at'] is String ? DateTime.tryParse(map['occurred_at'] as String) : null,
     );
   }
 }

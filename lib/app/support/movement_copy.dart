@@ -51,8 +51,12 @@ MovementDirection movementDirection(String? reason, double delta) {
   return switch (reason) {
     'waste' => MovementDirection.waste,
     'stock_take' || 'correction' => MovementDirection.correction,
-    'purchase' || 'transfer_in' || 'return' => MovementDirection.inbound,
-    'consumption' || 'transfer_out' => MovementDirection.outbound,
+    'purchase' || 'transfer_in' => MovementDirection.inbound,
+    // **`return` is OUTBOUND**, which is not obvious from the word and is settled by the enum's own
+    // docblock: "Sent back to the supplier". Grouping it with `purchase` put an inbound arrow and a
+    // green tint on stock leaving the building, and because direction is derived from the reason
+    // rather than the delta's sign, nothing downstream could have corrected it.
+    'consumption' || 'transfer_out' || 'return' => MovementDirection.outbound,
     // An unknown reason still has a sign, so the row can at least point the right way.
     _ => delta < 0 ? MovementDirection.outbound : MovementDirection.inbound,
   };
