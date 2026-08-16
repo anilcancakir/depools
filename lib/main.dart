@@ -128,21 +128,19 @@ void main() async {
       // `items-start` rather than `items-center` so the control aligns with the TITLE and does
       // not drift downward when the subtitle wraps to two lines.
       //
-      // **The constraint this accepts, and it has since been measured rather than predicted.**
-      // Below `sm` the starter gives the title block `sm:flex-1` only, so the title takes its
-      // intrinsic width and a long one overflows rather than shrinking. This paragraph used to
-      // end "every title in this app is one or two short words"; the product screen's title is
-      // the product's name, and "Dishwasher Tablets" beside three icon buttons reported
-      // `A RenderFlex overflowed by 40 pixels` at 390. Confirmed by reverting this one line,
-      // which removed the stripe and the exception entirely.
+      // **`inlineActions` is the other half of this decision, and omitting it overflowed.**
+      // Forcing a row is only half of what a row needs: below `sm` the starter gave the title
+      // block `sm:flex-1` alone, so the title took its intrinsic width and a long one ran past
+      // the actions instead of shrinking. This comment used to end "every title in this app is
+      // one or two short words", which the product screen disproved: its title is the product's
+      // NAME, and "Dishwasher Tablets" beside three icon buttons reported `A RenderFlex
+      // overflowed by 40 pixels` at 390. Confirmed by reverting the line above, which removed
+      // the stripe and the exception entirely.
       //
-      // **The fix is upstream and merged, waiting on a release.** `inlineActions` sets both
-      // halves of this decision (the row container AND `flex-1 min-w-0` on the title row), and
-      // `MSPageScaffold` does not forward the argument, so magic_starter#92 moved the flag onto
-      // `MagicStarterPageHeaderTheme` where the container class already lives. The moment the
-      // package is bumped past `0.0.1-alpha.19`, this override gains `inlineActions: true` and
-      // the paragraph above becomes history. Until then the overflow is live on any screen whose
-      // title is long, which today means the product screen.
+      // The flag lives on the theme rather than on each screen because `MSPageScaffold` does not
+      // forward it, and because the two halves belong together: magic_starter#92 put it here, in
+      // `0.0.1-alpha.20`. Setting the container without it is the combination that breaks.
+      inlineActions: true,
       containerClassName:
           'w-full flex flex-row items-start justify-between gap-3 pb-4 '
           'border-b border-color-border',

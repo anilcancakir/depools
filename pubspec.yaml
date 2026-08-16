@@ -39,7 +39,7 @@ dependencies:
   magic_deeplink: ^0.0.2
   magic_notifications: ^0.0.2
   magic_social_auth: ^0.0.2
-  magic_starter: ^0.0.1-alpha.17
+  magic_starter: ^0.0.1-alpha.20
 
   # Dev-tooling, imported by lib/main.dart under kDebugMode (release tree-shakes).
   magic_devtools: ^0.0.2
