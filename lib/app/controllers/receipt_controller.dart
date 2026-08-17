@@ -158,8 +158,11 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
 
     final Object? data = response['data'];
 
-    final Receipt? receipt = data is Map<String, dynamic>
-        ? mappedOrNull(() => Receipt.fromApi(data), describing: 'a receipt detail payload')
+    final Receipt? receipt = data is Map<dynamic, dynamic>
+        ? mappedOrNull(
+            () => Receipt.fromApi(Map<String, dynamic>.from(data)),
+            describing: 'a receipt detail payload',
+          )
         : null;
 
     _detailLoading = false;
@@ -192,8 +195,11 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
     if (response.statusCode == 409) {
       final Object? data = response['data'];
 
-      final Receipt? existing = data is Map<String, dynamic>
-          ? mappedOrNull(() => Receipt.fromApi(data), describing: 'a duplicate receipt payload')
+      final Receipt? existing = data is Map<dynamic, dynamic>
+          ? mappedOrNull(
+              () => Receipt.fromApi(Map<String, dynamic>.from(data)),
+              describing: 'a duplicate receipt payload',
+            )
           : null;
 
       // No `response['message']` read: that body is `{'data': ...}` and nothing else, so preferring a

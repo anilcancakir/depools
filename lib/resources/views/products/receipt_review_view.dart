@@ -74,7 +74,6 @@ class ReceiptReviewView extends StatefulWidget {
 }
 
 class _ReceiptReviewViewState extends State<ReceiptReviewView> {
-  static const IconData _retakeIcon = Icons.photo_camera_outlined;
   static const IconData _backIcon = Icons.arrow_back;
   static const IconData _emptyIcon = Icons.receipt_long_outlined;
   static const IconData _pendingIcon = Icons.hourglass_empty;
@@ -305,17 +304,13 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
           semanticLabel: Lang.get('screens.receipt.title'),
           child: const WIcon(_backIcon),
         ),
-      // **Still unwired, and deliberately not a second copy of the picker.** Retaking means the
-      // camera fork plus an upload, which the dashboard's capture button now owns; duplicating that
-      // here would be the same twenty lines in two files with one of them left to rot. What it
-      // should do instead is replace THIS receipt's document, which needs an endpoint slice 2 owns.
-      MSButton(
-        onPressed: () {},
-        intent: ButtonIntent.ghost,
-        className: 'min-h-11 min-w-11 justify-center',
-        semanticLabel: Lang.get('screens.receipt.retake'),
-        child: const WIcon(_retakeIcon),
-      ),
+      // **No retake control, rather than one that does nothing.** The drawn screen has it and it
+      // shipped here with an empty callback, which is the failure this file's own `_row` docblock
+      // already names for a tap: a control that responds and does nothing reads as the app failing,
+      // which is worse than one that is not offered. Retaking means replacing THIS receipt's
+      // document, and the endpoint for that is slice 2's; wiring it to the dashboard's picker instead
+      // would upload a SECOND receipt, which is a different thing wearing the same word. The button
+      // comes back with the endpoint. `screens.receipt.retake` stays in both catalogues for it.
     ];
   }
 
