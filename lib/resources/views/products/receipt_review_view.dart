@@ -172,20 +172,9 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
   /// this row shows (a label, a plain line under it, a figure on the right) is that component's
   /// whole shape.
   Widget _option(Receipt receipt) {
-    final String? supplier = receipt.supplierName;
-    final DateTime? created = receipt.createdAt;
     final num? total = receipt.totalAmount;
     final int lines = receipt.linesCount ?? receipt.lines.length;
-
-    // **The date branch is the normal path rather than a fallback.** `supplier_name` and `issued_on`
-    // are null on every row this slice can produce, so a label reading the supplier alone would
-    // render the whole list blank. The third branch is unreachable through the API, which always
-    // sends `created_at`, and names the state rather than inventing a date for a payload that could
-    // not be read.
-    final String label = supplier ??
-        (created == null
-            ? Lang.get('screens.receipt.status_pending')
-            : Lang.get('screens.receipt.uploaded_at', {'date': dateLabel(created)}));
+    final String label = _identity(receipt);
 
     return OptionRow(
       label: label,
@@ -211,6 +200,28 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
       semanticLabel: Lang.get('screens.receipt.option_semantic', {'label': label}),
       onTap: () => _select(receipt),
     );
+  }
+
+  /// What to call this receipt, for a list row and for the header of its own screen.
+  ///
+  /// **The date branch is the normal path rather than a fallback.** `supplier_name` and `issued_on`
+  /// are null on every receipt this slice can produce, so a label reading the supplier alone would
+  /// render the whole list blank. The third branch is unreachable through the API, which always sends
+  /// `created_at`, and names the state rather than inventing a date for a payload that could not be
+  /// read.
+  ///
+  /// One function for both places so a receipt cannot be called one thing in the list and another on
+  /// its own screen, which is the confusion a user hits at exactly the moment they are checking they
+  /// opened the right one.
+  String _identity(Receipt receipt) {
+    final String? supplier = receipt.supplierName;
+    final DateTime? created = receipt.createdAt;
+
+    if (supplier != null) return supplier;
+
+    return created == null
+        ? Lang.get('screens.receipt.status_pending')
+        : Lang.get('screens.receipt.uploaded_at', {'date': dateLabel(created)});
   }
 
   /// Opens one receipt.
@@ -242,10 +253,16 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
       // lines` and a photographed receipt has none of the three until extraction runs, so it would
       // render `· · 0 lines`. A receipt that HAS lines states them instead of claiming it has not
       // been read, which is what the preview's thirteen would otherwise say.
+      //
+      // **With no lines the subtitle IDENTIFIES the receipt rather than restating its state.** The
+      // card below already says "not read yet", and the first browser pass showed the two stacked:
+      // the same four words twice on one screen, on the only screen where every receipt looks
+      // identical. Which receipt is open is the thing the header was failing to answer, and it is
+      // the same label the list row carries, so tapping a row no longer changes what it is called.
       subtitle: receipt == null
           ? null
           : lines.isEmpty
-              ? Lang.get('screens.receipt.subtitle_pending')
+              ? _identity(receipt)
               : Lang.get('screens.receipt.line_count', {'count': lines.length}),
       actions: _detailActions(),
       children: [

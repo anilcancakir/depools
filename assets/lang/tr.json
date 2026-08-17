@@ -841,7 +841,6 @@
       "duplicate_open": "Fişi aç",
       "option_semantic": ":label, incelemek için dokunun",
       "list_subtitle": ":count fiş",
-      "subtitle_pending": "Henüz okunmadı",
       "uploaded_at": ":date tarihli fiş"
     },
     "running_low": {
