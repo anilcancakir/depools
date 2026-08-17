@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ProductMovementController;
+use App\Http\Controllers\Api\V1\ReceiptController;
 use App\Http\Controllers\Api\V1\RunningLowController;
 use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\ShoppingListController;
@@ -109,6 +110,22 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     Route::post('shopping', [ShoppingListController::class, 'store']);
     Route::put('shopping/{shopping}', [ShoppingListController::class, 'update']);
     Route::delete('shopping/{shopping}', [ShoppingListController::class, 'destroy']);
+
+    // **A photographed receipt**, and in this slice nothing more: the file is stored, a row exists
+    // immediately, and a second upload of the same file is answered with the receipt that already
+    // holds it. No extraction, no resolution and no stock write, so a receipt here has zero lines
+    // and that is its normal state.
+    //
+    // Declared one verb at a time rather than through `apiResource`, like `expiring` and
+    // `running-low` above, so no unimplemented method can be reached: a resource would publish
+    // `update` and `destroy` routes that answer 500 rather than 404.
+    //
+    // There is deliberately no route serving the document. It sits on the private disk, and a
+    // streaming action is an authorization surface (tenancy, `document_deleted_at`, `nosniff`) that
+    // nothing in this slice would call, so it lands in slice 2 with the tests it needs.
+    Route::get('receipts', [ReceiptController::class, 'index']);
+    Route::post('receipts', [ReceiptController::class, 'store']);
+    Route::get('receipts/{receipt}', [ReceiptController::class, 'show']);
 
     // **How much of this to keep on hand**, which is the one number the app asks a person for. Its
     // own route rather than a general product update: one field, named for its question, and a
