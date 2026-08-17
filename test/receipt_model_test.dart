@@ -173,9 +173,9 @@ void main() {
 
     test('a 409 is answered rather than treated as a failure, with the existing receipt', () async {
       // `ReceiptController::duplicate` sends only `data`, no `message` key (see the backend
-      // controller's own docblock), so the client's fallback sentence is what actually reaches the
-      // caller here. That fallback is a reserved, not-yet-catalogued key (Step 7 owns the copy), and
-      // under the test binding an uncatalogued key renders as itself.
+      // controller's own docblock), so the sentence is always this app's own rather than a fallback
+      // for one the server withheld. The key exists in both catalogues; nothing LOADS them under the
+      // plain test binding, so `Lang.get` answers with the key itself and that is what to assert on.
       Http.fake(
         (MagicRequest request) => MagicResponse(
           statusCode: 409,

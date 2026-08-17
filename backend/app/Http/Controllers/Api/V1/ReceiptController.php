@@ -85,10 +85,11 @@ final class ReceiptController extends Controller
         $this->validateStore($request);
 
         // **Before a byte is written, because an authenticated user can have no team.**
-        // `UnitController` already documents this state and refuses it explicitly. Reaching the
-        // stamp below with null would cast to `''`, which is non-null, so `BelongsToTeam`'s hook
-        // would not fill it in and PostgreSQL would refuse `''` as a uuid: a 500 instead of a stated
-        // refusal, with the photograph already on disk and no row to find it by.
+        // `UnitController` already documents this state and refuses it explicitly. Without this the
+        // null reaches the stamp below, `BelongsToTeam`'s `creating` hook fires precisely because the
+        // attribute is null, asks `TeamScope::currentTeamId()`, and gets the same null back from the
+        // same user; `receipts.team_id` is NOT NULL, so PostgreSQL refuses the insert. That is a 500
+        // where a stated refusal is the honest answer, and the user is told nothing they can act on.
         $team = $request->user()->current_team_id;
 
         if ($team === null) {

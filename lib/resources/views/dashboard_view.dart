@@ -438,12 +438,13 @@ class _DashboardViewState extends State<DashboardView> {
       return;
     }
 
-    final String message = outcome.message ?? Lang.get('screens.receipt.upload_failed');
-
     // A duplicate is an answer too: the same photograph reaching the server twice is the double
     // tap, the retry and the offline replay, so it is offered rather than refused.
     if (!outcome.isDuplicate) {
-      MagicFeedback.error(Lang.get('screens.dashboard.capture_receipt'), message);
+      MagicFeedback.error(
+        Lang.get('screens.dashboard.capture_receipt'),
+        outcome.message ?? Lang.get('screens.receipt.upload_failed'),
+      );
 
       return;
     }

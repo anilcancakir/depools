@@ -266,9 +266,9 @@ final class ReceiptUploadTest extends TestCase
     public function test_a_user_with_no_team_is_refused_before_anything_is_written(): void
     {
         // An authenticated user CAN have no current team, which `UnitController` already documents
-        // and refuses. Without the guard the stamp casts null to `''`, which is non-null, so
-        // `BelongsToTeam`'s hook never fills it in and PostgreSQL refuses an empty uuid: a 500 rather
-        // than a stated refusal.
+        // and refuses. Without the guard the null reaches the stamp, `BelongsToTeam`'s hook fires
+        // because the attribute is null, resolves the same null off the same user, and the NOT NULL
+        // column refuses the insert: a 500 rather than a stated refusal.
         $this->user->forceFill(['current_team_id' => null])->save();
 
         $this->upload(ReceiptImages::receiptA())->assertStatus(403);

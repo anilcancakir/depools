@@ -12,7 +12,7 @@ import '../support/mapped_or_null.dart';
 /// could carry the same two values, but a caller destructuring it has no name to lean on for which
 /// half is which; this reads `outcome.isDuplicate` instead of guessing at a record's second slot. A
 /// caller that only checks [message] (the existing app-wide contract) still behaves correctly: it
-/// reports the server's own duplicate sentence and never has to know [duplicate] exists.
+/// reports this app's own duplicate sentence and never has to know [duplicate] exists.
 @immutable
 class ReceiptUploadOutcome {
   /// The sentence to show on a refusal, or null on success.
