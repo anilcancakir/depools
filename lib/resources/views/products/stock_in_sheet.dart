@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show MSBottomSheet, MSButton, ButtonIntent;
 
+import '../../../app/support/date_label.dart';
 import '../../../app/support/unit_label.dart';
 import '../../../ui/components/option_row/option_row.dart';
 import 'product_filter_sheet.dart' show FilterOption;
@@ -191,20 +192,10 @@ class _StockInSheetState extends State<StockInSheet> {
     final int? life = widget.product.shelfLifeDays;
     if (life == null) return null;
 
-    final DateTime now = DateTime.now();
-    final DateTime date = now.add(Duration(days: life));
-    // Locale data rather than screen copy, so it lives under `common.months`. The real answer is
-    // a date formatter; this keeps the abbreviation out of Dart until there is one, and stops an
-    // English interface printing `Ağu`.
-    final List<String> months = [
-      for (int m = 1; m <= 12; m++) Lang.get('common.months.$m'),
-    ];
-
-    // The YEAR appears whenever it is not this one. A two-year warranty rendered
-    // "5 Ağu" and read as this week, which is the opposite of what it meant. Omitting
-    // it inside the current year keeps the common perishable case short.
-    final String day = '${date.day} ${months[date.month - 1]}';
-    final String label = date.year == now.year ? day : '$day ${date.year}';
+    final DateTime date = DateTime.now().add(Duration(days: life));
+    // Moved to `app/support/date_label.dart` at its third caller, which the receipt list and the
+    // receipt header made. The month table and the year rule went with it unchanged.
+    final String label = dateLabel(date);
 
     return (label, Lang.get('screens.stock_in.date_with_life', {'basis': _dateBasis, 'days': life}), date);
   }

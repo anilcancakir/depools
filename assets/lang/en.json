@@ -832,7 +832,17 @@
       "line_count": ":count lines",
       "will_write": ":settled lines will be written to stock, :pending still waiting",
       "submit": "Save :count lines",
-      "discard": "Discard the receipt"
+      "discard": "Discard the receipt",
+      "empty": "No receipts yet",
+      "not_extracted": "Not read yet",
+      "status_pending": "Pending",
+      "upload_failed": "The receipt could not be uploaded",
+      "duplicate": "This receipt is already on file",
+      "duplicate_open": "Open the receipt",
+      "option_semantic": ":label, tap to review",
+      "list_subtitle": ":count receipt|:count receipts",
+      "subtitle_pending": "Not read yet",
+      "uploaded_at": "Receipt from :date"
     },
     "running_low": {
       "title": "Running low",

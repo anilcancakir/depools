@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/products/receipt_fixtures.dart';
 import '../resources/views/products/receipt_review_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -23,5 +24,9 @@ class ReceiptReviewScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const ReceiptReviewView();
+  // The fixture is PASSED rather than reached for, and it pins the screen to its DETAIL mode. The
+  // screen reads `ReceiptController` when neither argument is given, and the catalog is
+  // unauthenticated and offline, so a preview that let it do that would fire a request and draw an
+  // error instead of the thirteen lines this preview exists for.
+  static Widget _build(BuildContext context) => ReceiptReviewView(receipt: receiptFixture);
 }
