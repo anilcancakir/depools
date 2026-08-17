@@ -180,8 +180,9 @@ Phrasing a shopping list into natural language through the assistant consumes a 
 
 ## What the build settled
 
-The three surfaces exist. `open-decisions.md` carries the reasoning; this is the map from a question
-this document left open to the decision that answered it.
+The three surfaces exist. `open-decisions.md` carries the reasoning; this maps the questions this
+document left open onto the decisions that answered them, which is not one-to-one: the materialisation
+question took two.
 
 - **Where the lead time comes from** was D48's, and D122 is the arithmetic: `daily_rate` times the
   mean gap between the tenant's purchase DAYS. Days rather than movements, because one trolley writes
