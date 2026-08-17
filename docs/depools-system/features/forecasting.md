@@ -178,8 +178,30 @@ Phrasing a shopping list into natural language through the assistant consumes a 
   questions, so the numbers live on one and a sentence on the other, and containment runs one way.
 - **The shopping list's actions are pinned** (D70), because the list is as long as the shop.
 
+## What the build settled
+
+The three surfaces exist. `open-decisions.md` carries the reasoning; this is the map from a question
+this document left open to the decision that answered it.
+
+- **Where the lead time comes from** was D48's, and D122 is the arithmetic: `daily_rate` times the
+  mean gap between the tenant's purchase DAYS. Days rather than movements, because one trolley writes
+  a purchase per item.
+- **How the three tiers reach a sentence** is D125. The top tier states a figure, the middle one a
+  bucket CODE (a code cannot be misread as a measurement, which is the property a figure fails), and
+  the bottom a bare ratio. Each is constrained to the reasons that may carry it, so a row says what it
+  is allowed to claim.
+- **Whether the shopping list reads a materialised table or recomputes** is D121 and D124, and the
+  answer is one of each: running low recomputes and stores nothing, the list materialises because a
+  tick and a hand-typed line have nowhere else to live.
+- **Where the target is asked** is D127: on the row that reveals the gap, and on the product. The
+  reorder point is asked nowhere, which is D48 held to.
+- **What "below target" means at the boundary** is D123: `<`, because the shopping list computes how
+  much to buy as the target minus what is on hand and "buy 0" is not a line.
+
 ## Open
 
 - The exact threshold for switching from par level to SBA. Ten is a reasoned starting point, not a sourced constant; no citable minimum exists. Instrument it and tune.
 - Whether weekly seasonality is worth detecting for cafes, which have real day-of-week patterns. Probably v2, and only with a season's worth of data.
 - Whether the list should be ordered by aisle rather than by urgency once it runs past twenty lines. Urgency ordering is what makes the reason column legible and is the right default at eight lines; a supermarket floor plan wins at forty, and we have no data on real list lengths yet.
+- How coarse the regeneration window should be. D124 chose a day, on the argument that anything finer lets a line change under someone in a shop. Nobody has used it across a real trip yet, and a user who consumes something and opens the list a minute later sees yesterday's answer, which is the cost that argument accepts.
+- Whether `waste` percentage and sell-through are surfaced anywhere. Both are computable today (the `waste` reason exists and is excluded from demand), and no screen reads either.

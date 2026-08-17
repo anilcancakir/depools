@@ -2214,9 +2214,14 @@ preview step. Separately, reaching a screen at its real route requires auth and 
 **The running-low list is not indexable, and no index will fix it.** `forecasting.md` asks for "items
 below their reorder point or below their par level". Both thresholds live on `products` while the quantity
 is summed across `product_stock` rows, so the predicate is neither single-table nor row-level: a
-`(team_id, quantity)` index cannot express it. The answer is materialisation, and `shopping_list_items`
-already IS that materialisation, so the open question is whether `RunningLowView` reads it or recomputes.
-Recorded here rather than fixed, because it is a service-layer decision and no service exists yet.
+`(team_id, quantity)` index cannot express it.
+
+*Answered by D121 and D124.* This paragraph closed with "the open question is whether `RunningLowView`
+reads `shopping_list_items` or recomputes, recorded here rather than fixed because no service exists
+yet". Both services exist now and the answer is neither of the two options as posed: running low
+RECOMPUTES and stores nothing, because a diagnosis has no state, and the shopping list materialises
+because a tick and a hand-typed line have nowhere else to live. The narrowing that makes the recompute
+affordable is a superset the database CAN express (D121), not an index.
 
 A methodological note worth keeping, because it produced a confident wrong answer: an EXPLAIN run against
 an EMPTY table always shows a Seq Scan, whatever indexes exist, because scanning zero pages is cheapest.
@@ -2447,3 +2452,153 @@ picture, so `ProductImageTest` asserts all three at once and each was mutation-c
 `serve` the route is a 404, without `visibility => public` `ServeFile` demands a signed url and
 answers 403, and without `media/*` in `config/cors.php` the response is a 200 that a browser throws
 away. The last is the dangerous one, because it looks fine to `curl` and to every mobile build.
+
+### D121. Running low recomputes and stores nothing, and the query narrows to a superset PHP then decides
+
+`GET running-low` computes its answer on every request. There is no materialised shortage table,
+which is the opposite of what the shopping list does (D124), and the difference is that a diagnosis
+has no state: it is a question about the ledger and the ledger already holds the answer.
+
+**Three ways to be short, and they are not interchangeable.** Nothing on hand needs no threshold to
+be true, so that arm ignores the target entirely; it is also the only arm that can catch a product
+nobody set a target for, which until D123 was every product. Below a target the user set is an
+explicit instruction. At or below an inferred reorder point applies only to a product with enough
+history to have a rate (D122).
+
+**The multiplication happens in PHP, which shapes the query.** D84 keeps derivation out of the
+database, so `total_quantity <= daily_rate * :days` cannot be a WHERE clause. SQL narrows to a
+SUPERSET it can express with plain comparisons and PHP decides the rest, and the superset is bounded
+by one scalar: the tenant's highest rate times the rhythm. Anything below its OWN reorder point is
+below the highest one, so nothing is lost and every well-stocked product is dropped before it
+reaches PHP. Same trade `ProductListQuery` already makes for the expiry window.
+
+**Not paginated**, like `expiring`: the result is already bounded by the question, and a screen
+answering "what do I need to deal with" is unusable a page at a time. The ordering is by urgency as
+a FRACTION of what the product should hold rather than by absolute shortfall, because two of a
+target of twenty is more urgent than two of a target of three and the raw difference ranks a bulk
+item above a staple every time.
+
+### D122. A reorder point is the consumption rate times the tenant's own shopping rhythm
+
+D48 settled that the lead time we need is the tenant's restock rhythm rather than a supplier's, and
+that it is never asked. This is how it is computed: `daily_rate * restock_days`, at read, stored
+nowhere.
+
+`RestockRhythm` measures the mean gap between purchase DAYS, and days rather than movements is the
+whole accuracy of the figure: one trolley writes a purchase per item, so counting movements answers
+that the tenant restocks several times an hour and every reorder point collapses toward zero. It is
+one number per TENANT, because when the user next gets to a shop is a fact about the user rather
+than about the milk, and a per-product rhythm would also be far sparser.
+
+Bounded at both ends. Fewer than two purchase days is no rhythm at all and falls back to seven, the
+ordinary household shop. More than sixty is capped, because a tenant who imported a year of history
+in one sitting and then made one real purchase has a mean gap of months, and an uncapped rhythm
+would put every product they own on the list at once. A fractional mean rounds UP, since the rhythm
+decides how early to warn and half a day rounded down is half a day of warning given away.
+
+### D123. Below a target is `<`, and the shopping list is what settles the boundary
+
+`on_hand < par_level`, in all three places that ask: `RunningLowQuery`, `ProductListQuery`'s
+`below_par` axis, and `ProductListItem.isBelowPar`. All three used `<=`.
+
+The boundary is not a matter of taste and the shopping list decides it. `forecasting.md` computes how
+much to buy as the target minus what is on hand, and running low is a strict subset of that list
+(D57), so a product sitting at exactly its target produces a line reading "buy 0". Two of a target of
+two is not a shortage: it is the amount the user asked to keep.
+
+A test comment had enshrined the other reading — "at the target exactly, which counts: the client's
+predicate is `<=`" — and it was right about the client and wrong about the boundary, which is the
+shape worth noticing: a premise can be verified and still not support its conclusion.
+
+The trigger the app INFERS stays at or below (D122), because a reorder point is by definition the
+level you act on rather than the level you fall short of.
+
+### D124. The shopping list is materialised, its inputs are frozen, and only a stale generated line is replaced
+
+D98 already said a line stores the reason CODE and its frozen inputs rather than a sentence. This is
+the mechanism around that, and it inverts the obvious implementation.
+
+**Nothing recomputes on read.** D47 makes the list a document rather than a view of stock, so a user
+walking round a shop must not have a line change under them because someone else recorded a sale.
+`shopping_lists.generated_at` decides when the generated half is rebuilt and the window is
+deliberately coarse: a DAY. Anything finer reintroduces exactly that instability, because buying the
+milk is what stops the milk being short. A day is also the period the expiring arm needs on its own,
+since a lot crossing the horizon needs no movement at all to change the answer.
+
+**A tick freezes its line and a manual line is never touched.** A regeneration that dropped every
+line the ledger no longer justified would erase each item from the trolley as the user recorded
+picking it up, which is the failure this rule exists for rather than a hypothetical.
+
+**A date outranks a shortage for the same product**, the same ranking `ProductRow`'s badge uses: the
+date is the half with a deadline that buying more does not fix. A lot already PAST its date is not an
+expiring line at all, because the first implementation floored a negative day count to zero and said
+"use today" about eggs that went off two days ago. False rather than imprecise, on the one screen
+whose value is that its reasons are checkable, and it is also the wrong screen: a passed date is the
+dates screen's decision and its action is `waste`, which corrects the ledger.
+
+**How much to buy has a floor of one.** The target minus what is on hand, rounded up, and never
+zero: a product going off can sit well above its target, so the subtraction is negative and "buy 0
+yoghurt" is not a line.
+
+### D125. The middle tier's evidence is a bucket CODE, and every frozen input is per-reason
+
+D46 says two to nine movements earns a bucket and never a number at any precision, and D98's schema
+enforces the second half with a CHECK: only `running_out` and `expiring` may carry `reason_days`.
+Correct, and it left the middle tier with nothing to say, so its sentence collapsed to "geçmiş az"
+and lost the half `forecasting.md` actually specifies (`Yaklaşık bir hafta · geçmiş az`).
+
+So `reason_bucket` holds one of `days`, `week`, `fortnight`, `month`, `rare`, with a CHECK that only
+`roughly_due` may carry one. **A code cannot be misread as a measurement**, which is the property the
+figure fails, and the boundaries live on the server so "about weekly" is defined in one place rather
+than two.
+
+`reason_lot_is_open` is the same shape for the expiring reason: an opened pot runs on the
+after-opening limit rather than the printed date (D27), and "3 days left" about a sealed carton with
+a week on the box reads as the app being wrong rather than as the pot being open.
+
+The pattern generalises: **which frozen inputs exist is what the reason decides**, and each is
+constrained to the reasons that may carry it. A reader can therefore tell what a line is allowed to
+claim from the row alone.
+
+### D126. `unit` holds a Rec 20 code everywhere, including on a line somebody typed
+
+`shopping_list_items.unit` defaulted to `'adet'` while every generated line copies
+`products.base_unit`, which is a code (`C62`, `KGM`). So one column held codes and labels at once,
+and a hand-typed line rendered as `1 adet` on an English interface because `unitLabel` had nothing
+to translate.
+
+The default is gone from the column and the writer states `Unit::DEFAULT_CODE`. A default belongs
+where the vocabulary is known, and a schema default that is not in the column's own vocabulary is a
+second vocabulary nobody declared.
+
+Found on screen rather than in the schema, which is the general lesson: a wrong VALUE in the right
+type passes every constraint, and the only instrument that catches it is a person reading the
+rendered line in the other locale.
+
+### D127. The target is asked where the gap shows, and the reorder point is asked nowhere
+
+`forecasting.md` wants the target asked at the moment it becomes useful rather than on the creation
+form, which is why the form omits it. Nothing asked at that moment either, so a product could only
+reach the shortage surfaces by running out entirely and a seeded target could never be changed.
+
+`PUT products/{id}/target` is its own route rather than a general product update: one field, named
+for the question it answers, the way `products/by-barcode` and `team/settings` are. A general
+endpoint would have to decide what else it accepts, and the product screen's other four field
+editors are still unwired, so every extra field would be a validator guessing at what they will
+send.
+
+**Two entry points, and the running-low rule is the one worth stating.** A row WITH a target taps
+through to stock-in, because "this is short" is almost always answered by "I bought some". A row
+WITHOUT one taps through to the target sheet, because that row is saying the app has nothing to
+measure against and stock-in would leave the product unmeasurable however much was added. The
+product's own screen carries the second entry point, because otherwise a target could be set once
+and never changed.
+
+**The reorder point is not settable, here or anywhere** (D48). Asking a household user for a
+supplier lead time is the question `product.md` says ends their relationship with the product, so an
+endpoint accepting one would be a door back to asking. Asserted as an absence, which is the only way
+to test a field that must not exist.
+
+Null clears the target and clearing hides nothing: running out needs no threshold to be true, so the
+product stays reachable through the out-of-stock arm. A cleared target is not a claim that the thing
+is not needed.
