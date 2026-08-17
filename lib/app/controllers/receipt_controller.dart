@@ -105,9 +105,15 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
         final List<Receipt> found = <Receipt>[];
 
         for (final Object? row in data) {
-          if (row is! Map<String, dynamic>) return null;
+          // **`Map<dynamic, dynamic>` and then convert**, which is what every other reader in this
+          // app does. The narrower `Map<String, dynamic>` test happens to match what this HTTP layer
+          // decodes today, and `product_detail_controller.dart:312-321` carries the scar: the day it
+          // decodes one level less precisely, the narrow test rejects every row. Failing loudly
+          // rather than skipping the row, because a list quietly one receipt short is worse than an
+          // error on a screen whose whole job is to be complete.
+          if (row is! Map<dynamic, dynamic>) return null;
 
-          found.add(Receipt.fromApi(row));
+          found.add(Receipt.fromApi(Map<String, dynamic>.from(row)));
         }
 
         return found;

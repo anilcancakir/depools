@@ -25,11 +25,12 @@ const Map<String, String> _currencySymbols = <String, String>{
 /// ISO code itself for anything else. A null [currency] renders the bare number: `receipts.currency`
 /// is nullable (migration line 63), because a photograph does not always say.
 ///
-/// **No thousands separator and no special casing for a negative amount.** `ProductListItem.format`
-/// adds neither, and nothing in this slice produces a value large or negative enough to need one
-/// (`line_total` on a receipt is always positive); `toStringAsFixed(2)` already renders a negative
-/// value correctly (`-34.90`) if a future caller ever hands one in, so there is nothing to add
-/// until a real four-digit total or a refund line makes the gap concrete.
+/// **No thousands separator, and negatives need no special casing rather than never occurring.**
+/// A receipt carries discount and refund lines, and this app's own preview fixture has one at
+/// `-12,00`; `toStringAsFixed(2)` renders it as `-12,00` with the sign in front, which is what a
+/// receipt prints. A thousands separator is the genuinely absent one, and `ProductListItem.format`
+/// omits it too: a four-digit total reads fine at `1234,56` and adding a group separator means
+/// deciding which one per locale, which is the `intl` question this file is deliberately not asking.
 ///
 /// Symbol placement is NOT locale-switched. `$34.90` reads better than `34.90 $` on an English
 /// screen, and doing that properly needs a package with real locale data, which is exactly what

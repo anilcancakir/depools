@@ -398,15 +398,22 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
   /// **No tap either.** Resolving a line is slice 3; a row that responds and does nothing is worse
   /// than one that does not respond, because the user reads the first as the app failing.
   Widget _row(Receipt receipt, ReceiptLine line) {
-    final num amount = line.quantity ?? 0;
+    final num? quantity = line.quantity;
     final num? total = line.lineTotal;
 
     return ReceiptLineRow(
       extracted: line.rawName,
       productName: line.productName,
       resolution: line.resolution,
-      amount: amount,
-      formatted: ProductListItem.format(amount),
+      // **A quantity the extraction could not read is NOT zero, and printing `0` says it was.**
+      // `quantity` is nullable for exactly that case, and a line reading "0 kg" claims the paper
+      // said none rather than that the app could not tell, which is the difference between a receipt
+      // the user can check and one they have to distrust. The row still gets 0 as the raw `amount`,
+      // because that drives its zero TONE and an unreadable quantity is not a quantity to celebrate.
+      amount: quantity ?? 0,
+      formatted: quantity == null
+          ? Lang.get('screens.receipt.quantity_unknown')
+          : ProductListItem.format(quantity),
       unit: line.resolvedUnit ?? line.rawUnitCode,
       price: total == null ? null : moneyLabel(total, receipt.currency),
     );

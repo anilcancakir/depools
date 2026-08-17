@@ -830,6 +830,7 @@
       "settled_group": "Ready",
       "rejected_group": "Skipped",
       "line_count": ":count lines",
+      "quantity_unknown": "Unreadable",
       "will_write": ":settled lines will be written to stock, :pending still waiting",
       "submit": "Save :count lines",
       "discard": "Discard the receipt",

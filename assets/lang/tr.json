@@ -830,6 +830,7 @@
       "settled_group": "Hazır",
       "rejected_group": "Atlandı",
       "line_count": ":count satır",
+      "quantity_unknown": "Okunamadı",
       "will_write": ":settled satır stoğa yazılacak, :pending satır bekliyor",
       "submit": ":count satırı kaydet",
       "discard": "Fişi at",
