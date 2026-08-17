@@ -839,7 +839,7 @@
       "status_pending": "Pending",
       "upload_failed": "The receipt could not be uploaded",
       "duplicate": "This receipt is already on file",
-      "duplicate_open": "Open the receipt",
+      "duplicate_open": "Go to receipts",
       "option_semantic": ":label, tap to review",
       "list_subtitle": ":count receipt|:count receipts",
       "uploaded_at": "Receipt from :date"

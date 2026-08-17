@@ -504,6 +504,10 @@ class _DashboardViewState extends State<DashboardView> {
 
     if (action == null || !mounted) return;
 
+    // The LIST, which is the only receipt route this slice has, and the label says so rather than
+    // promising to open the one receipt: `screens.receipt.duplicate_open` reads "Go to receipts".
+    // It said "Open the receipt" and could not, which is a promise the screen has no way to keep
+    // until `/receipt/:id` lands in slice 2. The receipt is in that list; the user finds it there.
     MagicRoute.to('/receipt');
   }
 
