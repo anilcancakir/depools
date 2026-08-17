@@ -54,7 +54,6 @@ final class ReceiptImages
         $full = self::drawReceiptA(self::WIDTH, self::HEIGHT);
         $resampled = imagecreatetruecolor(588, 784);
         imagecopyresampled($resampled, $full, 0, 0, 0, 0, 588, 784, self::WIDTH, self::HEIGHT);
-        imagedestroy($full);
 
         return self::toUploadedFile($resampled, 'receipt-a-again.jpg', quality: 55);
     }
@@ -156,8 +155,11 @@ final class ReceiptImages
         }
 
         imagejpeg($image, $path, $quality);
-        imagedestroy($image);
 
+        // No `imagedestroy()`: a `GdImage` has been an object freed by refcount since PHP 8.0, so the
+        // call has done nothing for five versions, and 8.5 deprecates it outright. It was here and it
+        // made every local run print deprecations from the fixture, which is noise in exactly the place
+        // a real warning would need to be visible.
         return new UploadedFile($path, $name, 'image/jpeg', null, true);
     }
 }
