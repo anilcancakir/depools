@@ -1,10 +1,16 @@
+// `defaultTargetPlatform` for the one platform question this screen asks: a phone photographs a
+// receipt with its camera and everything else picks a file. `ImagePicker` and `ImageSource` arrive
+// through magic's own barrel, which re-exports them, so naming the package here as well is what the
+// analyzer calls an unnecessary import.
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show ButtonIntent, MSButton, MSEmptyState, MSPageScaffold;
+    show ButtonIntent, MSBottomSheet, MSButton, MSEmptyState, MSPageScaffold;
 
 import '../../app/controllers/dashboard_controller.dart';
+import '../../app/controllers/receipt_controller.dart';
 import '../../app/models/movement_entry.dart';
 import '../../app/support/movement_copy.dart';
 import '../../app/models/dashboard_summary.dart';
@@ -13,6 +19,7 @@ import '../../app/support/unit_label.dart';
 import '../../ui/components/list_footer/list_footer.dart';
 import '../../ui/components/lot_row/lot_row.dart';
 import '../../ui/components/movement_row/movement_row.dart';
+import '../../ui/components/option_row/option_row.dart';
 import '../../ui/components/product_row/product_row.dart';
 import '../../ui/components/section_card/section_card.dart';
 import '../../ui/components/setup_step/setup_step.dart';
@@ -344,7 +351,18 @@ class _DashboardViewState extends State<DashboardView> {
           className: 'flex flex-col md:flex-row gap-2 w-full',
           children: [
             _captureButton(context, Lang.get('screens.dashboard.capture_scan'), _iconScan, '/scan', ButtonIntent.primary),
-            _captureButton(context, Lang.get('screens.dashboard.capture_receipt'), _iconReceipt, '/receipt'),
+            // The one capture action that is not a navigation. The receipt path starts with the
+            // photograph, so the button opens the camera and only then goes to the review screen;
+            // sending the user to `/receipt` first would show a list of receipts to somebody who
+            // asked to capture one.
+            _captureButton(
+              context,
+              Lang.get('screens.dashboard.capture_receipt'),
+              _iconReceipt,
+              '/receipt',
+              ButtonIntent.secondary,
+              _captureReceipt,
+            ),
             _captureButton(context, Lang.get('screens.dashboard.capture_shelf'), _iconShelf, '/shelf-photo'),
           ],
         ),
@@ -363,12 +381,17 @@ class _DashboardViewState extends State<DashboardView> {
   ///
   /// Card tone on the two secondary buttons: `secondary` ships `bg-surface-container-high`, which
   /// is DESIGN.md's input fill and reads as a disabled control on a light card.
+  ///
+  /// [onPressed] overrides the navigation for the one action that has work to do before it can
+  /// navigate. It is a parameter rather than a second copy of this button, because the width
+  /// arrangement below is the part that has already gone wrong once and must not be duplicated.
   Widget _captureButton(
     BuildContext context,
     String label,
     IconData icon,
     String path, [
     ButtonIntent intent = ButtonIntent.secondary,
+    VoidCallback? onPressed,
   ]) {
     return WDiv(
       // **`w-full md:flex-1`, not `flex-1`.** `flex-1` is axis-dependent: in the `md:flex-row`
@@ -380,7 +403,7 @@ class _DashboardViewState extends State<DashboardView> {
       // preview never enters the column arrangement.
       className: 'w-full md:flex-1 min-w-0',
       child: MSButton(
-        onPressed: () => MagicRoute.to(path),
+        onPressed: onPressed ?? () => MagicRoute.to(path),
         intent: intent,
         fullWidth: true,
         className: intent == ButtonIntent.secondary
@@ -392,6 +415,100 @@ class _DashboardViewState extends State<DashboardView> {
         ),
       ),
     );
+  }
+
+  /// Photographs a receipt, uploads it, and goes to the review screen.
+  ///
+  /// The upload is what creates the receipt, so the work survives from the moment the shutter
+  /// closes: nothing is extracted off it in this slice, and the review screen says so rather than
+  /// showing an empty document.
+  Future<void> _captureReceipt() async {
+    final XFile? picked = await _pickReceipt();
+
+    // A dismissed picker is an answer rather than a failure, and says nothing.
+    if (picked == null) return;
+
+    final ReceiptUploadOutcome outcome = await ReceiptController.instance.upload(picked);
+
+    if (!mounted) return;
+
+    if (outcome.succeeded) {
+      MagicRoute.to('/receipt');
+
+      return;
+    }
+
+    // A duplicate is an answer too: the same photograph reaching the server twice is the double
+    // tap, the retry and the offline replay, so it is offered rather than refused.
+    if (!outcome.isDuplicate) {
+      MagicFeedback.error(
+        Lang.get('screens.dashboard.capture_receipt'),
+        outcome.message ?? Lang.get('screens.receipt.upload_failed'),
+      );
+
+      return;
+    }
+
+    await _offerExistingReceipt();
+  }
+
+  /// The picker, and the one place this screen asks what kind of device it is on.
+  ///
+  /// A phone gets the camera, because photographing the paper in your hand is the whole point.
+  /// Every other platform gets its file dialog, which is what `image_picker` falls back to there
+  /// anyway. `DESIGN.md` allows exactly this: the feature is present on all three platforms and only
+  /// the instrument differs.
+  Future<XFile?> _pickReceipt() {
+    final ImagePicker picker = ImagePicker();
+    final bool handheld = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+
+    return picker.pickImage(
+      source: handheld ? ImageSource.camera : ImageSource.gallery,
+      // Capped on the way IN, so a 12 megapixel photograph is not carried over a phone connection to
+      // be refused by the server's own limit. The server re-encodes what it stores, so nothing
+      // downstream depends on the original resolution.
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 85,
+    );
+  }
+
+  /// The receipt the tenant already has, and a way into it.
+  ///
+  /// The server answers 409 with that receipt rather than refusing outright, so the honest offer is
+  /// to open it. `/receipt` is the only path there is in this slice, so it lands on the LIST holding
+  /// that receipt rather than on the receipt itself; `/receipt/:id` is slice 2's, where a receipt
+  /// finally has lines worth linking straight to.
+  Future<void> _offerExistingReceipt() async {
+    final String? action = await MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.receipt.duplicate'),
+      // No description: a 409 body is `{'data': ...}` and carries no sentence, so the outcome's
+      // message is always this same key and the sheet would print it twice. This used to compare the
+      // two and pass the message when they differed, which read as a defence against a server that
+      // forgot to explain itself and was in fact a branch that could never be taken.
+      description: null,
+      body: Builder(
+        // A `Builder`, so the pop happens on the SHEET's context and not this screen's.
+        // `Navigator.of` from here resolves the navigator the PAGE is on, and with the shell's
+        // nested navigator in play that pop takes the page rather than the sheet.
+        builder: (BuildContext sheetContext) => OptionRow(
+          label: Lang.get('screens.receipt.duplicate_open'),
+          semanticLabel: Lang.get('screens.receipt.duplicate_open'),
+          onTap: () => Navigator.of(sheetContext).pop('open'),
+        ),
+      ),
+    );
+
+    if (action == null || !mounted) return;
+
+    // The LIST, which is the only receipt route this slice has, and the label says so rather than
+    // promising to open the one receipt: `screens.receipt.duplicate_open` reads "Go to receipts".
+    // It said "Open the receipt" and could not, which is a promise the screen has no way to keep
+    // until `/receipt/:id` lands in slice 2. The receipt is in that list; the user finds it there.
+    MagicRoute.to('/receipt');
   }
 
   /// What is running out of time, expired first.

@@ -830,9 +830,19 @@
       "settled_group": "Hazır",
       "rejected_group": "Atlandı",
       "line_count": ":count satır",
+      "quantity_unknown": "Okunamadı",
       "will_write": ":settled satır stoğa yazılacak, :pending satır bekliyor",
       "submit": ":count satırı kaydet",
-      "discard": "Fişi at"
+      "discard": "Fişi at",
+      "empty": "Henüz fiş yok",
+      "not_extracted": "Henüz okunmadı",
+      "status_pending": "Bekliyor",
+      "upload_failed": "Fiş yüklenemedi",
+      "duplicate": "Bu fiş zaten kayıtlı",
+      "duplicate_open": "Fişlere git",
+      "option_semantic": ":label, incelemek için dokunun",
+      "list_subtitle": ":count fiş",
+      "uploaded_at": ":date tarihli fiş"
     },
     "running_low": {
       "title": "Azalanlar",
