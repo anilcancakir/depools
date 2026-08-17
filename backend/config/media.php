@@ -71,9 +71,20 @@ return [
     | folding them would silently move every stored receipt onto a public path
     | the day somebody changed one key.
     |
-    | `mimes` and `max_kilobytes` are deliberately absent here: they are the
-    | same question for both, so the receipt path reads them from `images`
-    | rather than owning a second copy that can drift.
+    | `max_kilobytes` is deliberately absent here: what an upload may weigh is
+    | genuinely the same question for both, so the receipt path reads it from
+    | `images` rather than owning a second copy that can drift.
+    |
+    | **`mimes` is NOT the same question, and reading it across was a bug.**
+    | The list above is chosen on what a Flutter `Image.network` can decode on
+    | every platform this app ships to. This one is chosen on what GD can
+    | decode on the server, because a receipt is the first upload this codebase
+    | DECODES rather than copies. `webp` sits in that gap: it is fine for a
+    | gallery picture on every client, and on a box whose GD was built without
+    | WebP support it reaches `imagecreatefromstring`, comes back false, and
+    | leaves the user a 500 where a 422 was the honest answer. So this list is
+    | the intersection GD has supported since 2.0 and nothing here is admitted
+    | on a promise the server cannot keep.
     |
     */
 
@@ -82,6 +93,8 @@ return [
         'disk' => env('MEDIA_DOCUMENT_DISK', 'local'),
 
         'directory' => env('MEDIA_DOCUMENT_DIRECTORY', 'receipts'),
+
+        'mimes' => ['jpeg', 'jpg', 'png'],
 
         // **The first server-side DECODE on this codebase's upload path needs a
         // bound the image path never did.** `mimes:` sniffs a header and

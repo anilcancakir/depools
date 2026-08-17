@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Captured purchase documents: photograph one, list them, read one.
@@ -83,6 +84,17 @@ final class ReceiptController extends Controller
     {
         $this->validateStore($request);
 
+        // **Before a byte is written, because an authenticated user can have no team.**
+        // `UnitController` already documents this state and refuses it explicitly. Reaching the
+        // stamp below with null would cast to `''`, which is non-null, so `BelongsToTeam`'s hook
+        // would not fill it in and PostgreSQL would refuse `''` as a uuid: a 500 instead of a stated
+        // refusal, with the photograph already on disk and no row to find it by.
+        $team = $request->user()->current_team_id;
+
+        if ($team === null) {
+            abort(403, __('Pick a team before capturing a receipt.'));
+        }
+
         /** @var UploadedFile $file */
         $file = $request->file('image');
 
@@ -116,6 +128,16 @@ final class ReceiptController extends Controller
             // lookup below would die on PostgreSQL `25P02`, "current transaction is aborted". Out
             // here the rollback has already happened, so the lookup runs on a clean connection.
             return $this->duplicate($stored['path'], $stored['phash']);
+        } catch (Throwable $failure) {
+            // **Every other way the insert can fail leaves bytes with no row pointing at them.**
+            // A deadlock, a dropped connection, a constraint nobody anticipated: the file is already
+            // written, and nothing will ever reclaim it, because D94's retention sweep keys on
+            // `document_deleted_at` on a ROW and a row-less document is invisible to it forever.
+            // That is the same accumulation the duplicate branch exists to prevent, on the branch
+            // that had no test. Re-raised rather than translated: the client has nothing to correct.
+            $this->documents->discard($stored['path']);
+
+            throw $failure;
         }
 
         return response()->json(['data' => new ReceiptResource($receipt)], 201);
@@ -126,15 +148,19 @@ final class ReceiptController extends Controller
      */
     private function duplicate(string $path, string $phash): JsonResponse
     {
-        // Before the lookup, because the bytes are what the refused row would have pointed at.
-        // Keeping a file for a row the database declined is exactly the accumulation D94 objects to.
-        $this->documents->discard($path);
-
         // No `team_id` clause: `TeamScope` is the tenancy here, the way it is on every other read,
         // so this cannot reach another tenant's receipt even though the index it mirrors leads on
         // the team. `firstOrFail` rather than a nullable answer, because the violation the database
         // just raised means the row exists.
+        //
+        // **The lookup comes BEFORE the discard, which is the opposite of the obvious order.**
+        // Discarding first reads as "refuse the upload, then explain it", and it means a lookup that
+        // somehow misses answers 404 with the user's photograph already deleted: the one outcome
+        // this slice's Core Objective forbids, since the work is supposed never to be lost. The
+        // bytes go only once there is a receipt to hand back in their place.
         $existing = Receipt::query()->where('image_phash', $phash)->firstOrFail();
+
+        $this->documents->discard($path);
 
         return response()->json(['data' => new ReceiptResource($existing)], 409);
     }
@@ -146,10 +172,11 @@ final class ReceiptController extends Controller
      * Laravel runs every rule for the attribute, and a text file would reach a rule that expects to
      * be able to read an image header.
      *
-     * The formats and the weight come from `media.images` rather than from literals here: they are
-     * the same question for a receipt as for a gallery picture, and a second copy would drift. The
-     * DISK does not come from there, which is the whole point of the `documents` block; see the
-     * comment on it.
+     * The WEIGHT comes from `media.images`, because what an upload may weigh is the same question
+     * for a receipt as for a gallery picture and a second copy would drift. The FORMATS come from
+     * `media.documents`, because they are not the same question: that list is what GD can decode on
+     * the server, and the gallery's is what a client can render. `media.php` carries both arguments
+     * beside the blocks they belong to.
      */
     private function validateStore(Request $request): void
     {
@@ -162,7 +189,10 @@ final class ReceiptController extends Controller
                 'required',
                 'file',
                 'image',
-                'mimes:'.implode(',', $images['mimes']),
+                // The formats come from `documents`, not from `images`: this path DECODES, so the
+                // list has to be what GD reads rather than what a client renders. The weight comes
+                // from `images`, which is the same question for both. `media.php` carries both halves.
+                'mimes:'.implode(',', $documents['mimes']),
                 'max:'.$images['max_kilobytes'],
                 // Reads the header rather than the image, so it costs nothing and it runs before
                 // anything decodes. `media.php` carries why an upload path that DECODES needs this

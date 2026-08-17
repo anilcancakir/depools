@@ -7,6 +7,7 @@ use App\Models\Scopes\TeamScope;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\ImagePhash;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -204,6 +205,59 @@ final class ReceiptUploadTest extends TestCase
         $this->upload(ReceiptImages::receiptA())
             ->assertStatus(422)
             ->assertJsonValidationErrors('image');
+
+        $this->assertSame(0, Receipt::query()->count());
+        $this->assertSame([], Storage::disk($this->documentDisk())->allFiles());
+    }
+
+    public function test_a_one_pixel_tall_panorama_is_stored_rather_than_crashing(): void
+    {
+        // **The gap between four validation rules and a decode.** 8000x1 is a valid JPEG, both axes
+        // are inside the per-axis limit, and 8000 pixels is a two-thousandth of the budget, so every
+        // rule passes. The downscale then computes `round(1 * 2048/8000)` = 0 and
+        // `imagecreatetruecolor` raises a `ValueError`, which is not the `RuntimeException` the
+        // controller translates: the client got a 500 on a file the app said it would accept. Any
+        // long edge at or above 4097 against a one-pixel short edge reaches it.
+        $this->upload(UploadedFile::fake()->image('strip.jpg', 8000, 1))->assertCreated();
+
+        $receipt = Receipt::query()->sole();
+        $stored = Storage::disk($this->documentDisk())->path((string) $receipt->document_path);
+
+        // Kept as a real image rather than a zero-height one, which is what the floor is for.
+        $this->assertSame([2048, 1], array_slice((array) getimagesize($stored), 0, 2));
+    }
+
+    public function test_a_format_gd_may_not_decode_is_refused_before_it_is_stored(): void
+    {
+        // `webp` is in `media.images.mimes`, because a Flutter `Image.network` renders it on every
+        // platform. It is deliberately NOT in `media.documents.mimes`, because this path DECODES and
+        // a GD built without WebP support would answer a 500 where a 422 is the honest answer. This
+        // asserts the two lists have not been quietly re-joined.
+        $this->assertNotContains('webp', (array) config('media.documents.mimes'));
+
+        $this->upload(UploadedFile::fake()->create('receipt.webp', 40, 'image/webp'))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('image');
+
+        $this->assertSame([], Storage::disk($this->documentDisk())->allFiles());
+    }
+
+    public function test_a_failed_insert_leaves_no_document_behind(): void
+    {
+        // The duplicate branch discards its file and had a test; every OTHER way the insert can fail
+        // did not, and those bytes can never be reclaimed: D94's retention sweep keys on
+        // `document_deleted_at` on a ROW, so a row-less document is invisible to it forever. Forced
+        // here through the `kind` CHECK, which is the cheapest real constraint violation that is not
+        // the unique index.
+        Receipt::creating(static function (Receipt $receipt): void {
+            $receipt->setAttribute('kind', 'e_fatura');
+        });
+
+        try {
+            $this->upload(ReceiptImages::receiptA());
+        } catch (QueryException) {
+            // The refusal is the point; what it left behind is what this test is about.
+        }
 
         $this->assertSame(0, Receipt::query()->count());
         $this->assertSame([], Storage::disk($this->documentDisk())->allFiles());

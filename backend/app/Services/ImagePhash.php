@@ -181,9 +181,15 @@ final class ImagePhash
     }
 
     /**
+     * The image at this path, decoded.
+     *
+     * Public because `ReceiptDocumentStore` needs exactly this and already injects this service: the
+     * store re-encodes what this class then hashes, so a second copy of the decode would be two
+     * places to keep a GD quirk straight.
+     *
      * @throws RuntimeException
      */
-    private function decode(string $path): GdImage
+    public function decode(string $path): GdImage
     {
         if (! is_file($path) || ! is_readable($path)) {
             throw new RuntimeException("No readable image at {$path}.");

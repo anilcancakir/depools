@@ -15,7 +15,11 @@ import '../support/mapped_or_null.dart';
 /// reports the server's own duplicate sentence and never has to know [duplicate] exists.
 @immutable
 class ReceiptUploadOutcome {
-  /// The server's own sentence on a refusal (422 or 409), or null on success.
+  /// The sentence to show on a refusal, or null on success.
+  ///
+  /// The server's own on a 422, which carries per-field errors. On a 409 it is this app's, because
+  /// that response is `{'data': ...}` and nothing else: the receipt IS the answer there, so there is
+  /// no sentence to send and [duplicate] carries the meaning instead.
   final String? message;
 
   /// The receipt this upload turned out to be, set only on a 409. Null everywhere else, including
@@ -168,6 +172,10 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
   /// See [ReceiptUploadOutcome] for why a 409 is answered rather than treated as a failure: the
   /// server catches the duplicate-file constraint and sends back the receipt that already exists, and
   /// the caller can offer to open it instead of losing the tenant's tap to a bare error.
+  ///
+  /// That 409 body is `{'data': ...}` with no `message`, so the sentence below is always this app's
+  /// own. Read as a fallback it would look like a defence against a server that forgot to explain
+  /// itself; it is the normal path, and the receipt is what the response actually says.
   Future<ReceiptUploadOutcome> upload(XFile file) async {
     final response = await Http.upload(
       '/receipts',

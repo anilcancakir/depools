@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use GdImage;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -129,7 +128,7 @@ final class ReceiptDocumentStore
      */
     private function reencode(UploadedFile $file): string
     {
-        $source = $this->decode((string) $file->getRealPath());
+        $source = $this->phash->decode((string) $file->getRealPath());
 
         $width = imagesx($source);
         $height = imagesy($source);
@@ -139,7 +138,16 @@ final class ReceiptDocumentStore
         // read as print, and would store more bytes than arrived for no gain.
         $scale = min(1.0, $edge / max($width, $height));
 
-        $target = imagecreatetruecolor((int) round($width * $scale), (int) round($height * $scale));
+        // **Both axes floor at one pixel, and this is a crash rather than a rounding nicety.** An
+        // 8000x1 image clears every rule on the way here (it decodes, it is a jpeg, both axes are
+        // under 8000 and 8000 pixels is far under the budget), and then `round(1 * 0.256)` is 0 and
+        // `imagecreatetruecolor` raises `ValueError: Argument #2 ($height) must be greater than 0`,
+        // which is not a `RuntimeException` the controller translates and reaches the client as a
+        // 500. Any long edge at or above 4097 against a one-pixel short edge does it.
+        $target = imagecreatetruecolor(
+            max(1, (int) round($width * $scale)),
+            max(1, (int) round($height * $scale)),
+        );
 
         // White first, then blend: a PNG or WEBP with an alpha channel would otherwise land on
         // JPEG's black default, and a receipt on black is unreadable to the model and to a person.
@@ -169,30 +177,6 @@ final class ReceiptDocumentStore
         // No `imagedestroy()` on either handle: a `GdImage` has been an object freed by refcount
         // since PHP 8.0, so the call has done nothing for five versions and 8.5 deprecates it.
         return $path;
-    }
-
-    /**
-     * @throws RuntimeException
-     */
-    private function decode(string $path): GdImage
-    {
-        // GD reports an undecodable file by RAISING A WARNING and returning false, and Laravel
-        // promotes a warning to an `ErrorException`, so without this the caller would receive GD's
-        // own wording from a layer it has never heard of. Scoped to the one call, and the failure is
-        // re-raised below rather than swallowed.
-        set_error_handler(static fn (): bool => true);
-
-        try {
-            $image = imagecreatefromstring((string) file_get_contents($path));
-        } finally {
-            restore_error_handler();
-        }
-
-        if ($image === false) {
-            throw new RuntimeException("Not a decodable image: {$path}.");
-        }
-
-        return $image;
     }
 
     private function disk(): string
