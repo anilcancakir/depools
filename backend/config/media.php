@@ -67,9 +67,9 @@ return [
     | same served route demands a valid relative signature.
     |
     | So do NOT tidy the two blocks into one. They agree on what an upload may
-    | weigh and what formats decode, and they disagree on where the bytes land;
-    | folding them would silently move every stored receipt onto a public path
-    | the day somebody changed one key.
+    | weigh, and they disagree on where the bytes land AND on what formats are
+    | admitted; folding them would silently move every stored receipt onto a
+    | public path the day somebody changed one key.
     |
     | `max_kilobytes` is deliberately absent here: what an upload may weigh is
     | genuinely the same question for both, so the receipt path reads it from

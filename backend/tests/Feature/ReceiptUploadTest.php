@@ -263,6 +263,23 @@ final class ReceiptUploadTest extends TestCase
         $this->assertSame([], Storage::disk($this->documentDisk())->allFiles());
     }
 
+    public function test_a_user_with_no_team_is_refused_before_anything_is_written(): void
+    {
+        // An authenticated user CAN have no current team, which `UnitController` already documents
+        // and refuses. Without the guard the stamp casts null to `''`, which is non-null, so
+        // `BelongsToTeam`'s hook never fills it in and PostgreSQL refuses an empty uuid: a 500 rather
+        // than a stated refusal.
+        $this->user->forceFill(['current_team_id' => null])->save();
+
+        $this->upload(ReceiptImages::receiptA())->assertStatus(403);
+
+        // **The load-bearing half.** The guard's whole point is that it runs before the file is
+        // written; refusing after the store would leave bytes with no row that can ever reference
+        // them, which is the orphan the `Throwable` branch exists to prevent.
+        $this->assertSame([], Storage::disk($this->documentDisk())->allFiles());
+        $this->assertSame(0, Receipt::query()->withoutGlobalScope(TeamScope::class)->count());
+    }
+
     public function test_a_second_tenant_may_photograph_the_same_receipt(): void
     {
         $this->upload(ReceiptImages::receiptA())->assertCreated();

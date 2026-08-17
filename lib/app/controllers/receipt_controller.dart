@@ -184,16 +184,15 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
     );
 
     if (response.statusCode == 409) {
-      final dynamic message = response['message'];
       final Object? data = response['data'];
 
       final Receipt? existing = data is Map<String, dynamic>
           ? mappedOrNull(() => Receipt.fromApi(data), describing: 'a duplicate receipt payload')
           : null;
 
-      final String sentence = message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.receipt.duplicate');
+      // No `response['message']` read: that body is `{'data': ...}` and nothing else, so preferring a
+      // server sentence would be a branch this app's own comment says is unreachable.
+      final String sentence = Lang.get('screens.receipt.duplicate');
 
       // `existing == null` only if the server sent a 409 with an unreadable receipt, which reads as
       // an outright failure rather than a duplicate the caller has nothing to open.

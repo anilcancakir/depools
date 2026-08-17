@@ -448,7 +448,7 @@ class _DashboardViewState extends State<DashboardView> {
       return;
     }
 
-    await _offerExistingReceipt(message);
+    await _offerExistingReceipt();
   }
 
   /// The picker, and the one place this screen asks what kind of device it is on.
@@ -480,13 +480,15 @@ class _DashboardViewState extends State<DashboardView> {
   /// to open it. `/receipt` is the only path there is in this slice, so it lands on the LIST holding
   /// that receipt rather than on the receipt itself; `/receipt/:id` is slice 2's, where a receipt
   /// finally has lines worth linking straight to.
-  Future<void> _offerExistingReceipt(String message) async {
+  Future<void> _offerExistingReceipt() async {
     final String? action = await MSBottomSheet.show<String>(
       context,
       title: Lang.get('screens.receipt.duplicate'),
-      // Only when the server said something of its own. `ReceiptController` falls back to this same
-      // key when a 409 carries no sentence, and the sheet would then print it twice.
-      description: message == Lang.get('screens.receipt.duplicate') ? null : message,
+      // No description: a 409 body is `{'data': ...}` and carries no sentence, so the outcome's
+      // message is always this same key and the sheet would print it twice. This used to compare the
+      // two and pass the message when they differed, which read as a defence against a server that
+      // forgot to explain itself and was in fact a branch that could never be taken.
+      description: null,
       body: Builder(
         // A `Builder`, so the pop happens on the SHEET's context and not this screen's.
         // `Navigator.of` from here resolves the navigator the PAGE is on, and with the shell's

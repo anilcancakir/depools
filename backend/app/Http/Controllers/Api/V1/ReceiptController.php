@@ -117,8 +117,10 @@ final class ReceiptController extends Controller
         ]);
 
         // Explicit, because `team_id` is never fillable: a mass assignment would drop it silently
-        // and the row would land with a null tenant.
-        $receipt->setAttribute('team_id', (string) $request->user()->current_team_id);
+        // and the row would land with a null tenant. The value is the one the guard above already
+        // proved is not null, rather than a second read with a cast: the cast IS the hazard that
+        // guard exists for, and leaving one here would keep the trap while documenting it.
+        $receipt->setAttribute('team_id', $team);
 
         try {
             DB::transaction(static fn () => $receipt->save());
