@@ -3,12 +3,10 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTeam;
+use App\Support\MediaUrl;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
-use Illuminate\Contracts\Filesystem\Cloud;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
 
 /**
  * One picture in a product's gallery.
@@ -95,14 +93,11 @@ final class ProductImage extends Model
         }
 
         // The disk the bytes were WRITTEN to, which is `media.images.disk` rather than the
-        // application default: `Storage::url` here would answer a url for a disk that does not hold
-        // the file. Same defect `HasStoredImage` carried, found by grepping for the shape.
+        // application default: a url built from the wrong disk resolves to the other disk's route.
         //
-        // Typed as `Cloud` because that is the contract declaring `url()`, which the local adapter
-        // provides: an annotation of what the object is, not a suppression.
-        /** @var Cloud $disk */
-        $disk = Storage::disk(config('media.images.disk'));
-
-        return URL::to($disk->url($path));
+        // **Signed, through the same helper `HasStoredImage` uses.** Two copies of this method
+        // existed and both handed out an unauthenticated url; the signing lives in one place because
+        // the expiry is a security property and two copies of it are two expiries that can drift.
+        return MediaUrl::signed((string) config('media.images.disk'), $path);
     }
 }
