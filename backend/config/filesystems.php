@@ -66,7 +66,19 @@ return [
             // same way in development, where that origin does not exist.
             'serve' => true,
 
-            'visibility' => 'public',
+            // **`visibility` is deliberately ABSENT, and absent is not the same as `private`.**
+            // It used to read `'public'`, which makes `ServeFile::hasValidSignature` return true
+            // unconditionally: measured on a running server, `GET /media/product-images/<uuid>.png`
+            // with no token and no signature answered 200, on a picture of a tenant's own kitchen.
+            // `legal-and-privacy.md:135` requires the opposite. Urls are minted signed by
+            // `App\Support\MediaUrl` now, and an unsigned request answers 403 in development and 404
+            // in production, which `ServeFile` picks by environment.
+            //
+            // Setting it to `'private'` instead would have been the obvious edit and would have
+            // broken the other half of D120. Measured both ways: with no key at all a written file
+            // lands at 0644 from the umask, and with `'private'` flysystem forces 0600, which is
+            // unreadable to the nginx user. D120 keeps "nginx serving the directory directly stays
+            // available" as a live option, so the mode has to stay group-readable.
             'throw' => false,
             'report' => false,
         ],

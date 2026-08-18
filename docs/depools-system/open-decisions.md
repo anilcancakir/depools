@@ -2453,6 +2453,12 @@ picture, so `ProductImageTest` asserts all three at once and each was mutation-c
 answers 403, and without `media/*` in `config/cors.php` the response is a 200 that a browser throws
 away. The last is the dangerous one, because it looks fine to `curl` and to every mobile build.
 
+**The second of those three is REVERSED by D128, and this paragraph was the argument for a hole.**
+`visibility => public` is gone. What it bought was that `ServeFile` never asks for a signature, and
+what that cost was an unauthenticated url to a tenant's own photograph: measured at 200 with no token,
+no signature and no session. The CORS half of this decision stands unchanged and so does `serve`; only
+the sentence treating a skipped signature check as a setting to preserve is wrong. Read D128 with this.
+
 ### D121. Running low recomputes and stores nothing, and the query narrows to a superset PHP then decides
 
 `GET running-low` computes its answer on every request. There is no materialised shortage table,
@@ -2602,3 +2608,47 @@ to test a field that must not exist.
 Null clears the target and clearing hides nothing: running out needs no threshold to be true, so the
 product stays reachable through the out-of-stock arm. A cleared target is not a claim that the thing
 is not needed.
+
+### D128. A tenant's photograph is behind a signed url, and D120's second setting is reversed
+
+`legal-and-privacy.md` requires "private buckets, signed short-lived URLs, no public paths" for
+photographs of homes and businesses. D120 put the media disk on `visibility => 'public'`, which makes
+`ServeFile::hasValidSignature` return true unconditionally, and recorded that as one of three settings
+to preserve. The two statements contradicted each other and the register carried both for a week.
+
+**Measured before anything was changed**, because a security claim asserted is worth less than one
+reproduced: `GET /media/product-images/<uuid>.png` against the running server, with no bearer token, no
+signature and no session, answered **200** on a picture of the demo tenant's kitchen. `config/cors.php`
+makes it cross-origin readable too, so a page on any origin could read it.
+
+**Signing is the only credential that fits, and that is a constraint rather than a taste.**
+`Image.network` issues a plain GET and cannot carry an `Authorization` header, so an `auth:sanctum`
+route is unreachable by the widget that needs the bytes. A signature travels in the url the API already
+hands out, which is why `legal-and-privacy.md` asks for a signed url rather than an authenticated one.
+A tenancy-checked streaming route would be stronger (it would verify WHO fetches rather than who holds
+the link) and it is not available to an `<img>`.
+
+**`visibility` is REMOVED rather than set to `private`, and the difference is measured.** With no key a
+written file lands at 0644 from the umask; with `'private'` flysystem forces 0600, which the nginx user
+cannot read. D120 keeps direct nginx serving as a live option, so the obvious edit would have broken
+the half of that decision which still stands.
+
+**The expiry is rounded down to the hour, which is a cache decision as much as a privacy one.** A fresh
+signature per response changes the url string on every list refresh, and Flutter's `ImageCache` is keyed
+by url, so a thirty-row product list would re-fetch thirty thumbnails each time. Rounding makes every
+signature minted in one clock hour byte-identical, so the cache key holds while the link still dies.
+Lifetime is one to two hours: two at the top of an hour, one at :59. Anılcan's call with the cache cost
+stated. `ServeFile` sends `no-store`, so nothing durable is being extended.
+
+**One API trap, found by testing rather than by reading.** `URL::temporarySignedRoute` and
+`Storage::disk()->temporaryUrl()` both produce a signed url for the same route and the same expiry, and
+they produce DIFFERENT signatures. `ServeFile` validates with `hasValidRelativeSignature()`, which hashes
+without the domain, so only the second is accepted: the first answered 403 and the second 200 on the same
+file in the same second. `App\Support\MediaUrl` carries the note.
+
+**And one testing trap.** `Storage::fake()` stubs `temporaryUrl` rather than implementing it: a faked
+disk answers `/<path>?expiration=...` with no signature and no `/media` base, while its `url()` honours
+the configured base. So the signed-url property cannot be asserted on a fake at all, and
+`ProductImageTest`'s three-way assertion now runs against the real disk and checks both directions,
+signed served and unsigned refused. Mutation-checked: restoring `visibility => 'public'` turns it red
+with "an unsigned media url was served".

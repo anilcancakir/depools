@@ -2,9 +2,7 @@
 
 namespace App\Models\Concerns;
 
-use Illuminate\Contracts\Filesystem\Cloud;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
+use App\Support\MediaUrl;
 
 /**
  * A stored image path, exposed as the URL a client can actually load.
@@ -52,17 +50,13 @@ trait HasStoredImage
 
         // **Built on the disk the bytes were WRITTEN to, which is not always the default one.** A
         // location's photograph goes to `media.images.disk` while `filesystems.default` is `local`, so
-        // the plain `Storage::url` here would answer a url for a disk that does not hold the file.
-        // They no longer even coincide by accident: the local disk falls back to `/storage/<path>`
-        // while the public disk is served at `APP_URL/media` (D120), so reading the wrong one now
-        // produces a url that resolves to the other disk's route.
+        // a url built from the wrong disk resolves to the other disk's route.
         //
-        // Typed as `Cloud` rather than `Filesystem` because that is the contract declaring `url()`,
-        // which the local adapter provides: an annotation of what the object IS, not a suppression.
-        /** @var Cloud $disk */
-        $disk = Storage::disk($this->imageDisk());
-
-        return URL::to($disk->url($path));
+        // **Signed, and no longer `URL::to($disk->url(...))`.** That form answered an unauthenticated
+        // url: measured at 200 with no token and no signature on a tenant's own photograph, which
+        // `legal-and-privacy.md:135` forbids. `MediaUrl` carries the whole argument, including why the
+        // expiry is rounded to the hour and why `URL::temporarySignedRoute` is the wrong API here.
+        return MediaUrl::signed((string) ($this->imageDisk() ?? config('filesystems.default')), $path);
     }
 
     /**
