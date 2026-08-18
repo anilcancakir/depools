@@ -83,23 +83,17 @@ final class ProductImageTest extends TestCase
     /**
      * The disk path behind a url a client was answered.
      *
-     * **Derived from the disk rather than written out, because the served path MOVED once already.**
+     * **Derived from the config rather than written out, because the served path MOVED once already.**
      * These assertions used to strip a literal `url('/storage')`, and D120 put the public disk at
-     * `/media`. They kept passing anyway, which is the part worth naming: every one of them runs on
-     * `Storage::fake`, and a fake carries only `throw` from the real disk, so its url reverts to the
-     * `/storage` fallback and the literal matched again. A green test that agrees with a config it is
-     * no longer reading is worse than a red one.
+     * `/media`. They kept passing anyway, which is the part worth naming: a green test that agrees
+     * with a config it is no longer reading is worse than a red one.
      *
-     * `URL::to` around it mirrors what `HasStoredImage` does to build the url in the first place, so
-     * this follows the next move too.
-     */
-    /**
-     * The path on the disk, from the url the API answered.
-     *
-     * **The query string is stripped, and it is the signature.** Media urls are signed now, so this
-     * used to hand `get()` a path ending in `?expires=...&signature=...` and every assertion built on
-     * it read null. Left in as a strip rather than as a regex over the whole url, because the base and
-     * the path are still the parts this helper is about.
+     * **Stripped from the PATH rather than by replacing a base string, because `Storage::fake` builds
+     * two different urls.** Measured: a faked disk's `url()` honours the `url` key and answers
+     * `/media/<path>`, while its `temporaryUrl()` is a stub that drops the base entirely and answers
+     * `/<path>?expiration=...` with no signature at all. A helper that stripped the `/media` base
+     * therefore worked on one and silently returned the whole url on the other, which is how three
+     * assertions here read null instead of bytes.
      */
     private function diskPathOf(string $url, ?string $disk = null): string
     {
@@ -107,12 +101,6 @@ final class ProductImageTest extends TestCase
         $path = (string) parse_url($url, PHP_URL_PATH);
         $prefix = (string) parse_url((string) config("filesystems.disks.{$name}.url"), PHP_URL_PATH);
 
-        // **Stripped from the PATH rather than by replacing a base string, because `Storage::fake`
-        // builds two different urls.** Measured: a faked disk's `url()` honours the `url` key and
-        // answers `/media/<path>`, while its `temporaryUrl()` is a stub that drops the base entirely
-        // and answers `/<path>?expiration=...` with no signature at all. A helper that stripped the
-        // `/media` base therefore worked on one and silently returned the whole url on the other,
-        // which is how three assertions here read null instead of bytes.
         if ($prefix !== '' && str_starts_with($path, $prefix)) {
             $path = substr($path, strlen($prefix));
         }
@@ -149,10 +137,10 @@ final class ProductImageTest extends TestCase
         $url = $this->productWithPicture()->image_url;
 
         $this->assertIsString($url);
-        // **The path is no longer the END of the url, because a signature follows it.** Asserting the
-        // suffix was right while the url was unsigned and is now the assertion that would pass on a
-        // url with no signature at all, which is the state this change exists to remove.
-        $this->assertStringContainsString('product-images/milk.jpg', $url);
+        // **Ends-with on the PATH, not contains on the whole url.** The suffix assertion was right
+        // while the url was unsigned and a signature now follows the path, so it had to move rather
+        // than weaken: `contains` would also pass on a path that appeared only inside the query.
+        $this->assertStringEndsWith('product-images/milk.jpg', (string) parse_url($url, PHP_URL_PATH));
         $this->assertNotNull(parse_url($url, PHP_URL_SCHEME), "[$url] has no scheme");
         $this->assertNotNull(parse_url($url, PHP_URL_HOST), "[$url] has no host, so no client can load it");
         $this->assertSignedUrl($url);
@@ -241,7 +229,7 @@ final class ProductImageTest extends TestCase
 
         $this->assertSame('community', $body['source']);
         $this->assertNotSame('catalogue/ayran.jpg', $body['image_url'], 'a path cannot be loaded');
-        $this->assertStringContainsString('catalogue/ayran.jpg', $body['image_url']);
+        $this->assertStringEndsWith('catalogue/ayran.jpg', (string) parse_url($body['image_url'], PHP_URL_PATH));
         $this->assertSignedUrl($body['image_url']);
     }
 
@@ -567,17 +555,17 @@ final class ProductImageTest extends TestCase
         // Three separate things have to hold for that, and each of them is a one-line config change
         // away from silently breaking a picture, which is why they are asserted together here rather
         // than trusted: the disk is SERVED by Laravel (so a request reaches the middleware at all),
-        // `media/*` is in the CORS paths (so the middleware answers), and the disk is `visibility =>
-        // public` (so `ServeFile` does not demand a signed url and 403 every image).
+        // `media/*` is in the CORS paths (so the middleware answers), and the url carries a valid
+        // SIGNATURE (so `ServeFile` serves it rather than refusing).
         //
         // A symlink at `public/storage` would defeat the first: the web server answers a file it can
         // see before the router runs. `bin/check` removes one rather than making one now.
         //
-        // **The third thing changed, and it is now the opposite.** It used to be `visibility => public`,
-        // which made `ServeFile` skip the signature check entirely; that is the hole this test was
-        // quietly certifying, since it fetched a url with no signature and asserted 200. The disk
-        // carries no `visibility` now and the url is signed, so this asserts both directions: the
-        // signed url is served, and the same path without the signature is refused.
+        // **The third condition used to be `visibility => public` and is now its opposite** (D128).
+        // That setting made `ServeFile` skip the signature check entirely, and this test was quietly
+        // certifying the hole: it fetched a url with no signature and asserted 200. Do NOT restore it
+        // to fix a broken gallery; a gallery breaks here when the SIGNATURE is missing, which is what
+        // the second half of this test now proves by asking for the same file without one.
         //
         // **It runs on the REAL disk, not `Storage::fake`, and that is forced rather than chosen.**
         // Measured: a faked disk honours the `url` key for `url()` and answers `/media/<path>`, while
