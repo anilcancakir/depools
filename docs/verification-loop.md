@@ -73,9 +73,15 @@ Three boot failures read as "the app is broken" rather than as a missing service
   on screen. The tell is a console showing Env / Cache / Database / Locale ready
   and then a WebSocket error. `php artisan reverb:start --port=8080`.
 
-If `fsa start` times out on a cold web build, run `flutter run -d chrome` yourself
-and write `~/.artisan/state.json` with the `pid`, `vmServiceUri`, `webPort`,
-`vmServicePort`, `projectRoot`, and `device` so the dusk CLI can find the app.
+If `fsa start` times out on a cold web build, raise the scrape window with
+`--timeout=<seconds>` before hand-writing anything. Failing that, run
+`flutter run -d chrome` yourself and write the session file with `pid`,
+`vmServiceUri`, `stdinPipe`, `webPort`, `vmServicePort`, `projectRoot` and `device`.
+**It is no longer `~/.artisan/state.json`:** artisan 0.0.10 moved the session to
+`~/.artisan/sessions/<hash>/`, keyed on the project, which is what lets two
+worktrees drive their own app at once. `./bin/fsa status` prints the path along
+with `ownedByThisProject`, and omitting `stdinPipe` produces a session that cannot
+hot restart.
 
 ### Responsive: desktop and mobile are both required
 
@@ -92,7 +98,10 @@ keeps laying out at the old width, and everything renders doubled and clipped.
 ### Driver behavior worth knowing
 
 - `dusk:tap --ref=eN` is the tap verb; there is no `dusk:click`.
-- `dusk:wait` prints a human line rather than JSON. Parse the text.
+- `--json` works on every `dusk:*` verb and prints the raw envelope. Reach for it
+  rather than parsing a summary line: the summaries are for a human at a terminal
+  and they drop fields, which is how `dusk:wait` once reported success on a
+  condition that never matched.
 - If `dusk:snap` returns an empty tree on a web build, `dusk:navigate` returns a
   populated one, so navigate-then-read is the way in.
 - `dusk:scroll` may not move a page whose scrollable is owned by the shell rather
@@ -103,11 +112,17 @@ keeps laying out at the old width, and everything renders doubled and clipped.
 ### Traps that produce confident wrong measurements
 
 - An exact-label lookup over the semantics tree resolves to the **sidebar** nav
-  item, which carries the same label as the page it opens. Constrain the search to
-  the content region or you will measure the sidebar and conclude two pages differ.
-- A hardcoded content-region threshold (`x > 300`) is wrong at other widths: at
-  1200px the container starts further left, at 390px there is no sidebar at all.
-  Derive it from the width under test.
+  item, which carries the same label as the page it opens, so an unscoped lookup
+  measures the sidebar and concludes two pages differ. **Scope the walk instead of
+  filtering it afterwards:** `dusk:snap --within=eN` walks one subtree,
+  `dusk:find --within=eN` bakes the scope into the `q<N>` handle so it survives
+  every re-resolve, and `--grep` keeps only the matching nodes plus the ancestors
+  that carry their refs. `--interactiveOnly` drops the plain text lines when the
+  next step is an action.
+- A hardcoded content-region threshold (`x > 300`) was the old workaround and it is
+  wrong at every other width: at 1200px the container starts further left, at 390px
+  there is no sidebar at all. `--within` is what replaced it. Do not reintroduce a
+  coordinate threshold.
 - "The bottom-most content node" matches an aggregate parent whose box spans the
   whole page, so an overlap check reads true on every page including unchanged
   ones. Look at the screenshot.
@@ -126,17 +141,29 @@ keeps laying out at the old width, and everything renders doubled and clipped.
   so the path always starts at the login screen again.
 - **`gh pr checks --watch` can hang after every check has passed.** A plain
   `gh pr checks <n>` answers immediately with the same table.
-- **A dusk action reports that it DISPATCHED, not that the widget received.**
-  `dusk:fill` printed a green tick four times onto a field covered by the pinned
-  footer, because the row is in the semantics tree and dusk's six actionability
-  checks do not include occlusion by another `Stack` layer (Playwright's
-  receives-events check is the equivalent). A control that never responds to two
-  different input paths is the tell: try the stepper as well as the field, and if
-  neither lands, look at a screenshot before debugging the widget.
+- **A dusk action used to report that it DISPATCHED, not that the widget received,
+  and the driver answers that question itself now.** Five verbs return an `effect`
+  block saying what the widget HOLDS: `fill`, `type` and `clear` carry `verified`
+  plus the `value` read back off the live `TextEditingController`, `tap` carries
+  `changed`, `scroll` carries `before` and `after`. Read it before concluding
+  anything about the app. The same release made the actionability gate say when it
+  could not PROVE the target was reachable, through a `checks` block carrying `why`
+  and up to five `overlapCandidates`, so a clean pass is now distinguishable from a
+  confirmed one.
+
+  The history is why those exist and is still the failure to recognise: `dusk:fill`
+  printed a green tick four times onto a field covered by the pinned footer, because
+  the row is in the semantics tree and an occlusion by another `Stack` layer is
+  exactly what step 5 cannot always answer on a web debug build. If `effect` reports
+  `verified: false` or `checks` appears at all, the harness is the suspect and the
+  widget is not.
 - **`dusk:scroll --dy` needs a ref that IS a scrollable.** Given a textbox ref it
   answers "Scrolled eN" and moves nothing. `--intoView` is the flag that works;
   reach for it first. Then re-snap: refs belong to the snapshot that produced them,
-  so acting on a pre-scroll ref fails in a way that looks identical.
+  so acting on a pre-scroll ref fails in a way that looks identical. The `effect`
+  block settles which of the two happened without a screenshot: it reports `before`
+  and `after` off the scrollable that was actually driven, so equal offsets mean
+  nothing moved.
 - **A bottom spacer only changes scroll EXTENT, so a screenshot cannot see it.**
   Two captures across a hot restart were byte-identical and the natural conclusion
   ("the capture is stale") was wrong: a viewport scrolled to the top genuinely is
@@ -153,7 +180,11 @@ keeps laying out at the old width, and everything renders doubled and clipped.
 - **A screen's `dusk:exceptions` was never clean on the eight screens with a
   footer**, so the check that catches a real render fault had two entries in it by
   default. If a baseline is noisy, fix the noise rather than learning to read past
-  it: an instrument with a permanent false positive stops being consulted.
+  it: an instrument with a permanent false positive stops being consulted. For the
+  other half of that problem, a boot-time fault riding along on every later read,
+  `dusk:exceptions --clear` returns everything so far and then empties dusk's own
+  buffer, which is the primitive a per-route sweep needs. Clear between routes and
+  each reading is a delta rather than a running total.
 
 ## What counts as evidence
 
@@ -164,9 +195,19 @@ snapshots go under `.ac/evidence/`.
 
 ## Seeing a whole screen, not just its first viewport
 
-`dusk:screenshot` captures the viewport. A product screen is taller than that, so a
-plain screenshot shows the top and hides everything you actually changed. Resize the
-viewport tall instead of trying to scroll:
+**First ask whether the whole screen is the question.** `dusk:screenshot --ref=eN`
+captures one widget, and `--rect="x,y,w,h"` narrows further inside it, relative to
+that ref's top-left. On a web build the CLI resolves the geometry in-isolate and
+clips through CDP, so it works on the platform we drive. A full-page capture of a
+tall screen is expensive to read and buries the thing being checked, so reach for
+the ref when the change is one component. A ref that no longer resolves exits `1`
+rather than quietly falling back to a full frame, which is the point: an image that
+looks right and answers a different question is the failure the flag removes.
+
+When the whole page IS the question, `dusk:screenshot` captures the viewport and a
+product screen is taller than that, so a plain screenshot shows the top and hides
+everything you actually changed. Resize the viewport tall instead of trying to
+scroll:
 
 ```sh
 ./bin/fsa start --device=chrome --cdp-port=9333
