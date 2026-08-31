@@ -41,7 +41,9 @@ To add or change a token: edit `DESIGN.md`, then `dart run bin/dispatcher.dart d
 
 ```sh
 # Confirm the mode actually changed before trusting the screenshot: the tap sometimes does not land.
-./bin/fsa dusk:snap | grep 'Toggle theme'
+# --grep keeps the matching node plus the ancestors carrying its ref, so this costs a few lines
+# rather than the whole tree, and the tap's own `effect` block reports whether anything changed.
+./bin/fsa dusk:snap --grep='Toggle theme'
 ./bin/fsa dusk:tap --ref=eN
 ./bin/fsa dusk:screenshot -o /tmp/light.jpg
 python3 -c "from PIL import Image; px=Image.open('/tmp/light.jpg').convert('RGB').getpixel((1200,300)); print('DARK' if sum(px)<200 else 'LIGHT')"
@@ -97,7 +99,7 @@ Each is a blocker and the `component-visual-reviewer` flags it. The numbers are 
 | A `WDiv` styled to LOOK like a control | Build the control. Two screens carried a magnifier plus a `WText` in an input-toned box: pixel-identical to a search field, with no gesture at all |
 | A second preview file for a second width | `ResponsiveScreenPreview` renders both in ONE preview: the width is a VARIANT. Fourteen `*PhoneScreen` files were added before this was named. Every screen still has to be seen at 390px in the FIXED frame, because the catalog keeps its sidebar and narrowing squeezes the harness instead of the screen |
 | A row of `shrink-0` columns with no narrow arrangement | `flex flex-col md:flex-row` at a group boundary. When every child is `shrink-0`, nothing can give. Reserve the empty columns with `hidden md:flex` |
-| Trusting a clean `dusk:exceptions` after re-navigating | Flutter announces an overflow ONCE per `RenderFlex` instance, so it appears on the first paint after a hot restart and never again. Restart, note the UTC time, navigate, then read only entries newer than that mark. The buffer is cumulative |
+| Trusting a clean `dusk:exceptions` after re-navigating | Flutter announces an overflow ONCE per `RenderFlex` instance, so it appears on the first paint after a hot restart and never again. Restart, then navigate, then read. The buffer is cumulative, so clear it between routes with `dusk:exceptions --clear`, which returns everything so far and empties dusk's own buffer; each reading is then a delta instead of a running total |
 
 ## Release boundary
 
