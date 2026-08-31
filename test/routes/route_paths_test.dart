@@ -14,8 +14,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// into the framework's own table and reading it back would need `Magic.init`, a config load and an
 /// asset bundle, which is a lot of machinery to answer a question the source text answers exactly.
 void main() {
+  // `\)\s*\.name` rather than `\)\.name`: a registration long enough to carry a title wraps its
+  // builder chain onto its own line, and a regex that assumed the two were adjacent silently
+  // matched fewer routes rather than failing. The guard below is what caught it.
   final RegExp registration = RegExp(
-    r"""MagicRoute\.page\(\s*'([^']+)'[\s\S]*?\)\.name\('([^']+)'\)""",
+    r"""MagicRoute\.page\(\s*'([^']+)'[\s\S]*?\)\s*\.name\('([^']+)'\)""",
   );
 
   late String source;

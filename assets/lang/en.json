@@ -120,6 +120,28 @@
     "otp_placeholder": "123456"
   },
   "magic_starter": {
+    "titles": {
+      "appearance": "Appearance",
+      "forgot_password": "Forgot Password",
+      "language": "Language",
+      "login": "Sign In",
+      "newsletter": "Newsletter",
+      "notification_preferences": "Notification Preferences",
+      "notifications": "Notifications",
+      "otp": "Verification Code",
+      "password": "Password",
+      "profile": "Profile",
+      "register": "Create Account",
+      "reset_password": "Reset Password",
+      "sessions": "Active Sessions",
+      "settings": "Settings",
+      "team_create": "Create Team",
+      "team_invitation": "Team Invitation",
+      "team_settings": "Team Settings",
+      "timezone": "Timezone",
+      "two_factor": "Two-Factor Authentication",
+      "two_factor_challenge": "Two-Factor Challenge"
+    },
     "auth": {
       "continue_as_guest": "Continue as Guest",
       "guest_login_error": "Unable to continue as guest. Please try again."
@@ -514,6 +536,7 @@
       "submit": "Print"
     },
     "location": {
+      "title": "Location",
       "subtitle": ":path · :products products",
       "back": "Locations",
       "add_child": "Add a location inside",
@@ -636,6 +659,7 @@
       "compare": "Compare plans"
     },
     "product": {
+      "title": "Product",
       "action_archive": "Archive",
       "action_barcode": "Add a barcode",
       "action_label": "Print a label",

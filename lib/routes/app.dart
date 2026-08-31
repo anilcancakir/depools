@@ -60,6 +60,30 @@ import '../resources/views/products/stock_take_view.dart';
 /// Turkish stays where it belongs: in the INTERFACE, through the language catalogues, which is the
 /// half a Turkish user actually reads.
 ///
+/// ### Every route carries a title, because the tab is chrome the app does not draw
+///
+/// `TitleManager` resolves an override, then the route title, then the app title, and passes the
+/// winner through `trans()` at read time, so a translation key is the right thing to register and it
+/// re-resolves on a locale switch. With no route title every screen here read `Depools` in the
+/// browser tab, the history entry and the bookmark, which is the one piece of chrome a web build
+/// does not paint itself. `magic_starter` alpha.24 did the same for its own twenty routes.
+///
+/// The keys are the ones the screens already use for their own headers, so the tab and the page
+/// agree by construction rather than by two people remembering to. The two detail routes are the
+/// exception: `screens.product.title` and `screens.location.title` are new and deliberately generic,
+/// because a route title is static and the row's own name is not known until the payload lands. A
+/// screen that wants its subject in the tab calls `MagicRoute.setTitle(...)` once its payload
+/// lands, which is a separate change.
+///
+/// The chain, so the next reader does not have to find it: `.title(key)` lands on
+/// `RouteDefinition.routeTitle`, `MagicRouter` pushes it into `TitleManager` on every navigation,
+/// and `MagicApp` reads `TitleManager.effectiveTitle` from `onGenerateTitle`, which is what Flutter
+/// web writes to `document.title`.
+///
+/// `test/routes/route_titles_test.dart` pins both halves: that a route has a title, and that its key
+/// exists in BOTH catalogues. The second is not covered by the localization gate, which compares the
+/// two files against each other and therefore passes a key neither of them holds.
+///
 /// The views still render fixtures rather than controller state. That is the next seam, and
 /// routing them first is deliberate: it puts every screen in front of the shell it will actually
 /// live in, which is where the header offsets, the bottom nav overlap and the scroll ownership
@@ -98,40 +122,60 @@ void registerAppRoutes() {
     // screens, so shell state is rebuilt when crossing between them. That is acceptable: the
     // crossing is rare (settings, profile) and the shell holds no state worth preserving.
     routes: () {
-      MagicRoute.page('/', () => const DashboardView()).name('dashboard');
+      MagicRoute.page('/', () => const DashboardView())
+          .name('dashboard')
+          .title('screens.dashboard.title');
 
       // The three forecasting surfaces, in the order `forecasting.md` ranks them: what is
       // running out of time, what is short, and what to buy.
-      MagicRoute.page('/dates', () => const DatesView()).name('dates');
-      MagicRoute.page('/running-low', () => const RunningLowView()).name('running-low');
-      MagicRoute.page('/shopping', () => const ShoppingListView()).name('shopping');
+      MagicRoute.page('/dates', () => const DatesView()).name('dates').title('screens.dates.title');
+      MagicRoute.page('/running-low', () => const RunningLowView())
+          .name('running-low')
+          .title('screens.running_low.title');
+      MagicRoute.page('/shopping', () => const ShoppingListView())
+          .name('shopping')
+          .title('screens.shopping.title');
 
       // Stock itself.
-      MagicRoute.page('/products', () => const ProductIndexView()).name('products');
+      MagicRoute.page('/products', () => const ProductIndexView())
+          .name('products')
+          .title('screens.products.title');
       // **Before `:id`, and the order is load-bearing.** A path parameter matches any segment, so
       // registering the literal second would send `/products/new` to the detail screen looking for
       // a product whose id is the word "new".
-      MagicRoute.page('/products/new', () => const ProductFormView()).name('product-create');
+      MagicRoute.page('/products/new', () => const ProductFormView())
+          .name('product-create')
+          .title('screens.product_form.title');
       MagicRoute.page(
-        '/products/:id',
-        // A handler taking the parameter, which `RouteDefinition.buildWidget` supports for one to
-        // three of them. Without it the screen has no way to know which product it is showing.
-        (String id) => ProductShowView(id: id),
-      ).name('product');
-      MagicRoute.page('/locations', () => const LocationIndexView()).name('locations');
+            '/products/:id',
+            // A handler taking the parameter, which `RouteDefinition.buildWidget` supports for one
+            // to three of them. Without it the screen has no way to know which product it is
+            // showing.
+            (String id) => ProductShowView(id: id),
+          )
+          .name('product')
+          .title('screens.product.title');
+      MagicRoute.page('/locations', () => const LocationIndexView())
+          .name('locations')
+          .title('screens.locations.title');
       // Literal before the parameter, for the reason `/products/new` states.
-      MagicRoute.page('/locations/new', () => const LocationFormView()).name('location-create');
+      MagicRoute.page('/locations/new', () => const LocationFormView())
+          .name('location-create')
+          .title('screens.location_form.title');
       // The id travels, for the reason `/products/:id` states: without it the screen has no way to
       // know which location it is showing.
-      MagicRoute.page(
-        '/locations/:id',
-        (String id) => LocationShowView(id: id),
-      ).name('location');
-      MagicRoute.page('/stock-take', () => const StockTakeView()).name('stock-take');
+      MagicRoute.page('/locations/:id', (String id) => LocationShowView(id: id))
+          .name('location')
+          .title('screens.location.title');
+      MagicRoute.page('/stock-take', () => const StockTakeView())
+          .name('stock-take')
+          .title('screens.stock_take.title');
 
       // Capture. The scanner is the barcode path; the assistant is the sentence path and is
       // registered separately below, because it takes over the screen.
-      MagicRoute.page('/scan', () => const BarcodeScanView()).name('scan');
+      MagicRoute.page('/scan', () => const BarcodeScanView())
+          .name('scan')
+          .title('screens.scan.title');
 
       // **The four screens D61 would have caught again.** These were built, previewed and
       // verified, and the running app could reach none of them: no route, and no other screen
@@ -142,24 +186,36 @@ void registerAppRoutes() {
       // Each is reachable from where it belongs rather than from a menu of everything: the draft
       // from a scan the cascade could not resolve, the receipt and the shelf photo from the
       // overview's capture actions, the label sheet from the product it labels.
-      MagicRoute.page('/draft', () => const ProductDraftView()).name('draft');
-      MagicRoute.page('/receipt', () => const ReceiptReviewView()).name('receipt');
-      MagicRoute.page('/shelf-photo', () => const ShelfPhotoView()).name('shelf-photo');
-      MagicRoute.page('/labels', () => const LabelPrintView()).name('labels');
+      MagicRoute.page('/draft', () => const ProductDraftView())
+          .name('draft')
+          .title('screens.product_draft.title');
+      MagicRoute.page('/receipt', () => const ReceiptReviewView())
+          .name('receipt')
+          .title('screens.receipt.title');
+      MagicRoute.page('/shelf-photo', () => const ShelfPhotoView())
+          .name('shelf-photo')
+          .title('screens.shelf_photo.title');
+      MagicRoute.page('/labels', () => const LabelPrintView())
+          .name('labels')
+          .title('screens.labels.title');
 
       // This app's own settings, distinct from the account settings `magic_starter` owns. It
       // holds the two preferences D66 and D67 created and had nowhere to live.
       // One search over everything, because four dead per-list fields could not answer what
       // `iterations.md` asks of v1: a location is not findable from the product list.
-      MagicRoute.page('/search', () => const SearchView()).name('search');
+      MagicRoute.page('/search', () => const SearchView())
+          .name('search')
+          .title('screens.search.title');
 
-      MagicRoute.page('/settings', () => const SettingsView()).name('settings');
+      MagicRoute.page('/settings', () => const SettingsView())
+          .name('settings')
+          .title('screens.settings.title');
 
       // The two v1 surfaces that had no screen at all. Both are reached from settings, which is
       // where a user looks for anything they can change, and both are screens rather than settings
       // sections because each carries a list and actions rather than one value.
-      MagicRoute.page('/plan', () => const PlanView()).name('plan');
-      MagicRoute.page('/mcp', () => const McpAccessView()).name('mcp');
+      MagicRoute.page('/plan', () => const PlanView()).name('plan').title('screens.plan.title');
+      MagicRoute.page('/mcp', () => const McpAccessView()).name('mcp').title('screens.mcp.title');
     },
   );
 
@@ -180,7 +236,9 @@ void registerAppRoutes() {
   MagicRoute.group(
     middleware: ['auth'],
     routes: () {
-      MagicRoute.page('/assistant', () => const AssistantView()).name('assistant');
+      MagicRoute.page('/assistant', () => const AssistantView())
+          .name('assistant')
+          .title('screens.assistant.title');
     },
   );
 }
