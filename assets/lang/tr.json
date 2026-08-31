@@ -120,6 +120,28 @@
     "otp_placeholder": "123456"
   },
   "magic_starter": {
+    "titles": {
+      "appearance": "Görünüm",
+      "forgot_password": "Şifre sıfırlama",
+      "language": "Dil",
+      "login": "Giriş",
+      "newsletter": "Bülten",
+      "notification_preferences": "Bildirim tercihleri",
+      "notifications": "Bildirimler",
+      "otp": "Doğrulama kodu",
+      "password": "Şifre",
+      "profile": "Profil",
+      "register": "Kayıt",
+      "reset_password": "Yeni şifre",
+      "sessions": "Etkin oturumlar",
+      "settings": "Ayarlar",
+      "team_create": "Ekip oluşturma",
+      "team_invitation": "Ekip daveti",
+      "team_settings": "Ekip ayarları",
+      "timezone": "Saat dilimi",
+      "two_factor": "İki adımlı doğrulama",
+      "two_factor_challenge": "Doğrulama"
+    },
     "auth": {
       "continue_as_guest": "Misafir olarak devam et",
       "guest_login_error": "Misafir olarak devam edilemedi. Lütfen tekrar deneyin."
@@ -514,6 +536,7 @@
       "submit": "Yazdır"
     },
     "location": {
+      "title": "Konum",
       "subtitle": ":path · :products ürün",
       "back": "Konumlar",
       "add_child": "Alt konum ekle",
@@ -636,6 +659,7 @@
       "compare": "Planları karşılaştır"
     },
     "product": {
+      "title": "Ürün",
       "action_archive": "Arşivle",
       "action_barcode": "Barkod ekle",
       "action_label": "Etiket bas",
