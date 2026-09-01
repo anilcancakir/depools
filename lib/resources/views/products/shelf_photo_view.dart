@@ -185,7 +185,20 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
 
   @override
   void dispose() {
-    _controller?.removeListener(_onControllerChanged);
+    final ShelfController? controller = _controller;
+
+    controller?.removeListener(_onControllerChanged);
+
+    // **The capture does not outlive the screen, and it used to.** The controller is a type-keyed
+    // singleton and `/shelf-photo` is a named route, so going back after a commit re-enters this
+    // widget: with the read still published it drew the boxes of an already-written shelf over a
+    // placeholder, offered an accept button counting its settled regions, and answered a second
+    // submit with "N products written to stock" while the server skipped every answered candidate.
+    //
+    // Called after the listener is dropped so the `refreshUI` inside it cannot reach a disposed
+    // `setState`, and outside the commit path's own `reset()`, which is idempotent.
+    controller?.reset();
+
     super.dispose();
   }
 
@@ -250,14 +263,27 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
           }),
           'ready': _read.settled.length,
         }),
-        ShelfReadState.failed => Lang.get('screens.shelf_photo.subtitle_failed'),
+        // **"Could not be read" is wrong when nothing was ever captured**, and this state resolves
+        // to `failed` because there is no read: the enum has three values and `ai-enrichment.md`
+        // pins them, so the fourth case is asked for here rather than added to it.
+        ShelfReadState.failed => _isEmptyCapture
+            ? Lang.get('screens.shelf_photo.subtitle_nothing')
+            : Lang.get('screens.shelf_photo.subtitle_failed'),
       },
       // Pinned rather than trailing (D70). A photograph of a full shelf yields a candidate per
       // region, so accepting them sits under a list whose length the user does not control.
       footer: _buildActions(),
       children: [
-        _buildPhoto(),
-        if (state == ShelfReadState.failed) _buildFailure() else _buildCandidates(),
+        // **No photo card when there is no photograph.** D60 keeps the picture on screen through a
+        // review and through a failure, because in both cases there IS one; on an empty capture the
+        // card was a 4:3 placeholder taking the whole viewport to say nothing.
+        if (!_isEmptyCapture) _buildPhoto(),
+        if (state != ShelfReadState.failed)
+          _buildCandidates()
+        else if (!_isEmptyCapture)
+          _buildFailure()
+        else
+          _buildNothing(),
       ],
     );
   }
@@ -384,18 +410,78 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
     );
   }
 
-  /// The read failed, and the photograph is still here.
+  /// Whether this screen was entered with nothing to show at all.
+  ///
+  /// No row, no refusal to report, so neither the photo card nor the failure callout applies. Reached
+  /// by an ordinary back navigation now that the screen releases its capture on dispose, and
+  /// previously the same route produced a failed-looking screen whose only button did nothing.
+  bool get _isEmptyCapture => !_hasRead && _controller?.error == null;
+
+  /// Whether the server ever answered with a row.
+  ///
+  /// The one thing that separates "the read failed" from "the upload failed", and the view had no way
+  /// to ask it: on an upload refusal `setError` publishes null, so the screen fell into its failed
+  /// state and offered to re-read a row that does not exist.
+  bool get _hasRead => widget.preview != null || _controller?.read != null;
+
+  /// The read failed, and what to say depends on which failure it was.
+  ///
+  /// Three cases, and the screen used to show one sentence for all of them:
+  ///
+  /// - **The upload was refused.** No row exists, so the server's own sentence is the only useful
+  ///   thing to say, and `failed_note`'s "the photo is kept" was a claim about a file
+  ///   `ShelfReadController::store` had already discarded.
+  /// - **There were no credits.** `ai-enrichment.md` calls this the one outcome a user can act on,
+  ///   and the model's own docblock claimed the screen branched on it when nothing did.
+  /// - **The photograph could not be read.** The original case, unchanged.
   Widget _buildFailure() {
+    final String? sentence = _controller?.error;
+
+    if (!_hasRead) {
+      return _failureCard(
+        Lang.get('screens.shelf_photo.upload_failed_title'),
+        sentence ?? Lang.get('screens.shelf_photo.nothing_note'),
+      );
+    }
+
+    if (_read.lastReadOutcome == 'no_credit') {
+      return _failureCard(
+        Lang.get('screens.shelf_photo.no_credit_title'),
+        Lang.get('screens.shelf_photo.no_credit_note'),
+      );
+    }
+
+    return _failureCard(
+      Lang.get('screens.shelf_photo.failed_title'),
+      // Says what was kept, because the MVP's failure mode was an uploaded file with nothing
+      // pointing at it and a user who had to start over. The server's own sentence leads when there
+      // is one, because "could not be read" is what we say when we do not know why.
+      sentence ?? Lang.get('screens.shelf_photo.failed_note'),
+    );
+  }
+
+  /// One refusal, said once.
+  Widget _failureCard(String title, String message) {
+    return SectionCard(
+      label: Lang.get('screens.shelf_photo.result_group'),
+      children: [
+        Callout(intent: CalloutIntent.danger, title: title, message: message),
+      ],
+    );
+  }
+
+  /// Nothing has been captured, so there is nothing to review.
+  ///
+  /// Reachable from an ordinary back navigation now that the screen releases its capture on dispose,
+  /// and previously the same route produced the dead screen described on [_buildFailure].
+  Widget _buildNothing() {
     return SectionCard(
       label: Lang.get('screens.shelf_photo.result_group'),
       children: [
         Callout(
-          intent: CalloutIntent.danger,
-          title: Lang.get('screens.shelf_photo.failed_title'),
-          // Says what was kept, because the MVP's failure mode was an uploaded file with
-          // nothing pointing at it and a user who had to start over.
-          message:
-              Lang.get('screens.shelf_photo.failed_note'),
+          intent: CalloutIntent.info,
+          title: Lang.get('screens.shelf_photo.nothing_title'),
+          message: Lang.get('screens.shelf_photo.nothing_note'),
         ),
       ],
     );
@@ -417,6 +503,33 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
   /// The count on the button is the SETTLED count, not the region count. Six regions yielded
   /// four products; a button reading "6 ürünü ekle" would promise to write an unnamed bottle
   /// and a price label.
+  /// Which of the three things that button can be.
+  ///
+  /// `retake` presumes a first photograph, so it is wrong on a screen entered with no capture at all:
+  /// "Take another" of nothing. That state is reachable by an ordinary back navigation now that the
+  /// screen releases its capture on dispose, so it earns its own word.
+  ///
+  /// The three keys are written out rather than interpolated into one `Lang.get`, because
+  /// `lang_keys_exist_test` greps for a literal and an assembled key is the one thing neither copy
+  /// gate can see (`flutter-app.md`: "parity is not presence").
+  String get _retakeLabel {
+    if (_canRetryRead) return Lang.get('screens.shelf_photo.retry');
+
+    return _hasRead
+        ? Lang.get('screens.shelf_photo.retake')
+        : Lang.get('screens.shelf_photo.capture');
+  }
+
+  /// Whether a re-read is the right offer, which needs a row to re-read.
+  bool get _canRetryRead => state == ShelfReadState.failed && _hasRead;
+
+  /// Whether a request is in flight that the other buttons must not race.
+  ///
+  /// A commit publishes the read it answers with, so a retake or a walk-away accepted mid-commit
+  /// would have the old read land on top of the new capture. The controller drops a stale publish on
+  /// its own; this stops the user reaching the state in the first place.
+  bool get _busy => _controller?.committing ?? false;
+
   Widget _buildActions() {
     final int ready = _read.settled.length;
 
@@ -450,13 +563,20 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
           ),
         ],
         MSButton(
-          // **A failed read retries the READ; anything else takes a new photograph.** The
+          // **A failed read retries the READ; anything with no row takes a new photograph.** The
           // distinction is the promise `ai-enrichment.md` makes on a failure: "the photo is kept and
           // no credit was spent", so asking the user to shoot it again would be charging them for
           // our own retry.
-          onPressed: () => unawaited(
-            state == ShelfReadState.failed ? _retryRead() : _retake(context),
-          ),
+          //
+          // **It hangs on whether a row EXISTS, not on the state, and that was the defect.** An
+          // upload refusal also lands in `failed`, so this button read "Try again" and called
+          // `reread()`, which returns on its first line when there is no read. The only way out of
+          // that screen did nothing at all, and `_retake` was unreachable because this is the button
+          // that reaches it.
+          onPressed: _busy
+              ? null
+              : () => unawaited(_canRetryRead ? _retryRead() : _retake(context)),
+          disabled: _busy,
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
@@ -464,16 +584,19 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
             className: 'flex flex-row items-center justify-center gap-2',
             children: [
               const WIcon(ShelfPhotoView._retakeIcon, className: 'size-4'),
-              WText(state == ShelfReadState.failed ? Lang.get('screens.shelf_photo.retry') : Lang.get('screens.shelf_photo.retake')),
+              WText(_retakeLabel),
             ],
           ),
         ),
         if (state != ShelfReadState.reading)
           MSButton(
-            onPressed: () {
-              _controller?.reset();
-              MagicRoute.to('/products/new');
-            },
+            onPressed: _busy
+                ? null
+                : () {
+                    _controller?.reset();
+                    MagicRoute.to('/products/new');
+                  },
+            disabled: _busy,
             intent: ButtonIntent.ghost,
             fullWidth: true,
             className: 'justify-center',
@@ -572,7 +695,14 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
 
     if (productId == null) return;
 
-    controller.decide(candidate.accepted(productId: productId, quantity: decision.quantity));
+    // The unit travels with the decision, because a region nothing could name has none of its own:
+    // without it the row rendered a quantity with nothing beside it, on the one path where the user
+    // had just chosen a unit two taps earlier.
+    controller.decide(candidate.accepted(
+      productId: productId,
+      quantity: decision.quantity,
+      unit: decision.newProductUnit,
+    ));
   }
 
   /// Picks a location, then writes the settled regions into it.

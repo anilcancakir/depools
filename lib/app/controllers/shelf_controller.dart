@@ -142,6 +142,7 @@ class ShelfController extends MagicController with MagicStateMixin<ShelfRead> {
   /// whole batch, which is exactly the shape `stock/receive-batch` has.
   Future<String?> commit({required String locationId}) async {
     final ShelfRead? current = rxState;
+    final int capture = _capture;
 
     if (current == null || _committing) return null;
 
@@ -153,9 +154,15 @@ class ShelfController extends MagicController with MagicStateMixin<ShelfRead> {
       '/shelf-reads/${Uri.encodeComponent(current.id)}/commit',
       data: <String, dynamic>{
         'location_id': locationId,
+        // **One key per batch, so a retry cannot write the shelf twice.** The endpoint validates
+        // this and `IdempotencyKey::forRow(null, ...)` returns null, which switches the
+        // `stock_movements` unique index off entirely: without it the only guard is the candidate's
+        // own `confirmed_at`, read outside the transaction. The receipt path sends `receipt-<id>`
+        // for the same reason.
+        'idempotency_key': 'shelf-${current.id}',
         'accepted': <String, dynamic>{
           for (final ShelfCandidate c in current.candidates)
-            if (c.isSettled && c.productId != null)
+            if (c.isAcceptable)
               '${c.region}': <String, dynamic>{
                 'product_id': c.productId,
                 // One when the model could not count, because the user accepted a region they can
@@ -169,6 +176,8 @@ class ShelfController extends MagicController with MagicStateMixin<ShelfRead> {
         ],
       },
     );
+
+    if (capture != _capture) return null;
 
     _committing = false;
 
@@ -213,7 +222,14 @@ class ShelfController extends MagicController with MagicStateMixin<ShelfRead> {
     return data is Map<dynamic, dynamic> ? data['id'] as String? : null;
   }
 
-  /// Drop the held photograph, so a walked-away capture does not outlive its screen.
+  /// Drop the capture, so a walked-away one does not outlive its screen.
+  ///
+  /// **`setEmpty()` rather than only clearing the photograph, and leaving the read behind was a real
+  /// defect.** This is a type-keyed singleton and `/shelf-photo` is a named route, so going back
+  /// after a commit re-enters the screen: with the read still published it drew the boxes of an
+  /// already-written shelf, offered an accept button counting its settled regions, and answered a
+  /// second commit with "N products written to stock" while the server skipped every answered
+  /// candidate and wrote nothing. The photograph was gone by then, so the boxes sat on a placeholder.
   void reset() {
     _photo = null;
     _uploading = false;
@@ -221,7 +237,7 @@ class ShelfController extends MagicController with MagicStateMixin<ShelfRead> {
     _committing = false;
     _error = null;
 
-    refreshUI();
+    setEmpty();
   }
 
   /// Stores the photograph and publishes the row it created.

@@ -566,6 +566,44 @@ final class ShelfReadTest extends TestCase
         $this->assertNotNull($candidate->confirmed_at);
     }
 
+    public function test_a_written_region_says_so_on_the_wire(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+        $this->product('Pınar Süt 1 lt');
+        $location = $this->location();
+
+        $this->model([$this->answer([
+            $this->sighting(left: 0.10, top: 0.10, name: 'Pınar Süt 1 lt'),
+            $this->sighting(left: 0.50, top: 0.10, name: 'Nothing we know'),
+        ])]);
+
+        $shelf = $this->upload();
+
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")
+            ->assertOk()
+            ->assertJsonPath('data.candidates.0.confirmed_at', null);
+
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+            'accepted' => [1 => ['product_id' => Product::query()->sole()->getKey(), 'quantity' => 2]],
+        ])->assertOk();
+
+        // **The client cannot work this out from anything else, and without it the screen lied.**
+        // `ShelfCommitter` skips an answered candidate and this endpoint has no re-commit refusal, so
+        // a second submit writes nothing and answers 200. A screen blind to the column counted the
+        // written region on its accept button and reported it as written a second time.
+        $response = $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+        ])->assertOk();
+
+        $written = collect($response->json('data.candidates'))->firstWhere('region', 1);
+        $untouched = collect($response->json('data.candidates'))->firstWhere('region', 2);
+
+        $this->assertNotNull($written['confirmed_at']);
+        $this->assertNull($untouched['confirmed_at']);
+    }
+
     public function test_a_committed_read_cannot_be_read_again(): void
     {
         $this->tenant();
