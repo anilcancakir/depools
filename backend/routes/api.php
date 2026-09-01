@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\ExpiringController;
 use App\Http\Controllers\Api\V1\IconController;
 use App\Http\Controllers\Api\V1\LabelController;
 use App\Http\Controllers\Api\V1\LocationController;
+use App\Http\Controllers\Api\V1\PrintBatchController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ProductMovementController;
@@ -230,6 +231,29 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
         Route::middleware('throttle:30,1')->group(function (): void {
             Route::post('preview', [LabelController::class, 'preview']);
             Route::post('pdf', [LabelController::class, 'pdf']);
+        });
+
+        /*
+         * Print batches: a set of labels accumulated over time and printed once.
+         *
+         * The render routes sit under the batch rather than beside `pdf`, because they take no body
+         * describing a sheet: the batch already holds its template, its fields and what it still owes.
+         * They share the throttle for the same reason the payload ones need it.
+         */
+        Route::prefix('batches')->group(function (): void {
+            Route::get('/', [PrintBatchController::class, 'index']);
+            Route::post('/', [PrintBatchController::class, 'store']);
+            Route::get('{printBatch}', [PrintBatchController::class, 'show']);
+            Route::post('{printBatch}/lines', [PrintBatchController::class, 'addLines']);
+            // Not idempotent on purpose: a label printed twice is two stickers, so this increments
+            // `print_count`. What IS idempotent is the resume query, which reads `printed_at`.
+            Route::post('{printBatch}/settle', [PrintBatchController::class, 'settle']);
+            Route::delete('{printBatch}', [PrintBatchController::class, 'destroy']);
+
+            Route::middleware('throttle:30,1')->group(function (): void {
+                Route::post('{printBatch}/preview', [LabelController::class, 'batchPreview']);
+                Route::post('{printBatch}/pdf', [LabelController::class, 'batchPdf']);
+            });
         });
     });
 });

@@ -85,6 +85,42 @@ A batch is a saved set of labels to print together, which matters when labelling
 
 This existed in the MVP (`print_batches`, `print_batch_items`) and the data model was sound. The wizard around it was not.
 
+### What the implementation settled
+
+**A payload cannot be resumable, which is the whole reason this is a table.** `labels/pdf` renders from
+a request body and forgets it, so a printer jamming on sheet 2 of 4 leaves nothing that knows which
+stickers came out: the user reprints everything and throws away the sheets that were fine. Paper is the
+consumable this feature is judged on, which is the same reason D43 draws the empty cells.
+
+Both paths stay, and they are not redundant. A payload render is the route from a product's own screen:
+one product, a template, a file, nothing persisted. A batch render prints what the batch still owes and
+records that it did.
+
+**A render marks nothing.** The server cannot know whether a file reached a printer, so the client
+reports it afterwards through `settle`. A render that marked would make a cancelled print dialog look
+like a finished batch.
+
+**`settle` takes POSITIONS, not ids, and it is deliberately not idempotent.** A jammed printer produces
+"sheets 1 and 2 came out, start again at 25", and the position is the number the row carries on screen;
+ids would make the client hold a mapping it has no reason to have. Printing a label twice IS two
+stickers and a second sheet of paper, so `print_count` increments. What stays idempotent is the resume
+query, which reads `printed_at`.
+
+A position the batch does not have is refused rather than ignored: silently marking the ones that do
+exist would leave the client believing the rest printed too, which on this feature means throwing away
+sheets that were fine.
+
+**`print_batches.printed_at` is derived from the items and never authored.** A batch is printed when
+nothing in it is unprinted, so a batch printed in two passes closes on the second without anybody
+saying so. Writing that column directly would let it disagree with the rows it summarises, and since
+the resume query reads the items the disagreement would only surface as a finished batch still offering
+a reprint.
+
+**D45 is enforced twice, and the second one is the load-bearing half.** A serial line's `copies` are
+not taken from the request at all, and `print_batch_items_a_serial_prints_once` refuses the row anyway.
+The model additionally names the one mistake the database cannot explain well: the same CHECK covers a
+row with neither subject and a row with both, so its SQLSTATE cannot tell a caller which they did.
+
 ## v2: Bluetooth thermal printers
 
 Deferred at Anılcan's direction, and treated as a placeholder here. Two findings to carry into that work, both verified:

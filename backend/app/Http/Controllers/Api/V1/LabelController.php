@@ -8,6 +8,7 @@ use App\Labels\LabelSheetBuilder;
 use App\Labels\LabelSheetRenderer;
 use App\Labels\SheetLayout;
 use App\Labels\SheetTemplate;
+use App\Models\PrintBatch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -107,6 +108,69 @@ final class LabelController extends Controller
             // the share sheet, which is where printing, saving and sending already live.
             'Content-Disposition' => 'inline; filename="labels.pdf"',
         ]);
+    }
+
+    /**
+     * A PNG of what a batch still owes.
+     */
+    public function batchPreview(Request $request, PrintBatch $printBatch): StreamedResponse
+    {
+        [$template, $sheet] = $this->resolveBatch($request, $printBatch);
+
+        return $this->renderer->disk()->response(
+            $this->renderer->previewPath($template, $sheet),
+            'label-preview.png',
+            ['Content-Type' => 'image/png'],
+        );
+    }
+
+    /**
+     * The printable sheet for what a batch still owes.
+     */
+    public function batchPdf(Request $request, PrintBatch $printBatch): Response
+    {
+        [$template, $sheet] = $this->resolveBatch($request, $printBatch);
+
+        return response($this->renderer->pdf($template, $sheet), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="labels.pdf"',
+        ]);
+    }
+
+    /**
+     * The template and the sheet a BATCH describes, or a refusal.
+     *
+     * **Pending lines only, which is what makes a jammed print resumable.** Rendering the whole batch
+     * would reprint the stickers that already came out, and paper is the consumable this feature is
+     * judged on. Nothing is marked here: printing is what the client reports afterwards, because the
+     * server cannot know whether the file reached a printer.
+     *
+     * @return array{SheetTemplate, LabelSheet}
+     */
+    private function resolveBatch(Request $request, PrintBatch $printBatch): array
+    {
+        $pending = PrintBatchController::pending($printBatch);
+
+        if ($pending === []) {
+            throw ValidationException::withMessages([
+                'batch' => [__('Every label in this batch has already been printed.')],
+            ]);
+        }
+
+        $template = SheetTemplate::fromKey((string) $printBatch->template);
+
+        $team = $request->user()?->currentTeam;
+
+        $sheet = $this->builder->buildFromBatch(
+            $pending,
+            $printBatch->fields ?? ['name', 'code'],
+            $team?->name,
+            $team === null ? null : (string) $team->getKey(),
+        );
+
+        $this->refuseWhatCannotBePrinted($template, $sheet);
+
+        return [$template, $sheet];
     }
 
     /**

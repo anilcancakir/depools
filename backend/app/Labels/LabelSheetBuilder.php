@@ -2,6 +2,7 @@
 
 namespace App\Labels;
 
+use App\Models\PrintBatchItem;
 use App\Models\Product;
 use Illuminate\Support\Collection;
 
@@ -66,6 +67,58 @@ final readonly class LabelSheetBuilder
         }
 
         return [new LabelSheet($lines, $fields, $teamId), $missing];
+    }
+
+    /**
+     * The sheet a batch's pending lines describe.
+     *
+     * Separate from [build] rather than folded into it, because a batch line is not a payload item: it
+     * carries a serial as an alternative to a product, and a serial's label identifies one physical unit
+     * (D45), so its barcode is the serial itself rather than the product's. Sharing the loop would mean
+     * one method branching on which caller it had.
+     *
+     * @param  list<PrintBatchItem>  $items
+     * @param  list<string>  $fields
+     */
+    public function buildFromBatch(array $items, array $fields, ?string $team, ?string $teamId = null): LabelSheet
+    {
+        $lines = [];
+
+        foreach ($items as $item) {
+            if ($item->product_serial_id !== null) {
+                $serial = $item->serial;
+
+                // One sticker, never a count. The serial number IS the barcode, because scanning a
+                // serial's label has to identify that unit and not its product.
+                $lines[] = new LabelLine(
+                    name: (string) ($serial?->product?->name ?? ''),
+                    code: $serial?->serial,
+                    location: null,
+                    team: $team,
+                );
+
+                continue;
+            }
+
+            $product = $item->product;
+
+            if ($product === null) {
+                continue;
+            }
+
+            $line = new LabelLine(
+                name: (string) $product->name,
+                code: $this->codeFor($product),
+                location: null,
+                team: $team,
+            );
+
+            for ($copy = 0; $copy < max($item->copies, 1); $copy++) {
+                $lines[] = $line;
+            }
+        }
+
+        return new LabelSheet($lines, $fields, $teamId);
     }
 
     /**

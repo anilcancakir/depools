@@ -12,8 +12,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * The migration carries why this is a table rather than a response (a failed read has to leave a
  * resumable record, and D60 keeps the photograph on screen through the review) and why it is NOT
- * deduplicated on its hash the way a receipt is: photographing the same shelf again is a recount,
- * which is the ordinary way this feature gets used.
+ * deduplicated on its hash the way a receipt is: a shelf gets restocked and rephotographed, which is
+ * ordinary.
+ *
+ * **It is not a "recount", and two copies of this comment said it was.** The commit writes `receive()`
+ * with `MovementReason::Purchase`, which ADDS, so a second photograph of an unchanged shelf inflates
+ * the balance. `ShelfReadController::store` was corrected in the shelf review; this copy and the
+ * migration's were missed, which is the sweep-by-shape habit failing on prose rather than on code.
  */
 final class ShelfRead extends Model
 {
