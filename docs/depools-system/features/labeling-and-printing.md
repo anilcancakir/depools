@@ -228,8 +228,51 @@ the preview and the print are the same artefact by construction rather than by c
 This is also why the field chips have no consumer yet: they choose what the TEMPLATE includes, and
 the template lives on the backend.
 
+## The catalogue was authored, not ported
+
+`config/labels.php` in the MVP is named above as "genuinely good: 17 label sizes, 5 page sizes" and the
+catalogue as "ported" from it. **Both MVP checkouts are gone from disk**, so nothing was ported: the
+four templates that ship are the ones `label_fixtures.dart` already drew, and each was checked against
+A4 arithmetic rather than trusted from its name. Inventing thirteen more sizes to reach a number from a
+description of unreadable code would have been inventing stationery.
+
+The margins are stored per template rather than derived at render time, because a die-cut's published
+margins are not always symmetric and criterion 1 is a ruler. The seeded values ARE centred, computed
+from the page and the grid, which is the honest default for a layout whose real numbers we do not have
+and the first thing a printed sheet will disagree with. `SheetTemplateTest` holds that claim honest: it
+fails the day somebody pastes a brand's asymmetric numbers in without correcting the comment.
+
+## How much barcode a label can actually hold
+
+This is arithmetic, and it settles something the Open list below was carrying as taste.
+
+A Code 128 set B symbol is `11(n + 2) + 13` modules for an n-character payload, plus 20 modules of
+quiet zone, which GS1 requires on both sides and without which a reader cannot find the symbol at all.
+GS1's General Specifications put the X-dimension at 0.495 mm for general distribution with an absolute
+floor of 0.250 mm. At that floor, with 3 mm of cell padding:
+
+| Template | Usable width | Longest payload |
+|---|---|---|
+| A4 8-up 105x70 | 102 mm | 32 characters |
+| A4 14-up 99x38 | 96 mm | 30 characters |
+| A4 24-up 70x37 | 67 mm | 19 characters |
+| A4 65-up 38x21 | 35 mm | **7 characters** |
+
+So the smallest sheet in the catalogue cannot carry a 13-digit GTIN, and it cannot carry `DPL-0001`
+either: eight characters need 35.8 mm. It can carry `DPL0001`, which is why the generated internal code
+has no hyphen. That is not a style choice.
+
+Two consequences worth stating. **The 38x21 mm template is a name-and-location label, not a barcode
+label**, unless the code is very short. And the QR question below now has a number behind it: a 2D
+symbol is the only way that sheet carries a GTIN, so "QR or not" is what decides whether the smallest
+template is useful at all rather than a preference about scanners.
+
+`LabelController` sends `max_code_length` per template so the screen can name the casualty instead of
+guessing it from the label's height, which is what the client does today.
+
 ## Open
 
-- Which sheet templates Turkish stationery shops actually sell. The MVP's catalog is generic and may not match locally available label sheets, which would make the feature useless in practice. Worth checking before finalising the list.
-- Whether QR codes should be offered alongside linear barcodes. QR holds more and scans faster on phones, but linear barcodes work with cheap handheld scanners a shop may already own.
+- Which sheet templates Turkish stationery shops actually sell. The catalogue is generic and may not match locally available label sheets, which would make the feature useless in practice. Worth checking before finalising the list.
+- Whether QR codes should be offered alongside linear barcodes. QR holds more and scans faster on phones, but linear barcodes work with cheap handheld scanners a shop may already own. **See the table above: on the 38x21 mm sheet this is not a preference, it is the difference between that template carrying a barcode and not.**
+- Code 128 set C, which packs two digits per symbol and would make a 13-digit GTIN about 40% narrower. Not implemented: the switching heuristic is where a wrong decision produces a barcode that scans as something else while looking perfect. `moduleCount()` is what says whether a label needed it.
 - Whether labels should encode a URL that opens the product in the app, which would make a label useful to someone without the app installed.

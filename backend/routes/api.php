@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\BarcodeController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\ExpiringController;
 use App\Http\Controllers\Api\V1\IconController;
+use App\Http\Controllers\Api\V1\LabelController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
@@ -207,5 +208,19 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
         // whole shelf in one pass, so committing row by row would leave a half-counted shelf behind
         // every dropped connection.
         Route::post('count', [StockController::class, 'count']);
+    });
+
+    /*
+     * Label sheets (D18 reversed, D71).
+     *
+     * The catalogue is a GET because it is configuration and changes only with a deploy; the other two
+     * are POSTs because the sheet they describe arrives in the body, and a label run of 500 lines does
+     * not belong in a query string. Neither writes anything, which is why there is no batch here yet:
+     * persisting a resumable run is its own slice.
+     */
+    Route::prefix('labels')->group(function (): void {
+        Route::get('templates', [LabelController::class, 'catalogue']);
+        Route::post('preview', [LabelController::class, 'preview']);
+        Route::post('pdf', [LabelController::class, 'pdf']);
     });
 });
