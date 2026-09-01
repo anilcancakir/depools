@@ -20,8 +20,16 @@ use Illuminate\Support\Facades\Schema;
  *
  * `receipts` carries a unique index over `image_phash` plus the document's own identity, because the
  * same receipt arriving twice is a mistake: a double tap, a retry, an offline replay. The same SHELF
- * arriving twice is a RECOUNT, which is the ordinary way this feature gets used: you photograph the
- * cold room every Monday. So the hash is indexed for lookup and constrained by nothing.
+ * arriving twice is ordinary, because a shelf gets restocked and rephotographed. So the hash is
+ * indexed for lookup and constrained by nothing.
+ *
+ * **The word used to be RECOUNT and that was wrong**, in three places including here. The commit
+ * writes `receive()` with `MovementReason::Purchase`, which ADDS, so photographing an unchanged cold
+ * room every Monday inflates the balance rather than restating it: `stock/count` is the recount verb
+ * and it is not reachable from a shelf photograph, because a count states an absolute for a whole
+ * location while a photograph covers part of one. The hash being indexed is what makes warning on a
+ * repeat a query away, which is the right shape for it; blocking is not, because the restocked case is
+ * the one that would be refused.
  *
  * That is also why there is no `kind` column. A receipt has four (`fis`, `e_arsiv`, `e_fatura`,
  * `order_email`) and they change how it is parsed and deduplicated; a shelf photograph has one way
