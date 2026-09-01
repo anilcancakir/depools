@@ -13,7 +13,6 @@
 //
 // `ImagePicker` and `ImageSource` arrive through magic's own barrel, which re-exports them; naming
 // the package here as well is what the analyzer calls an unnecessary import.
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart' show Icons, SelectionArea;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
@@ -43,6 +42,7 @@ import '../../../ui/components/product_thumb/product_thumb.dart';
 import '../../../app/models/movement_entry.dart';
 import '../../../app/support/movement_copy.dart';
 import '../../../app/support/plural.dart';
+import '../../../app/support/photo_picker.dart';
 import '../../../ui/components/movement_row/movement_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/section_card/section_card.dart';
@@ -381,7 +381,7 @@ class _ProductShowViewState extends State<ProductShowView> {
   /// be offered one. `image_picker` answers a file either way, so everything after this line is the
   /// same on all three.
   Future<void> _addPicture(String productId) async {
-    final XFile? picked = await _pickPicture();
+    final XFile? picked = await pickPhoto();
 
     if (picked == null) return;
 
@@ -393,27 +393,6 @@ class _ProductShowViewState extends State<ProductShowView> {
       failure,
       Lang.get('screens.product.gallery_add'),
       Lang.get('screens.product.gallery_added'),
-    );
-  }
-
-  /// The picker, and the one place this screen asks what kind of device it is on.
-  ///
-  /// A phone gets the camera, because photographing the thing in your hand is the whole point. Every
-  /// other platform gets its file dialog, which is what `image_picker` falls back to there anyway.
-  Future<XFile?> _pickPicture() {
-    final ImagePicker picker = ImagePicker();
-    final bool handheld = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
-
-    return picker.pickImage(
-      source: handheld ? ImageSource.camera : ImageSource.gallery,
-      // Capped on the way IN, so a 12 megapixel photograph is not carried over a phone connection to
-      // be refused by an 8 MB server limit. The longest edge is what matters for a thumbnail and a
-      // detail header; the server does not resize.
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
     );
   }
 

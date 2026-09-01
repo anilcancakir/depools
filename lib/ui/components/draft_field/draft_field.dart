@@ -108,7 +108,8 @@ class DraftField extends StatelessWidget {
       semanticLabel: switch (_state) {
         DraftFieldState.loading => Lang.get('components.draft_field.loading', {'label': label}),
         DraftFieldState.unsure => Lang.get('components.draft_field.empty', {'label': label}),
-        DraftFieldState.filled => '$label: $value${unconfirmed ? ', doğrulanmadı' : ''}',
+        DraftFieldState.filled =>
+          '$label: $value${unconfirmed ? Lang.get('components.draft_field.unconfirmed_hint') : ''}',
       },
       child: layout == DraftFieldLayout.chip ? _buildChip(slots) : _buildRow(slots),
     );
@@ -135,7 +136,7 @@ class DraftField extends StatelessWidget {
           DraftFieldState.filled => WText(value!, className: slots['chipValue']),
         },
         if (_state == DraftFieldState.filled && unconfirmed)
-          WText('otomatik', className: slots['chipMarker']),
+          WText(Lang.get('components.draft_field.auto'), className: slots['chipMarker']),
       ],
     );
   }
@@ -163,10 +164,15 @@ class DraftField extends StatelessWidget {
             className: 'flex flex-row items-baseline gap-2',
             children: [
               WText(value!, className: slots['value']),
-              // The marker says the value is provisional, not that it is wrong.
-              // "tahmin" rather than a warning glyph: the app guessed, it worked, and
-              // the user can leave it alone or fix it.
-              if (unconfirmed) WText('otomatik', className: slots['marker']),
+              // The marker says the value is provisional, not that it is wrong. A
+              // word rather than a warning glyph: the app guessed, it worked, and the
+              // user can leave it alone or fix it.
+              //
+              // **It was a Turkish literal until the first screen rendered it live.**
+              // `no_hardcoded_copy_test` cannot catch this one and says so in its own
+              // docblock: it looks for Turkish CHARACTERS, and `otomatik` is ASCII.
+              if (unconfirmed)
+                WText(Lang.get('components.draft_field.auto'), className: slots['marker']),
             ],
           ),
         },

@@ -14,8 +14,10 @@ import 'package:magic_starter/magic_starter.dart'
 
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../app/controllers/product_draft_controller.dart';
 import '../../../app/controllers/scan_controller.dart';
 import '../../../app/support/barcode_symbology.dart';
+import '../../../app/support/photo_picker.dart';
 import '../../../app/support/plural.dart';
 import '../../../app/support/unit_label.dart';
 import '../../../app/support/scan_presence.dart';
@@ -1028,39 +1030,92 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
           Lang.get('screens.scan.from_photo'),
           Lang.get('screens.scan.from_photo_note'),
           Lang.get('screens.scan.from_photo_label'),
+          _recogniseFromPhoto,
         ),
         _photoPath(
           _shelfIcon,
           Lang.get('screens.scan.shelf'),
           Lang.get('screens.scan.shelf_note'),
           Lang.get('screens.scan.shelf_label'),
+          // Still unwired: the shelf read needs its own endpoint and its own review screen, and
+          // `ShelfPhotoView` is drawn against fixtures until both land.
+          null,
         ),
       ],
     );
   }
 
-  /// One path: what it is called, and what it gives back.
-  Widget _photoPath(IconData icon, String label, String yields, String semanticLabel) {
+  /// Photograph one product and open the draft it reads into.
+  ///
+  /// **The read starts here rather than on the draft screen**, so the request is already in flight
+  /// while the route transition animates. `ai-enrichment.md` allows one second for the card to
+  /// appear and the model is the slow part, so every frame the navigation would have spent waiting
+  /// is a frame the request is already using.
+  Future<void> _recogniseFromPhoto() async {
+    final XFile? photo = await pickPhoto();
+
+    if (photo == null) return;
+
+    final ProductDraftController controller = ProductDraftController.instance
+      ..begin(photo);
+
+    unawaited(controller.read());
+
+    MagicRoute.to('/draft');
+  }
+
+  /// One path: what it is called, what it gives back, and what it does.
+  ///
+  /// **A null [onTap] drops the anchor entirely rather than passing a null through it**, so the row
+  /// stops being a button in the semantics tree as well as on screen. Both rows were tappable and
+  /// one of them was a no-op; a control that looks live and answers nothing is the anti-pattern this
+  /// repo has a rule about, and a screen reader announcing "button" for it is the same lie with
+  /// nothing to see. The shelf read is a listing until it has an endpoint.
+  Widget _photoPath(
+    IconData icon,
+    String label,
+    String yields,
+    String semanticLabel,
+    Future<void> Function()? onTap,
+  ) {
+    final Widget row = _photoPathRow(icon, label, yields, isLive: onTap != null);
+
+    if (onTap == null) return row;
+
     return WAnchor(
-      onTap: () {},
+      onTap: () => unawaited(onTap()),
       semanticLabel: semanticLabel,
-      child: WDiv(
+      child: row,
+    );
+  }
+
+  /// The row itself, with or without a gesture around it.
+  ///
+  /// [isLive] mutes the text when there is nothing to tap. Dropping the anchor fixes what a screen
+  /// reader hears; this is the half a sighted user gets, and without it the shelf row still looks
+  /// exactly like the one above it and still answers nothing.
+  Widget _photoPathRow(IconData icon, String label, String yields, {required bool isLive}) {
+    return WDiv(
         className:
             'flex flex-row items-center gap-3 px-3 py-3 rounded-md bg-surface-container border border-color-border',
         children: [
           WDiv(
             className: 'size-5 shrink-0 flex items-center justify-center',
-            child: WIcon(icon, className: 'size-5 text-fg'),
+            child: WIcon(icon, className: isLive ? 'size-5 text-fg' : 'size-5 text-fg-muted'),
           ),
           WDiv(
             className: 'flex flex-col gap-0.5 flex-1 min-w-0',
             children: [
-              WText(label, className: 'text-sm font-medium text-fg'),
+              WText(
+                label,
+                className: isLive
+                    ? 'text-sm font-medium text-fg'
+                    : 'text-sm font-medium text-fg-muted',
+              ),
               WText(yields, className: 'text-xs text-fg-muted'),
             ],
           ),
         ],
-      ),
     );
   }
 }

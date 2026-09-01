@@ -7,12 +7,15 @@ use App\Http\Resources\ProductResource;
 use App\Models\Barcode;
 use App\Models\Product;
 use App\Models\ProductBarcode;
+use App\Models\ProductCategory;
 use App\Models\Scopes\TeamScope;
 use App\Rules\UnitExists;
 use App\Services\BarcodeLinker;
 use App\Services\CatalogueContributor;
 use App\Services\ProductListQuery;
+use App\Services\ProductPhotoReader;
 use App\Support\Gtin;
+use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -31,6 +34,7 @@ final class ProductController extends Controller
     public function __construct(
         private readonly CatalogueContributor $contributor,
         private readonly BarcodeLinker $barcodes,
+        private readonly ProductPhotoReader $photos,
     ) {}
 
     /**
@@ -117,6 +121,11 @@ final class ProductController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:255'],
+            // **Absent until the photo path sent one, which meant it was silently dropped.**
+            // `validate()` returns only what it names, so a description the model read off the
+            // packaging reached `store` and went no further: the field is fillable and the column
+            // has been there since the first migration.
+            'description' => ['nullable', 'string', 'max:2000'],
             // Unique within the tenant only. The reason recorded here used to be that "a partial unique
             // index is not portable to sqlite", which stopped being true when D72 moved the suite onto
             // PostgreSQL: `products_team_sku_unique` now exists and is the real guarantee. This rule
@@ -176,6 +185,36 @@ final class ProductController extends Controller
             // `barcode-and-catalog.md` used to say opt-in per tenant and off by default; that is
             // superseded there, with the argument, rather than quietly contradicted here.
             'contribute' => ['boolean'],
+
+            // **The taxonomy row the photograph resolved to.** Without it the whole resolution
+            // cascade in `ProductPhotoReader` produced a value the draft screen drew as a tag and
+            // then dropped, and `location_category_affinity` never learned anything from a product
+            // created by camera. It also unlocks `Product::creating`'s category-to-unit inference,
+            // which cannot fire on a product with no category.
+            //
+            // Checked through the scope rather than a bare `exists`, because the taxonomy is shared
+            // rows plus this tenant's own: `exists` alone would accept another tenant's category.
+            'product_category_id' => ['nullable', 'uuid', function (string $attribute, mixed $value, Closure $fail): void {
+                $visible = ProductCategory::query()
+                    ->visibleTo(TeamScope::currentTeamId())
+                    ->whereKey($value)
+                    ->exists();
+
+                if (! $visible) {
+                    $fail(__('That category does not exist.'));
+                }
+            }],
+
+            // **The photograph this card was read from, as its perceptual hash.** Present only when
+            // the product arrived through `products/recognise`, and it is what makes the NEXT
+            // photograph of the same thing free: the hash lands on the contributed catalogue row and
+            // the reader looks there before it looks at a model.
+            //
+            // A hash rather than the picture, so this is not the photo-sharing that
+            // `barcode-and-catalog.md` forbids: nothing can be rendered from 64 bits of
+            // low-frequency structure. Validated as 32 hex characters because that is the column's
+            // shape and because an arbitrary string here would end up in a shared table.
+            'image_phash' => ['nullable', 'string', 'size:32', 'regex:/^[0-9a-f]{32}$/'],
         ]);
 
         $barcode = $this->barcodes->forLine(
@@ -198,7 +237,9 @@ final class ProductController extends Controller
                 // and throws on one it cannot find, so handing it null turns "the caller named
                 // nothing", which is the ordinary case, into a 500. Absent is what the fallback
                 // chain reads.
-                $attributes = Arr::except($data, ['barcode', 'symbology', 'contribute']);
+                // `image_phash` joins them: a product has no such column, and it exists only to be
+                // handed to the contributor below.
+                $attributes = Arr::except($data, ['barcode', 'symbology', 'contribute', 'image_phash']);
 
                 if (($attributes['base_unit'] ?? null) === null) {
                     unset($attributes['base_unit']);
@@ -236,7 +277,17 @@ final class ProductController extends Controller
         // this list and is not a real branch; it is named in `CatalogueContributor` for the same
         // reason it is corrected here.)
         if (($data['contribute'] ?? true) === true) {
-            $this->contributor->contribute($product, $barcode);
+            // **Dropped rather than refused when this tenant never read that photograph.** A hash
+            // nobody here produced binds nothing; failing the product over it would break the rule
+            // that a contribution never fails the save, and the hash is a side effect the user did
+            // not ask for in the first place.
+            $phash = $data['image_phash'] ?? null;
+
+            $this->contributor->contribute(
+                $product,
+                $barcode,
+                $phash !== null && $this->photos->wasReadHere($phash) ? $phash : null,
+            );
         }
 
         return new ProductResource($product);

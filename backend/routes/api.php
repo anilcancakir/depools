@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductImageController;
 use App\Http\Controllers\Api\V1\ProductMovementController;
+use App\Http\Controllers\Api\V1\ProductRecognitionController;
 use App\Http\Controllers\Api\V1\ReceiptController;
 use App\Http\Controllers\Api\V1\RunningLowController;
 use App\Http\Controllers\Api\V1\SearchController;
@@ -148,6 +149,15 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // be, because it collides with `GET products/{product}` on the same verb and segment count, and
     // this one cannot collide with anything the resource generates.
     Route::put('products/{product}/target', [ProductController::class, 'updateTarget']);
+
+    // **A photograph in, a draft card out, and no product either way.** Nothing is created here: the
+    // answer is what the user is about to edit, and `POST products` is still what writes it. That is
+    // what keeps `ai-enrichment.md`'s "always a draft the user confirms, never a silent write" true
+    // in the routing table rather than only in a service.
+    //
+    // POST because a photograph is a body rather than a query, so it cannot be the GET its
+    // read-only-ness would otherwise suggest.
+    Route::post('products/recognise', ProductRecognitionController::class);
 
     Route::apiResource('products', ProductController::class)->only(['index', 'store', 'show']);
 

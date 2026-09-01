@@ -8,6 +8,7 @@ use App\Models\OffProduct;
 use App\Models\Product;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\ProductPhotoReader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
@@ -37,6 +38,20 @@ final class CatalogueContributionTest extends TestCase
         $this->actingAs($user, 'sanctum');
 
         return [$user, $team];
+    }
+
+    /**
+     * Claim a hash for the current tenant, the way `products/recognise` does.
+     *
+     * **Through the reader rather than by writing the cache key here**, so the format lives in one
+     * place. `POST products` drops a hash this tenant never read, which is what stops a request
+     * naming arbitrary characters and binding them into a table every tenant reads.
+     */
+    private function readPhoto(string $phash): string
+    {
+        app(ProductPhotoReader::class)->remember($phash);
+
+        return $phash;
     }
 
     /**
@@ -226,6 +241,64 @@ final class CatalogueContributionTest extends TestCase
         $row = GlobalProduct::query()->sole();
         $this->assertSame('Pınar Süt 1 L', $row->name);
         $this->assertSame(0, $row->barcodes()->count());
+    }
+
+    public function test_a_card_read_from_a_photograph_records_its_hash(): void
+    {
+        $this->tenant();
+
+        $this->create(['image_phash' => $this->readPhoto(str_repeat('a', 32))])->assertCreated();
+
+        // The hash is what makes the NEXT photograph of the same box free, and it only lands here:
+        // reading a photograph writes nothing, so a card nobody confirmed never enters the shared
+        // table. A hash is not a photograph, so the rule that keeps `image_path` null does not
+        // reach it.
+        $this->assertSame(str_repeat('a', 32), GlobalProduct::query()->sole()->image_phash);
+    }
+
+    public function test_a_hash_reaches_a_row_that_was_already_there_without_one(): void
+    {
+        // The ordinary case once the catalogue has any depth: somebody typed or scanned this product
+        // before anybody photographed it, so the contribution is correctly skipped. Without this the
+        // hash goes with it and the cache has a hole exactly where it would be useful.
+        $this->tenant('Alpha');
+        $this->create()->assertCreated();
+
+        $this->tenant('Beta');
+        $this->create(['image_phash' => $this->readPhoto(str_repeat('b', 32))])->assertCreated();
+
+        $this->assertSame(1, GlobalProduct::query()->count());
+        $this->assertSame(str_repeat('b', 32), GlobalProduct::query()->sole()->image_phash);
+    }
+
+    public function test_a_hash_already_recorded_is_not_replaced(): void
+    {
+        $this->tenant('Alpha');
+        $this->create(['image_phash' => $this->readPhoto(str_repeat('a', 32))])->assertCreated();
+
+        $this->tenant('Beta');
+        $this->create(['image_phash' => $this->readPhoto(str_repeat('b', 32))])->assertCreated();
+
+        // Two photographs of one box do not hash alike, so overwriting would let the last one
+        // silently replace the hash every earlier match was made against: a cache that forgets
+        // rather than one that learns.
+        $this->assertSame(str_repeat('a', 32), GlobalProduct::query()->sole()->image_phash);
+    }
+
+    public function test_a_hash_that_is_not_a_hash_is_refused(): void
+    {
+        $this->tenant();
+
+        // It ends up in a table every tenant reads, so the shape is checked at the boundary rather
+        // than trusted from a client that could have been edited. Thirty-two characters that are
+        // not hex, so this exercises the pattern rather than only the length.
+        $this->create(['image_phash' => str_repeat('zq', 16)])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('image_phash');
+
+        $this->create(['image_phash' => 'short'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('image_phash');
     }
 
     public function test_an_internal_label_does_not_become_a_fake_gtin(): void

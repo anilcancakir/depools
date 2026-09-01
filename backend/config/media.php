@@ -142,4 +142,69 @@ return [
 
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Product photographs read by a model
+    |--------------------------------------------------------------------------
+    |
+    | A photograph of a product is read into a draft card and then thrown away.
+    | It is not a document: nothing here is stored for the tenant to fetch, no
+    | row points at it, and the only thing that survives the request is the
+    | perceptual hash and the card the user is about to edit.
+    |
+    | Its own block rather than a second reader of `documents` above, because
+    | the two answer to different rules. A receipt is KEPT for a window under
+    | D94 and a product photograph is not, so a shared block would have made
+    | one retention decision cover two features that do not share one.
+    |
+    */
+
+    'enrichment' => [
+
+        'disk' => env('MEDIA_ENRICHMENT_DISK', 'local'),
+
+        'directory' => env('MEDIA_ENRICHMENT_DIRECTORY', 'enrichment'),
+
+        'mimes' => ['jpeg', 'jpg', 'png'],
+
+        // The same shape as `documents` above, and the same reasoning: a decode
+        // allocates 4 bytes a pixel, so the product of the axes is what the
+        // memory cost is proportional to and neither limit expresses the other.
+        'max_width' => 8000,
+
+        'max_height' => 8000,
+
+        'max_pixels' => 16000000,
+
+        // **Deliberately the same numbers as `documents`, and they are repeated
+        // rather than shared.** `enrichment_vision`'s model chain was measured
+        // on real Turkish product photographs at this resolution, and the
+        // measurement found the cheap tier reading `Beypazarı` as "Beypazara".
+        // Sending a smaller picture to save tokens would re-run that comparison
+        // without re-running it. Two copies of the number let a future bake-off
+        // move one without moving the other.
+        'stored_edge' => 2048,
+
+        'jpeg_quality' => 85,
+
+        // **How many days an uploaded photograph is kept for diagnosis, or 0 to
+        // keep none.** Anılcan's call, for the development phase, and it is a
+        // switch rather than a constant precisely so it can be turned off before
+        // this ships.
+        //
+        // What is kept is the bytes AS UPLOADED, which is the strongest artefact
+        // available when a read comes back wrong, and it is also the only copy
+        // that ever survives an unsuccessful read: a successful one ends with
+        // the user saving the product and the client uploading the same picture
+        // to the gallery, so the reads worth investigating are exactly the ones
+        // nothing else keeps.
+        //
+        // **It carries EXIF, GPS included.** The re-encoded copy sent to the
+        // model does not, because regenerating bytes from pixels strips it, but
+        // that copy is not what is kept here. The window is short and the switch
+        // exists for this reason rather than for disk space.
+        'keep_upload_days' => (int) env('MEDIA_ENRICHMENT_KEEP_UPLOAD_DAYS', 14),
+
+    ],
+
 ];

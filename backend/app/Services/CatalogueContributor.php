@@ -50,8 +50,10 @@ final class CatalogueContributor
      * Contributes the product's text fields, or null when it was not contributed.
      *
      * @param  Barcode|null  $barcode  the code that led here, when a scan did
+     * @param  string|null  $imagePhash  the hash of the photograph this card was read from, when the
+     *                                   product arrived through the camera. See [recordPhash].
      */
-    public function contribute(Product $product, ?Barcode $barcode): ?GlobalProduct
+    public function contribute(Product $product, ?Barcode $barcode, ?string $imagePhash = null): ?GlobalProduct
     {
         $teamId = TeamScope::currentTeamId();
 
@@ -65,22 +67,39 @@ final class CatalogueContributor
             return null;
         }
 
-        if ($this->alreadyContributed($product, $barcode, $locale)) {
-            return null;
-        }
-
         try {
+            $existing = $this->existingContribution($product, $barcode, $locale);
+
+            if ($existing !== null) {
+                $this->recordPhash($existing, $imagePhash);
+
+                return null;
+            }
+
             // **One transaction, because the row and its link are one fact.** The cascade reaches
             // this table through the pivot, so a row whose link failed is unreachable AND invisible
             // to `alreadyContributed()`, which checks that same pivot: the next confirmation would
             // write a second orphan, and so would the one after it.
-            $row = DB::transaction(function () use ($product, $locale, $teamId, $barcode): GlobalProduct {
+            $row = DB::transaction(function () use ($product, $locale, $teamId, $barcode, $imagePhash): GlobalProduct {
                 $row = GlobalProduct::create([
                     'name' => $product->name,
                     'brand' => $product->brand,
+                    // **The description and the category travel too, and leaving them out made the
+                    // photo cache pointless.** Every row carrying an `image_phash` is written here,
+                    // so a cache hit returned a card with no description, no category and therefore
+                    // no unit: strictly less than the model read that produced it. Both columns are
+                    // already fillable and both are the tenant's own confirmed text.
+                    'description' => $product->description,
+                    'product_category_id' => $product->product_category_id,
                     'locale' => $locale,
                     'source' => 'community',
                     'confidence' => self::CONFIDENCE,
+                    // **A hash is not a photograph, which is what lets it past the rule below.** It
+                    // is 64 bits of low-frequency structure and nothing can be rendered from it, so
+                    // the licence line that keeps `image_path` null does not reach it. What it buys
+                    // is that the next person to photograph the same box gets this card without a
+                    // model call.
+                    'image_phash' => $imagePhash,
                     // **Photos are never contributed** (`barcode-and-catalog.md`). The terms grant a
                     // licence over the text fields only, so `image_path` stays null however good the
                     // photograph is.
@@ -113,20 +132,13 @@ final class CatalogueContributor
     /**
      * The tenant's locale, in a form the column can hold.
      *
-     * `global_products.locale` is `string(5)` and `users.locale` has no length limit, so a user set
-     * to `zh-Hant-TW` overflowed it and 500'd the create. Falls back to the BCP 47 primary subtag
-     * rather than to a blind `substr`, because `zh-Ha` is not a language and `zh` is: a truncation
-     * that produces a valid tag of a coarser grain beats one that produces a tag of no grain at all.
+     * The fold moved to [GlobalProduct::localeFor] when the photo path became a second reader of the
+     * same column. `global_products.locale` is `string(5)` and `users.locale` has no length limit,
+     * so a user set to `zh-Hant-TW` overflowed it and 500'd the create.
      */
     private function locale(): string
     {
-        $locale = (string) (Auth::user()?->locale ?? config('app.locale', 'en'));
-
-        if (mb_strlen($locale) <= 5) {
-            return $locale;
-        }
-
-        return mb_substr((string) explode('-', str_replace('_', '-', $locale))[0], 0, 5);
+        return GlobalProduct::localeFor(Auth::user()?->locale);
     }
 
     /**
@@ -162,25 +174,53 @@ final class CatalogueContributor
     }
 
     /**
-     * Whether the catalogue already carries this product in this locale.
+     * The row the catalogue already carries for this product in this locale, if it has one.
      *
      * Keyed through the barcode when there is one, because that is how the cascade reaches a row.
      * With no barcode the fold is the only handle there is.
+     *
+     * It returns the ROW rather than a boolean so [recordPhash] has something to write into, which
+     * is one query rather than an existence check followed by a fetch of the thing it just proved
+     * was there.
      *
      * A second tenant confirming the same product is corroboration and arguably should RAISE the
      * row's confidence rather than be dropped. That is the obvious next step and it is not built:
      * it needs a rule for how much and a ceiling, and inventing a number here would put an
      * unexplained one into the column D31 already warns about.
      */
-    private function alreadyContributed(Product $product, ?Barcode $barcode, string $locale): bool
+    private function existingContribution(Product $product, ?Barcode $barcode, string $locale): ?GlobalProduct
     {
         if ($barcode !== null) {
-            return $barcode->globalProducts()->where('global_products.locale', $locale)->exists();
+            return $barcode->globalProducts()->where('global_products.locale', $locale)->first();
         }
 
         return GlobalProduct::query()
             ->where('locale', $locale)
             ->where('name_normalized', GlobalProduct::normaliseName($product->name))
-            ->exists();
+            ->first();
+    }
+
+    /**
+     * Fills in the photograph hash of a row that was already there and did not have one.
+     *
+     * **Without this the cache has a hole exactly where it is useful.** The photo path only fills
+     * `image_phash` when a user saves the card, and by then the catalogue may well already carry
+     * that product from somebody who typed it or scanned it: the contribution is correctly skipped,
+     * and the hash that would make the NEXT photograph free goes with it.
+     *
+     * It only ever writes into a null. Overwriting an existing hash would let the last photograph of
+     * a product silently replace the one every earlier match was made against, and two photographs
+     * of one box do not hash alike, so that is a cache that forgets rather than one that learns.
+     *
+     * Not a contribution and not reported as one: the caller gets null either way, because a row it
+     * did not create is not a row it contributed.
+     */
+    private function recordPhash(GlobalProduct $row, ?string $imagePhash): void
+    {
+        if ($imagePhash === null || $row->image_phash !== null) {
+            return;
+        }
+
+        $row->update(['image_phash' => $imagePhash]);
     }
 }
