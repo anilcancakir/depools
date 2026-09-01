@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ReceiptResource;
 use App\Models\Receipt;
 use App\Services\ReceiptDocumentStore;
+use App\Services\ReceiptExtractor;
 use Closure;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -52,7 +53,53 @@ use Throwable;
  */
 final class ReceiptController extends Controller
 {
-    public function __construct(private readonly ReceiptDocumentStore $documents) {}
+    public function __construct(
+        private readonly ReceiptDocumentStore $documents,
+        private readonly ReceiptExtractor $extractor,
+    ) {}
+
+    /**
+     * Read a stored photograph into lines.
+     *
+     * **A POST that mostly reads, because it spends a credit and writes rows.** Same argument as
+     * `icons/suggest`: the answer is derived rather than stored by the caller, but the call is not
+     * safe to repeat and not safe to cache, so it is not a GET.
+     *
+     * Three refusals before a model is reached, and each is a state the review screen can render:
+     *
+     * - No document. The retention sweep (D94) clears the file once its window closes, and an
+     *   extraction over a receipt whose picture is gone has nothing to read. 422, no credit spent.
+     * - Lines already. Per-line state is what makes an interrupted confirmation resumable, so a
+     *   second read would delete work the user has been doing. 409 carrying the receipt as it
+     *   stands, the same shape `store` answers a duplicate upload with.
+     * - No credits. That one is NOT a refusal: `receipt-ingestion.md` requires the manual path to
+     *   stay open, so it answers 200 with no lines and the declined attempt is still recorded.
+     */
+    public function extract(string $receipt): JsonResponse
+    {
+        // Through `TeamScope`, so another tenant's receipt is a 404 before anything else is decided.
+        $model = Receipt::query()->with('lines')->findOrFail($receipt);
+
+        if ($model->lines->isNotEmpty()) {
+            return response()->json(['data' => new ReceiptResource($model)], 409);
+        }
+
+        if (! $model->hasDocument()) {
+            abort(422, __('This receipt no longer has a document to read.'));
+        }
+
+        $image = $this->documents->readForModel((string) $model->document_path);
+
+        // The row says the document is there and the disk disagrees. Rare, and the honest answer is
+        // the same as the one above rather than a 500: there is nothing to read.
+        if ($image === null) {
+            abort(422, __('This receipt no longer has a document to read.'));
+        }
+
+        return response()->json([
+            'data' => new ReceiptResource($this->extractor->extract($model, $image)),
+        ]);
+    }
 
     /**
      * The tenant's receipts, newest first, without their lines.

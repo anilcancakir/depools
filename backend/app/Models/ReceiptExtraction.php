@@ -19,10 +19,20 @@ final class ReceiptExtraction extends Model
     use ConditionallyUsesUuids;
 
     /**
-     * `succeeded`, `schema_invalid`, `provider_error`, `unreadable`. Matches
-     * `receipt_extractions_outcome_is_known`.
+     * Matches `receipt_extractions_outcome_is_known`.
+     *
+     * The five `AiOutcome` cases, because both this table and `ai_usage_events` describe the same
+     * attempt, plus `unreadable` for the path with no model in it: a deterministic XML parse that
+     * met a document it could not read.
      */
-    public const OUTCOMES = ['succeeded', 'schema_invalid', 'provider_error', 'unreadable'];
+    public const OUTCOMES = [
+        'succeeded',
+        'schema_invalid',
+        'provider_error',
+        'refused',
+        'no_credit',
+        'unreadable',
+    ];
 
     /**
      * `created_at` is a database default (`useCurrent()`) and there is no `updated_at` column: an
