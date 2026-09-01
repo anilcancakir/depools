@@ -63,6 +63,7 @@ class ShelfCandidate {
     this.resolution = LineResolution.matched,
     this.quantity,
     this.unit,
+    this.isAnswered = false,
   });
 
   /// The candidate a `shelf-reads` payload describes.
@@ -81,18 +82,50 @@ class ShelfCandidate {
       // `'3.000'`. Parsed here rather than cast, so a null stays a null.
       quantity: num.tryParse('${json['quantity']}'),
       unit: json['unit'] as String?,
+      // Presence is the whole signal; the timestamp itself has no reader, so it is not carried.
+      isAnswered: json['confirmed_at'] != null,
     );
   }
 
+  /// Whether a movement has already been written for this region.
+  ///
+  /// **The server skips an answered candidate and answers 200, so without this the screen lies.**
+  /// `ShelfCommitter` `continue`s past every row with a `confirmed_at` and the commit endpoint has no
+  /// re-commit refusal, so a second submit writes nothing and returns success. A screen that could
+  /// not see the column then counted written regions on its accept button and reported them again in
+  /// its success message.
+  final bool isAnswered;
+
   /// Whether this candidate will be written as it stands.
+  ///
+  /// Answered regions are excluded, so the count on the button is what a submit would actually add.
   bool get isSettled =>
-      resolution == LineResolution.matched || resolution == LineResolution.created;
+      !isAnswered &&
+      (resolution == LineResolution.matched || resolution == LineResolution.created);
+
+  /// Whether the commit may carry this region.
+  ///
+  /// **One predicate rather than two, and the two agreed only by accident.** `isSettled` alone was
+  /// on the button while the payload additionally required a product id, which matches today only
+  /// because `created` is unwritable: the migration says so and says the catalogue step that starts
+  /// writing it "is the next slice". On the day it lands, a button promising N would have carried
+  /// N-1 with nothing to notice it.
+  bool get isAcceptable => isSettled && productId != null;
 
   /// Whether the app read nothing for this region.
   bool get isUnresolved => resolution == LineResolution.unresolved;
 
   /// The same candidate with the user's decision applied.
-  ShelfCandidate accepted({required String productId, required num quantity}) {
+  ///
+  /// [unit] is the code a newly created product was given. It is optional because a matched region
+  /// already has one and the sheet does not offer to change it (D54 allows that in a draft and
+  /// nowhere else); passing it through matters for the other case, where the region had no unit at
+  /// all and the row would otherwise render its quantity with nothing beside it.
+  ShelfCandidate accepted({
+    required String productId,
+    required num quantity,
+    String? unit,
+  }) {
     return ShelfCandidate(
       id: id,
       region: region,
@@ -104,7 +137,8 @@ class ShelfCandidate {
       productId: productId,
       resolution: LineResolution.matched,
       quantity: quantity,
-      unit: unit,
+      unit: unit ?? this.unit,
+      isAnswered: isAnswered,
     );
   }
 
@@ -120,13 +154,21 @@ class ShelfCandidate {
     resolution: LineResolution.rejected,
     quantity: quantity,
     unit: unit,
+    isAnswered: isAnswered,
   );
 
   /// The four box fields are fractions, so anything outside 0 to 1 is not one.
   ///
   /// The server refuses an out-of-frame box before it is stored and the column rounds to four
-  /// decimals, so this is a parser's guard rather than a second rule: a value that arrives broken
-  /// would otherwise place a `Positioned` child off the picture and take the whole `Stack` with it.
+  /// decimals, so this is a parser's guard rather than a second rule.
+  ///
+  /// **It is a guard against a nonsense OUTLINE, not against a crash, and the comment here used to
+  /// claim the second.** A `Positioned` child whose rect falls outside its `Stack` is clipped, not an
+  /// error, so a broken value would have drawn a box half off the picture rather than taking the
+  /// screen with it. The clamp is per field for the same reason: `left` and `width` are each held to
+  /// 0..1 so their sum can still reach 2, and what stops that being visible is the `Stack`'s own
+  /// clip. Worth stating plainly, because a recorded wrong reason is what this repository keeps
+  /// paying for.
   static double _fraction(Object? value) {
     final double parsed = value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
 

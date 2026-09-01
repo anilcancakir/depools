@@ -52,8 +52,19 @@ final class ShelfReadController extends Controller
      * Store the photograph and hand back the row the read will fill.
      *
      * **No duplicate check, unlike a receipt.** The same receipt arriving twice is a mistake, so that
-     * table refuses it; photographing the same shelf again is a RECOUNT, which is the ordinary way
-     * this feature gets used. `shelf_reads` therefore indexes the hash and constrains nothing.
+     * table refuses it; the same shelf photographed again is ordinary, because a shelf gets restocked
+     * and rephotographed. `shelf_reads` therefore indexes the hash and constrains nothing.
+     *
+     * **It is not a recount, and this docblock used to call it one.** The commit writes `receive()`
+     * with `MovementReason::Purchase`, which ADDS: the feature is "photograph a shelf, add everything
+     * you see" (`ai-enrichment.md`), so a second photograph of an unchanged shelf inflates the
+     * balance and the ledger only unwinds that by compensating movement. `stock/count` is the recount
+     * verb and it is not reachable from here either, because a count states an absolute for a whole
+     * location while a photograph covers part of one.
+     *
+     * The hash is indexed, so warning the user that this picture has been seen before is a query away
+     * and is the right shape for it. Blocking is not: the ordinary restocked-shelf case is the one
+     * that would be refused.
      */
     public function store(Request $request): JsonResponse
     {

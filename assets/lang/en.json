@@ -1002,6 +1002,7 @@
       "alert_count_note": "A monthly nudge for locations nobody has counted in a while."
     },
     "shelf_photo": {
+      "capture": "Take a photo",
       "credit_note": "One photo costs 1 credit, however many products it finds",
       "destination_title": "Where does this shelf go?",
       "failed_note": "The photo is kept and no credit was spent. You can try again or add the products by hand.",
@@ -1011,6 +1012,10 @@
       "meta_created": "New product",
       "meta_matched": "In your inventory",
       "meta_rejected": "Skipped, not a product",
+      "no_credit_note": "The photo is kept, so it can be read once credits are back. The products can also be added by hand.",
+      "no_credit_title": "No AI credits left",
+      "nothing_note": "Take a photo of a shelf to start, or add the products by hand.",
+      "nothing_title": "Nothing to review",
       "photo_group": "Photo",
       "quantity_unknown": "Not counted",
       "read_failed": "The photo could not be read.",
@@ -1022,10 +1027,12 @@
       "submitting": "Writing",
       "subtitle": ":regions · :ready ready",
       "subtitle_failed": "Could not be read",
+      "subtitle_nothing": "No photo yet",
       "subtitle_reading": "Reading the photo",
       "title": "Shelf photo",
       "unresolved_count": ":count region was not recognised|:count regions were not recognised",
       "upload_failed": "The photo could not be uploaded.",
+      "upload_failed_title": "The photo could not be uploaded",
       "will_write": ":count product will be written to stock|:count products will be written to stock",
       "will_write_partial": ":written, :unresolved",
       "written": ":count product written to stock|:count products written to stock"

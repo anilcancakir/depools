@@ -32,6 +32,7 @@ void main() {
     'quantity': '2.000',
     'raw_unit_code': null,
     'unit': 'C62',
+    'confirmed_at': null,
     ...overrides,
   };
 
@@ -271,6 +272,113 @@ void main() {
       expect(sent['rejected'], <int>[3]);
       // Region 2 is unresolved and untouched, so it is in neither list: the server leaves it exactly
       // as it was, which is what makes an interrupted review resumable rather than a restart.
+    });
+
+    test('a committed shelf is not offered for review again after reset', () async {
+      Http.fake((MagicRequest request) => MagicResponse(
+        statusCode: request.url.endsWith('/shelf-reads') ? 201 : 200,
+        data: <String, dynamic>{'data': read([candidate(const <String, dynamic>{})])},
+      ));
+
+      final ShelfController controller = ShelfController()..begin(photo());
+      await controller.uploadAndRead();
+
+      expect(controller.read, isNotNull);
+
+      controller.reset();
+
+      // **`reset()` used to clear the photograph and leave the read published.** The controller is a
+      // type-keyed singleton and `/shelf-photo` is a named route, so a back navigation re-entered the
+      // screen, drew the boxes of an already-written shelf over a placeholder, and answered a second
+      // submit with "N products written to stock" while the server wrote nothing.
+      expect(controller.read, isNull);
+      expect(controller.photo, isNull);
+    });
+
+    test('an already-written region is not counted on the accept button', () {
+      final ShelfRead parsed = ShelfRead.fromApi(read([
+        candidate(const <String, dynamic>{'region': 1}),
+        candidate(const <String, dynamic>{
+          'region': 2,
+          'confirmed_at': '2026-09-01T11:00:00+00:00',
+        }),
+      ]));
+
+      // The server skips an answered candidate and answers 200, so a screen that could not see
+      // `confirmed_at` counted a written region again and reported it as written a second time.
+      expect(parsed.candidates[1].isAnswered, isTrue);
+      expect(parsed.settled.map((ShelfCandidate c) => c.region), <int>[1]);
+    });
+
+    test('the commit omits a region already written and carries an idempotency key', () async {
+      Object? body;
+
+      Http.fake((MagicRequest request) {
+        if (request.url.contains('commit')) body = request.data;
+
+        return MagicResponse(
+          statusCode: request.url.endsWith('/shelf-reads') ? 201 : 200,
+          data: <String, dynamic>{
+            'data': read([
+              candidate(const <String, dynamic>{'region': 1}),
+              candidate(const <String, dynamic>{
+                'region': 2,
+                'confirmed_at': '2026-09-01T11:00:00+00:00',
+              }),
+            ]),
+          },
+        );
+      });
+
+      final ShelfController controller = ShelfController()..begin(photo());
+      await controller.uploadAndRead();
+
+      expect(await controller.commit(locationId: 'loc-1'), isNull);
+
+      final Map<String, dynamic> sent = Map<String, dynamic>.from(body! as Map);
+
+      expect((sent['accepted'] as Map).keys, <String>['1']);
+      // `IdempotencyKey::forRow(null, ...)` returns null, which switches the `stock_movements` unique
+      // index off: without a key the only guard is the `confirmed_at` the committer reads outside its
+      // own transaction.
+      expect(sent['idempotency_key'], 'shelf-s1');
+    });
+
+    test('no credit is reported as itself rather than as an unreadable photo', () async {
+      Http.fake((MagicRequest request) => MagicResponse(
+        statusCode: request.url.endsWith('/shelf-reads') ? 201 : 200,
+        data: <String, dynamic>{
+          'data': read(const <Map<String, dynamic>>[], outcome: 'no_credit'),
+        },
+      ));
+
+      final ShelfController controller = ShelfController()..begin(photo());
+      await controller.uploadAndRead();
+
+      // The screen branches on this, which the model's docblock claimed all along while nothing did.
+      expect(controller.read!.lastReadOutcome, 'no_credit');
+      expect(controller.error, isNull);
+    });
+
+    test('a failed upload leaves no read for the screen to offer a re-read of', () async {
+      Http.fake((MagicRequest request) => MagicResponse(
+        statusCode: 422,
+        data: const <String, dynamic>{'message': 'This picture holds too many pixels to process.'},
+      ));
+
+      final ShelfController controller = ShelfController()..begin(photo());
+      await controller.uploadAndRead();
+
+      // This pair is what the screen has to tell apart: an error with NO read is an upload refusal,
+      // and offering "try again" there called `reread()`, which returns on its first line.
+      expect(controller.read, isNull);
+      expect(controller.error, isNotNull);
+
+      // Proven rather than asserted about the view: the re-read really is a no-op here, so a button
+      // wired to it really did nothing.
+      await controller.reread();
+
+      expect(controller.read, isNull);
     });
 
     test('a second capture does not let the first read land on it', () async {

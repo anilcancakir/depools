@@ -1002,6 +1002,7 @@
       "alert_count_note": "Uzun süre sayılmayan konumlar için ayda bir hatırlatma."
     },
     "shelf_photo": {
+      "capture": "Fotoğraf çek",
       "credit_note": "Tek fotoğraf 1 kredi · kaç ürün bulunursa bulunsun",
       "destination_title": "Bu raf nereye ait?",
       "failed_note": "Fotoğraf saklandı, kredi harcanmadı. Yeniden denenebilir ya da ürünler elle eklenebilir.",
@@ -1011,6 +1012,10 @@
       "meta_created": "Yeni ürün",
       "meta_matched": "Envanterinizde",
       "meta_rejected": "Atlandı, ürün değil",
+      "no_credit_note": "Fotoğraf saklandı, kredi geldiğinde okunabilir. Ürünler elle de eklenebilir.",
+      "no_credit_title": "AI kredisi kalmadı",
+      "nothing_note": "Başlamak için bir raf fotoğrafı çekilebilir ya da ürünler elle eklenebilir.",
+      "nothing_title": "İncelenecek bir şey yok",
       "photo_group": "Fotoğraf",
       "quantity_unknown": "Sayılamadı",
       "read_failed": "Fotoğraf okunamadı.",
@@ -1022,10 +1027,12 @@
       "submitting": "Yazılıyor",
       "subtitle": ":regions · :ready ürün hazır",
       "subtitle_failed": "Okunamadı",
+      "subtitle_nothing": "Henüz fotoğraf yok",
       "subtitle_reading": "Fotoğraf okunuyor",
       "title": "Raf fotoğrafı",
       "unresolved_count": ":count bölge tanınamadı",
       "upload_failed": "Fotoğraf yüklenemedi.",
+      "upload_failed_title": "Fotoğraf yüklenemedi",
       "will_write": ":count ürün stoğa yazılacak",
       "will_write_partial": ":written, :unresolved",
       "written": ":count ürün stoğa yazıldı"
@@ -1194,7 +1201,7 @@
       "cleared": "Hedef kaldırıldı"
     },
     "shelf_candidate": {
-      "accept": "Say",
+      "accept": "Sayıya ekle",
       "name": "Ürün adı",
       "name_placeholder": "Örn: Pınar Süt Tam Yağlı 1 lt",
       "quantity": "Kaç tane",
