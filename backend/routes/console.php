@@ -40,3 +40,21 @@ Schedule::command('depools:check-consistency')
 Schedule::command('depools:prune-enrichment-uploads')
     ->dailyAt('03:41')
     ->withoutOverlapping();
+
+/*
+ * D94, which the schema anticipated and nothing implemented.
+ *
+ * `receipts.document_deleted_at` shipped fillable, cast, read by `Receipt::hasDocument()` and with a
+ * test covering the already-swept case, and no production code ever set it. So the decision that says
+ * in as many words that we are not the archive was true of the design and false of the running
+ * system, which is the worst of the three possible states.
+ *
+ * Two windows rather than one, because a confirmed document and an abandoned one are different
+ * objects: see [App\Services\DocumentRetention].
+ *
+ * 03:53, after the enrichment sweep above and away from the hour, so the three nightly commands do
+ * not contend for one minute on a single-worker box.
+ */
+Schedule::command('depools:prune-documents')
+    ->dailyAt('03:53')
+    ->withoutOverlapping();

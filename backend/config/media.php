@@ -140,6 +140,31 @@ return [
 
         'jpeg_quality' => 85,
 
+        // **How long a CONFIRMED document is kept, in days.** D94's "until the
+        // confirmation completes plus a buffer", and the buffer is what the
+        // decision says it is for: "a bug is fixed, a model improves, or a user
+        // disputes a line", and asking the user to send the paper again is a bad
+        // answer to all three.
+        //
+        // Thirty days, so a wrong line noticed on a monthly reconciliation can
+        // still be checked against the picture it came from. Longer would make us
+        // the archive D94 says we never agreed to be: the ledger and the extracted
+        // structure remain either way, so what expires here is only the evidence
+        // of a reading nobody has questioned.
+        'keep_after_confirmation_days' => (int) env('MEDIA_DOCUMENT_KEEP_CONFIRMED_DAYS', 30),
+
+        // **How long an UNCONFIRMED one is kept, counted from upload.** Longer than
+        // the window above, and the asymmetry is the whole point: once a receipt is
+        // confirmed the numbers are in the ledger and the photograph is a receipt
+        // for a receipt, while an unconfirmed one is the ONLY copy of information
+        // the user has not harvested yet. D94 says as much in the other direction:
+        // "an abandoned receipt is exactly the one a user comes back to".
+        //
+        // Ninety days, so "I will do the receipts later" survives a busy season, and
+        // it is still a ceiling rather than an archive. Zero on either key turns the
+        // sweep off for that half.
+        'keep_unconfirmed_days' => (int) env('MEDIA_DOCUMENT_KEEP_UNCONFIRMED_DAYS', 90),
+
     ],
 
     /*
