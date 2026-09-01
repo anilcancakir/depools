@@ -1,5 +1,5 @@
 <!-- Canonical agent instructions, shared by every tool. This file is hand-edited; CLAUDE.md symlinks
-     to it, and Copilot code review reads it directly, so there is no repo-wide copy under .github/
+     to it, and a GitHub-side agent reads it directly, so there is no repo-wide copy under .github/
      any more. What IS generated there is one mirror per .claude/rules/ file, by bin/sync-instructions.
      Run that script after editing a rule.
 
@@ -67,32 +67,41 @@ The branch is `master` and not `main`, deliberately, matching `magic` and `uptiz
   mkdir -p .dart_tool/hooks_runner/shared && cp -R "$M/.dart_tool/hooks_runner/shared/sqlite3" .dart_tool/hooks_runner/shared/
   ```
 - The nested layout works here because `pubspec_overrides.yaml` holds ABSOLUTE paths. A relative `../magic` resolves to nothing from `.claude/worktrees/<slug>`, and version solving then fails with an error that blames the wrong thing.
-- Land the work as a PR, and let CI be the evidence rather than a local run. Four checks have to pass before a merge, and a review thread has to be resolved: `Flutter (analyze + test)`, `Backend (pint + tests)`, `Design tokens`, `Instruction mirrors`.
+- Land the work as a PR, and let CI be the evidence rather than a local run. Four checks have to pass before a merge: `Flutter (analyze + test)`, `Backend (pint + tests)`, `Design tokens`, `Instruction mirrors`. An unresolved review THREAD also holds it, which now only happens when a person leaves an inline comment; see the review section below for why.
 - Also branch from `master` for the trivial case the worktree rule exempts, because a direct push is refused either way.
 
-**A green suite is not a finished PR. Wait for the review agent before merging.** Copilot code review reads `AGENTS.md`, the path-scoped instructions and `.github/skills/code-review/SKILL.md` from the HEAD branch, and on the first PR here that carried real code it found two defects worth fixing while every check was green. So the loop is: open the PR, wait for the review, verify each comment against the code, fix what is real and answer what is not, push, and re-request.
+**A green suite is not a finished PR when a reviewer is watching, and whether one is watching is something you read rather than assume.** Copilot code review is no longer in use. Kodizm replaced it, and it is installed per REPOSITORY, so the rule is conditional and the condition is a check name:
+
+```sh
+gh pr checks <n>                       # is `Kodizm review` among them?
+```
+
+- **It is there: wait for its comment before merging.** Open the PR, wait, verify each finding against the code, fix what is real and answer what is not, push, and let the push trigger the next round. **Three rounds is the cap**: by then the findings are ones you would decline anyway, and an unbounded loop chasing hints costs more than it returns.
+- **It is not there: the checks are the whole gate.** Nothing will arrive however long you wait. Measured by comparing check-run apps on a head commit: `fluttersdk/magic` reports `Kodizm review [kodizm]`, `anilcancakir/depools` reports only its four `github-actions` checks. When nothing reviews the work, your own verification IS the review, so it has to be real: drive the screen, mutate an assertion to prove it can fail, read the premise rather than the conclusion.
 
 Three mechanics that decide whether that loop actually runs:
 
-- **The review arrives on its own, on open and on every push.** The `master` ruleset carries `copilot_code_review` with `review_on_push: true`, which was measured rather than assumed: a push produced a fresh review with nothing requested. Requesting it explicitly is still the fallback when one does not show up, and it costs nothing when one is already on the way: `gh api repos/anilcancakir/depools/pulls/<n>/requested_reviewers --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'`.
-- **The automatic review runs at the LITE effort level**, which is the default of two. `Balanced` does deeper analysis of complex logic and cross-service changes, which is what most work here is, at the cost of more Actions minutes and AI credits. It is a repository setting under Copilot rather than an API field, so it is not set from here.
-- **Its verdict never blocks and never approves.** Copilot always leaves a Comment review, so the merge is held by the thread-resolution rule instead: an unresolved inline comment blocks, an addressed one does not. That is also why a comment you disagree with still needs an answer in the thread rather than silence.
+- **The finding arrives as an ISSUE COMMENT, not as a review.** `gh api .../pulls/<n>/reviews` stays at zero and `gh api .../pulls/<n>/comments` holds nothing, so an agent watching either waits forever while the answer sits in plain sight. Read it here:
+
+  ```sh
+  gh api repos/<owner>/<repo>/issues/<n>/comments \
+    --jq '[.[]|select(.user.login=="kodizm[bot]")] | .[-1].body'
+  ```
+
+- **The check settles `skipping`, whether or not it found anything.** So the check's own conclusion says nothing about the verdict; the comment is the verdict. Do not read a green `Kodizm review` row as "no findings".
+- **It runs its own checks and tells you which.** On the paginator PR it reported `dart analyze`, `dart format --set-exit-if-changed` and the full suite, and it grepped for other readers of the API being changed. Its second round read the code behind the new prose rather than taking the diff on trust. That is worth waiting for where it exists, and worth imitating where it does not.
+
+Whether Kodizm reads `AGENTS.md`, the path-scoped instructions or `.github/skills/code-review/SKILL.md` the way Copilot did is unverified. Those files stay as they are, because they are also what a human and a coding agent read.
 
 **Verify the PREMISE, not just the conclusion.** This is the one that actually cost something on the first real PR. A finding said a seeder needed a tenancy guard because unauthenticated rows would land invisible, the conclusion was right, and the reason was not: `team_id` is NOT NULL, so the insert fails with `SQLSTATE[23502]` instead. Accepting the conclusion put the wrong failure mode into a comment, and a later round found it there. Ask the database, or the framework source, before writing down a because.
 
 It applies to the ANSWER as much as to the finding, which is the easier half to miss. On #17 a reply said a bad plural was unreachable "since a commit writing nothing takes the other branch", and the branch is on `unfinished.isEmpty` rather than on the written count: zero changes is the NORMAL outcome there, because a count matching the ledger writes nothing (D59), and the code comment three lines above said so. The fix was right and the reason was invented. Read the branch you are about to describe, then write the reply.
 
-**Read the review body, not only the inline comments. Measured across every reviewed PR here, MORE findings arrive suppressed than inline: 28 against 23.** Copilot posts its lower-confidence findings as SUPPRESSED entries inside the review body, where no thread, no notification and no `pulls/<n>/comments` entry appears. `gh pr view --comments` does not show them either. The only way to read them is the body itself:
+**Every finding is in the comment body, and the low-confidence ones are the ones worth reading.** Kodizm groups them under its own headings (`### Minor`, `### Tests`, `### Checks I ran`), so nothing is hidden the way Copilot's suppressed entries were, but the habit that mattered under Copilot still holds: the small findings are where the real ones have been. On the paginator PR all three came in under `### Minor`, one of them a genuine behavioural window nothing else had noticed.
 
-```sh
-gh api "$P/$N/reviews" --jq '.[-1].body' | grep -B2 -A25 -i suppress
-```
+This section used to describe Copilot's suppressed set (28 findings against 23 inline, and an inline set that dried up after round one). That mechanic is gone with the tool. What survives it is the lesson: a reviewer's confidence ranking is not a priority ranking, and the cheap-looking notes get read.
 
-Two things that make skipping them expensive rather than untidy. The suppressed set is where the best findings have been: on the first PR with real code it held a seeder reachable through `db:seed --class=` that would have stamped a null `team_id` on every row, and on #17 it held a debounced search field that could clobber what the user was typing. And **the inline set dries up while the suppressed one does not**: #17 ran five rounds, all three of its inline comments landed in round one, and rounds two through five produced seven findings between them without a single inline. So an agent watching for inline comments reads round one and then, entirely correctly, sees nothing for the rest of the PR.
-
-Grepping the body for `generated no new comments` is not a check for this. That sentence is present in a round that carries suppressed findings; it counts only the inline ones.
-
-**Stop when a round produces nothing real, not when it produces nothing.** Each round tends to surface fewer and smaller findings, so fix what is real, re-request, and merge on the first round whose findings you would decline anyway. Rounds are cheap; an unbounded loop chasing hints is not.
+**Stop when a round produces nothing real, not when it produces nothing**, and never past three. Each round surfaces fewer and smaller findings, so fix what is real, push, and merge on the first round whose findings you would decline anyway.
 
 ### The whole loop, in commands that have been run here
 
@@ -132,16 +141,24 @@ gh pr checks "$N" --watch --fail-fast
 gh run view --log-failed --job <jobId> | tail -40
 gh run rerun <runId> --failed
 
-# 5. Then the review. Capture the count BEFORE requesting: on a re-review one already exists, so a
-#    wait for "any review" returns instantly and you read the previous one.
-had=$(gh api "$P/$N/reviews" --jq length)
-gh api "$P/$N/requested_reviewers" --method POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-until [ "$(gh api "$P/$N/reviews" --jq length)" -gt "$had" ]; do sleep 15; done
-gh api "$P/$N/reviews" --jq '.[-1].body'          # summary, plus SUPPRESSED comments worth reading
-gh api "$P/$N/comments" --jq '.[] | "\(.path):\(.line // .original_line)  \(.body)"'
+# 5. Then the review, but ONLY if this repo has one. No `Kodizm review` row means nothing is coming
+#    and waiting is an infinite loop; the checks above were the whole gate.
+gh pr checks "$N" | grep -q 'Kodizm review' || echo "no reviewer here: your own verification is it"
 
-# 6. Fix what is real, answer what is not, push, and run 4 and 5 again. Then resolve every thread:
-#    resolution is what the ruleset checks, and it exists only in GraphQL.
+#    Capture the count BEFORE the wait: on a later round one already exists, so a wait for "any
+#    comment" returns instantly and you read the previous one. It arrives on its own after a push;
+#    there is nothing to request.
+K="[.[]|select(.user.login==\"kodizm[bot]\")]|length"
+had=$(gh api "repos/anilcancakir/depools/issues/$N/comments" --jq "$K")
+until [ "$(gh api "repos/anilcancakir/depools/issues/$N/comments" --jq "$K")" -gt "$had" ]; do sleep 20; done
+gh api "repos/anilcancakir/depools/issues/$N/comments" \
+  --jq '[.[]|select(.user.login=="kodizm[bot]")] | .[-1].body'
+
+# 6. Fix what is real, answer what is not, push, and run 4 and 5 again. Three rounds at most.
+#
+#    The `master` ruleset still carries `required_review_thread_resolution: true`, and Kodizm opens
+#    no threads: its findings are one issue comment. So the rule holds the merge only when a PERSON
+#    has left an inline comment, and that is the case this is for. Resolution exists only in GraphQL.
 gh api graphql -f query='{repository(owner:"anilcancakir",name:"depools"){pullRequest(number:'"$N"'){
   mergeable reviewThreads(first:20){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}'
 gh api graphql -F id=<threadId> \
@@ -184,18 +201,18 @@ Running it: `flutter run -d chrome`, or `./bin/fsa start --cdp-port=<port>` for 
 
 | File | Role |
 |---|---|
-| `AGENTS.md` | canonical, hand-edited. Read natively by Codex, opencode, and by Copilot code review |
+| `AGENTS.md` | canonical, hand-edited. Read natively by Codex and opencode, and by whatever coding agent is pointed at the repo |
 | `CLAUDE.md` | symlink to this file, because Claude Code reads `CLAUDE.md` and not `AGENTS.md` |
 | `.claude/rules/*.md` | path-scoped, loaded when you touch a matching file: `flutter-app.md` and `design.md` over `lib/` and `test/`, `backend.md` over `backend/`, `ledger.md` over the stock write paths |
-| `.github/instructions/*.instructions.md` | generated from those rules, so Copilot's PR review applies the same rules. `applyTo` is required: Copilot ignores a file in that directory without it |
+| `.github/instructions/*.instructions.md` | generated from those rules, so an agent reading `.github/` applies the same ones. `applyTo` is required: a file in that directory without it is ignored. Written for Copilot's review, which is gone; whether Kodizm reads them is unverified, and they still serve the coding agent |
 | `.github/instructions/review.instructions.md` | the ONE hand-authored file there, passed through by `bin/sync-instructions` rather than generated. The always-on review floor: the four properties as checks, plus the settled decisions a reviewer should stop raising. `excludeAgent` keeps it away from the coding agent |
-| `.github/skills/code-review/SKILL.md` | the review depth, pulled in by Copilot code review when it judges it relevant: the review order, wrong-and-right pairs per layer, and what a finished vertical includes. The directory name is `code-review` because GitHub's guidance is that a review-focused name is what makes the skill reliably read |
+| `.github/skills/code-review/SKILL.md` | the review depth: the review order, wrong-and-right pairs per layer, and what a finished vertical includes. Written to be pulled in by Copilot's review, which is gone. It is now mostly a checklist for whoever is doing the reviewing by hand, which on this repo is you |
 | `.github/skills/{magic-framework,wind-ui}/SKILL.md` | COPIES of the sibling packages' own authoring skills, written by `bin/sync-skills`, so the reviewer knows the framework rather than only our summary of it. Copies and not symlinks because the review runs on GitHub with this checkout alone, and the sources are separate repositories. Two of the five: `artisan`, `dusk` and `telescope` describe tools that drive a running app, which a reviewer reading a diff cannot use |
 | `docs/verification-loop.md` | how a change is proven: static, visual, and dusk E2E |
 | `docs/depools-system/` | the specification: positioning, schema, AI design, monetization, legal, the iteration plan, one document per feature |
 | `docs/design-culture/` | external canon only (Apple HIG, Material 3, Refactoring UI, WCAG 2.2). Read it for why a rule exists; it deliberately names no token, component or breakpoint of this app |
 
-Skills under `.claude/skills/` and the `component-visual-reviewer` agent carry the design-first loop. Note that `.claude/skills/` is also one of the directories Copilot discovers skills in, so those three are visible to it as well as to Claude; they are authoring skills and a reviewer selecting one is noise rather than harm, and there is no documented way to hide a skill from one agent the way `excludeAgent` hides an instruction file.
+Skills under `.claude/skills/` and the `component-visual-reviewer` agent carry the design-first loop. `.claude/skills/` is also a directory GitHub's own agents discover skills in, so those three are visible beyond Claude; they are authoring skills and an agent selecting one is noise rather than harm, and there is no documented way to hide a skill from one agent the way `excludeAgent` hides an instruction file.
 
 After editing this file or any rule, run `bin/sync-instructions`; CI fails when the mirrors are stale.
 
