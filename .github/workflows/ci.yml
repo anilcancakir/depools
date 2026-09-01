@@ -117,8 +117,29 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+      # `PUPPETEER_SKIP_DOWNLOAD` matters: browsershot's bridge script needs the puppeteer
+      # PACKAGE to resolve, not its bundled Chromium, and D71 supplies the browser through
+      # CHROME_PATH instead. Downloading a second Chrome would add ~170 MB over a network
+      # this repo has already watched drop mid-build.
       - name: Build assets
         run: npm ci && npm run build
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: '1'
+      # The label renderer's guarantees are only real if a test renders and measures: exact
+      # millimetres need a browser, and the embedded-font check needs `pdftotext` plus
+      # `pdffonts` from poppler-utils. Without them those tests SKIP, and a skip is
+      # indistinguishable from a pass in a summary, so `LABEL_RENDER_REQUIRED` below turns
+      # the skip into a failure and this step is what stops that firing.
+      - name: Install the render toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium-browser || true)"
+          test -n "$chrome" || { echo "No Chrome on this runner."; exit 1; }
+          echo "CHROME_PATH=$chrome" >> .env
+          echo "LABEL_RENDER_REQUIRED=1" >> .env
+          "$chrome" --version
+          pdftotext -v
       - name: Pint
         run: vendor/bin/pint --test
       - name: Tests
