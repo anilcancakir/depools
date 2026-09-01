@@ -70,7 +70,20 @@ final class GatewayRunner
      * @param  string  $category  a key under `ai_gateways.categories`
      * @param  Closure(JsonSchema): array<string, mixed>  $schema
      * @param  Closure(array<string, mixed>): (T|null)  $validate  null rejects the answer and moves on
+     * @param  ImageInput|null  $image  sent with every attempt in the chain, unredacted; see below
+     * @param  Closure(GatewayAttempt): void|null  $onAttempt  told about each attempt as it lands
      * @return T|null
+     *
+     * ### Why an observer exists at all
+     *
+     * Everything this method learns per attempt (which provider answered, which model, what came
+     * back before validation, how long it took) it used to keep: `validate` sees only the structured
+     * answer and the caller only what survived. D95 needs it out here, because `receipt_extractions`
+     * is one row per attempt and that table IS O2's bake-off data, so "the first model failed schema
+     * validation and the second passed" has to be recordable by whoever asked for the action.
+     *
+     * It is a REPORT. Nothing here branches on it and it cannot change an outcome, so a gateway that
+     * passes none behaves exactly as before.
      */
     public function run(
         string $category,
@@ -79,6 +92,8 @@ final class GatewayRunner
         Closure $schema,
         Closure $validate,
         int $credits = 1,
+        ?ImageInput $image = null,
+        ?Closure $onAttempt = null,
     ): mixed {
         if (! config('ai_gateways.live', true)) {
             return null;
@@ -117,12 +132,21 @@ final class GatewayRunner
             // the most actionable usage fact there is, and it is invisible if a declined action
             // leaves no row at all.
             $this->usage->attempt($actionId, 1, $category, AiOutcome::NoCredit);
+            $this->report($onAttempt, new GatewayAttempt(1, AiOutcome::NoCredit));
 
             return null;
         }
 
         // **Before the loop, so no retry path can reach a provider with unmasked content.** Doing it
         // per attempt would be the same work three times and one `continue` away from being skipped.
+        //
+        // **The IMAGE is not redacted, and that is a stated position rather than an omission.**
+        // [Redactor] masks identifiers in TEXT; there is no equivalent for pixels, and the only
+        // honest alternatives would be refusing to send images at all or pretending a mask happened.
+        // What bounds the exposure instead is what an image path is allowed to be: the user's own
+        // document, photographed by them, sent to read what they are holding. `legal-and-privacy.md`
+        // covers it as processing rather than as redaction. Any future gateway that would send
+        // someone ELSE's image is a different decision and does not inherit this one.
         $redacted = (string) $this->redactor->text($input);
 
         $attempt = 0;
@@ -150,6 +174,7 @@ final class GatewayRunner
                     provider: $entry['provider'],
                     timeoutMs: (int) ($config['timeout_ms'] ?? 3000),
                     reasoning: $config['reasoning'] ?? false,
+                    image: $image,
                 );
             } catch (Throwable $e) {
                 // A timeout, a 5xx or a transport failure. Not logged as an error the user sees:
@@ -161,6 +186,13 @@ final class GatewayRunner
                     model: $entry['models'][0] ?? null,
                     durationMs: (int) (microtime(true) * 1000) - $startedAt,
                 );
+                $this->report($onAttempt, new GatewayAttempt(
+                    $attempt, AiOutcome::ProviderError,
+                    provider: $entry['provider'],
+                    model: $entry['models'][0] ?? null,
+                    durationMs: (int) (microtime(true) * 1000) - $startedAt,
+                    errorMessage: $e->getMessage(),
+                ));
 
                 $lastFailedSchema = false;
 
@@ -181,6 +213,11 @@ final class GatewayRunner
                     inputTokens: $answer->inputTokens, outputTokens: $answer->outputTokens,
                     costMicroUsd: $cost, durationMs: $durationMs,
                 );
+                $this->report($onAttempt, new GatewayAttempt(
+                    $attempt, AiOutcome::Refused,
+                    provider: $answer->provider, model: $answer->model,
+                    payload: $answer->structured, durationMs: $durationMs,
+                ));
 
                 $lastFailedSchema = false;
 
@@ -198,6 +235,11 @@ final class GatewayRunner
                     inputTokens: $answer->inputTokens, outputTokens: $answer->outputTokens,
                     costMicroUsd: $cost, durationMs: $durationMs,
                 );
+                $this->report($onAttempt, new GatewayAttempt(
+                    $attempt, AiOutcome::SchemaInvalid,
+                    provider: $answer->provider, model: $answer->model,
+                    payload: $answer->structured, durationMs: $durationMs,
+                ));
 
                 $lastFailedSchema = true;
 
@@ -210,6 +252,11 @@ final class GatewayRunner
                 inputTokens: $answer->inputTokens, outputTokens: $answer->outputTokens,
                 costMicroUsd: $cost, durationMs: $durationMs,
             );
+            $this->report($onAttempt, new GatewayAttempt(
+                $attempt, AiOutcome::Succeeded,
+                provider: $answer->provider, model: $answer->model,
+                payload: $answer->structured, durationMs: $durationMs,
+            ));
 
             // Only now. A failed action spends no credit, which `ai-enrichment.md` promises and puts
             // on screen, so charging up front and refunding would be visible and wrong.
@@ -219,6 +266,21 @@ final class GatewayRunner
         }
 
         return null;
+    }
+
+    /**
+     * Hands one attempt to the observer, when there is one.
+     *
+     * **Deliberately not guarded with a try.** An observer that throws is the CALLER's bug, and
+     * swallowing it here would turn it into a silent `provider_error` blaming a model that answered
+     * correctly, which is the exact shape of failure this class documents elsewhere and exists to
+     * avoid. It propagates, and the gateway that installed the observer sees its own stack.
+     */
+    private function report(?Closure $onAttempt, GatewayAttempt $attempt): void
+    {
+        if ($onAttempt !== null) {
+            $onAttempt($attempt);
+        }
     }
 
     /**

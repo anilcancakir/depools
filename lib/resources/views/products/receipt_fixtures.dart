@@ -36,6 +36,7 @@ import '../../../ui/components/receipt_line_row/receipt_line_row.dart';
 const List<ReceiptLine> receiptLines = <ReceiptLine>[
   // Unresolved: abbreviations that need the user.
   ReceiptLine(
+    id: 'fixture-line-1',
     lineNumber: 1,
     rawName: 'ORG KEM TAV',
     resolution: LineResolution.unresolved,
@@ -44,6 +45,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 184.00,
   ),
   ReceiptLine(
+    id: 'fixture-line-2',
     lineNumber: 2,
     rawName: 'KSR TAM YAG 400',
     resolution: LineResolution.unresolved,
@@ -52,6 +54,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 128.50,
   ),
   ReceiptLine(
+    id: 'fixture-line-3',
     lineNumber: 3,
     rawName: 'MEY SUY VSN 1L',
     resolution: LineResolution.unresolved,
@@ -62,6 +65,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
   // A discount line, which is why one total here is negative: `moneyLabel` renders the sign and the
   // review screen has to show it rather than treat the line as unreadable.
   ReceiptLine(
+    id: 'fixture-line-4',
     lineNumber: 4,
     rawName: 'IND 1234',
     resolution: LineResolution.unresolved,
@@ -72,6 +76,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
   // Settled: matched against the tenant's own products. `productName` is what the row draws beside
   // the printed string, so a settled line without one is a blank where the whole comparison should be.
   ReceiptLine(
+    id: 'fixture-line-5',
     lineNumber: 5,
     rawName: 'PNR SUT 1LT',
     resolution: LineResolution.matched,
@@ -82,6 +87,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 69.80,
   ),
   ReceiptLine(
+    id: 'fixture-line-6',
     lineNumber: 6,
     rawName: 'DURU BULGUR 1K',
     resolution: LineResolution.matched,
@@ -92,6 +98,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 42.50,
   ),
   ReceiptLine(
+    id: 'fixture-line-7',
     lineNumber: 7,
     rawName: 'SOKE UN 2KG',
     resolution: LineResolution.matched,
@@ -102,6 +109,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 58.00,
   ),
   ReceiptLine(
+    id: 'fixture-line-8',
     lineNumber: 8,
     rawName: 'SUTAS YOG 2KG',
     resolution: LineResolution.matched,
@@ -112,6 +120,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 94.90,
   ),
   ReceiptLine(
+    id: 'fixture-line-9',
     lineNumber: 9,
     rawName: 'YUDUM AYC 5LT',
     resolution: LineResolution.matched,
@@ -122,6 +131,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 389.00,
   ),
   ReceiptLine(
+    id: 'fixture-line-10',
     lineNumber: 10,
     rawName: 'DANA KIYMA',
     resolution: LineResolution.matched,
@@ -133,6 +143,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
   ),
   // Created: a product the tenant did not have yet.
   ReceiptLine(
+    id: 'fixture-line-11',
     lineNumber: 11,
     rawName: 'ZYT YAG 5LT TARIS',
     resolution: LineResolution.created,
@@ -143,6 +154,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 1240.00,
   ),
   ReceiptLine(
+    id: 'fixture-line-12',
     lineNumber: 12,
     rawName: 'CAY DEMLIK 1KG',
     resolution: LineResolution.created,
@@ -154,6 +166,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
   ),
   // Rejected: on the receipt, not stock.
   ReceiptLine(
+    id: 'fixture-line-13',
     lineNumber: 13,
     rawName: 'POSET',
     resolution: LineResolution.rejected,

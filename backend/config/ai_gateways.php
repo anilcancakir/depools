@@ -107,6 +107,47 @@ return [
                 ]],
             ],
         ],
+
+        /**
+         * Reading a photographed receipt into line items.
+         *
+         * **Its own category rather than a second caller on `enrichment_vision`**, because
+         * `ai-design.md` splits the two vision paths on what a wrong answer costs. A wrong product
+         * card is visible immediately, with the user already looking at it. A wrong receipt line
+         * becomes wrong stock nobody notices for weeks, so this one is allowed to be slower and
+         * dearer and its chain is ordered on accuracy rather than on price.
+         *
+         * **The models here are provisional and O2 is what settles them.** `open-decisions.md`
+         * leaves the vision model open pending a bake-off on 100 real Turkish receipts, and nobody
+         * publishes Turkish receipt line-item accuracy, so there is nothing to defer to. What is
+         * NOT a guess is the direction: `enrichment_vision`'s own measurement found the cheap tier
+         * reads Turkish brand names wrong (`Beypazarı` as "Beypazara", `Ülker` as "İlker"), which
+         * on a receipt is the failure this path exists to avoid. So it starts on the better reader
+         * of the two already measured and falls back to the cheaper one, and the bake-off replaces
+         * both without touching a caller: `ai-design.md` requires the model to be configuration.
+         *
+         * Reasoning is on at low effort rather than off: a receipt is a layout problem (which
+         * columns are quantity and price, which rows are furniture) and that is where a little
+         * deliberation pays, unlike the single-fact reads the text category makes. Off is what the
+         * bake-off should challenge first.
+         */
+        'receipt_extraction' => [
+            // **Far above the vision default, and it buys the acceptance criterion rather than
+            // patience.** `receipt-ingestion.md` allows 15 seconds from shutter to a confirmable
+            // list, and that budget covers the upload, the downscale, this call and the resolution
+            // pass. A 25-line receipt is a much longer answer than a product card, so the timeout
+            // that fits one does not fit the other.
+            'timeout_ms' => (int) env('AI_RECEIPT_EXTRACTION_TIMEOUT_MS', 20000),
+            'reasoning' => 'low',
+            'chain' => [
+                ['provider' => 'openrouter', 'models' => [
+                    'google/gemini-3.5-flash-lite',
+                ]],
+                ['provider' => 'openrouter', 'models' => [
+                    'google/gemini-2.5-flash-lite',
+                ]],
+            ],
+        ],
     ],
 
     /**

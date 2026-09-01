@@ -38,6 +38,19 @@ final class ReceiptResource extends JsonResource
             // How many lines, for the list row that cannot draw them. Counted rather than derived
             // from the array below, because the array is exactly what the list does not fetch.
             'lines_count' => $this->whenCounted('lines'),
+            // **Why the last read produced what it produced.** A receipt with no lines is three
+            // different situations wearing one shape: nobody has read it yet, the tenant is out of
+            // AI credits, or a model looked and could not use what it saw. Without this the client
+            // can only redraw the same "not read yet" card after a successful request, which is a
+            // tap that visibly does nothing. Measured in a browser, and it is exactly what happened.
+            //
+            // Null covers both "never attempted" and "attempted with the kill switch on", which
+            // writes no row: the screen says the same thing for both, since neither is something the
+            // user did or can fix from here.
+            'last_extraction_outcome' => $this->whenLoaded(
+                'extractions',
+                fn (): ?string => $this->extractions->last()?->outcome,
+            ),
             // Gated for the reason `ProductResource` gates its gallery: a list draws a label and a
             // state, and the lines of fifty receipts would be most of a table on the wire for a
             // screen that cannot show one of them.

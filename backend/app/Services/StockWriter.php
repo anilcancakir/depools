@@ -8,6 +8,7 @@ use App\Enums\MovementReason;
 use App\Enums\MovementSource;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\ReceiptLine;
 use App\Models\StockLot;
 use App\Models\StockMovement;
 use Illuminate\Support\Collection;
@@ -71,6 +72,11 @@ final class StockWriter
      * A lot is created for EVERY inbound movement, dated or not, because the lot is the unit
      * expiry attaches to and a non-perishable simply has a null date. Making the lot conditional
      * would mean two shapes of inbound stock and a branch at every consumer of it.
+     *
+     * **`$reference` points at the receipt LINE, not the receipt** (D96). A user who spots one wrong
+     * line on a 22-line shop wants that line undone, and an undo is a compensating movement, so at
+     * document granularity they would have to find their movement among twenty-two by hand. The
+     * document-level question is still one join through `receipt_lines.receipt_id`.
      */
     public function receive(
         Product $product,
@@ -82,6 +88,7 @@ final class StockWriter
         ?string $actorId = null,
         ?string $idempotencyKey = null,
         ?MovementContext $context = null,
+        StockLot|ReceiptLine|null $reference = null,
     ): StockMovement {
         if ($quantity <= 0) {
             throw new RuntimeException('An inbound movement must bring in a positive quantity.');
@@ -101,7 +108,7 @@ final class StockWriter
 
         return DB::transaction(function () use (
             $product, $location, $quantity, $source, $expiresAt, $lotCode, $actorId, $idempotencyKey,
-            $context
+            $context, $reference
         ): StockMovement {
             $lot = $this->newLot($product, [
                 'location_id' => $location->getKey(),
@@ -126,7 +133,7 @@ final class StockWriter
                 $source,
                 $actorId,
                 $idempotencyKey,
-                null,
+                $reference,
                 $context,
             );
 
@@ -551,7 +558,7 @@ final class StockWriter
         MovementSource $source,
         ?string $actorId,
         ?string $idempotencyKey = null,
-        ?StockLot $reference = null,
+        StockLot|ReceiptLine|null $reference = null,
         ?MovementContext $context = null,
     ): StockMovement {
         $movement = new StockMovement([

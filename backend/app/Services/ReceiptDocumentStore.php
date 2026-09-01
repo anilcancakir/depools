@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Ai\ImageInput;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -177,6 +178,36 @@ final class ReceiptDocumentStore
         // No `imagedestroy()` on either handle: a `GdImage` has been an object freed by refcount
         // since PHP 8.0, so the call has done nothing for five versions and 8.5 deprecates it.
         return $path;
+    }
+
+    /**
+     * The stored document as something a model can be handed, or null when it is not there.
+     *
+     * **No second downscale, and that is the point of `stored_edge`.** `ai-design.md` requires the
+     * image to be resized before it is sent with the target resolution as configuration, and that
+     * already happened on the way in: [reencode] bounds the long edge at `media.documents.stored_edge`
+     * for exactly this call, which is what the config comment beside that key says. Resizing again
+     * here would either be a no-op or would quietly hand the model a worse picture than the one on
+     * disk, and a receipt's line items are small print.
+     *
+     * Null rather than a throw for a missing file: the document may have been swept by the retention
+     * window (D94), which is an ordinary state the caller answers rather than an exception.
+     */
+    public function readForModel(string $path): ?ImageInput
+    {
+        if (! Storage::disk($this->disk())->exists($path)) {
+            return null;
+        }
+
+        $bytes = Storage::disk($this->disk())->get($path);
+
+        if ($bytes === null || $bytes === '') {
+            return null;
+        }
+
+        // Always a JPEG, because [reencode] made it one whatever arrived. Reading the mime off the
+        // disk would be asking a question this class already answered.
+        return new ImageInput(base64: base64_encode($bytes), mimeType: 'image/jpeg');
     }
 
     private function disk(): string

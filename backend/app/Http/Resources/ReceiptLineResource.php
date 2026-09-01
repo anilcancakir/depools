@@ -25,6 +25,11 @@ final class ReceiptLineResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            // **The commit addresses lines by id**, so without this the client can describe which
+            // line it means only by position, and a position is exactly what a re-extraction or a
+            // reorder invalidates. It also keys the idempotency key per line, which is what makes a
+            // retry after a dropped connection write each line once.
+            'id' => $this->id,
             'line_number' => $this->line_number,
             'raw_name' => $this->raw_name,
             'quantity' => $this->quantity,

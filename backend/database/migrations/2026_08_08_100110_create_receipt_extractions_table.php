@@ -47,9 +47,17 @@ return new class extends Migration
             // find, did it return the field at all) and `jsonb` is the one that can be indexed.
             $table->jsonb('raw_payload')->nullable();
 
-            // `succeeded`, `schema_invalid`, `provider_error`, `unreadable`. The distinction that
-            // matters for the bake-off is between a model that answered wrongly and a model that could
-            // not be reached, and folding them into a boolean loses exactly that.
+            // The distinction that matters for the bake-off is between a model that answered wrongly
+            // and a model that could not be reached, and folding them into a boolean loses exactly
+            // that.
+            //
+            // **The vocabulary is `ai_usage_events`'s, plus one.** Both tables describe the same
+            // attempt from two angles, so a value one can record and the other cannot is a gap
+            // rather than a distinction: this list was missing `refused` and `no_credit`, which the
+            // runner produces and would have refused at the CHECK the first time a moderation
+            // filter or an empty balance was hit. `unreadable` is the extra, and it is for the path
+            // with no model in it at all: a deterministic XML parse that met a document it could
+            // not read.
             $table->string('outcome', 24);
             $table->text('error_message')->nullable();
 
@@ -66,7 +74,7 @@ return new class extends Migration
         DB::statement("
             ALTER TABLE receipt_extractions
             ADD CONSTRAINT receipt_extractions_outcome_is_known
-            CHECK (outcome IN ('succeeded', 'schema_invalid', 'provider_error', 'unreadable'))
+            CHECK (outcome IN ('succeeded', 'schema_invalid', 'provider_error', 'refused', 'no_credit', 'unreadable'))
         ");
     }
 

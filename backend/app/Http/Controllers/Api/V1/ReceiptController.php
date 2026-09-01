@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReceiptResource;
+use App\Models\Location;
 use App\Models\Receipt;
+use App\Models\ReceiptLine;
+use App\Services\ReceiptCommitter;
 use App\Services\ReceiptDocumentStore;
+use App\Services\ReceiptExtractor;
 use Closure;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -52,7 +57,143 @@ use Throwable;
  */
 final class ReceiptController extends Controller
 {
-    public function __construct(private readonly ReceiptDocumentStore $documents) {}
+    public function __construct(
+        private readonly ReceiptDocumentStore $documents,
+        private readonly ReceiptExtractor $extractor,
+        private readonly ReceiptCommitter $committer,
+    ) {}
+
+    /**
+     * Read a stored photograph into lines.
+     *
+     * **A POST that mostly reads, because it spends a credit and writes rows.** Same argument as
+     * `icons/suggest`: the answer is derived rather than stored by the caller, but the call is not
+     * safe to repeat and not safe to cache, so it is not a GET.
+     *
+     * Three refusals before a model is reached, and each is a state the review screen can render:
+     *
+     * - No document. The retention sweep (D94) clears the file once its window closes, and an
+     *   extraction over a receipt whose picture is gone has nothing to read. 422, no credit spent.
+     * - Lines already. Per-line state is what makes an interrupted confirmation resumable, so a
+     *   second read would delete work the user has been doing. 409 carrying the receipt as it
+     *   stands, the same shape `store` answers a duplicate upload with.
+     * - No credits. That one is NOT a refusal: `receipt-ingestion.md` requires the manual path to
+     *   stay open, so it answers 200 with no lines and the declined attempt is still recorded.
+     */
+    public function extract(string $receipt): JsonResponse
+    {
+        // Through `TeamScope`, so another tenant's receipt is a 404 before anything else is decided.
+        $model = Receipt::query()->with('lines')->findOrFail($receipt);
+
+        if ($model->lines->isNotEmpty()) {
+            return response()->json(['data' => new ReceiptResource($model)], 409);
+        }
+
+        if (! $model->hasDocument()) {
+            abort(422, __('This receipt no longer has a document to read.'));
+        }
+
+        $image = $this->documents->readForModel((string) $model->document_path);
+
+        // The row says the document is there and the disk disagrees. Rare, and the honest answer is
+        // the same as the one above rather than a 500: there is nothing to read.
+        if ($image === null) {
+            abort(422, __('This receipt no longer has a document to read.'));
+        }
+
+        $read = $this->extractor->extract($model, $image);
+
+        // `extractions` as well as `lines`, so a receipt that came back with nothing can say WHY.
+        // Without it the client redraws the same card after a successful request, which is a tap
+        // that visibly does nothing.
+        return response()->json([
+            'data' => new ReceiptResource($read->load('extractions')),
+        ]);
+    }
+
+    /**
+     * Write the confirmed lines into stock.
+     *
+     * **The only path from a receipt to the ledger**, and it goes through `StockWriter` like every
+     * other write. Per-line confirmation is mandatory (`receipt-ingestion.md`), so the client sends
+     * what the user agreed to: `lines` are the accepted ones, each carrying the product and quantity
+     * as the user left them, and `rejections` are the ones they threw away.
+     *
+     * Partial is normal. A 22-line shop is worked through and the user may leave halfway, so
+     * anything absent from both lists stays `unresolved` and the receipt is marked confirmed only
+     * once nothing is still waiting.
+     */
+    public function commit(Request $request, string $receipt): JsonResponse
+    {
+        $data = $request->validate([
+            // `uuid` on every id for the reason `StockController` records: without it a malformed
+            // one reaches PostgreSQL as `22P02`, an unhandled query exception rather than a refusal
+            // the client can read. A well-formed id belonging to another tenant still 404s.
+            'location_id' => ['required', 'uuid'],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
+            'lines' => ['nullable', 'array', 'list'],
+            'lines.*.id' => ['required', 'uuid'],
+            'lines.*.product_id' => ['required', 'uuid'],
+            'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'rejections' => ['nullable', 'array', 'list'],
+            'rejections.*' => ['required', 'uuid'],
+        ]);
+
+        $model = Receipt::query()->with('lines')->findOrFail($receipt);
+        $location = Location::query()->findOrFail($data['location_id']);
+
+        $accepted = collect($data['lines'] ?? [])->keyBy('id');
+        $rejected = collect($data['rejections'] ?? []);
+
+        // **Every id has to belong to THIS receipt.** Tenancy is already covered, since the lines
+        // were loaded through the receipt that resolved under `TeamScope`, but a line id from
+        // another receipt of the same tenant would otherwise be committed against this one's
+        // location and dated with this one's date.
+        $known = $model->lines->keyBy(static fn (ReceiptLine $line): string => (string) $line->getKey());
+        $unknown = $accepted->keys()->merge($rejected)->reject(static fn (string $id): bool => $known->has($id));
+
+        if ($unknown->isNotEmpty()) {
+            abort(422, __('Some of those lines do not belong to this receipt.'));
+        }
+
+        $this->rejectLines($known, $rejected);
+
+        $this->committer->commit(
+            receipt: $model,
+            location: $location,
+            lines: $model->lines,
+            decisions: $accepted->map(static fn (array $line): array => [
+                'quantity' => (float) $line['quantity'],
+                'product_id' => (string) $line['product_id'],
+            ])->all(),
+            batchKey: $data['idempotency_key'] ?? null,
+            actorId: $request->user()?->getKey(),
+        );
+
+        return response()->json(['data' => new ReceiptResource($model->load('lines'))]);
+    }
+
+    /**
+     * Marks the lines the user threw away.
+     *
+     * A rejected line keeps its text and points at nothing: the CHECK behind `resolution` refuses a
+     * `rejected` row carrying a product, because a user's decision being quietly ignored is exactly
+     * what that constraint exists to stop.
+     *
+     * @param  Collection<string, ReceiptLine>  $known
+     * @param  Collection<int, string>  $rejected
+     */
+    private function rejectLines(Collection $known, Collection $rejected): void
+    {
+        foreach ($rejected as $id) {
+            $known->get($id)?->fill([
+                'resolution' => 'rejected',
+                'product_id' => null,
+                'resolved_by' => 'manual',
+                'confirmed_at' => now(),
+            ])->save();
+        }
+    }
 
     /**
      * The tenant's receipts, newest first, without their lines.

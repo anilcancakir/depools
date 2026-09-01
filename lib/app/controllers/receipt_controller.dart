@@ -45,6 +45,26 @@ class ReceiptUploadOutcome {
   bool get isDuplicate => duplicate != null;
 }
 
+/// What the user decided about one line they are keeping.
+///
+/// **The product and the quantity travel together because both are editable.** The cascade proposes
+/// a product and the paper proposes a quantity, and per-line confirmation means the user can change
+/// either before anything reaches the ledger. A commit that sent only the ids would silently discard
+/// a correction the user had just made.
+///
+/// Lives beside [ReceiptUploadOutcome] rather than in `models/receipt.dart` for the same reason that
+/// one does: it describes a REQUEST this controller makes, not a row the server sent back.
+@immutable
+class ReceiptLineDecision {
+  /// The product this line is being counted as.
+  final String productId;
+
+  /// How many, in the product's own unit, as the user left it.
+  final num quantity;
+
+  const ReceiptLineDecision({required this.productId, required this.quantity});
+}
+
 /// Captured purchase documents, from `api/v1/receipts`.
 ///
 /// ### This slice stores a photograph and lists it, and reads nothing off it
@@ -52,9 +72,11 @@ class ReceiptUploadOutcome {
 /// Every receipt this controller holds has zero lines, because there is no AI extraction wired up
 /// yet. That is the normal, correct state: the same list and detail state this holds is what slice 2
 /// starts filling, so the shape is built once rather than reworked when extraction lands.
-class ReceiptController extends MagicController with MagicStateMixin<List<Receipt>> {
+class ReceiptController extends MagicController
+    with MagicStateMixin<List<Receipt>> {
   /// The shared instance, keyed by type.
-  static ReceiptController get instance => Magic.findOrPut(ReceiptController.new);
+  static ReceiptController get instance =>
+      Magic.findOrPut(ReceiptController.new);
 
   Receipt? _detail;
 
@@ -63,6 +85,8 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
   String? _detailId;
 
   bool _detailLoading = false;
+
+  bool _extracting = false;
 
   String? _detailError;
 
@@ -74,6 +98,13 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
 
   /// Whether a detail fetch is in flight.
   bool get detailLoading => _detailLoading;
+
+  /// Whether a model is reading a photograph right now.
+  ///
+  /// Separate from [detailLoading] because they mean different things to the screen: one is a fetch
+  /// that replaces what is shown, the other spends a credit and takes seconds, so it earns a label
+  /// rather than a spinner over the whole card.
+  bool get extracting => _extracting;
 
   /// The server's sentence for the last failed detail fetch, or null.
   String? get detailError => _detailError;
@@ -96,30 +127,27 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
       return;
     }
 
-    final List<Receipt>? receipts = mappedOrNull<List<Receipt>?>(
-      () {
-        final Object? data = response['data'];
+    final List<Receipt>? receipts = mappedOrNull<List<Receipt>?>(() {
+      final Object? data = response['data'];
 
-        if (data is! List) return null;
+      if (data is! List) return null;
 
-        final List<Receipt> found = <Receipt>[];
+      final List<Receipt> found = <Receipt>[];
 
-        for (final Object? row in data) {
-          // **`Map<dynamic, dynamic>` and then convert**, which is what every other reader in this
-          // app does. The narrower `Map<String, dynamic>` test happens to match what this HTTP layer
-          // decodes today, and `product_detail_controller.dart:312-321` carries the scar: the day it
-          // decodes one level less precisely, the narrow test rejects every row. Failing loudly
-          // rather than skipping the row, because a list quietly one receipt short is worse than an
-          // error on a screen whose whole job is to be complete.
-          if (row is! Map<dynamic, dynamic>) return null;
+      for (final Object? row in data) {
+        // **`Map<dynamic, dynamic>` and then convert**, which is what every other reader in this
+        // app does. The narrower `Map<String, dynamic>` test happens to match what this HTTP layer
+        // decodes today, and `product_detail_controller.dart:312-321` carries the scar: the day it
+        // decodes one level less precisely, the narrow test rejects every row. Failing loudly
+        // rather than skipping the row, because a list quietly one receipt short is worse than an
+        // error on a screen whose whole job is to be complete.
+        if (row is! Map<dynamic, dynamic>) return null;
 
-          found.add(Receipt.fromApi(Map<String, dynamic>.from(row)));
-        }
+        found.add(Receipt.fromApi(Map<String, dynamic>.from(row)));
+      }
 
-        return found;
-      },
-      describing: 'the receipt list',
-    );
+      return found;
+    }, describing: 'the receipt list');
 
     if (receipts == null) {
       setError(Lang.get('errors.unexpected'));
@@ -142,7 +170,9 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
     _detailError = null;
     refreshUI();
 
-    final dynamic response = await Http.get('/receipts/${Uri.encodeComponent(id)}');
+    final dynamic response = await Http.get(
+      '/receipts/${Uri.encodeComponent(id)}',
+    );
 
     // The latest request wins. A slower response for an id the user has since navigated away from
     // must not clobber the receipt actually on screen.
@@ -174,6 +204,151 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
     }
 
     refreshUI();
+  }
+
+  /// Reads a stored photograph into lines, and holds the result in [detail].
+  ///
+  /// Returns null on success, or the sentence to show. The server answers 200 with no lines when the
+  /// tenant is out of AI credits, which is deliberate on both sides: `receipt-ingestion.md` requires
+  /// the manual path to stay open, so extraction stopping is not the feature failing. That case
+  /// reaches the screen as a receipt with nothing on it rather than as an error, and the screen says
+  /// so with its own empty state.
+  ///
+  /// A 409 means somebody already read this receipt, which is a stale screen rather than a failure:
+  /// the fresh copy is in the body, so it is taken and shown.
+  Future<String?> extract(String id) async {
+    _extracting = true;
+    refreshUI();
+
+    final dynamic response = await Http.post(
+      '/receipts/${Uri.encodeComponent(id)}/extract',
+    );
+
+    _extracting = false;
+
+    // 409 carries the receipt as it already stands, so the screen catches up instead of arguing.
+    if (!response.successful && response.statusCode != 409) {
+      refreshUI();
+
+      final dynamic message = response['message'];
+
+      return message is String && message.isNotEmpty
+          ? message
+          : Lang.get('screens.receipt.extract_failed');
+    }
+
+    final Receipt? receipt = _readReceipt(
+      response,
+      'an extracted receipt payload',
+    );
+
+    if (receipt == null) {
+      refreshUI();
+
+      return Lang.get('errors.unexpected');
+    }
+
+    _detail = receipt;
+    _detailId = receipt.id;
+    refreshUI();
+
+    // The list row carries a line COUNT, so a receipt that just gained lines is stale in the list
+    // until this lands. Not awaited by the caller's error path: the read succeeded either way.
+    await load();
+
+    // **A successful read that produced nothing still has to say so.** Measured in a browser: the
+    // request returned 200, the screen redrew the same "not read yet" card, and the tap visibly did
+    // nothing. The request succeeding is not the same as the user getting an answer, and this is the
+    // one path where those two come apart.
+    //
+    // Which sentence depends on `last_extraction_outcome`: running out of credits is something the
+    // user can act on (buy more, or key the lines in), and a model that could not read the
+    // photograph is something they can retry or work around. Null covers both "never attempted" and
+    // "the kill switch is on", and the second is not something they can see or fix, so it reads as
+    // the unreadable case.
+    if (receipt.lines.isEmpty) {
+      return Lang.get(
+        receipt.lastExtractionOutcome == 'no_credit'
+            ? 'screens.receipt.read_no_credit'
+            : 'screens.receipt.read_unreadable',
+      );
+    }
+
+    return null;
+  }
+
+  /// Writes the confirmed lines into stock.
+  ///
+  /// [accepted] is keyed by line id and carries the product and quantity as the user left them;
+  /// [rejected] are the lines they threw away. Anything in neither stays untouched and unresolved,
+  /// which is what makes a half-worked receipt resumable rather than a restart.
+  ///
+  /// [batchKey] is the idempotency key. The server splits it per line, so a retry after a dropped
+  /// connection writes each line once rather than twice.
+  Future<String?> commit(
+    String id, {
+    required String locationId,
+    required Map<String, ReceiptLineDecision> accepted,
+    List<String> rejected = const <String>[],
+    String? batchKey,
+  }) async {
+    final dynamic response = await Http.post(
+      '/receipts/${Uri.encodeComponent(id)}/commit',
+      data: <String, dynamic>{
+        'location_id': locationId,
+        'idempotency_key': ?batchKey,
+        'lines': <Map<String, dynamic>>[
+          for (final MapEntry<String, ReceiptLineDecision> entry
+              in accepted.entries)
+            <String, dynamic>{
+              'id': entry.key,
+              'product_id': entry.value.productId,
+              'quantity': entry.value.quantity,
+            },
+        ],
+        if (rejected.isNotEmpty) 'rejections': rejected,
+      },
+    );
+
+    if (!response.successful) {
+      final dynamic message = response['message'];
+
+      return message is String && message.isNotEmpty
+          ? message
+          : Lang.get('screens.receipt.commit_failed');
+    }
+
+    final Receipt? receipt = _readReceipt(
+      response,
+      'a committed receipt payload',
+    );
+
+    if (receipt != null) {
+      _detail = receipt;
+      _detailId = receipt.id;
+    }
+
+    refreshUI();
+
+    await load();
+
+    return null;
+  }
+
+  /// The receipt in a `{'data': ...}` body, or null when it cannot be read.
+  ///
+  /// Shared by the two writes above and shaped like [open]'s reader for the reason that one gives:
+  /// `Map<dynamic, dynamic>` and then convert, because the narrower test happens to match what this
+  /// HTTP layer decodes today and breaks the day it decodes one level less precisely.
+  Receipt? _readReceipt(dynamic response, String describing) {
+    final Object? data = response['data'];
+
+    return data is Map<dynamic, dynamic>
+        ? mappedOrNull(
+            () => Receipt.fromApi(Map<String, dynamic>.from(data)),
+            describing: describing,
+          )
+        : null;
   }
 
   /// Photographs a receipt, then reloads the list on success.
@@ -217,7 +392,9 @@ class ReceiptController extends MagicController with MagicStateMixin<List<Receip
       final dynamic message = response['message'];
 
       return ReceiptUploadOutcome.failed(
-        message is String && message.isNotEmpty ? message : Lang.get('screens.receipt.upload_failed'),
+        message is String && message.isNotEmpty
+            ? message
+            : Lang.get('screens.receipt.upload_failed'),
       );
     }
 

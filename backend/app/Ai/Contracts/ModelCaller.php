@@ -2,6 +2,7 @@
 
 namespace App\Ai\Contracts;
 
+use App\Ai\ImageInput;
 use App\Ai\ModelAnswer;
 use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -31,6 +32,7 @@ interface ModelCaller
      * @param  list<string>  $models  ordered; the first is asked, the rest are the provider's own fallbacks
      * @param  Closure(JsonSchema): array<string, mixed>  $schema
      * @param  bool|string  $reasoning  false disables it; a string is an effort level
+     * @param  ImageInput|null  $image  travels beside the text as an attachment, never inside it
      *
      * @throws \Throwable
      */
@@ -42,5 +44,6 @@ interface ModelCaller
         string $provider,
         int $timeoutMs,
         bool|string $reasoning,
+        ?ImageInput $image = null,
     ): ModelAnswer;
 }

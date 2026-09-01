@@ -123,6 +123,17 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // There is deliberately no route serving the document. It sits on the private disk, and a
     // streaming action is an authorization surface (tenancy, `document_deleted_at`, `nosniff`) that
     // nothing in this slice would call, so it lands in slice 2 with the tests it needs.
+    // **The read, as a POST.** It spends a credit and writes rows, so it is neither safe nor
+    // cacheable; `icons/suggest` carries the same argument. Declared before the `{receipt}` routes
+    // out of habit rather than necessity: `extract` is a second segment and cannot collide with
+    // them.
+    Route::post('receipts/{receipt}/extract', [ReceiptController::class, 'extract']);
+
+    // **The one path from a receipt to the ledger.** Per-line confirmation is mandatory, so the
+    // body carries what the user agreed to rather than a "commit everything" flag, and a partial
+    // pass is the normal case: a 22-line shop is worked through and can be left halfway.
+    Route::post('receipts/{receipt}/commit', [ReceiptController::class, 'commit']);
+
     Route::get('receipts', [ReceiptController::class, 'index']);
     Route::post('receipts', [ReceiptController::class, 'store']);
     Route::get('receipts/{receipt}', [ReceiptController::class, 'show']);

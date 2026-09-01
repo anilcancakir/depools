@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show ButtonIntent, MSButton, MSEmptyState, MSPageScaffold;
+    show ButtonIntent, MSBottomSheet, MSButton, MSEmptyState, MSPageScaffold;
 
 import '../../../app/controllers/receipt_controller.dart';
 import '../../../app/models/receipt.dart';
@@ -13,6 +15,7 @@ import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/quantity/quantity.dart';
 import '../../../ui/components/receipt_line_row/receipt_line_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
+import 'destination_sheet.dart';
 import 'product_fixtures.dart';
 
 /// Reviewing a photographed receipt before it becomes stock.
@@ -81,8 +84,24 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
   /// The controller, or null when the caller supplied its own data.
   ReceiptController? _controller;
 
+  /// The sentence from the last action the user started, as opposed to the last fetch.
+  ///
+  /// Held apart from the controller's own `detailError` because they fail for different reasons and
+  /// clear at different moments: a fetch failure is retried by refetching, and this one is cleared
+  /// by the next attempt at the same action.
+  String? _actionError;
+
   /// Which receipt the user opened, or null while the list is showing.
   String? _openId;
+
+  /// Whether a commit is in flight.
+  bool _committing = false;
+
+  /// The shelves a commit can write to.
+  ///
+  /// Fetched here rather than held by the controller, the same way `barcode_scan_view` fetches its
+  /// own: two screens is not three, and the third caller is when this becomes a shared reader.
+  List<DestinationOption> _locations = const <DestinationOption>[];
 
   @override
   void initState() {
@@ -99,6 +118,35 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
     if (!controller.initialized) controller.onInit();
 
     _controller = controller;
+
+    unawaited(_loadLocations());
+  }
+
+  /// Reads the shelves the commit can write to.
+  ///
+  /// A commit needs a location and `receipt_lines` carries none: the paper does not say where the
+  /// shopping went, so the user says it once for the whole receipt rather than per line.
+  Future<void> _loadLocations() async {
+    final dynamic response = await Http.get('/locations');
+
+    if (!mounted) return;
+
+    final dynamic rows = response.successful ? response['data'] : null;
+
+    setState(() {
+      _locations = <DestinationOption>[
+        if (rows is List)
+          for (final dynamic row in rows)
+            if (row is Map && row['id'] is String)
+              DestinationOption(
+                id: row['id'] as String,
+                name: (row['name'] as String?) ?? '',
+                fullPath: (row['full_path'] as String?) ?? (row['name'] as String?) ?? '',
+                depth: (row['depth'] as num?)?.toInt() ?? 0,
+                productCount: (row['stock_count'] as num?)?.toInt() ?? 0,
+              ),
+      ];
+    });
   }
 
   @override
@@ -266,12 +314,17 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
       actions: _detailActions(),
       children: [
         if (failure != null && id != null) _buildFailure(failure, () => _controller?.open(id)),
-        if (receipt != null && lines.isEmpty) _buildNotExtracted(),
+        // The action's own failure, separate from the fetch's: retrying it means starting the action
+        // again rather than refetching the receipt, and the two would otherwise share one retry
+        // button that did the wrong one of them.
+        if (_actionError != null && receipt != null)
+          _buildFailure(_actionError!, () => _extract(receipt)),
+        if (receipt != null && lines.isEmpty) _buildNotExtracted(receipt),
         if (receipt != null && lines.isNotEmpty) ...[
           if (unresolved.isNotEmpty) _buildUnresolved(receipt, unresolved),
           _buildSettled(receipt, settled),
           if (rejected.isNotEmpty) _buildRejected(receipt, rejected),
-          _buildCommit(settled.length, unresolved.length),
+          _buildCommit(receipt, settled, unresolved.length),
         ],
       ],
     );
@@ -349,30 +402,107 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
   }
 
   /// The commit pair, with the count of what will actually be written.
-  Widget _buildCommit(int settled, int unresolved) {
+  ///
+  /// **The count is of WRITABLE lines, not of settled ones.** A settled line still needs a product
+  /// and a quantity to become stock, and a line whose quantity the extraction could not read has
+  /// neither: counting it here would promise a write that then silently does not happen, which is
+  /// the failure mode this screen exists to prevent.
+  ///
+  /// **No discard control, rather than one that does nothing.** The drawn screen has it and it
+  /// shipped on an empty callback, which is the same failure this file's `_row` docblock names for a
+  /// tap. Discarding means deleting the receipt and its document, an endpoint that does not exist
+  /// and an authorization surface with no test; `screens.receipt.discard` stays in both catalogues
+  /// for when it does.
+  Widget _buildCommit(Receipt receipt, List<ReceiptLine> settled, int unresolved) {
+    final Map<String, ReceiptLineDecision> writable = _writable(settled);
+    final bool busy = _committing;
+
     return WDiv(
       className: 'flex flex-col gap-2 pb-2',
       children: [
         // Naming the number is the point. "Kaydet" alone would hide that four lines are
         // being left behind, and the user would find out by missing stock later.
         WText(
-          Lang.get('screens.receipt.will_write', {'settled': settled, 'pending': unresolved}),
+          Lang.get('screens.receipt.will_write', {
+            'settled': writable.length,
+            'pending': unresolved,
+          }),
           className: 'text-sm text-fg-muted',
         ),
         MSButton(
-          onPressed: () {},
+          onPressed: busy || writable.isEmpty ? null : () => _commit(receipt, writable),
+          disabled: busy || writable.isEmpty,
           fullWidth: true,
           className: 'justify-center',
-          child: WText(Lang.get('screens.receipt.submit', {'count': settled})),
-        ),
-        MSButton(
-          onPressed: () {},
-          intent: ButtonIntent.ghost,
-          fullWidth: true,
-          className: 'justify-center',
-          child: WText(Lang.get('screens.receipt.discard')),
+          child: WText(
+            Lang.get(
+              busy ? 'screens.receipt.committing' : 'screens.receipt.submit',
+              {'count': writable.length},
+            ),
+          ),
         ),
       ],
+    );
+  }
+
+  /// The settled lines that can actually become stock, keyed by line id.
+  ///
+  /// A line needs both halves: the product it resolved to, and a quantity the paper gave. Either
+  /// missing means the row is evidence rather than an instruction, and it stays on screen unwritten.
+  Map<String, ReceiptLineDecision> _writable(List<ReceiptLine> settled) {
+    return <String, ReceiptLineDecision>{
+      for (final ReceiptLine line in settled)
+        if (line.productId != null && line.quantity != null)
+          line.id: ReceiptLineDecision(productId: line.productId!, quantity: line.quantity!),
+    };
+  }
+
+  /// Asks where the shopping went, then writes it.
+  ///
+  /// **The location is asked for once per receipt, not per line.** The paper does not say where the
+  /// shopping was put away and `receipt_lines` has no location column, so a per-line picker would be
+  /// twenty-two questions with the same answer.
+  Future<void> _commit(Receipt receipt, Map<String, ReceiptLineDecision> writable) async {
+    final String? locationId = await _pickDestination();
+
+    if (locationId == null || !mounted) return;
+
+    setState(() {
+      _committing = true;
+      _actionError = null;
+    });
+
+    final String? failure = await _controller?.commit(
+      receipt.id,
+      locationId: locationId,
+      accepted: writable,
+      // **Keyed on the receipt, and stable across a partial commit.** The server splits it per line,
+      // so coming back to finish the remaining lines reuses this key harmlessly: the lines already
+      // written collide on their own keys and the new ones do not exist yet.
+      batchKey: 'receipt-${receipt.id}',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _committing = false;
+      _actionError = failure;
+    });
+  }
+
+  /// Opens the shelf picker and answers what it returns.
+  ///
+  /// The `Builder`-free shape `barcode_scan_view` uses, including the reason the sheet is its own
+  /// widget: the search field's state belongs to it, so a `setState` here while it is open would
+  /// rebuild the receipt behind it.
+  Future<String?> _pickDestination() {
+    return MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.receipt.pick_destination_title'),
+      body: DestinationSheet(
+        options: _locations,
+        recentIds: const <String>[],
+      ),
     );
   }
 
@@ -414,11 +544,22 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
     );
   }
 
-  /// A receipt nothing has been read off yet, which in this slice is every receipt.
+  /// A receipt nothing has been read off yet, and the control that reads it.
   ///
   /// Not an empty error: the photograph is stored and the reading has not happened. Saying so is the
   /// difference between "the app has not got to this yet" and "this receipt came out blank".
-  Widget _buildNotExtracted() {
+  ///
+  /// **The read is a tap rather than something that happens on arrival.** It spends one of the
+  /// tenant's AI credits, and an action that costs the user something is theirs to start. It also
+  /// takes seconds, so the button carries a label while it runs rather than leaving the card looking
+  /// idle.
+  ///
+  /// A receipt that comes back with nothing lands here again, which is correct: extraction stopping
+  /// (no credits, an unreadable photograph) leaves the manual path open, and this is that path's
+  /// starting point rather than an error state.
+  Widget _buildNotExtracted(Receipt receipt) {
+    final bool busy = _controller?.extracting ?? false;
+
     return SectionCard(
       children: [
         // Full width so MSEmptyState's own `items-center` has something to centre in.
@@ -429,8 +570,26 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
             title: Lang.get('screens.receipt.not_extracted'),
           ),
         ),
+        MSButton(
+          onPressed: busy ? null : () => _extract(receipt),
+          disabled: busy,
+          fullWidth: true,
+          className: 'justify-center',
+          child: WText(
+            Lang.get(busy ? 'screens.receipt.extracting' : 'screens.receipt.extract'),
+          ),
+        ),
       ],
     );
+  }
+
+  /// Reads the receipt, keeping the server's own sentence when it refuses.
+  Future<void> _extract(Receipt receipt) async {
+    final String? failure = await _controller?.extract(receipt.id);
+
+    if (!mounted) return;
+
+    setState(() => _actionError = failure);
   }
 
   /// No receipts at all, which is where every tenant starts.
