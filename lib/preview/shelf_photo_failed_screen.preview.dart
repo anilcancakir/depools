@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../app/models/shelf_read.dart';
 import '../resources/views/products/shelf_photo_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -22,5 +23,5 @@ class ShelfPhotoFailedScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const ShelfPhotoView.failed();
+  static Widget _build(BuildContext context) => ShelfPhotoView.preview(const ShelfRead(id: 'shelf-1'), previewState: ShelfReadState.failed);
 }
