@@ -18,6 +18,8 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use RuntimeException;
 use Tests\Support\FakeModelCaller;
 use Tests\Support\ReceiptImages;
 use Tests\TestCase;
@@ -397,6 +399,290 @@ final class ShelfReadTest extends TestCase
         $this->assertSame(1, StockMovement::query()->count());
     }
 
+    public function test_a_quantity_the_column_cannot_hold_is_dropped_rather_than_thrown(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+        $this->model([$this->answer([
+            // A Turkish model writes `1,5` and a chatty one writes `3 adet`. Verified against this
+            // database: both raise `SQLSTATE[22P02]` against `numeric(12,3)`, and PostgreSQL does
+            // not coerce. Thrown inside the write transaction it would have taken the D95 evidence
+            // rows down with it, so the one table meant to explain the failure would say nothing.
+            $this->sighting(left: 0.10, top: 0.10, name: 'Süt', quantity: '3 adet'),
+            $this->sighting(left: 0.50, top: 0.10, name: 'Ayran', quantity: '1,5'),
+            // `0` and a negative cast cleanly and then meet the column's own CHECK, which is a
+            // second 500 one line further on.
+            $this->sighting(left: 0.10, top: 0.50, name: 'Peynir', quantity: '0'),
+            $this->sighting(left: 0.50, top: 0.50, name: 'Yoğurt', quantity: '-2'),
+        ])]);
+
+        $shelf = $this->upload();
+
+        $response = $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        // The entries survive with their boxes, because a region the app saw still has to be shown;
+        // only the unusable number is dropped, and `1,5` is a comma the guard converts rather than
+        // refuses.
+        $this->assertCount(4, $response->json('data.candidates'));
+        $this->assertSame(
+            [null, '1.500', null, null],
+            $response->json('data.candidates.*.quantity'),
+        );
+    }
+
+    public function test_a_unit_word_from_the_closed_list_becomes_a_rec_20_code(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+        $this->model([$this->answer([
+            $this->sighting(left: 0.10, top: 0.10, name: 'Pirinç', unit: 'kilogram'),
+            $this->sighting(left: 0.50, top: 0.10, name: 'Süt', unit: 'litres'),
+        ])]);
+
+        $shelf = $this->upload();
+
+        // The closed list is now SENT in the schema, which it was not: without it a model answering
+        // off a shelf label resolved to null every time and the mapping was decorative. A word
+        // outside the list is still null rather than a guess.
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")
+            ->assertOk()
+            ->assertJsonPath('data.candidates.0.unit', 'KGM')
+            ->assertJsonPath('data.candidates.1.unit', null);
+    }
+
+    public function test_a_uuid_shaped_idempotency_key_does_not_overflow_the_column(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+
+        $product = $this->product('Pınar Süt Tam Yağlı 1 lt');
+        $location = $this->location();
+
+        $this->model([$this->answer([
+            $this->sighting(left: 0.10, top: 0.10, name: 'Pınar Süt Tam Yağlı 1 lt'),
+        ])]);
+
+        $shelf = $this->upload();
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        // A client sending a UUID as its key is completely ordinary, and concatenating it with a
+        // 36-character candidate id produced 73 characters against a `varchar(64)`. Verified:
+        // PostgreSQL raises 22001 rather than truncating, so this used to 500 on every commit.
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+            'accepted' => ['1' => ['product_id' => $product->getKey(), 'quantity' => 1]],
+            'idempotency_key' => (string) Str::uuid7(),
+        ])->assertOk();
+
+        $key = (string) StockMovement::query()->sole()->idempotency_key;
+        $this->assertLessThanOrEqual(64, strlen($key));
+    }
+
+    public function test_committing_the_same_region_twice_writes_one_movement(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+
+        $product = $this->product('Pınar Süt Tam Yağlı 1 lt');
+        $location = $this->location();
+
+        $this->model([$this->answer([
+            $this->sighting(left: 0.10, top: 0.10, name: 'Pınar Süt Tam Yağlı 1 lt'),
+        ])]);
+
+        $shelf = $this->upload();
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        $payload = [
+            'location_id' => $location->getKey(),
+            'accepted' => ['1' => ['product_id' => $product->getKey(), 'quantity' => 2]],
+        ];
+
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", $payload)->assertOk();
+        // No idempotency key at all, which is the harder case: a resumed client re-sending its whole
+        // accepted set would otherwise write a second movement and double the stock, while the
+        // candidate's own quantity was overwritten with the single figure.
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", $payload)->assertOk();
+
+        $this->assertSame(1, StockMovement::query()->count());
+    }
+
+    public function test_two_auto_matched_regions_do_not_confirm_a_half_reviewed_shelf(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+
+        $milk = $this->product('Pınar Süt Tam Yağlı 1 lt');
+        $this->product('Sütaş Ayran 250 ml');
+        $location = $this->location();
+
+        $this->model([$this->answer([
+            $this->sighting(left: 0.10, top: 0.10, name: 'Pınar Süt Tam Yağlı 1 lt'),
+            $this->sighting(left: 0.50, top: 0.10, name: 'Sütaş Ayran 250 ml'),
+        ])]);
+
+        $shelf = $this->upload();
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+            'accepted' => ['1' => ['product_id' => $milk->getKey(), 'quantity' => 1]],
+        ])->assertOk();
+
+        // **The case the resolver creates and `resolution` cannot see.** Both regions auto-matched
+        // with no user involvement, so nothing is `unresolved`; counting that as "finished" confirmed
+        // a read with an unanswered region, told the client the review was done, and moved the
+        // photograph from D94's 90-day window to its 30-day one. `confirmed_at` per candidate is
+        // what answers it.
+        $this->assertNull(ShelfRead::query()->sole()->confirmed_at);
+        $this->assertSame(1, StockMovement::query()->count());
+    }
+
+    public function test_rejecting_records_that_a_person_decided(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+        $this->product('Fiyat etiketi');
+        $location = $this->location();
+
+        $this->model([$this->answer([$this->sighting(left: 0.10, top: 0.10, name: 'Fiyat etiketi')])]);
+
+        $shelf = $this->upload();
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        // Auto-matched by the resolver first, so `resolved_by` starts as `own_product`.
+        $this->assertSame('own_product', ShelfCandidate::query()->sole()->resolved_by);
+
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+            'rejected' => [1],
+        ])->assertOk();
+
+        // On this table `resolved_by` is the only trace that a person decided anything, so a row
+        // reading `rejected` beside `own_product` would credit the refusal to the resolver.
+        $candidate = ShelfCandidate::query()->sole();
+        $this->assertSame('rejected', $candidate->resolution);
+        $this->assertSame('manual', $candidate->resolved_by);
+        $this->assertNotNull($candidate->confirmed_at);
+    }
+
+    public function test_a_committed_read_cannot_be_read_again(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+
+        $product = $this->product('Pınar Süt Tam Yağlı 1 lt');
+        $location = $this->location();
+
+        $this->model([
+            $this->answer([$this->sighting(left: 0.10, top: 0.10, name: 'Pınar Süt Tam Yağlı 1 lt')]),
+            $this->answer([$this->sighting(left: 0.10, top: 0.10, name: 'Bambaşka bir şey')]),
+        ]);
+
+        $shelf = $this->upload();
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+            'accepted' => ['1' => ['product_id' => $product->getKey(), 'quantity' => 1]],
+        ])->assertOk();
+
+        // A re-read replaces the candidates, and `stock_movements.reference_id` points at them:
+        // deleting them would leave the movement anchored to nothing and take D96's "undo one item
+        // out of twelve" with it.
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertStatus(409);
+
+        $this->assertSame(1, StockMovement::query()->count());
+        $this->assertSame('Pınar Süt Tam Yağlı 1 lt', ShelfCandidate::query()->sole()->raw_name);
+    }
+
+    public function test_a_failed_reread_leaves_the_decisions_alone(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+
+        $this->product('Fiyat etiketi');
+        $location = $this->location();
+
+        // A first read that lands, then one that fails outright: two chain entries, both throwing.
+        $this->model([
+            $this->answer([$this->sighting(left: 0.10, top: 0.10, name: 'Fiyat etiketi')]),
+            new RuntimeException('provider down'),
+            new RuntimeException('provider down'),
+        ]);
+
+        $shelf = $this->upload();
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+            'rejected' => [1],
+        ])->assertOk();
+
+        // The candidates survive a failed retry by design, and the resolver used to run over them
+        // unconditionally: a region the user had REJECTED flipped back to `matched`.
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertStatus(409);
+
+        $candidate = ShelfCandidate::query()->sole();
+        $this->assertSame('rejected', $candidate->resolution);
+        $this->assertSame('manual', $candidate->resolved_by);
+    }
+
+    public function test_a_decision_about_a_region_that_is_not_there_is_refused(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+
+        $product = $this->product('Pınar Süt Tam Yağlı 1 lt');
+        $location = $this->location();
+
+        $this->model([$this->answer([
+            $this->sighting(left: 0.10, top: 0.10, name: 'Pınar Süt Tam Yağlı 1 lt'),
+        ])]);
+
+        $shelf = $this->upload();
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertOk();
+
+        // The committer iterates candidates, so an unknown region would simply vanish with a 200 and
+        // a stale client after a narrower re-read would believe it had written stock it had not.
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/commit", [
+            'location_id' => $location->getKey(),
+            'accepted' => ['7' => ['product_id' => $product->getKey(), 'quantity' => 1]],
+        ])->assertStatus(422);
+
+        $this->assertSame(0, StockMovement::query()->count());
+    }
+
+    public function test_a_photograph_the_retention_sweep_took_cannot_be_read(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+        $this->model([]);
+
+        $shelf = $this->upload();
+
+        ShelfRead::query()->findOrFail($shelf)
+            ->forceFill(['document_deleted_at' => Carbon::now()])->save();
+
+        // The row outlives the photograph on purpose (D94), so this is an ordinary state rather than
+        // a fault, and 422 is what the receipt path answers for the same one.
+        $this->postJson("/api/v1/shelf-reads/{$shelf}/read")->assertStatus(422);
+    }
+
+    public function test_a_user_with_no_current_team_is_refused_before_any_bytes_are_written(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $this->actingAs($user, 'sanctum');
+
+        $this->postJson('/api/v1/shelf-reads', ['photo' => ReceiptImages::receiptA()])
+            ->assertStatus(403);
+
+        // `BelongsToTeam`'s creating hook fires precisely when the team is null, so without the guard
+        // this was a 500 that left a stored photograph nothing points at.
+        $this->assertSame([], Storage::disk('local')->allFiles('shelves'));
+    }
+
     public function test_another_tenants_shelf_read_is_a_404(): void
     {
         $this->tenant('Alpha');
@@ -449,11 +735,12 @@ final class ShelfReadTest extends TestCase
         float $height = 0.20,
         ?string $name = 'Süt',
         ?string $quantity = '1',
+        ?string $unit = null,
     ): array {
         return [
             'name' => $name,
             'quantity' => $quantity,
-            'unit' => null,
+            'unit' => $unit,
             'left' => $left,
             'top' => $top,
             'width' => $width,

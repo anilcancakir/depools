@@ -6,6 +6,7 @@ use App\Enums\MovementSource;
 use App\Models\Location;
 use App\Models\Receipt;
 use App\Models\ReceiptLine;
+use App\Support\IdempotencyKey;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -94,7 +95,12 @@ final class ReceiptCommitter
             // is per movement, so one key on every line would let the first insert win and the rest
             // collide. Keyed on the line id rather than an index, because a client that reorders its
             // payload between retries would otherwise write the same line twice under two keys.
-            idempotencyKey: $batchKey === null ? null : "{$batchKey}:{$line->getKey()}",
+            //
+            // **Hashed rather than concatenated, and this was a live overflow.** `"{key}:{uuid}"` is
+            // up to 101 characters against a `varchar(64)`, and PostgreSQL raises 22001 rather than
+            // truncating: a client sending a UUID as its key 500'd on every commit. Found while the
+            // shelf path was being written with the same shape.
+            idempotencyKey: IdempotencyKey::forRow($batchKey, (string) $line->getKey()),
             // **The receipt's own date, not now.** A shop entered on Tuesday for a Sunday receipt has
             // to age from Sunday, or every forecast built on it is two days optimistic. Null falls
             // back to now inside the writer.

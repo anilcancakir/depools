@@ -58,7 +58,13 @@ return new class extends Migration
             $table->decimal('quantity', 12, 3)->nullable();
             // The unit token as the model said it, kept beside the resolved code the way a receipt
             // line keeps its own (D97).
-            $table->string('raw_unit_code', 8)->nullable();
+            //
+            // **16 rather than the receipt's 8, because the two are fed different vocabularies.** A
+            // till prints `AD`, `KG`, `LT`; a vision model asked for the unit answers in WORDS, and
+            // `UnitHint`'s own longest key is `kilogram` at exactly 8. A model that says `kilograms`
+            // or `containers` would then be a 22001 on a column, so the width is the model's
+            // vocabulary plus room rather than the printer's.
+            $table->string('raw_unit_code', 16)->nullable();
             $table->string('resolved_unit', 16)->nullable();
 
             // 0 to 100, about the READING rather than about the product, same as a receipt line. It
@@ -73,6 +79,21 @@ return new class extends Migration
                 ->constrained()->nullOnDelete();
 
             $table->string('resolved_by', 16)->nullable();
+
+            // **`receipt_lines` has this and dropping it was the structural mistake of this table.**
+            // Without it `resolution` has to carry two different questions at once: what the app
+            // thinks this region is, and whether a PERSON has finished with it. Those come apart the
+            // moment the resolver auto-matches a catalogued product, which it does with no user
+            // involvement at all: nothing is then `unresolved`, so a read with regions the user never
+            // looked at would confirm itself, start D94's shorter retention clock early, and tell the
+            // client the review was done.
+            //
+            // It is also the only safe guard against committing one region twice. The commit API is
+            // keyed by region and treats an absent region as untouched, which invites a resumed
+            // client to re-send its whole accepted set; without a per-candidate marker that is either
+            // a unique violation on the idempotency key or, with a fresh key, a second movement that
+            // silently doubles the stock.
+            $table->timestamp('confirmed_at')->nullable();
 
             $table->timestamps();
 
@@ -95,6 +116,13 @@ return new class extends Migration
     {
         // The same four values `receipt_lines` uses and the same four the client's `LineResolution`
         // renders. Sharing the vocabulary is what lets one row component draw both.
+        //
+        // **`created` is currently unwritable and that is a deliberate exception to this file's own
+        // rule about unreachable values.** The commit path collapses "new product" into `matched`,
+        // because by then the product exists and the movement points at it. The value stays because
+        // the client already renders it (the fixture's region 2 is `created` with `Yeni ürün ·
+        // katalogdan`) and because the catalogue step that writes it is the next slice: removing it
+        // would mean a migration to add it back in a fortnight.
         DB::statement("
             ALTER TABLE shelf_candidates
             ADD CONSTRAINT shelf_candidates_resolution_is_known

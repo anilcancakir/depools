@@ -5,6 +5,7 @@ namespace App\Ai\LaravelAi;
 use App\Ai\Contracts\ProductEnrichmentGateway;
 use App\Ai\GatewayRunner;
 use App\Ai\ImageInput;
+use App\Ai\ModelNumber;
 use App\Ai\ProductCard;
 use App\Ai\ReadShelf;
 use App\Ai\RecognisedProduct;
@@ -268,8 +269,13 @@ final class LaravelAiProductEnrichmentGateway implements ProductEnrichmentGatewa
                             ->description('The product name as printed, or null when it cannot be read.'),
                         'quantity' => $schema->string()->nullable()
                             ->description('How many of THIS product are visible, as a number. Null if you cannot count them.'),
+                        // **The closed list, sent.** It was absent, and the consequence was not
+                        // cosmetic: `UnitHint::toCode` matches against `piece`, `kilogram`, `litre`
+                        // and so on, so a model answering `kg` or `adet` off a shelf label resolved
+                        // to null every time and the mapping was decorative.
                         'unit' => $schema->string()->nullable()
-                            ->description('The unit word printed beside a loose quantity, if any. Usually null.'),
+                            ->description('What one of these is COUNTED in, when the label states it. Exactly one of: '
+                                .UnitHint::words().'. Null otherwise, which is usual.'),
                         'left' => $schema->number()->required()->description('Left edge as a fraction of the width, 0 to 1.'),
                         'top' => $schema->number()->required()->description('Top edge as a fraction of the height, 0 to 1.'),
                         'width' => $schema->number()->required()->description('Width as a fraction of the picture width.'),
@@ -313,7 +319,11 @@ final class LaravelAiProductEnrichmentGateway implements ProductEnrichmentGatewa
                         width: $box[2],
                         height: $box[3],
                         name: self::text($row['name'] ?? null),
-                        quantity: self::text($row['quantity'] ?? null),
+                        // **Through the numeric guard, not `text`.** This reaches `decimal(12,3)`,
+                        // and PostgreSQL does not coerce: `'3 adet'` and `'1,5'` both raise 22P02,
+                        // verified. Non-positive is null too, because the column's own CHECK refuses
+                        // it and a zero would be a second 500 one line further on.
+                        quantity: ModelNumber::positiveDecimal($row['quantity'] ?? null),
                         rawUnitCode: self::text($row['unit'] ?? null),
                         confidence: self::percentage($row['confidence'] ?? null),
                     );
@@ -349,8 +359,16 @@ final class LaravelAiProductEnrichmentGateway implements ProductEnrichmentGatewa
         $width = (float) $row['width'];
         $height = (float) $row['height'];
 
-        // The same rule the CHECK enforces, applied here so a bad box is dropped rather than
-        // arriving at the insert as an exception the caller has to translate.
+        // **Rounded to the column's own precision FIRST, because the two rules were not the same
+        // one.** `box_*` is `decimal(5,4)`, so `0.00004` stores as `0.0000` and then fails
+        // `box_width > 0`: a tiny box passed this guard in floats and 500'd at the insert. Verified
+        // against PostgreSQL. Comparing what will actually be stored is the only version of this
+        // check that agrees with the CHECK it is standing in for.
+        $left = round($left, 4);
+        $top = round($top, 4);
+        $width = round($width, 4);
+        $height = round($height, 4);
+
         $inside = $left >= 0 && $top >= 0
             && $width > 0 && $height > 0
             && $left + $width <= 1

@@ -6,7 +6,6 @@ use App\Ai\Contracts\ProductEnrichmentGateway;
 use App\Ai\GatewayAttempt;
 use App\Ai\ImageInput;
 use App\Ai\ReadShelf;
-use App\Models\Product;
 use App\Models\ShelfRead;
 use App\Support\UnitHint;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +28,11 @@ use Illuminate\Support\Facades\DB;
  * A retry on the same photograph is the user saying the last answer was wrong, so the candidates go
  * and the extraction rows stay. Appending would break the region numbers, which are unique per read
  * and which D60 makes the only link between a row and a box on the picture.
+ *
+ * **Which is exactly why a read that has been committed refuses.** `stock_movements.reference_id`
+ * points at a candidate (D96's granularity: one wrong item out of twelve can be undone alone), so
+ * deleting the candidates would leave those movements anchored to nothing and D96's whole promise
+ * with them. The controller answers 409 rather than letting the delete happen.
  */
 final class ShelfReader
 {
@@ -72,10 +76,18 @@ final class ShelfReader
             }
         });
 
-        // Resolved OUTSIDE the transaction that wrote them, and deliberately: the resolver runs two
-        // queries over every name at once, and holding a write transaction open across them would
-        // put a lookup nobody is waiting on inside a lock everybody is.
-        $this->resolver->resolve($shelf->candidates()->get());
+        // **Only when a read actually landed.** Called unconditionally it ran over the candidates a
+        // FAILED retry had left in place, and the resolver used to fill `resolution` on any row it
+        // was handed: a region the user had rejected flipped back to `matched`. It now filters to
+        // `unresolved` itself, so this guard is the second of two rather than the only one, and both
+        // are cheap.
+        //
+        // Outside the transaction that wrote them, deliberately: the resolver runs two queries over
+        // every name at once, and holding a write transaction open across them would put a lookup
+        // nobody is waiting on inside a lock everybody is.
+        if ($seen !== null) {
+            $this->resolver->resolve($shelf->candidates()->get());
+        }
 
         return $shelf->load('candidates');
     }
@@ -119,19 +131,16 @@ final class ShelfReader
         foreach ($seen->inReadingOrder() as $sighting) {
             $region++;
 
-            $name = $sighting->name;
-
             $row = $shelf->candidates()->make([
                 'region' => $region,
                 'box_left' => $sighting->left,
                 'box_top' => $sighting->top,
                 'box_width' => $sighting->width,
                 'box_height' => $sighting->height,
-                'raw_name' => $name,
-                // The fold travels with the name or neither does, which the CHECK enforces. Written
-                // by PHP rather than by the database (D84), through the same normaliser the receipt
-                // path and the catalogue use, so one name folds one way everywhere.
-                'raw_name_normalized' => $name === null ? null : Product::normaliseName($name),
+                // The fold is written by the model's own mutator rather than here, which is what
+                // `ReceiptLine` does and for the reason its docblock gives: the consistency sweep
+                // cannot cover this column, so the mutator is the only guard against a stale fold.
+                'raw_name' => $sighting->name,
                 'quantity' => $sighting->quantity,
                 'raw_unit_code' => $sighting->rawUnitCode,
                 // The model's word mapped to a Rec 20 code, or null when it is not one of ours. The

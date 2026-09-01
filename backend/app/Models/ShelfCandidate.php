@@ -54,6 +54,7 @@ final class ShelfCandidate extends Model
         'product_id',
         'global_product_id',
         'resolved_by',
+        'confirmed_at',
     ];
 
     /**
@@ -74,6 +75,7 @@ final class ShelfCandidate extends Model
             // reaches the ledger, so it travels as the string PostgreSQL sends and the decimal
             // survives the trip.
             'confidence' => 'integer',
+            'confirmed_at' => 'datetime',
         ];
     }
 
@@ -87,6 +89,33 @@ final class ShelfCandidate extends Model
     public function isSettled(): bool
     {
         return in_array($this->resolution, ['matched', 'created'], true);
+    }
+
+    /**
+     * Whether a PERSON has finished with this region.
+     *
+     * **Not the same question as [isSettled], and conflating them was a real defect.** The resolver
+     * auto-matches a catalogued product with no user involvement, so a region can be `matched` and
+     * still be one nobody has looked at. This is what the commit reads to avoid writing a movement
+     * twice and what the read reads to know whether the review is finished.
+     */
+    public function isAnswered(): bool
+    {
+        return $this->confirmed_at !== null;
+    }
+
+    /**
+     * The fold travels with the name, written here rather than at each call site.
+     *
+     * `ReceiptLine` does the same and its docblock says why it has to: the consistency sweep's
+     * `name_normalized_drift` check keys on `products`, so it can never cover this column, and
+     * `shelf_candidates_name_travels_with_its_fold` only sees that BOTH are null or neither is. A
+     * writer that updated `raw_name` alone would leave a stale fold the resolver then matches on.
+     */
+    protected function setRawNameAttribute(?string $value): void
+    {
+        $this->attributes['raw_name'] = $value;
+        $this->attributes['raw_name_normalized'] = $value === null ? null : Product::normaliseName($value);
     }
 
     public function shelfRead(): BelongsTo

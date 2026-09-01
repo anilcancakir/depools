@@ -10,6 +10,7 @@ use App\Models\ShelfRead;
 use App\Services\DocumentStore;
 use App\Services\ShelfCommitter;
 use App\Services\ShelfReader;
+use App\Support\IdempotencyKey;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,9 +30,15 @@ use Throwable;
  *
  * ### Nothing here is a refusal except a bad file
  *
- * Running out of credits, the kill switch, a refusal and a photograph holding no stock all answer
- * 200 with no candidates and an outcome saying which. A 4xx would make the client treat an ordinary
- * state as an error, and worse would hide the one distinction the user can act on.
+ * Running out of credits, a refusal and a photograph holding no stock all answer 200 with no
+ * candidates and an outcome saying which. A 4xx would make the client treat an ordinary state as an
+ * error, and worse would hide the one distinction the user can act on.
+ *
+ * **The kill switch is the one of those four with no outcome to report**, and the prose here used to
+ * claim otherwise. `GatewayRunner::run` returns before it reports anything when `ai_gateways.live` is
+ * false, so `last_read_outcome` is null and the client falls through to "could not read it". That is
+ * the right sentence for a user either way: a setting of ours is not something they can act on the
+ * way an empty credit balance is.
  */
 final class ShelfReadController extends Controller
 {
@@ -51,6 +58,13 @@ final class ShelfReadController extends Controller
     public function store(Request $request): JsonResponse
     {
         $this->validatePhoto($request);
+
+        // **Before the bytes are written, because `BelongsToTeam`'s creating hook fires precisely
+        // when this is null** and a 500 two statements later would leave a stored photograph nothing
+        // points at. `ReceiptController` added the same guard for the same reason.
+        if ($request->user()->current_team_id === null) {
+            abort(403, __('Select a team before capturing anything.'));
+        }
 
         /** @var UploadedFile $photo */
         $photo = $request->file('photo');
@@ -81,6 +95,16 @@ final class ShelfReadController extends Controller
     {
         // Through `TeamScope`, so another tenant's read is a 404 before anything else is decided.
         $shelf = ShelfRead::query()->findOrFail($shelfRead);
+
+        // **A committed read cannot be re-read**, because `ShelfReader` replaces the candidates and
+        // `stock_movements.reference_id` points at them: deleting them would leave those movements
+        // anchored to nothing and take D96's "undo one item out of twelve" with them. 409 rather than
+        // 422, the same code `ReceiptController` uses for a receipt that already has lines.
+        if ($shelf->candidates()->whereNotNull('confirmed_at')->exists()) {
+            return response()->json([
+                'data' => new ShelfReadResource($shelf->load('candidates')),
+            ], 409);
+        }
 
         if (! $shelf->hasDocument()) {
             abort(422, __('This shelf photograph is no longer available.'));
@@ -119,12 +143,20 @@ final class ShelfReadController extends Controller
             'accepted.*.quantity' => ['required', 'numeric', 'gt:0'],
             'rejected' => ['array'],
             'rejected.*' => ['integer', 'min:1'],
-            'idempotency_key' => ['nullable', 'string', 'max:60'],
+            // The bound is the column's, not the column's minus a suffix: [IdempotencyKey] hashes
+            // both halves, so a client sending a UUID no longer overflows `varchar(64)`.
+            'idempotency_key' => ['nullable', 'string', 'max:'.IdempotencyKey::maxClientLength()],
         ]);
 
         // Through the scope, so another tenant's location is a 404 that wrote nothing. Not a 403, for
         // the reason every other lookup in this API gives.
         $location = Location::query()->findOrFail($data['location_id']);
+
+        // **A decision naming a region this read does not have is refused rather than dropped.** The
+        // committer iterates candidates, so an unknown region would simply vanish with a 200, and a
+        // stale client after a narrower re-read would believe it had written stock it had not.
+        // `ReceiptController` refuses the equivalent and says so.
+        $this->refuseUnknownRegions($shelf, $data);
 
         $this->committer->commit(
             $shelf,
@@ -139,6 +171,27 @@ final class ShelfReadController extends Controller
         return response()->json([
             'data' => new ShelfReadResource($shelf->load('candidates')),
         ]);
+    }
+
+    /**
+     * Refuses a decision about a region that is not on this read.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function refuseUnknownRegions(ShelfRead $shelf, array $data): void
+    {
+        $known = $shelf->candidates->pluck('region')->map('strval')->all();
+
+        $named = array_merge(
+            array_map('strval', array_keys($data['accepted'] ?? [])),
+            array_map('strval', $data['rejected'] ?? []),
+        );
+
+        $unknown = array_values(array_diff($named, $known));
+
+        if ($unknown !== []) {
+            abort(422, __('This shelf has no region :region.', ['region' => $unknown[0]]));
+        }
     }
 
     /**

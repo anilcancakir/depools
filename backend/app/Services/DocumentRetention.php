@@ -56,15 +56,15 @@ final class DocumentRetention
     public function __construct(private readonly DocumentStore $documents) {}
 
     /**
-     * Sweep every document whose window has closed, and say how many went.
-     */
-    /**
      * The models this sweep covers, each with the same four columns.
      *
      * @var list<class-string<Model>>
      */
     private const HOLDERS = [Receipt::class, ShelfRead::class];
 
+    /**
+     * Sweep every document whose window has closed, and say how many went.
+     */
     public function sweep(): int
     {
         $swept = 0;
