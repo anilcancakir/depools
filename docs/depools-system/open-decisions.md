@@ -1630,6 +1630,30 @@ product: it reads an invoice to learn what was bought and stops there.
 The window is configuration rather than a literal, and it starts at confirmation rather than at upload,
 because an abandoned receipt is exactly the one a user comes back to.
 
+**One window was not enough, and the gap only showed when the sweep was written.** The sentence above
+says where the clock starts for a CONFIRMED document and says nothing at all about a document that is
+never confirmed, which is the case it names in its own last clause. Holding that one for ever makes us
+the archive this decision refuses; deleting it on the confirmed clock destroys the only copy of
+information the user has not harvested yet.
+
+So there are two windows, both configuration, and the unconfirmed one is the longer:
+
+| Document | Clock starts at | Default |
+|---|---|---|
+| confirmed | `confirmed_at` | 30 days |
+| never confirmed | `created_at` | 90 days |
+
+Thirty days so a wrong line noticed on a monthly reconciliation can still be checked against the
+picture; ninety so "I will do the receipts later" survives a busy season and is still a ceiling. The
+extracted structure and the ledger are untouched by either, which is what makes the short window
+defensible: what expires is the evidence of a reading nobody has questioned.
+
+**The schema had anticipated this and nothing implemented it**, which is worth recording because it is
+the most expensive shape a gap can take. `receipts.document_deleted_at` shipped fillable, cast, read by
+`Receipt::hasDocument()` and with a test covering the already-swept case, so every reader had grounds
+to assume the sweep existed. It did not, and every photograph ever uploaded was still on disk.
+`depools:prune-documents` is it.
+
 ### D95. Raw extraction is its own table, one row per attempt
 
 `receipt_extractions(receipt_id, attempt, provider, model, raw_payload jsonb, outcome)` rather than a
