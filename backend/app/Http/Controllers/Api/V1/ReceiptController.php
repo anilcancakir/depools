@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\DocumentKind;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReceiptResource;
 use App\Models\Location;
 use App\Models\Receipt;
 use App\Models\ReceiptLine;
+use App\Services\DocumentStore;
 use App\Services\ReceiptCommitter;
-use App\Services\ReceiptDocumentStore;
 use App\Services\ReceiptExtractor;
 use Closure;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -58,7 +59,7 @@ use Throwable;
 final class ReceiptController extends Controller
 {
     public function __construct(
-        private readonly ReceiptDocumentStore $documents,
+        private readonly DocumentStore $documents,
         private readonly ReceiptExtractor $extractor,
         private readonly ReceiptCommitter $committer,
     ) {}
@@ -244,7 +245,7 @@ final class ReceiptController extends Controller
         // re-encode is GD work and `backend.md` keeps a controller to injecting one and returning a
         // resource. The phash comes back with the path because it is computed from the bytes that
         // were actually kept, which is what makes the column describe what is on disk.
-        $stored = $this->documents->store($file);
+        $stored = $this->documents->store($file, DocumentKind::Receipt);
 
         $receipt = new Receipt;
 

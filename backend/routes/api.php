@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\ProductRecognitionController;
 use App\Http\Controllers\Api\V1\ReceiptController;
 use App\Http\Controllers\Api\V1\RunningLowController;
 use App\Http\Controllers\Api\V1\SearchController;
+use App\Http\Controllers\Api\V1\ShelfReadController;
 use App\Http\Controllers\Api\V1\ShoppingListController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\TeamSettingsController;
@@ -134,6 +135,19 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // body carries what the user agreed to rather than a "commit everything" flag, and a partial
     // pass is the normal case: a 22-line shop is worked through and can be left halfway.
     Route::post('receipts/{receipt}/commit', [ReceiptController::class, 'commit']);
+
+    // **A photographed shelf, in the receipt's three steps and for the receipt's two reasons.** The
+    // upload comes first so the picture is on screen before a model is asked anything (D60 keeps it
+    // there through the whole review), and so a failed read leaves a resumable row rather than an
+    // orphaned file. `read` is separately callable, which is what makes a retake a retry rather than
+    // a second upload.
+    //
+    // No `index` and no `show`: a shelf read is a moment the user is standing in, not a document they
+    // come back to a list for. `ShelfPhotoView` is reached from the camera and holds the id it was
+    // given, so a list would be a screen nothing navigates to.
+    Route::post('shelf-reads', [ShelfReadController::class, 'store']);
+    Route::post('shelf-reads/{shelfRead}/read', [ShelfReadController::class, 'read']);
+    Route::post('shelf-reads/{shelfRead}/commit', [ShelfReadController::class, 'commit']);
 
     Route::get('receipts', [ReceiptController::class, 'index']);
     Route::post('receipts', [ReceiptController::class, 'store']);

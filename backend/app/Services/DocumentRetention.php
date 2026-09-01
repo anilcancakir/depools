@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Receipt;
 use App\Models\Scopes\TeamScope;
+use App\Models\ShelfRead;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
@@ -27,6 +29,13 @@ use Illuminate\Support\Carbon;
  * "hold no diagnostic photographs" and clearing the leftovers is the point. Here it means "do not
  * apply this rule", and a misread of it would delete a tenant's unharvested receipts.
  *
+ * ### Both kinds of captured photograph, through one set of windows
+ *
+ * `receipts` and `shelf_reads` carry the same four columns (`document_path`, `document_deleted_at`,
+ * `confirmed_at`, `created_at`) and answer to the same rule, because a photograph of somebody's cold
+ * room is exactly as personal as one of their receipt. So the sweep is written once over both rather
+ * than once per table: a second copy would be the place one of them silently stopped being swept.
+ *
  * ### The row keeps its path
  *
  * `document_path` survives and `document_deleted_at` is what changes, which is the shape
@@ -44,21 +53,30 @@ final class DocumentRetention
      */
     private const CHUNK = 200;
 
-    public function __construct(private readonly ReceiptDocumentStore $documents) {}
+    public function __construct(private readonly DocumentStore $documents) {}
 
     /**
      * Sweep every document whose window has closed, and say how many went.
      */
+    /**
+     * The models this sweep covers, each with the same four columns.
+     *
+     * @var list<class-string<Model>>
+     */
+    private const HOLDERS = [Receipt::class, ShelfRead::class];
+
     public function sweep(): int
     {
         $swept = 0;
 
-        foreach ([$this->confirmedCutoff(), $this->unconfirmedCutoff()] as $index => $cutoff) {
-            if ($cutoff === null) {
-                continue;
-            }
+        foreach (self::HOLDERS as $holder) {
+            foreach ([$this->confirmedCutoff(), $this->unconfirmedCutoff()] as $index => $cutoff) {
+                if ($cutoff === null) {
+                    continue;
+                }
 
-            $swept += $this->sweepBatch($index === 0, $cutoff);
+                $swept += $this->sweepBatch($holder, $index === 0, $cutoff);
+            }
         }
 
         return $swept;
@@ -67,13 +85,14 @@ final class DocumentRetention
     /**
      * One window's worth.
      *
+     * @param  class-string<Model>  $holder
      * @param  bool  $confirmed  which side of `confirmed_at IS NULL` this pass covers
      */
-    private function sweepBatch(bool $confirmed, Carbon $cutoff): int
+    private function sweepBatch(string $holder, bool $confirmed, Carbon $cutoff): int
     {
         $swept = 0;
 
-        Receipt::query()
+        $holder::query()
             // **The tenancy crossing, stated rather than inherited.** `TeamScope` resolves the team
             // from the authenticated user and matches NOTHING without one, so a scheduled command
             // under the scope does not error, it silently sweeps zero rows for ever. That is the
@@ -88,15 +107,15 @@ final class DocumentRetention
                 static fn ($query) => $query->whereNotNull('confirmed_at')->where('confirmed_at', '<', $cutoff),
                 static fn ($query) => $query->whereNull('confirmed_at')->where('created_at', '<', $cutoff),
             )
-            ->chunkById(self::CHUNK, function ($receipts) use (&$swept): void {
-                foreach ($receipts as $receipt) {
-                    $this->documents->discard((string) $receipt->document_path);
+            ->chunkById(self::CHUNK, function ($rows) use (&$swept): void {
+                foreach ($rows as $row) {
+                    $this->documents->discard((string) $row->document_path);
 
                     // **Marked even when the file was already gone.** `Storage::delete` on a missing
                     // path is a successful no-op, and the row's claim is about whether the document
                     // is available rather than about whether this run is what removed it. Leaving it
                     // unmarked would make every later sweep re-examine a row that can never change.
-                    $receipt->forceFill(['document_deleted_at' => Carbon::now()])->save();
+                    $row->forceFill(['document_deleted_at' => Carbon::now()])->save();
 
                     $swept++;
                 }

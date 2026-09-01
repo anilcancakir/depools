@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductAlias;
-use App\Models\ReceiptLine;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
@@ -40,7 +40,7 @@ use Illuminate\Support\Collection;
  * confirmation is mandatory (`receipt-ingestion.md`), so this only ever prepares what the user is
  * about to be asked about.
  */
-final class ReceiptLineResolver
+final class ExtractedNameResolver
 {
     /**
      * Resolves every line of one receipt, in one pass over two lookups.
@@ -49,11 +49,11 @@ final class ReceiptLineResolver
      * be 50 round trips on a path a person is waiting on, and both lookups answer a set just as
      * cheaply as they answer one.
      *
-     * @param  Collection<int, ReceiptLine>  $lines
+     * @param  Collection<int, Model>  $rows  receipt lines or shelf candidates; see the class docblock
      */
-    public function resolve(Collection $lines): void
+    public function resolve(Collection $rows): void
     {
-        $needles = $lines
+        $needles = $rows
             ->pluck('raw_name_normalized')
             ->filter(static fn (?string $value): bool => $value !== null && $value !== '')
             ->unique()
@@ -84,17 +84,17 @@ final class ReceiptLineResolver
                 ->reject(static fn (Collection $group): bool => $group->count() > 1)
                 ->map(static fn (Collection $group): string => (string) $group->first()->getKey());
 
-        foreach ($lines as $line) {
-            $needle = (string) $line->raw_name_normalized;
+        foreach ($rows as $row) {
+            $needle = (string) $row->raw_name_normalized;
 
             if ($aliases->has($needle)) {
-                $this->match($line, (string) $aliases->get($needle), 'alias');
+                $this->match($row, (string) $aliases->get($needle), 'alias');
 
                 continue;
             }
 
             if ($products->has($needle)) {
-                $this->match($line, (string) $products->get($needle), 'own_product');
+                $this->match($row, (string) $products->get($needle), 'own_product');
             }
 
             // Anything else keeps the column default, `unresolved`, which is what puts the line in
@@ -104,11 +104,11 @@ final class ReceiptLineResolver
     }
 
     /**
-     * Points one line at a product.
+     * Points one extracted row at a product.
      */
-    private function match(ReceiptLine $line, string $productId, string $by): void
+    private function match(Model $row, string $productId, string $by): void
     {
-        $line->fill([
+        $row->fill([
             'product_id' => $productId,
             'resolution' => 'matched',
             'resolved_by' => $by,

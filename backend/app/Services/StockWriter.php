@@ -9,6 +9,7 @@ use App\Enums\MovementSource;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ReceiptLine;
+use App\Models\ShelfCandidate;
 use App\Models\StockLot;
 use App\Models\StockMovement;
 use Illuminate\Support\Collection;
@@ -73,6 +74,12 @@ final class StockWriter
      * expiry attaches to and a non-perishable simply has a null date. Making the lot conditional
      * would mean two shapes of inbound stock and a branch at every consumer of it.
      *
+     * **A SHELF CANDIDATE is a reference too, on the same argument.** D96 is about granularity: the
+     * movement points at the smallest thing a person can be wrong about, so a shelf of twelve
+     * products has twelve references rather than one, and the user who spots one wrong item can have
+     * that one undone. The column is a nullable uuid morph, so the union here is the only thing that
+     * had to widen.
+     *
      * **`$reference` points at the receipt LINE, not the receipt** (D96). A user who spots one wrong
      * line on a 22-line shop wants that line undone, and an undo is a compensating movement, so at
      * document granularity they would have to find their movement among twenty-two by hand. The
@@ -88,7 +95,7 @@ final class StockWriter
         ?string $actorId = null,
         ?string $idempotencyKey = null,
         ?MovementContext $context = null,
-        StockLot|ReceiptLine|null $reference = null,
+        StockLot|ReceiptLine|ShelfCandidate|null $reference = null,
     ): StockMovement {
         if ($quantity <= 0) {
             throw new RuntimeException('An inbound movement must bring in a positive quantity.');
@@ -558,7 +565,7 @@ final class StockWriter
         MovementSource $source,
         ?string $actorId,
         ?string $idempotencyKey = null,
-        StockLot|ReceiptLine|null $reference = null,
+        StockLot|ReceiptLine|ShelfCandidate|null $reference = null,
         ?MovementContext $context = null,
     ): StockMovement {
         $movement = new StockMovement([

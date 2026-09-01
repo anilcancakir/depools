@@ -94,6 +94,16 @@ return [
 
         'directory' => env('MEDIA_DOCUMENT_DIRECTORY', 'receipts'),
 
+        // **A shelf photograph is a document in every sense this block cares about**, so it lives
+        // here rather than in a block of its own: the same private disk, the same decode bounds, the
+        // same model-facing edge, and the same D94 retention windows, because a photograph of
+        // somebody's cold room is exactly as personal as a photograph of their receipt.
+        //
+        // Only the folder differs, and it is a second key rather than a second block precisely so
+        // that sharing is visible: a reader adding a retention rule below cannot miss that it
+        // governs both.
+        'shelf_directory' => env('MEDIA_SHELF_DIRECTORY', 'shelves'),
+
         'mimes' => ['jpeg', 'jpg', 'png'],
 
         // **The first server-side DECODE on this codebase's upload path needs a
