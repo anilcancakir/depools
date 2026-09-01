@@ -28,14 +28,14 @@ final readonly class SheetLayout
      * three of the four templates in the catalogue. Using the floor is the permissive end of a
      * published range, which is a different thing from inventing a number.
      */
-    private const MIN_MODULE_MM = 0.25;
+    public const MIN_MODULE_MM = 0.25;
 
     /**
      * Padding inside each cell, matching `sheet.blade.php`.
      *
      * Duplicated from the stylesheet on purpose: the template needs it in CSS and the fit arithmetic
      * needs it in millimetres, and deriving one from the other would mean parsing CSS. A drift test
-     * is cheaper than a parser, and `SheetLayoutTest` is it.
+     * is cheaper than a parser, and `SheetLayoutTest::test_the_padding_matches_the_stylesheet` is it.
      */
     public const PADDING_X_MM = 1.5;
 
@@ -95,10 +95,11 @@ final readonly class SheetLayout
         }
 
         $available = $this->barcodeWidth($template);
-        $seen = [];
+
+        $unscannable = [];
 
         foreach ($sheet->lines as $line) {
-            if ($line->code === null || isset($seen[$line->code])) {
+            if ($line->code === null || in_array($line->code, $unscannable, true)) {
                 continue;
             }
 
@@ -107,11 +108,15 @@ final readonly class SheetLayout
             $needed = $this->barcodes->drawnModuleCount($line->code) * self::MIN_MODULE_MM;
 
             if ($needed > $available) {
-                $seen[$line->code] = true;
+                $unscannable[] = $line->code;
             }
         }
 
-        return array_keys($seen);
+        // **A list rather than a key set, because PHP coerces a numeric string key to an int.** The
+        // first version collected into `$seen[$code]` and returned `array_keys()`, so a 13-digit GTIN
+        // came back as the integer 8690504004073 while the signature promised `list<string>`. Found by
+        // a test asserting the return value rather than its count.
+        return $unscannable;
     }
 
     /**

@@ -220,7 +220,16 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
      */
     Route::prefix('labels')->group(function (): void {
         Route::get('templates', [LabelController::class, 'catalogue']);
-        Route::post('preview', [LabelController::class, 'preview']);
-        Route::post('pdf', [LabelController::class, 'pdf']);
+
+        /*
+         * **Throttled, because each call spawns node plus Chrome for up to 60 seconds.** The rest of
+         * this API is a database query; these two are a process pair, and nothing else in the file
+         * needed a limit so there was none to inherit. 30 a minute is generous for a person flipping
+         * through four templates and a ceiling for anything that is not one.
+         */
+        Route::middleware('throttle:30,1')->group(function (): void {
+            Route::post('preview', [LabelController::class, 'preview']);
+            Route::post('pdf', [LabelController::class, 'pdf']);
+        });
     });
 });

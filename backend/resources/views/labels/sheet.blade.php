@@ -81,6 +81,20 @@
             font-weight: 700;
             line-height: 1.15;
             overflow: hidden;
+            /* **The clip used to be silent, which is what the spec forbids.** A flex item whose
+               overflow is not `visible` gets an automatic minimum size of zero, so a long name shrank
+               below its content instead of pushing the cell: measured in Chrome on the 65-up geometry,
+               a 200-character name clipped at 40 px of a 46 px scroll height with nothing on the page
+               to say so. `pdftotext` cannot see it either, because Chrome emits the clipped glyphs
+               behind a clip path and poppler ignores it.
+               An ellipsis is not the whole answer the feature doc wants ("the label card keeps the
+               name whole and marks the casualty"), because predicting the clip needs text metrics and
+               that belongs with the screen. It is the difference between a sheet that lies and one that
+               shows where it gave up. */
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            text-overflow: ellipsis;
         }
 
         .code {

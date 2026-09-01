@@ -38,11 +38,17 @@ use Spatie\Browsershot\Browsershot;
 final class LabelSheetRenderer
 {
     /**
-     * The base64 font payloads, read once per process.
+     * The base64 font payloads, memoised for the lifetime of this instance.
      *
      * A variable TTF is roughly 900 kB and its base64 is 1.2 MB, and the same bytes go into every
      * render. Chrome reads the HTML from a local temp file rather than over a network, so the size
-     * costs a memcpy rather than a request, but re-reading the file per sheet would be gratuitous.
+     * costs a memcpy rather than a request.
+     *
+     * **This said "once per process" and that was wrong.** Nothing binds this class as a singleton, so
+     * the container builds a fresh one per resolution and the files are read once per REQUEST. Two
+     * renders in one request share it; two requests do not. Left as it is rather than made a singleton,
+     * because a `->pdf()` plus a `->preview()` in one request is the only case that benefits and
+     * neither happens today.
      *
      * @var array<string, string>
      */
@@ -77,7 +83,18 @@ final class LabelSheetRenderer
             return $path;
         }
 
-        $disk->put($path, $this->browsershot($template, $sheet)->screenshot());
+        // **`fullPage()`, because `paperSize` does not reach a screenshot and its absence was a
+        // measured defect.** Browsershot's constructor sets `windowSize(800, 600)` unconditionally,
+        // the bridge applies it with `page.setViewport`, and puppeteer's `screenshot` defaults to
+        // `fullPage: false`. A4 is 1122.5 CSS px tall, so the preview was an 800x600 crop holding
+        // cells 1 to 35 of a 65-cell sheet: rows 8 to 13 were simply absent, which is 46% of the
+        // paper. That defeats D43 exactly, since the empty cells a user is choosing between are the
+        // ones at the bottom.
+        // The `local` disk is configured `'throw' => false`, so a failed write returns false rather
+        // than raising, and this method would have answered with a path to a file that is not there.
+        if ($disk->put($path, $this->browsershot($template, $sheet)->fullPage()->screenshot()) === false) {
+            throw new RuntimeException("The label preview could not be written to [{$path}].");
+        }
 
         return $path;
     }
@@ -114,6 +131,10 @@ final class LabelSheetRenderer
             // fill needs this plus `-webkit-print-color-adjust: exact` in the stylesheet.
             ->showBackground()
             ->timeout((int) config('labels.timeout_seconds', 60))
+            // Chrome refuses to start as root, which is the ordinary shape of the container D71 points
+            // the server at. Harmless where it is not root; the alternative is a render that fails on
+            // the server and nowhere else.
+            ->noSandbox()
             ->setNodeModulePath((string) config('labels.node_modules'));
 
         if ($chrome = config('labels.chrome_path')) {
