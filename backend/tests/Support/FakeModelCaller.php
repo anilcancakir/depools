@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use App\Ai\Contracts\ModelCaller;
+use App\Ai\ImageInput;
 use App\Ai\ModelAnswer;
 use Closure;
 use RuntimeException;
@@ -17,7 +18,7 @@ use RuntimeException;
  */
 final class FakeModelCaller implements ModelCaller
 {
-    /** @var list<array{instructions: string, input: string, models: list<string>, provider: string, timeoutMs: int, reasoning: bool|string}> */
+    /** @var list<array{instructions: string, input: string, models: list<string>, provider: string, timeoutMs: int, reasoning: bool|string, image: ImageInput|null}> */
     public array $calls = [];
 
     /** @var list<array<string, mixed>|RuntimeException> */
@@ -40,8 +41,9 @@ final class FakeModelCaller implements ModelCaller
         string $provider,
         int $timeoutMs,
         bool|string $reasoning,
+        ?ImageInput $image = null,
     ): ModelAnswer {
-        $this->calls[] = compact('instructions', 'input', 'models', 'provider', 'timeoutMs', 'reasoning');
+        $this->calls[] = compact('instructions', 'input', 'models', 'provider', 'timeoutMs', 'reasoning', 'image');
 
         $next = array_shift($this->script);
 

@@ -3,8 +3,10 @@
 namespace App\Ai\LaravelAi;
 
 use App\Ai\Contracts\ModelCaller;
+use App\Ai\ImageInput;
 use App\Ai\ModelAnswer;
 use Closure;
+use Laravel\Ai\Files\Base64Image;
 // **`Responses\Data`, not `Enums`, and the difference was a total outage.** The pinned v0.10.3
 // carries this enum here; `Laravel\Ai\Enums\FinishReason` does not exist in it. The import
 // therefore raised a class-not-found on the line that maps a SUCCESSFUL response, after the HTTP
@@ -36,6 +38,7 @@ final class LaravelAiModelCaller implements ModelCaller
         string $provider,
         int $timeoutMs,
         bool|string $reasoning,
+        ?ImageInput $image = null,
     ): ModelAnswer {
         if ($models === []) {
             throw new RuntimeException('A chain entry has no models.');
@@ -44,6 +47,14 @@ final class LaravelAiModelCaller implements ModelCaller
         $response = (new RoutedAgent($instructions, $models, $schema, $reasoning))
             ->prompt(
                 $input,
+                // **An attachment, not a data url pasted into the text.** A model reads an image
+                // part; a data url inside the prompt is a very long string it reads as characters,
+                // which costs the tokens and answers nothing. This is also the boundary D6 cares
+                // about: `Base64Image` is named here and nowhere else, so a break in the package's
+                // file types touches this line rather than every gateway.
+                attachments: $image === null
+                    ? []
+                    : [new Base64Image($image->base64, $image->mimeType)],
                 provider: $provider,
                 // The first of the chain. The rest travel in the body as OpenRouter's own fallback
                 // array, which `RoutedAgent::providerOptions()` puts there.

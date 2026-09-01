@@ -5,9 +5,11 @@ namespace App\Providers;
 use App\Ai\Contracts\IconSuggestionGateway;
 use App\Ai\Contracts\ModelCaller;
 use App\Ai\Contracts\ProductEnrichmentGateway;
+use App\Ai\Contracts\ReceiptExtractionGateway;
 use App\Ai\LaravelAi\LaravelAiIconSuggestionGateway;
 use App\Ai\LaravelAi\LaravelAiModelCaller;
 use App\Ai\LaravelAi\LaravelAiProductEnrichmentGateway;
+use App\Ai\LaravelAi\LaravelAiReceiptExtractionGateway;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -27,5 +29,6 @@ final class AiServiceProvider extends ServiceProvider
         $this->app->bind(ModelCaller::class, LaravelAiModelCaller::class);
         $this->app->bind(ProductEnrichmentGateway::class, LaravelAiProductEnrichmentGateway::class);
         $this->app->bind(IconSuggestionGateway::class, LaravelAiIconSuggestionGateway::class);
+        $this->app->bind(ReceiptExtractionGateway::class, LaravelAiReceiptExtractionGateway::class);
     }
 }

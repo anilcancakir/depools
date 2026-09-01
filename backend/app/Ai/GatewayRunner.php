@@ -70,6 +70,7 @@ final class GatewayRunner
      * @param  string  $category  a key under `ai_gateways.categories`
      * @param  Closure(JsonSchema): array<string, mixed>  $schema
      * @param  Closure(array<string, mixed>): (T|null)  $validate  null rejects the answer and moves on
+     * @param  ImageInput|null  $image  sent with every attempt in the chain, unredacted; see below
      * @return T|null
      */
     public function run(
@@ -79,6 +80,7 @@ final class GatewayRunner
         Closure $schema,
         Closure $validate,
         int $credits = 1,
+        ?ImageInput $image = null,
     ): mixed {
         if (! config('ai_gateways.live', true)) {
             return null;
@@ -123,6 +125,14 @@ final class GatewayRunner
 
         // **Before the loop, so no retry path can reach a provider with unmasked content.** Doing it
         // per attempt would be the same work three times and one `continue` away from being skipped.
+        //
+        // **The IMAGE is not redacted, and that is a stated position rather than an omission.**
+        // [Redactor] masks identifiers in TEXT; there is no equivalent for pixels, and the only
+        // honest alternatives would be refusing to send images at all or pretending a mask happened.
+        // What bounds the exposure instead is what an image path is allowed to be: the user's own
+        // document, photographed by them, sent to read what they are holding. `legal-and-privacy.md`
+        // covers it as processing rather than as redaction. Any future gateway that would send
+        // someone ELSE's image is a different decision and does not inherit this one.
         $redacted = (string) $this->redactor->text($input);
 
         $attempt = 0;
@@ -150,6 +160,7 @@ final class GatewayRunner
                     provider: $entry['provider'],
                     timeoutMs: (int) ($config['timeout_ms'] ?? 3000),
                     reasoning: $config['reasoning'] ?? false,
+                    image: $image,
                 );
             } catch (Throwable $e) {
                 // A timeout, a 5xx or a transport failure. Not logged as an error the user sees:
