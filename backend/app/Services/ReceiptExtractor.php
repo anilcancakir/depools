@@ -25,7 +25,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class ReceiptExtractor
 {
-    public function __construct(private readonly ReceiptExtractionGateway $gateway) {}
+    public function __construct(
+        private readonly ReceiptExtractionGateway $gateway,
+        private readonly ReceiptLineResolver $resolver,
+    ) {}
 
     /**
      * Reads [$receipt]'s document and writes what came back.
@@ -121,5 +124,11 @@ final class ReceiptExtractor
         ], static fn (mixed $value): bool => $value !== null);
 
         $receipt->fill($header + ['status' => 'extracted'])->save();
+
+        // **After the lines are written, and inside the same transaction.** The resolver reads the
+        // folded names off the rows, which the `raw_name` mutator produced on save, so it needs them
+        // in the table rather than in memory. Resolving is not committing: every line is still
+        // `matched` at most, nothing has moved in the ledger, and the user confirms each one.
+        $this->resolver->resolve($receipt->lines()->get());
     }
 }

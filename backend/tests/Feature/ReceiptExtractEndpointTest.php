@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Ai\Contracts\ModelCaller;
 use App\Models\AiCreditGrant;
+use App\Models\Product;
+use App\Models\ProductAlias;
 use App\Models\Receipt;
 use App\Models\ReceiptLine;
 use App\Models\Scopes\TeamScope;
@@ -155,6 +157,86 @@ final class ReceiptExtractEndpointTest extends TestCase
 
         $this->assertSame(2, $receipt->lines()->count(), 'the first read stands');
         $this->assertSame(1, $receipt->extractions()->count(), 'and the second never reached a model');
+    }
+
+    public function test_a_line_matching_one_of_the_tenants_own_products_is_resolved(): void
+    {
+        $this->tenant();
+        $this->credits(5);
+        $this->model([$this->answer()]);
+        // The till's own string, as a product name. A tenant who typed it that way is the easy half
+        // of the cascade's first step; the abbreviation nobody has confirmed is the other line.
+        $product = Product::create(['name' => 'PNR SUT 1LT']);
+        $receipt = $this->receipt();
+
+        $this->postJson("/api/v1/receipts/{$receipt->getKey()}/extract")->assertOk();
+
+        $lines = $receipt->lines()->get();
+
+        $this->assertSame((string) $product->getKey(), $lines[0]->product_id);
+        $this->assertSame('matched', $lines[0]->resolution);
+        $this->assertSame('own_product', $lines[0]->resolved_by);
+
+        $this->assertNull($lines[1]->product_id);
+        $this->assertSame('unresolved', $lines[1]->resolution, 'and this one is what the user is asked about');
+    }
+
+    public function test_a_confirmed_alias_answers_before_a_product_name_does(): void
+    {
+        // The compounding half. `ai-design.md`: every resolution the user confirms strengthens step
+        // one for next time, and an abbreviation the till prints will never match a name a person
+        // typed. So the alias wins even where a product name would also have matched.
+        $this->tenant();
+        $this->credits(5);
+        $this->model([$this->answer()]);
+
+        $byName = Product::create(['name' => 'PNR SUT 1LT']);
+        $byAlias = Product::create(['name' => 'Pınar Süt Tam Yağlı 1 lt']);
+
+        $alias = new ProductAlias;
+        $alias->fill([
+            'product_id' => $byAlias->getKey(),
+            'alias_normalized' => Product::normaliseName('PNR SUT 1LT'),
+            'alias_raw' => 'PNR SUT 1LT',
+            'source' => 'receipt',
+        ]);
+        $alias->setAttribute('team_id', $this->teamId);
+        $alias->save();
+
+        $receipt = $this->receipt();
+
+        $this->postJson("/api/v1/receipts/{$receipt->getKey()}/extract")->assertOk();
+
+        $line = $receipt->lines()->where('line_number', 1)->sole();
+
+        $this->assertSame((string) $byAlias->getKey(), $line->product_id);
+        $this->assertSame('alias', $line->resolved_by);
+        $this->assertNotSame((string) $byName->getKey(), $line->product_id);
+    }
+
+    public function test_a_name_two_products_share_is_left_to_the_user(): void
+    {
+        // `products.name_normalized` carries a trigram index and no uniqueness (only `(team_id, sku)`
+        // is unique), so two rows can fold to one name. Picking either would be a guess presented as
+        // a match, and mandatory per-line confirmation exists precisely so the app does not do that.
+        //
+        // The two names differ only in CASE. An earlier version of this test used a doubled space
+        // and passed for the wrong reason: measured, `Product::normaliseName` lowercases and trims
+        // but does NOT collapse inner whitespace, so `pnr  sut 1lt` folds to a different string and
+        // the two rows never collided at all.
+        $this->tenant();
+        $this->credits(5);
+        $this->model([$this->answer()]);
+        Product::create(['name' => 'PNR SUT 1LT']);
+        Product::create(['name' => 'pnr sut 1lt']);
+        $receipt = $this->receipt();
+
+        $this->postJson("/api/v1/receipts/{$receipt->getKey()}/extract")->assertOk();
+
+        $line = $receipt->lines()->where('line_number', 1)->sole();
+
+        $this->assertSame('unresolved', $line->resolution);
+        $this->assertNull($line->product_id);
     }
 
     private function receipt(): Receipt
