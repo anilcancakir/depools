@@ -81,6 +81,13 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
   /// The controller, or null when the caller supplied its own data.
   ReceiptController? _controller;
 
+  /// The sentence from the last action the user started, as opposed to the last fetch.
+  ///
+  /// Held apart from the controller's own `detailError` because they fail for different reasons and
+  /// clear at different moments: a fetch failure is retried by refetching, and this one is cleared
+  /// by the next attempt at the same action.
+  String? _actionError;
+
   /// Which receipt the user opened, or null while the list is showing.
   String? _openId;
 
@@ -266,7 +273,12 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
       actions: _detailActions(),
       children: [
         if (failure != null && id != null) _buildFailure(failure, () => _controller?.open(id)),
-        if (receipt != null && lines.isEmpty) _buildNotExtracted(),
+        // The action's own failure, separate from the fetch's: retrying it means starting the action
+        // again rather than refetching the receipt, and the two would otherwise share one retry
+        // button that did the wrong one of them.
+        if (_actionError != null && receipt != null)
+          _buildFailure(_actionError!, () => _extract(receipt)),
+        if (receipt != null && lines.isEmpty) _buildNotExtracted(receipt),
         if (receipt != null && lines.isNotEmpty) ...[
           if (unresolved.isNotEmpty) _buildUnresolved(receipt, unresolved),
           _buildSettled(receipt, settled),
@@ -414,11 +426,22 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
     );
   }
 
-  /// A receipt nothing has been read off yet, which in this slice is every receipt.
+  /// A receipt nothing has been read off yet, and the control that reads it.
   ///
   /// Not an empty error: the photograph is stored and the reading has not happened. Saying so is the
   /// difference between "the app has not got to this yet" and "this receipt came out blank".
-  Widget _buildNotExtracted() {
+  ///
+  /// **The read is a tap rather than something that happens on arrival.** It spends one of the
+  /// tenant's AI credits, and an action that costs the user something is theirs to start. It also
+  /// takes seconds, so the button carries a label while it runs rather than leaving the card looking
+  /// idle.
+  ///
+  /// A receipt that comes back with nothing lands here again, which is correct: extraction stopping
+  /// (no credits, an unreadable photograph) leaves the manual path open, and this is that path's
+  /// starting point rather than an error state.
+  Widget _buildNotExtracted(Receipt receipt) {
+    final bool busy = _controller?.extracting ?? false;
+
     return SectionCard(
       children: [
         // Full width so MSEmptyState's own `items-center` has something to centre in.
@@ -429,8 +452,26 @@ class _ReceiptReviewViewState extends State<ReceiptReviewView> {
             title: Lang.get('screens.receipt.not_extracted'),
           ),
         ),
+        MSButton(
+          onPressed: busy ? null : () => _extract(receipt),
+          disabled: busy,
+          fullWidth: true,
+          className: 'justify-center',
+          child: WText(
+            Lang.get(busy ? 'screens.receipt.extracting' : 'screens.receipt.extract'),
+          ),
+        ),
       ],
     );
+  }
+
+  /// Reads the receipt, keeping the server's own sentence when it refuses.
+  Future<void> _extract(Receipt receipt) async {
+    final String? failure = await _controller?.extract(receipt.id);
+
+    if (!mounted) return;
+
+    setState(() => _actionError = failure);
   }
 
   /// No receipts at all, which is where every tenant starts.

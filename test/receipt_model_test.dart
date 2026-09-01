@@ -31,6 +31,7 @@ void main() {
         'created_at': '2026-08-15T09:00:00+00:00',
         'lines': <Map<String, dynamic>>[
           <String, dynamic>{
+            'id': 'line-1',
             'line_number': 1,
             'raw_name': 'PNR SUT 1LT',
             // PostgreSQL's `decimal(12,3)` arrives as a string, never as a bare number.
@@ -47,6 +48,7 @@ void main() {
             'confirmed_at': null,
           },
           <String, dynamic>{
+            'id': 'line-2',
             'line_number': 2,
             'raw_name': 'ORG KEM TAV',
             'quantity': '1.000',

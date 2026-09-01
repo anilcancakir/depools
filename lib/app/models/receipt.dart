@@ -39,6 +39,13 @@ enum ReceiptResolvedBy {
 /// vocabulary.
 @immutable
 class ReceiptLine {
+  /// The row's own id, which is how a commit addresses it.
+  ///
+  /// Position is not an address: a re-extraction renumbers, and the commit keys its idempotency per
+  /// line, so a retry after a dropped connection has to name the same line rather than the same
+  /// slot.
+  final String id;
+
   /// Position on the paper, preserved so a reordered review list can put itself back.
   final int lineNumber;
 
@@ -84,6 +91,7 @@ class ReceiptLine {
 
   /// Creates a [ReceiptLine].
   const ReceiptLine({
+    required this.id,
     required this.lineNumber,
     required this.rawName,
     required this.resolution,
@@ -102,6 +110,7 @@ class ReceiptLine {
   /// Builds a line from a `ReceiptLineResource` element.
   factory ReceiptLine.fromApi(Map<String, dynamic> json) {
     return ReceiptLine(
+      id: json['id'] as String,
       lineNumber: json['line_number'] as int,
       rawName: json['raw_name'] as String,
       quantity: ProductListItem.toNumOrNull(json['quantity']),
