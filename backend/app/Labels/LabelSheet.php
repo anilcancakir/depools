@@ -24,10 +24,12 @@ final readonly class LabelSheet
     /**
      * @param  list<LabelLine>  $lines  One per sticker, in the order they fill cells.
      * @param  list<string>  $fields  Which of `config('labels.fields')` the label carries.
+     * @param  string|null  $teamId  Scopes the preview cache. Not printed.
      */
     public function __construct(
         public array $lines,
         public array $fields,
+        public ?string $teamId = null,
     ) {}
 
     /**
@@ -55,6 +57,13 @@ final readonly class LabelSheet
      */
     public function signature(): string
     {
+        // **`team_id` leads, on defence-in-depth grounds rather than as a live leak.** The cached PNG
+        // is a pure function of the template and this signature, so a hash collision would serve an
+        // image byte-identical to what the requester would have rendered, and asking for it requires
+        // supplying their own tenant's data. But the isolation of a file holding product names then
+        // rests on a 128-bit non-cryptographic hash instead of on the one thing `AGENTS.md` says comes
+        // from the auth context. One string removes the class of argument and costs nothing.
+
         $fields = $this->fields;
         sort($fields);
 
@@ -68,6 +77,6 @@ final readonly class LabelSheet
             $this->lines,
         );
 
-        return implode('|', $fields)."\x1e".implode("\x1e", $lines);
+        return ($this->teamId ?? '-')."\x1d".implode('|', $fields)."\x1e".implode("\x1e", $lines);
     }
 }

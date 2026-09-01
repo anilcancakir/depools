@@ -109,7 +109,14 @@ Deferred at Anılcan's direction, and treated as a placeholder here. Two finding
 
 ## Quota effects
 
-None. Label generation is local computation.
+No AI credits: nothing here calls a model.
+
+**But it is no longer "local computation", and that sentence predates D18's reversal.** Each render
+spawns Node and Chrome for up to 60 seconds on the server, so the two render endpoints carry
+`throttle:30,1` and the request is capped at 200 lines by 50 copies. The old ceiling of 500 by 100 was
+defended by a comment saying such a request would time out; the likelier outcome is earlier and worse,
+since one seven-character barcode is 1,864 bytes of SVG and 50,000 cells is about 89 MB of string
+before Blade renders anything, which is a memory fatal rather than an actionable message.
 
 ## Acceptance criteria
 
@@ -254,7 +261,7 @@ floor of 0.250 mm. At that floor, with 3 mm of cell padding:
 | Template | Usable width | Longest payload |
 |---|---|---|
 | A4 8-up 105x70 | 102 mm | 32 characters |
-| A4 14-up 99x38 | 96 mm | 30 characters |
+| A4 14-up 99x38 | 96 mm | 29 characters |
 | A4 24-up 70x37 | 67 mm | 19 characters |
 | A4 65-up 38x21 | 35 mm | **7 characters** |
 

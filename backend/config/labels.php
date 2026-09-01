@@ -91,7 +91,7 @@ return [
      *
      * That reaches out of `backend/` into the repository root, which is true today (one checkout, two
      * halves) and is a config key rather than a literal because no deployment shape has been decided
-     * yet. A deploy that ships `backend/` alone sets these; `LabelFontTest` fails if the path is
+     * yet. A deploy that ships `backend/` alone sets these; `LabelRenderTest` fails if the path is
      * wrong, so a bad override is a red build rather than tofu on a sticker.
      */
     'fonts' => [
@@ -116,7 +116,13 @@ return [
      * client renders its own labels for the chips, because this list is read by the template and the
      * screen at once and only one of them has a translator.
      */
-    'fields' => ['name', 'code', 'location', 'team'],
+    /*
+     * `location` is deliberately absent until a batch can choose one. A product's stock sits in
+     * several places at once, so "the" location cannot be answered from a product id: the template
+     * still renders the field, and offering it here while the builder passed null meant a client
+     * ticking the chip got silence.
+     */
+    'fields' => ['name', 'code', 'team'],
 
     /**
      * The sheet templates, keyed by the string `print_batches.template` stores.

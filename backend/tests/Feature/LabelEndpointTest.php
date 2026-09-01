@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Labels\LabelSheetBuilder;
+use App\Labels\LabelSheetRenderer;
+use App\Labels\SheetTemplate;
 use App\Models\Barcode;
 use App\Models\Product;
 use App\Models\Team;
@@ -196,6 +199,168 @@ final class LabelEndpointTest extends TestCase
         $this->postJson('/api/v1/labels/preview', $payload)->assertOk();
 
         $this->assertSame($cached, Storage::disk('local')->files('label-previews'));
+    }
+
+    public function test_the_preview_is_the_whole_sheet_and_not_a_viewport_crop(): void
+    {
+        $this->tenant();
+        $this->requireRenderToolchain();
+
+        Storage::fake('local');
+
+        $product = $this->product('Kablo bağı 200 mm');
+
+        $this->postJson('/api/v1/labels/preview', [
+            'template' => 'a4_65_up_38x21',
+            'fields' => ['name'],
+            'items' => [['product_id' => $product->getKey(), 'copies' => 50]],
+        ])->assertOk();
+
+        $file = Storage::disk('local')->files('label-previews')[0];
+        [$width, $height] = getimagesizefromstring(Storage::disk('local')->get($file));
+
+        // **`paperSize` is a PDF option and never reaches a screenshot.** Browsershot's constructor
+        // sets `windowSize(800, 600)` unconditionally and puppeteer defaults to `fullPage: false`, so
+        // without `fullPage()` this was an 800x600 crop of a 1122.5 px sheet: cells 1 to 35 of 65,
+        // measured. A4 at 96 dpi is 794x1123, and the assertion is on the HEIGHT because that is the
+        // axis the crop took.
+        $this->assertGreaterThanOrEqual(1100, $height, 'The preview is a viewport crop, not the sheet.');
+        $this->assertGreaterThanOrEqual(780, $width);
+    }
+
+    public function test_a_gtin_wins_over_an_internal_code_whichever_row_the_plan_returns(): void
+    {
+        $this->tenant();
+        $this->requireRenderToolchain();
+
+        $product = $this->product('Pınar Süt Tam Yağlı 1 lt');
+
+        // **Both regimes on one product, which is reachable**: `BarcodeLinker` writes a `gtin` row for
+        // anything that could be a GTIN and a `(code, symbology)` row otherwise, and `linkBarcode`
+        // uses `syncWithoutDetaching`, which adds. The Code 128 row is attached FIRST so an unordered
+        // `first()` is likely to return it, which is what used to print an internal code for a product
+        // carrying a real manufacturer barcode.
+        $product->linkBarcode(Barcode::forCode('SHELF-LABEL-1', 'code128'));
+        $product->linkBarcode(Barcode::forGtin('8690504004073'));
+
+        $text = $this->extract(
+            $this->postJson('/api/v1/labels/pdf', [
+                'template' => 'a4_8_up_105x70',
+                'fields' => ['name', 'code'],
+                'items' => [['product_id' => $product->getKey()]],
+            ])->assertOk()->getContent()
+        );
+
+        $this->assertStringContainsString('8690504004073', $text);
+        $this->assertStringNotContainsString('SHELF-LABEL-1', $text);
+    }
+
+    public function test_a_code_too_long_for_the_label_is_refused_by_name(): void
+    {
+        $this->tenant();
+
+        $product = $this->product('Pınar Süt Tam Yağlı 1 lt');
+        $product->linkBarcode(Barcode::forGtin('8690504004073'));
+
+        // 13 digits is 198 drawn modules, which needs 49.5 mm at GS1's floor against the 35 mm this
+        // label offers. `unscannableCodes()` computed exactly this and was called by nothing, so the
+        // sheet rendered at 0.177 mm per module: perfect on screen, unreadable on paper.
+        $this->postJson('/api/v1/labels/pdf', [
+            'template' => 'a4_65_up_38x21',
+            'fields' => ['name', 'code'],
+            'items' => [['product_id' => $product->getKey()]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('template');
+
+        // And the same code on a label with room is not refused, so the 422 is about millimetres.
+        $this->requireRenderToolchain();
+
+        $this->postJson('/api/v1/labels/pdf', [
+            'template' => 'a4_8_up_105x70',
+            'fields' => ['name', 'code'],
+            'items' => [['product_id' => $product->getKey()]],
+        ])->assertOk();
+    }
+
+    public function test_a_code_outside_code_128_is_a_refusal_rather_than_a_500(): void
+    {
+        $this->tenant();
+
+        $product = $this->product('Yoğurt 2 kg');
+
+        // `Barcode::forCode` only trims, so a Turkish internal code is storable. Encoding it would
+        // silently produce a barcode that scans as other characters, so the encoder throws; without
+        // the controller catching that, the user asking for a label got a stack trace.
+        $product->linkBarcode(Barcode::forCode('YOĞURT-1', 'code128'));
+
+        $this->postJson('/api/v1/labels/pdf', [
+            'template' => 'a4_8_up_105x70',
+            'fields' => ['name', 'code'],
+            'items' => [['product_id' => $product->getKey()]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('items');
+    }
+
+    public function test_the_generated_code_is_wide_enough_not_to_collide(): void
+    {
+        $this->tenant();
+
+        $builder = app(LabelSheetBuilder::class);
+
+        $codes = [];
+
+        for ($i = 0; $i < 40; $i++) {
+            $codes[] = $builder->codeFor($this->product('Product '.$i));
+        }
+
+        // **Four hex characters reached a 50% birthday collision at 301 products in one team**, and the
+        // comment defending it said "the id is already unique", which is true of the id and not of its
+        // last 16 bits. Eight moves the crossing past 77,000. Forty samples cannot prove a collision
+        // rate; what it pins is the WIDTH, which is the thing that was wrong.
+        foreach ($codes as $code) {
+            $this->assertMatchesRegularExpression('/^DPL[0-9A-F]{8}$/', $code);
+        }
+
+        $this->assertSame(count($codes), count(array_unique($codes)));
+    }
+
+    public function test_the_preview_cache_is_scoped_to_the_team(): void
+    {
+        $alpha = $this->tenant('Alpha');
+        $renderer = app(LabelSheetRenderer::class);
+        $builder = app(LabelSheetBuilder::class);
+        $template = SheetTemplate::fromKey('a4_24_up_70x37');
+
+        $mine = $this->product('Whole Milk 1 L');
+        [$alphaSheet] = $builder->build([['product_id' => $mine->getKey()]], ['name'], 'Same Name', 'team-a');
+        [$betaSheet] = $builder->build([['product_id' => $mine->getKey()]], ['name'], 'Same Name', 'team-b');
+
+        // Defence in depth rather than a live leak: the cached PNG is a pure function of the key, so a
+        // collision would serve an image identical to what the requester would have rendered anyway.
+        // But the isolation of a file holding product names should rest on `team_id` rather than on a
+        // 128-bit non-cryptographic hash, and one string in the signature is what that costs.
+        $this->assertNotSame(
+            $renderer->cacheKey($template, $alphaSheet),
+            $renderer->cacheKey($template, $betaSheet),
+        );
+
+        $this->assertNotNull($alpha->currentTeam);
+    }
+
+    public function test_an_uppercase_product_id_is_not_a_tenancy_answer_to_a_formatting_question(): void
+    {
+        $this->tenant();
+        $this->requireRenderToolchain();
+
+        $product = $this->product('Şeker (Toz) 1 kg');
+
+        // PostgreSQL renders `uuid` lower-case, so an uppercase id matched `whereIn` (the database
+        // compares uuids, not strings) and then missed the keyed collection, which turned a formatting
+        // difference into a 404 that reads like an isolation failure. It renders now, and the point of
+        // the assertion is the ABSENCE of that 404 rather than the 200.
+        $this->postJson('/api/v1/labels/pdf', [
+            'template' => 'a4_8_up_105x70',
+            'fields' => ['name'],
+            'items' => [['product_id' => strtoupper((string) $product->getKey())]],
+        ])->assertOk();
     }
 
     private function extract(string $pdf): string

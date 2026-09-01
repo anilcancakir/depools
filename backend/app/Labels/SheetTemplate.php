@@ -112,7 +112,7 @@ final readonly class SheetTemplate
     /**
      * Whether the grid fits the page it claims.
      *
-     * Not a runtime guard: it is what `LabelConfigTest` asserts over the whole catalogue, so a typo
+     * Not a runtime guard: it is what `SheetTemplateTest` asserts over the whole catalogue, so a typo
      * in a margin is a failing test rather than a sheet of stickers 4 mm off the die-cut. Kept beside
      * the geometry rather than in the test, because the arithmetic IS the definition of fitting.
      */
