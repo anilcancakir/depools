@@ -55,6 +55,29 @@ final class GlobalProduct extends Model
     }
 
     /**
+     * A locale tag in a form this table's `string(5)` column can actually hold.
+     *
+     * **On the model rather than in a service, because it exists to fit THIS column.** A reader
+     * asking "what goes in `global_products.locale`" looks here, and the two callers that write and
+     * read that column would otherwise each carry their own copy of a fold with a measured bug
+     * behind it: a user set to `zh-Hant-TW` overflowed the column and 500'd a product save.
+     *
+     * Falls back to the BCP 47 primary subtag rather than to a blind `substr`, because `zh-Ha` is
+     * not a language and `zh` is: a truncation that produces a valid tag of a coarser grain beats
+     * one that produces a tag of no grain at all.
+     */
+    public static function localeFor(?string $locale): string
+    {
+        $locale = (string) ($locale ?? config('app.locale', 'en'));
+
+        if (mb_strlen($locale) <= 5) {
+            return $locale;
+        }
+
+        return mb_substr((string) explode('-', str_replace('_', '-', $locale))[0], 0, 5);
+    }
+
+    /**
      * Candidates whose normalised name is similar enough to a receipt line to be worth considering.
      *
      * **`%` and never `<->`, and that is a constraint rather than a preference.** The trigram index is

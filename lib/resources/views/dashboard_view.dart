@@ -1,8 +1,6 @@
-// `defaultTargetPlatform` for the one platform question this screen asks: a phone photographs a
-// receipt with its camera and everything else picks a file. `ImagePicker` and `ImageSource` arrive
-// through magic's own barrel, which re-exports them, so naming the package here as well is what the
-// analyzer calls an unnecessary import.
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
+// The platform question this screen used to ask itself (camera on a phone, file dialog everywhere
+// else) moved to `pickPhoto` when a third screen needed the same answer. `XFile` still arrives
+// through magic's own barrel, which re-exports `cross_file`.
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
@@ -16,6 +14,7 @@ import '../../app/support/movement_copy.dart';
 import '../../app/models/dashboard_summary.dart';
 import '../../app/support/plural.dart';
 import '../../app/support/unit_label.dart';
+import '../../app/support/photo_picker.dart';
 import '../../ui/components/list_footer/list_footer.dart';
 import '../../ui/components/lot_row/lot_row.dart';
 import '../../ui/components/movement_row/movement_row.dart';
@@ -423,7 +422,7 @@ class _DashboardViewState extends State<DashboardView> {
   /// closes: nothing is extracted off it in this slice, and the review screen says so rather than
   /// showing an empty document.
   Future<void> _captureReceipt() async {
-    final XFile? picked = await _pickReceipt();
+    final XFile? picked = await pickPhoto();
 
     // A dismissed picker is an answer rather than a failure, and says nothing.
     if (picked == null) return;
@@ -450,29 +449,6 @@ class _DashboardViewState extends State<DashboardView> {
     }
 
     await _offerExistingReceipt();
-  }
-
-  /// The picker, and the one place this screen asks what kind of device it is on.
-  ///
-  /// A phone gets the camera, because photographing the paper in your hand is the whole point.
-  /// Every other platform gets its file dialog, which is what `image_picker` falls back to there
-  /// anyway. `DESIGN.md` allows exactly this: the feature is present on all three platforms and only
-  /// the instrument differs.
-  Future<XFile?> _pickReceipt() {
-    final ImagePicker picker = ImagePicker();
-    final bool handheld = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
-
-    return picker.pickImage(
-      source: handheld ? ImageSource.camera : ImageSource.gallery,
-      // Capped on the way IN, so a 12 megapixel photograph is not carried over a phone connection to
-      // be refused by the server's own limit. The server re-encodes what it stores, so nothing
-      // downstream depends on the original resolution.
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
-    );
   }
 
   /// The receipt the tenant already has, and a way into it.

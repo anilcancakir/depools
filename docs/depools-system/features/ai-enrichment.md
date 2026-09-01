@@ -45,7 +45,7 @@ Positioned accordingly in `monetization.md`: enrichment is available on every ti
 
 Two distinct caches, keyed separately, which the MVP conflated into one column:
 
-- **Image cache**: perceptual hash of the downscaled image, so re-photographing the same product costs nothing.
+- **Image cache**: perceptual hash of the downscaled image, so the same photograph costs nothing twice.
 - **Name cache**: normalised name hash, so the same typed name costs nothing.
 
 Both are scoped per locale, because the same product needs a different card in Turkish and English.
@@ -137,7 +137,20 @@ the ledger means, and that is a conversion rather than a field edit.
 
 1. A photograph of a common Turkish grocery product produces a card the user saves with at most one edit.
 2. The user sees a draft card within one second, before the model responds.
-3. Re-photographing the same product returns instantly and consumes no credit.
+3. Sending the same photograph again returns instantly and consumes no credit.
+
+   **This used to say "re-photographing the same product" and that is not reachable, which was
+   measured rather than argued.** `ImagePhash` reads the low-frequency structure of an image, and on
+   its own fixture two photographs of one object sit **2 bits apart** while two different objects sit
+   36 apart: the populations separate cleanly by Hamming distance and not at all by equality. The
+   cache is an exact match on an indexed column, so what it catches is the same FILE arriving twice
+   (a double tap, a retry, an offline queue replaying), which is worth having and is not what the old
+   wording promised. The receipt slice narrowed its own dedup claim for exactly this reason.
+
+   Closing the gap means a Hamming query, which PostgreSQL 17 can do with `bit_count` over the
+   significant 64 bits, plus a threshold. The threshold is the reason it is not here: calibrating one
+   without a corpus of real product photographs would be fitting it to nothing, and a cache that
+   answers with the wrong product is worse than one that answers less often.
 4. A category the model invents is rejected and the field is left empty.
 5. With zero credits, manual product creation still works end to end.
 6. No code path anywhere calls a model outside a gateway. Verified by test, because the MVP's icon endpoint did exactly that and escaped quota entirely.

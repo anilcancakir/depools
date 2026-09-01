@@ -25,3 +25,18 @@ Artisan::command('inspire', function () {
 Schedule::command('depools:check-consistency')
     ->dailyAt('03:17')
     ->withoutOverlapping();
+
+/*
+ * The diagnostic copies of product photographs, swept on the window `media.enrichment` sets.
+ *
+ * A photograph kept for debugging that nothing ever deletes is not a short window, it is an archive
+ * with an optimistic comment on it, and this one holds EXIF the re-encoded copy does not. So the
+ * sweep ships with the feature rather than after it, the same argument the consistency check above
+ * was accepted on.
+ *
+ * 03:41, away from the hour and away from the check above, so two commands do not contend for the
+ * same minute on a single-worker box.
+ */
+Schedule::command('depools:prune-enrichment-uploads')
+    ->dailyAt('03:41')
+    ->withoutOverlapping();

@@ -41,7 +41,10 @@ use RuntimeException;
  */
 final class ReceiptDocumentStore
 {
-    public function __construct(private readonly ImagePhash $phash) {}
+    public function __construct(
+        private readonly ImagePhash $phash,
+        private readonly ImageDownscaler $downscaler,
+    ) {}
 
     /**
      * Re-encode this upload, keep it on the private disk, and say what was kept.
@@ -55,7 +58,11 @@ final class ReceiptDocumentStore
         // 1. Re-encode to a temp file FIRST, so the hash and the disk write read one set of bytes.
         //    Encoding straight onto the disk and hashing back would need a local `path()`, which is
         //    a property of the driver rather than of the file, and would not survive S3.
-        $encoded = $this->reencode($file);
+        $encoded = $this->downscaler->toJpeg(
+            $file,
+            (int) config('media.documents.stored_edge'),
+            (int) config('media.documents.jpeg_quality'),
+        );
 
         try {
             $phash = $this->phash->hash($encoded);
@@ -105,79 +112,14 @@ final class ReceiptDocumentStore
      * product is what the allocation is proportional to. It costs nothing, since `getimagesize`
      * reads the header rather than the image, which is the same call the `dimensions` rule makes.
      *
-     * It lives here rather than in the controller because it is the same question the decode below
-     * asks, and `backend.md` keeps GD out of a controller.
+     * The measurement moved to [ImageDownscaler] with the decode it belongs to; the BUDGET stays
+     * here, because which number applies is a property of what is being stored rather than of the
+     * arithmetic. This wrapper is what keeps `media.documents.max_pixels` out of the controller,
+     * which is where it was going to end up otherwise and where `backend.md` does not want it.
      */
     public function exceedsPixelBudget(UploadedFile $file): bool
     {
-        $size = getimagesize((string) $file->getRealPath());
-
-        // Unreadable dimensions fail the budget rather than pass it. This is unreachable behind the
-        // `bail` and `dimensions` rules that run first, and fail-closed is the only defensible
-        // answer for a file whose cost cannot be measured.
-        if ($size === false) {
-            return true;
-        }
-
-        return (int) config('media.documents.max_pixels') < $size[0] * $size[1];
-    }
-
-    /**
-     * The downscaled, re-encoded JPEG, as a path to a temp file the caller owns.
-     *
-     * @throws RuntimeException
-     */
-    private function reencode(UploadedFile $file): string
-    {
-        $source = $this->phash->decode((string) $file->getRealPath());
-
-        $width = imagesx($source);
-        $height = imagesy($source);
-        $edge = (int) config('media.documents.stored_edge');
-
-        // Only ever down. Upscaling a small photograph would invent detail a vision model would then
-        // read as print, and would store more bytes than arrived for no gain.
-        $scale = min(1.0, $edge / max($width, $height));
-
-        // **Both axes floor at one pixel, and this is a crash rather than a rounding nicety.** An
-        // 8000x1 image clears every rule on the way here (it decodes, it is a jpeg, both axes are
-        // under 8000 and 8000 pixels is far under the budget), and then `round(1 * 0.256)` is 0 and
-        // `imagecreatetruecolor` raises `ValueError: Argument #2 ($height) must be greater than 0`,
-        // which is not a `RuntimeException` the controller translates and reaches the client as a
-        // 500. Any long edge at or above 4097 against a one-pixel short edge does it.
-        $target = imagecreatetruecolor(
-            max(1, (int) round($width * $scale)),
-            max(1, (int) round($height * $scale)),
-        );
-
-        // White first, then blend: a PNG or WEBP with an alpha channel would otherwise land on
-        // JPEG's black default, and a receipt on black is unreadable to the model and to a person.
-        imagefill($target, 0, 0, imagecolorallocate($target, 255, 255, 255));
-
-        imagecopyresampled(
-            $target,
-            $source,
-            0,
-            0,
-            0,
-            0,
-            imagesx($target),
-            imagesy($target),
-            $width,
-            $height,
-        );
-
-        $path = tempnam(sys_get_temp_dir(), 'receipt-document-');
-
-        if ($path === false) {
-            throw new RuntimeException('Could not allocate a temp file for the uploaded receipt.');
-        }
-
-        imagejpeg($target, $path, (int) config('media.documents.jpeg_quality'));
-
-        // No `imagedestroy()` on either handle: a `GdImage` has been an object freed by refcount
-        // since PHP 8.0, so the call has done nothing for five versions and 8.5 deprecates it.
-        return $path;
+        return $this->downscaler->exceedsPixelBudget($file, (int) config('media.documents.max_pixels'));
     }
 
     /**
@@ -185,7 +127,7 @@ final class ReceiptDocumentStore
      *
      * **No second downscale, and that is the point of `stored_edge`.** `ai-design.md` requires the
      * image to be resized before it is sent with the target resolution as configuration, and that
-     * already happened on the way in: [reencode] bounds the long edge at `media.documents.stored_edge`
+     * already happened on the way in: [store] bounds the long edge at `media.documents.stored_edge`
      * for exactly this call, which is what the config comment beside that key says. Resizing again
      * here would either be a no-op or would quietly hand the model a worse picture than the one on
      * disk, and a receipt's line items are small print.
