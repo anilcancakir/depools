@@ -9,6 +9,35 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+# The platform and build directories, excluded so the Flutter tool stops adding
+# this block back on every `pub get`.
+#
+# **Committed rather than left to the migrator, and the reason is the churn.**
+# The tool writes this block itself whenever it is absent, so the working tree
+# went dirty after every dependency resolution: `bin/check` alone was enough to
+# do it, which made "clean state" something that lasted one command. Six of the
+# sibling packages (`magic`, `magic_starter`, `wind`, `dusk`, `telescope`,
+# `artisan`) already carry it for the same reason.
+#
+# It changes nothing about what CI analyses, which was measured rather than
+# assumed: none of these seven directories holds a single `.dart` file, so the
+# set of analysed files is identical with and without it. What it would hide if
+# that ever stopped being true is worth knowing, so keep `lib/` and `test/` out
+# of this list whatever else goes in.
+#
+# Placed AFTER `include:` on purpose. The migrator inserts it directly above
+# that line, which leaves the comment about "the following line" describing this
+# block instead of the include it was written for.
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
