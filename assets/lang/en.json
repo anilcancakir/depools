@@ -863,6 +863,8 @@
       "extract": "Read this receipt",
       "extracting": "Reading",
       "extract_failed": "The receipt could not be read",
+      "committing": "Saving",
+      "pick_destination_title": "Where did this go?",
       "commit_failed": "The lines could not be saved",
       "status_pending": "Pending",
       "upload_failed": "The receipt could not be uploaded",

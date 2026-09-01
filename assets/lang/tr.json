@@ -863,6 +863,8 @@
       "extract": "Fişi oku",
       "extracting": "Okunuyor",
       "extract_failed": "Fiş okunamadı",
+      "committing": "Kaydediliyor",
+      "pick_destination_title": "Nereye kaldırıldı?",
       "commit_failed": "Satırlar kaydedilemedi",
       "status_pending": "Bekliyor",
       "upload_failed": "Fiş yüklenemedi",
