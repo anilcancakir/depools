@@ -221,6 +221,90 @@ void main() {
       );
     });
 
+    test('an English count before a plural noun carries a pipe', () {
+      // The guards above all fire once a key HAS a pipe. Nothing fired on a key that needed one and
+      // never got it, which is how `:count regions` and `Add :count products` reached a screenshot
+      // reading `1 regions were not recognised` and `Add 1 products` on the shelf screen.
+      //
+      // A count placeholder immediately followed by a word ending in `s` is the shape, and it is
+      // syntactic rather than grammatical: it cannot tell a plural noun from a participle, so the
+      // exemptions below are read by hand rather than pattern-matched.
+      const Set<String> counts = <String>{
+        ':count', ':counted', ':total', ':regions', ':lines', ':ready', ':unresolved', ':written',
+        ':variances', ':skipped', ':unfinished', ':n',
+      };
+
+      // **These 27 predate the guard and are debt, listed rather than swept.** Each renders a
+      // disagreeing string at exactly one count (`1 batches`, `Save 1 lines`, `1 programs`), and
+      // fixing them means touching six screens this test's own change is not about. The list is here
+      // so the debt is countable and so nothing new can join it: a new key with this shape fails.
+      const Set<String> pending = <String>{
+        'screens.assistant.chip_expiring_label',
+        'screens.assistant.chip_low_label',
+        'screens.assistant.chip_untargeted_label',
+        'screens.assistant.shopping_count',
+        'screens.dashboard.count_batches',
+        'screens.dashboard.count_changes',
+        'screens.dashboard.count_products',
+        'screens.dashboard.setup_count',
+        'screens.dashboard.shopping_count',
+        'screens.labels.label_count',
+        'screens.locations.filtered_hint',
+        'screens.locations.subtitle',
+        'screens.mcp.client_count',
+        'screens.product.activity_count',
+        'screens.product.barcode_count',
+        'screens.product.locations_count',
+        'screens.product.serial_count',
+        'screens.product.stat_forecast_progress',
+        'screens.product_filter.apply',
+        'screens.products.filtered_description',
+        'screens.products.subtitle',
+        'screens.products.subtitle_filtered',
+        'screens.receipt.line_count',
+        'screens.receipt.submit',
+        'screens.receipt.subtitle',
+        'screens.stock_in.suggested_category',
+        'screens.stock_move.suggested_count',
+      };
+
+      final RegExp shape = RegExp('(${counts.join('|')}) ([a-z]+)');
+
+      final List<String> offenders = <String>[];
+
+      for (final MapEntry<String, String> entry in en.entries) {
+        if (entry.value.contains('|') || pending.contains(entry.key)) continue;
+
+        for (final RegExpMatch match in shape.allMatches(entry.value)) {
+          if (match.group(2)!.endsWith('s')) {
+            offenders.add('${entry.key} = ${entry.value}');
+            break;
+          }
+        }
+      }
+
+      expect(
+        offenders,
+        isEmpty,
+        reason: 'these agree with no count, so one value renders wrong:\n${offenders.join('\n')}',
+      );
+
+      // The debt list shrinks; it does not grow. A key fixed and left listed would make the list a
+      // lie, and a key removed from the catalogue would make it stale.
+      for (final String key in pending) {
+        expect(
+          en.containsKey(key),
+          isTrue,
+          reason: '$key is listed as pending plural debt and no longer exists',
+        );
+        expect(
+          en[key]!.contains('|'),
+          isFalse,
+          reason: '$key now carries a pipe, so drop it from the pending list',
+        );
+      }
+    });
+
     test('a locale that inflects carries a pipe wherever the other one does', () {
       // Turkish does not inflect after a numeral, so a `tr` value with no pipe is correct rather
       // than incomplete. English is the other way round: a pipe in `tr` and none in `en` means the

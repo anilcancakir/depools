@@ -16,6 +16,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../app/controllers/product_draft_controller.dart';
 import '../../../app/controllers/scan_controller.dart';
+import '../../../app/controllers/shelf_controller.dart';
 import '../../../app/support/barcode_symbology.dart';
 import '../../../app/support/photo_picker.dart';
 import '../../../app/support/plural.dart';
@@ -1037,12 +1038,27 @@ class _BarcodeScanViewState extends State<BarcodeScanView> {
           Lang.get('screens.scan.shelf'),
           Lang.get('screens.scan.shelf_note'),
           Lang.get('screens.scan.shelf_label'),
-          // Still unwired: the shelf read needs its own endpoint and its own review screen, and
-          // `ShelfPhotoView` is drawn against fixtures until both land.
-          null,
+          _readShelf,
         ),
       ],
     );
+  }
+
+  /// Photograph a shelf and open the review it reads into.
+  ///
+  /// **The upload starts here rather than on the review screen**, for the same reason the
+  /// single-product path starts its read here: the request is already in flight while the route
+  /// transition animates, and `ai-enrichment.md` wants the photograph on screen immediately.
+  Future<void> _readShelf() async {
+    final XFile? photo = await pickPhoto();
+
+    if (photo == null) return;
+
+    final ShelfController controller = ShelfController.instance..begin(photo);
+
+    unawaited(controller.uploadAndRead());
+
+    MagicRoute.to('/shelf-photo');
   }
 
   /// Photograph one product and open the draft it reads into.

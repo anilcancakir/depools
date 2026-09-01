@@ -69,9 +69,24 @@ rejected state fades and stays rather than disappearing: a candidate that vanish
 could not be un-rejected.
 
 **The read is never a blank screen.** The MVP left users watching nothing through a two-minute
-analysis, so the reading state shows the photograph immediately, draws each box as its region
-finishes, counts how far it has got, and leaves a skeleton row where the next candidate will
-land. A list that stops at four looks finished at four.
+analysis, so the reading state shows the photograph immediately and leaves skeleton rows where the
+candidates will land.
+
+**The per-region reveal this used to promise is gone, and the reason is that this document
+contradicted itself.** It asked for a box drawn "as each region finishes" with a running count, while
+its own Constraints section says, in as many words, that the MVP's `sleep(rand(2,3))` on cache hits
+was "a small lie and it goes". One model call returns every region at once, so there are no per-region
+completions to draw: revealing them one at a time would be the same lie with an animation instead of a
+sleep, and a count of `3 of 6` would be a number pretending to be progress.
+
+Asking the model per region would make the progress real and cost the feature its point: it would be
+N+1 calls where the whole appeal is that "a shelf photo is one credit regardless of how many items it
+yields". So the reading state is the photograph plus skeletons, and the boxes and rows appear
+together.
+
+Anılcan's call, taken when the screen was wired. The fixture that stood in for a partial count
+(`resolvedSoFar`) went with it, and `test/shelf_photo_test.dart` now pins the absence rather than the
+ceiling.
 
 **A failed read keeps the photograph.** The picture stays, the callout says what was kept and
 that no credit was spent, and both ways forward are offered. The MVP stored the upload before

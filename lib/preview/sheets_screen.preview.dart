@@ -1,8 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../app/models/shelf_read.dart';
 import '../resources/views/products/field_editor_sheet.dart';
 import '../resources/views/products/product_fixtures.dart';
+import '../resources/views/products/shelf_candidate_sheet.dart';
+import '../resources/views/products/shelf_fixtures.dart';
 import '../resources/views/products/stock_in_sheet.dart';
 import '../resources/views/products/stock_move_sheet.dart';
 import '../resources/views/products/stock_out_sheet.dart';
@@ -32,6 +35,18 @@ class SheetsScreenPreview extends StatelessWidget {
 
   /// The product the movement sheets act on.
   ProductListItem get _product => productFixtures.first;
+
+  /// A shelf region the recogniser matched to a product already in stock.
+  ShelfCandidate get _matched => shelfCandidates.first;
+
+  /// A shelf region nothing could name, which is the shape that grows a name field.
+  ShelfCandidate get _unnamed => shelfRead.unresolved.first;
+
+  /// A few of the seeded codes, standing in for the tenant list `ShelfPhotoView` fetches.
+  ///
+  /// The screen reads `GET /units`, so a preview cannot have the real set; what matters here is that
+  /// the combobox renders WORDS from CODES, which three of them show as well as nineteen.
+  List<String> get _unitCodes => const <String>['C62', 'KGM', 'LTR'];
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +91,21 @@ class SheetsScreenPreview extends StatelessWidget {
             unit: 'gün',
             kind: FieldEditorKind.number,
           ),
+        ),
+        // **Both shapes the shelf sheet takes, because the difference is invisible from a call
+        // site.** A matched region already has a product, so it asks how many; a region nothing
+        // could name has to be named before it can be counted, so the same sheet grows a name field
+        // and a unit row. `ai-enrichment.md` requires the unnameable one to be PRESENTED rather than
+        // invented, and this is where that presentation is reviewable.
+        SheetPreviewFrame(
+          title: Lang.get('screens.shelf_candidate.title', {'region': _matched.region}),
+          description: _matched.productName,
+          child: ShelfCandidateSheet(candidate: _matched, unitCodes: _unitCodes),
+        ),
+        SheetPreviewFrame(
+          title: Lang.get('screens.shelf_candidate.title', {'region': _unnamed.region}),
+          description: Lang.get('screens.shelf_candidate.unnamed'),
+          child: ShelfCandidateSheet(candidate: _unnamed, unitCodes: _unitCodes),
         ),
       ],
     );

@@ -1,14 +1,25 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import '../../../ui/layouts/app_page_scaffold.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSButton, ButtonIntent, MSSkeleton, SkeletonShape;
+    show MSBottomSheet, MSButton, ButtonIntent, MSSkeleton, SkeletonShape;
 
+import '../../../app/controllers/shelf_controller.dart';
+import '../../../app/models/shelf_read.dart';
+import '../../../app/support/merge_unit_codes.dart';
+import '../../../app/support/photo_picker.dart';
+import '../../../app/support/plural.dart';
 import '../../../ui/components/callout/callout.dart';
+import '../../../ui/components/receipt_line_row/receipt_line_row.dart' show LineResolution;
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/components/shelf_candidate_row/shelf_candidate_row.dart';
-import 'shelf_fixtures.dart';
+import '../../../ui/layouts/app_page_scaffold.dart';
+import 'destination_sheet.dart';
+import 'product_fixtures.dart' show ProductListItem;
+import 'shelf_candidate_sheet.dart';
 
 /// How far the read has got.
 enum ShelfReadState {
@@ -43,27 +54,184 @@ enum ShelfReadState {
 /// `ai-enrichment.md` calls worth telling users, because it makes this the cheapest capture
 /// path in the app and nobody would guess that from the interface.
 @immutable
-class ShelfPhotoView extends StatelessWidget {
+class ShelfPhotoView extends StatefulWidget {
   static const IconData _retakeIcon = Icons.photo_camera_outlined;
   static const IconData _manualIcon = Icons.edit_outlined;
 
+  /// A read supplied by the caller, which is how the preview catalog stays offline.
+  ///
+  /// Null means "read [ShelfController]", which is what the route does. The state class only touches
+  /// the controller when this is null, so a preview never issues a request. Same contract filled
+  /// from a different source: this is the type the endpoint returns, so it cannot drift from the API
+  /// the way a hand-built fixture would.
+  final ShelfRead? preview;
+
+  /// Which state to draw. Only consulted alongside [preview].
+  final ShelfReadState previewState;
+
+  /// Creates the [ShelfPhotoView], reading from [ShelfController].
+  const ShelfPhotoView({super.key})
+    : preview = null,
+      previewState = ShelfReadState.ready;
+
+  /// Creates the view over a supplied read, for the catalog.
+  const ShelfPhotoView.preview(
+    ShelfRead this.preview, {
+    super.key,
+    this.previewState = ShelfReadState.ready,
+  });
+
+  @override
+  State<ShelfPhotoView> createState() => _ShelfPhotoViewState();
+}
+
+class _ShelfPhotoViewState extends State<ShelfPhotoView> {
+  ShelfController? _controller;
+
+  /// The photograph's bytes, read once.
+  ///
+  /// **`Image.memory` rather than `Image.file`, and that is the platform rule.** `dart:io` does not
+  /// exist on web, and the server never serves its own copy back (a private disk with no route, on
+  /// purpose), so the only picture the boxes can sit on is the local file, read through bytes that
+  /// work everywhere `image_picker` does.
+  Future<Uint8List>? _photoBytes;
+
+  /// Where the shelf's stock can go.
+  ///
+  /// Fetched in the view rather than in the controller, which is what `BarcodeScanView` does with
+  /// the same list and for the same reason: `DestinationOption` is the picker's own shape, and a
+  /// controller building a view type would be the dependency pointing the wrong way.
+  List<DestinationOption> _locations = const <DestinationOption>[];
+
+  /// The units a product created from an unnamed region may be counted in.
+  ///
+  /// Fetched once for the screen rather than per sheet: a shelf of six unnamed regions opens six
+  /// sheets, and a sheet that fetched its own list would issue the same request six times. Starts at
+  /// the countable unit, which is the honest degradation the product form uses for the same list:
+  /// every product can be counted in pieces.
+  List<String> _units = const <String>['C62'];
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.preview == null) {
+      final ShelfController controller = ShelfController.instance
+        ..addListener(_onControllerChanged);
+
+      _controller = controller;
+      _photoBytes = controller.photo?.readAsBytes();
+
+      unawaited(_loadLocations());
+      unawaited(_loadUnits());
+    }
+  }
+
+  /// Loads the places a shelf's stock can go.
+  ///
+  /// Not awaited by anything: the picker only opens once the user has reviewed the regions, which is
+  /// several seconds away at the earliest, and blocking the first frame on it would delay the
+  /// photograph `ai-enrichment.md` wants on screen immediately.
+  Future<void> _loadLocations() async {
+    final dynamic response = await Http.get('/locations');
+
+    if (!mounted || !response.successful) return;
+
+    final dynamic rows = response['data'];
+
+    setState(() {
+      _locations = <DestinationOption>[
+        if (rows is List)
+          for (final dynamic row in rows)
+            if (row is Map && row['id'] is String)
+              DestinationOption(
+                id: row['id'] as String,
+                name: (row['name'] as String?) ?? '',
+                // `full_path` is the hierarchy the picker's description line shows; it falls back to
+                // the name for a root, where there are no ancestors to print.
+                fullPath: (row['full_path'] as String?) ?? (row['name'] as String?) ?? '',
+                depth: (row['depth'] as num?)?.toInt() ?? 0,
+                productCount: (row['stock_count'] as num?)?.toInt() ?? 0,
+              ),
+      ];
+    });
+  }
+
+  /// Loads the units this tenant may pick, so a created product is not forced into pieces.
+  ///
+  /// Merged rather than assigned, for the reason the product form records: the answer can land after
+  /// the user has already chosen, and overwriting would leave the combobox holding a value that is no
+  /// longer among its options.
+  Future<void> _loadUnits() async {
+    final dynamic response = await Http.get('/units');
+
+    if (!mounted || !response.successful) return;
+
+    final dynamic rows = response['data'];
+
+    if (rows is! List) return;
+
+    final List<String> codes = <String>[
+      for (final dynamic row in rows)
+        if (row is Map && row['code'] is String) row['code'] as String,
+    ];
+
+    if (codes.isEmpty) return;
+
+    setState(() {
+      _units = mergeUnitCodes(fromServer: codes, known: _units, selected: _units.first);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// The read being reviewed, or an empty one before the upload answers.
+  ShelfRead get _read =>
+      widget.preview ?? _controller?.read ?? const ShelfRead(id: '');
+
   /// How far the read has got.
-  final ShelfReadState state;
+  ///
+  /// Derived rather than stored, because the three states are three facts about the controller: a
+  /// request in flight, an answer with regions in it, and an answer with none.
+  ShelfReadState get state {
+    if (widget.preview != null) return widget.previewState;
 
-  /// Creates the view with the read finished.
-  const ShelfPhotoView({super.key}) : state = ShelfReadState.ready;
+    final ShelfController? controller = _controller;
 
-  /// Creates the view mid-read.
-  const ShelfPhotoView.reading({super.key}) : state = ShelfReadState.reading;
+    if (controller == null) return ShelfReadState.failed;
+    if (controller.uploading || controller.reading) return ShelfReadState.reading;
 
-  /// Creates the view after a failed read.
-  const ShelfPhotoView.failed({super.key}) : state = ShelfReadState.failed;
+    // **Empty is a FAILURE here and it is not on the product-photo path**, which is the one place
+    // this screen and that one disagree. A shelf holding nothing recognisable is the state
+    // `ai-enrichment.md` draws a failed read for: the picture stays, the callout says what was kept,
+    // and both ways forward are offered. A single-product read with no card still has a card to
+    // type into, so it has somewhere else to go.
+    return _read.candidates.isEmpty ? ShelfReadState.failed : ShelfReadState.ready;
+  }
 
-  /// How many boxes are drawn. Mid-read only the finished ones exist.
-  int get _visibleRegions => switch (state) {
-    ShelfReadState.reading => resolvedSoFar,
-    ShelfReadState.ready => shelfCandidates.length,
-    ShelfReadState.failed => 0,
+  /// The regions to draw, which is all of them or none.
+  ///
+  /// **There is no partial state, and the spec was corrected rather than the code fudged.**
+  /// `ai-enrichment.md` asked for a box drawn "as each region finishes" with a running count, and its
+  /// own constraints section forbids fake latency in as many words ("the MVP added
+  /// `sleep(rand(2,3))`... that is a small lie and it goes"). One model call returns everything at
+  /// once, so there are no per-region completions: revealing them one by one would be the same lie
+  /// with an animation instead of a sleep, and asking per region would be N+1 calls that destroy the
+  /// one-credit economics this path exists for.
+  ///
+  /// So the honest reading state is the photograph, immediately, with skeleton rows underneath.
+  List<ShelfCandidate> get _visible => switch (state) {
+    ShelfReadState.reading => const <ShelfCandidate>[],
+    ShelfReadState.ready => _read.candidates,
+    ShelfReadState.failed => const <ShelfCandidate>[],
   };
 
   @override
@@ -71,10 +239,17 @@ class ShelfPhotoView extends StatelessWidget {
     return AppPageScaffold(
       title: Lang.get('screens.shelf_photo.title'),
       subtitle: switch (state) {
-        ShelfReadState.reading =>
-          Lang.get('screens.shelf_photo.subtitle_reading', {'done': resolvedSoFar, 'total': shelfCandidates.length}),
-        ShelfReadState.ready =>
-          Lang.get('screens.shelf_photo.subtitle', {'regions': shelfCandidates.length, 'ready': settledCandidates.length}),
+        // No count while it reads, because there is nothing to count yet and a `0 of 0` would be a
+        // number pretending to be progress.
+        ShelfReadState.reading => Lang.get('screens.shelf_photo.subtitle_reading'),
+        // Each half pluralises on its own count, the way `barcode_scan_view` composes its own
+        // two-count line: one string carrying two numbers can only agree with one of them.
+        ShelfReadState.ready => Lang.get('screens.shelf_photo.subtitle', {
+          'regions': plural('screens.shelf_photo.region_count', _read.candidates.length, {
+            'count': _read.candidates.length,
+          }),
+          'ready': _read.settled.length,
+        }),
         ShelfReadState.failed => Lang.get('screens.shelf_photo.subtitle_failed'),
       },
       // Pinned rather than trailing (D70). A photograph of a full shelf yields a candidate per
@@ -96,7 +271,13 @@ class ShelfPhotoView extends StatelessWidget {
   Widget _buildPhoto() {
     return SectionCard(
       label: Lang.get('screens.shelf_photo.photo_group'),
-      count: state == ShelfReadState.failed ? null : Lang.get('screens.shelf_photo.region_count', {'count': _visibleRegions}),
+      // **No count until there is one to give.** `0 regions` while the model is still working is
+      // the same lie the subtitle refuses one line up: it reads as "nothing found" rather than as
+      // "nothing back yet", and the read returns every region at once so there is no partial number
+      // to print. Ready is the only state that has a count.
+      count: state == ShelfReadState.ready
+          ? plural('screens.shelf_photo.region_count', _visible.length, {'count': _visible.length})
+          : null,
       children: [
         WDiv(
           className: 'w-full rounded-md bg-surface-container-high overflow-hidden',
@@ -105,14 +286,8 @@ class ShelfPhotoView extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) => Stack(
                 children: <Widget>[
-                  // The picture itself. A placeholder here; the real screen shows the capture.
-                  const Positioned.fill(
-                    child: WDiv(
-                      className: 'flex flex-col items-center justify-center',
-                      child: WIcon(Icons.photo_outlined, className: 'size-10 text-fg-disabled'),
-                    ),
-                  ),
-                  for (final ShelfCandidate c in shelfCandidates.take(_visibleRegions))
+                  Positioned.fill(child: _buildPicture()),
+                  for (final ShelfCandidate c in _visible)
                     Positioned(
                       left: c.left * constraints.maxWidth,
                       top: c.top * constraints.maxHeight,
@@ -171,22 +346,29 @@ class ShelfPhotoView extends StatelessWidget {
   /// The rows, arriving progressively while the read runs.
   Widget _buildCandidates() {
     final bool isReading = state == ShelfReadState.reading;
-    final List<ShelfCandidate> shown = shelfCandidates.take(_visibleRegions).toList();
+    final List<ShelfCandidate> shown = _visible;
 
     return SectionCard(
       label: Lang.get('screens.shelf_photo.found_group'),
-      count: Lang.get('screens.shelf_photo.region_count', {'count': shown.length}),
+      count: isReading
+          ? null
+          : plural('screens.shelf_photo.region_count', shown.length, {'count': shown.length}),
       children: [
         for (final ShelfCandidate c in shown)
           ShelfCandidateRow(
             region: c.region,
             productName: c.productName,
             resolution: c.resolution,
-            amount: c.amount,
-            formatted: c.formatted,
-            unit: c.unit,
-            meta: c.meta,
-            onTap: () {},
+            // **A quantity the model could not count is NOT zero, and printing `0` says it was.**
+            // The row still gets 0 as the raw amount, because that drives its zero TONE and an
+            // uncounted region is not a quantity to celebrate. Same split `ReceiptReviewView` makes.
+            amount: c.quantity ?? 0,
+            formatted: c.quantity == null
+                ? Lang.get('screens.shelf_photo.quantity_unknown')
+                : ProductListItem.format(c.quantity!),
+            unit: c.unit ?? '',
+            meta: _metaFor(c),
+            onTap: () => _decide(context, c),
           ),
         // A skeleton for the regions still being read, so the list says "more is coming"
         // rather than looking finished at four.
@@ -219,24 +401,30 @@ class ShelfPhotoView extends StatelessWidget {
     );
   }
 
+  /// The line under a row that says where it stands.
+  ///
+  /// Derived from the resolution rather than carried as a string, which is what the fixture used to
+  /// do: a pre-localised field cannot be localised, and this screen ships in two languages.
+  String? _metaFor(ShelfCandidate candidate) => switch (candidate.resolution) {
+    LineResolution.matched => Lang.get('screens.shelf_photo.meta_matched'),
+    LineResolution.created => Lang.get('screens.shelf_photo.meta_created'),
+    LineResolution.rejected => Lang.get('screens.shelf_photo.meta_rejected'),
+    LineResolution.unresolved => null,
+  };
+
   /// Accept what is settled, or take one of the two ways out.
   ///
   /// The count on the button is the SETTLED count, not the region count. Six regions yielded
   /// four products; a button reading "6 ürünü ekle" would promise to write an unnamed bottle
   /// and a price label.
   Widget _buildActions() {
-    final int ready = settledCandidates.length;
+    final int ready = _read.settled.length;
 
     return WDiv(
       className: 'flex flex-col gap-2 pb-2',
       children: [
         if (state == ShelfReadState.ready) ...[
-          WText(
-            unresolvedCandidates.isEmpty
-                ? Lang.get('screens.shelf_photo.will_write', {'count': ready})
-                : Lang.get('screens.shelf_photo.will_write_partial', {'count': ready, 'unresolved': unresolvedCandidates.length}),
-            className: 'text-sm text-fg-muted',
-          ),
+          WText(_writeLine(ready), className: 'text-sm text-fg-muted'),
           // The economics, stated once. It is the cheapest capture path in the app and
           // nothing in the interface would say so.
           WText(
@@ -244,40 +432,206 @@ class ShelfPhotoView extends StatelessWidget {
             className: 'text-xs text-fg-muted',
           ),
           MSButton(
-            onPressed: () {},
+            onPressed: ready > 0 && !(_controller?.committing ?? false)
+                ? () => unawaited(_submit(context))
+                : null,
+            disabled: ready == 0,
+            // The intent carries the disabled state because the disabled STYLE does not, measured on
+            // this repo. A shelf where every region was rejected has nothing to write, and a
+            // full-strength button promising six products would be the dead control D60 warns about.
+            intent: ready > 0 ? ButtonIntent.primary : ButtonIntent.secondary,
             fullWidth: true,
             className: 'justify-center',
-            child: WText(Lang.get('screens.shelf_photo.submit', {'count': ready})),
+            child: WText(
+              (_controller?.committing ?? false)
+                  ? Lang.get('screens.shelf_photo.submitting')
+                  : plural('screens.shelf_photo.submit', ready, {'count': ready}),
+            ),
           ),
         ],
         MSButton(
-          onPressed: () {},
+          // **A failed read retries the READ; anything else takes a new photograph.** The
+          // distinction is the promise `ai-enrichment.md` makes on a failure: "the photo is kept and
+          // no credit was spent", so asking the user to shoot it again would be charging them for
+          // our own retry.
+          onPressed: () => unawaited(
+            state == ShelfReadState.failed ? _retryRead() : _retake(context),
+          ),
           intent: ButtonIntent.ghost,
           fullWidth: true,
           className: 'justify-center',
           child: WDiv(
             className: 'flex flex-row items-center justify-center gap-2',
             children: [
-              const WIcon(_retakeIcon, className: 'size-4'),
+              const WIcon(ShelfPhotoView._retakeIcon, className: 'size-4'),
               WText(state == ShelfReadState.failed ? Lang.get('screens.shelf_photo.retry') : Lang.get('screens.shelf_photo.retake')),
             ],
           ),
         ),
         if (state != ShelfReadState.reading)
           MSButton(
-            onPressed: () {},
+            onPressed: () {
+              _controller?.reset();
+              MagicRoute.to('/products/new');
+            },
             intent: ButtonIntent.ghost,
             fullWidth: true,
             className: 'justify-center',
             child: WDiv(
               className: 'flex flex-row items-center justify-center gap-2',
               children: [
-                WIcon(_manualIcon, className: 'size-4'),
+                const WIcon(ShelfPhotoView._manualIcon, className: 'size-4'),
                 WText(Lang.get('screens.shelf_photo.manual')),
               ],
             ),
           ),
       ],
     );
+  }
+
+  /// What the button is about to write, and what it is leaving behind.
+  ///
+  /// Two sentences composed rather than one string with two numbers in it, because a single value
+  /// can only agree with one count: `4 products will be written, 1 regions were not recognised` was
+  /// on screen before this. `barcode_scan_view` composes its own partial line the same way.
+  String _writeLine(int ready) {
+    final int unresolved = _read.unresolved.length;
+
+    final String written = plural('screens.shelf_photo.will_write', ready, {'count': ready});
+
+    if (unresolved == 0) return written;
+
+    return Lang.get('screens.shelf_photo.will_write_partial', {
+      'written': written,
+      'unresolved': plural('screens.shelf_photo.unresolved_count', unresolved, {'count': unresolved}),
+    });
+  }
+
+  /// The photograph the boxes are drawn over.
+  ///
+  /// The placeholder is what a preview shows and what a resumed read shows: the server keeps its copy
+  /// on a private disk with no route serving it, so a read reopened without the local file has no
+  /// picture to offer. D60's whole design rests on the picture, which is why that case is drawn as an
+  /// absence rather than as an empty box.
+  Widget _buildPicture() {
+    final Future<Uint8List>? bytes = _photoBytes;
+
+    if (bytes == null) return _buildNoPicture();
+
+    return FutureBuilder<Uint8List>(
+      future: bytes,
+      builder: (BuildContext context, AsyncSnapshot<Uint8List> snapshot) {
+        final Uint8List? data = snapshot.data;
+
+        return data == null
+            ? _buildNoPicture()
+            : Image.memory(data, fit: BoxFit.cover);
+      },
+    );
+  }
+
+  Widget _buildNoPicture() {
+    return const WDiv(
+      className: 'flex flex-col items-center justify-center',
+      child: WIcon(Icons.photo_outlined, className: 'size-10 text-fg-disabled'),
+    );
+  }
+
+  /// Asks the user what one region is, and records the answer locally.
+  ///
+  /// Nothing reaches the server here. D60's accept count is the settled count and the user is allowed
+  /// to change their mind about a region before submitting the shelf, so the decision lands in the
+  /// controller's own copy and the whole batch goes at once.
+  Future<void> _decide(BuildContext context, ShelfCandidate candidate) async {
+    final ShelfController? controller = _controller;
+
+    if (controller == null) return;
+
+    final ShelfDecision? decision = await ShelfCandidateSheet.show(
+      context,
+      candidate: candidate,
+      unitCodes: _units,
+    );
+
+    if (decision == null || !context.mounted) return;
+
+    if (decision.isRejection) {
+      controller.decide(candidate.rejected);
+
+      return;
+    }
+
+    // A region nothing could name needs a product before it can be counted. `ShelfCommitter` takes
+    // ids only, the same as `ReceiptCommitter`, so this is one request per new product and the
+    // backend's own docblock names `stock/receive-batch` as the fix if that ever bites.
+    final String? productId = decision.productId ??
+        await controller.createProduct(
+          name: decision.newProductName!,
+          unit: decision.newProductUnit,
+        );
+
+    if (productId == null) return;
+
+    controller.decide(candidate.accepted(productId: productId, quantity: decision.quantity));
+  }
+
+  /// Picks a location, then writes the settled regions into it.
+  ///
+  /// The location is asked once for the whole shelf rather than per region, because a shelf IS one
+  /// place: that is the shape `stock/receive-batch` has and the reason the commit endpoint takes a
+  /// single `location_id`.
+  Future<void> _submit(BuildContext context) async {
+    final ShelfController? controller = _controller;
+
+    if (controller == null) return;
+
+    final String? locationId = await MSBottomSheet.show<String>(
+      context,
+      title: Lang.get('screens.shelf_photo.destination_title'),
+      // The sheet is its own widget, so its search field's state belongs to it: a `setState` here
+      // while it is open would rebuild the photograph and its boxes behind it.
+      // No recents: `stock/recent-receiving-locations` answers where DELIVERIES land, and a shelf
+      // read is a count of what is already on that shelf. Offering the receiving bench first would
+      // put the likeliest wrong answer at the top of the list.
+      body: DestinationSheet(options: _locations, recentIds: const <String>[]),
+    );
+
+    if (locationId == null || !context.mounted) return;
+
+    final String? failure = await controller.commit(locationId: locationId);
+
+    if (!context.mounted) return;
+
+    if (failure != null) {
+      MagicFeedback.error(Lang.get('screens.shelf_photo.title'), failure);
+
+      return;
+    }
+
+    MagicFeedback.success(
+      Lang.get('screens.shelf_photo.title'),
+      plural('screens.shelf_photo.written', _read.settled.length, {'count': _read.settled.length}),
+    );
+
+    controller.reset();
+    MagicRoute.to('/products');
+  }
+
+  /// Reads the same photograph again, without spending a second upload.
+  Future<void> _retryRead() async {
+    await _controller?.reread();
+  }
+
+  /// Takes another photograph and starts over.
+  Future<void> _retake(BuildContext context) async {
+    final XFile? photo = await pickPhoto();
+
+    if (photo == null || !context.mounted) return;
+
+    final ShelfController controller = ShelfController.instance..begin(photo);
+
+    setState(() => _photoBytes = photo.readAsBytes());
+
+    unawaited(controller.uploadAndRead());
   }
 }

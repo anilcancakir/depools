@@ -36,6 +36,17 @@ use Illuminate\Support\Facades\DB;
  * reachability rather than write verbs, so naming that model even as a return type would put this
  * file in the set. It has no need to: it asks `StockWriter` to append and the caller re-reads.
  *
+ * ### It contributes no photograph hash to the shared catalogue, and that is deliberate
+ *
+ * `CatalogueContributor` is not called from here at all. A new product a shelf review names is
+ * created through `POST products`, which contributes its TEXT the way every other product does and
+ * sends no `image_phash`, so no shelf hash ever reaches `global_products`.
+ *
+ * That asymmetry with the single-product path is the point rather than an oversight. A photograph of
+ * one box is a picture of a product, and a globally readable hash of it is a cache key. A photograph
+ * of a SHELF is a picture of a room, and a hash of it in a table every tenant reads would be a
+ * membership oracle: anyone could ask whether a given picture of a given room had been taken.
+ *
  * ### Nothing is written that a person has not agreed to
  *
  * D60 makes the accept count the SETTLED count, never the region count: six regions yielded four

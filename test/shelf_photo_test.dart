@@ -1,3 +1,4 @@
+import 'package:depools/app/models/shelf_read.dart';
 import 'package:depools/resources/views/products/shelf_fixtures.dart';
 import 'package:depools/ui/components/receipt_line_row/receipt_line_row.dart' show LineResolution;
 import 'package:flutter_test/flutter_test.dart';
@@ -27,8 +28,15 @@ void main() {
       expect(shelfCandidates.where((c) => c.resolution == LineResolution.rejected).length, 1);
     });
 
-    test('the mid-read count never exceeds the region count', () {
-      expect(resolvedSoFar, lessThanOrEqualTo(shelfCandidates.length));
+    test('a mid-read shelf shows no boxes at all', () {
+      // **The progressive reveal went, and the spec was corrected rather than the code fudged.**
+      // `ai-enrichment.md` asked for a box drawn "as each region finishes" with a running count,
+      // and its own constraints section forbids fake latency in as many words. One model call
+      // returns everything at once, so there are no per-region completions to draw: the honest
+      // reading state is the photograph plus skeleton rows, and `resolvedSoFar` (the fixture that
+      // stood in for a count nothing produces) went with it.
+      expect(const ShelfRead(id: 'reading').candidates, isEmpty);
+      expect(const ShelfRead(id: 'reading').settled, isEmpty);
     });
   });
 }
