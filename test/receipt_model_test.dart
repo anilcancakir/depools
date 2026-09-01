@@ -76,7 +76,11 @@ void main() {
       expect(receipt.currency, isNull);
       expect(receipt.supplierName, isNull);
       expect(receipt.createdAt, DateTime.parse('2026-08-15T09:00:00+00:00'));
-      expect(receipt.linesCount, isNull, reason: 'the detail endpoint never sends this key');
+      expect(
+        receipt.linesCount,
+        isNull,
+        reason: 'the detail endpoint never sends this key',
+      );
       expect(receipt.lines, hasLength(2));
 
       final ReceiptLine matched = receipt.lines[0];
@@ -95,10 +99,15 @@ void main() {
       expect(
         unresolved.resolution,
         LineResolution.unresolved,
-        reason: 'an unknown resolution string degrades to the state that claims nothing',
+        reason:
+            'an unknown resolution string degrades to the state that claims nothing',
       );
       expect(unresolved.productName, isNull);
-      expect(unresolved.rawUnitCode, 'XYZ', reason: 'D97: the raw code travels beside the map miss');
+      expect(
+        unresolved.rawUnitCode,
+        'XYZ',
+        reason: 'D97: the raw code travels beside the map miss',
+      );
       expect(unresolved.resolvedUnit, isNull);
     });
 
@@ -119,6 +128,105 @@ void main() {
 
       expect(receipt.linesCount, 2);
       expect(receipt.lines, isEmpty);
+    });
+  });
+
+  group('ReceiptController.extract', () {
+    /// A fake that answers the extract POST with [body] and the list GET with nothing.
+    ///
+    /// `extract` reloads the list on its way out, because the list row carries a line COUNT that a
+    /// fresh read makes stale. So a fake answering only the POST would fail on the second request.
+    void serve(Map<String, dynamic> body) {
+      Http.fake((MagicRequest request) {
+        return request.url.contains('/extract')
+            ? MagicResponse(
+                statusCode: 200,
+                data: <String, dynamic>{'data': body},
+              )
+            : MagicResponse(
+                statusCode: 200,
+                data: const <String, dynamic>{'data': <dynamic>[]},
+              );
+      });
+    }
+
+    Map<String, dynamic> receipt({
+      List<Map<String, dynamic>> lines = const <Map<String, dynamic>>[],
+      String? outcome,
+    }) {
+      return <String, dynamic>{
+        'id': 'r-1',
+        'kind': 'fis',
+        'status': lines.isEmpty ? 'pending' : 'extracted',
+        'issued_on': null,
+        'total_amount': null,
+        'currency': null,
+        'supplier_name': null,
+        'confirmed_at': null,
+        'created_at': '2026-09-01T10:00:00+00:00',
+        'last_extraction_outcome': outcome,
+        'lines': lines,
+      };
+    }
+
+    test(
+      'a read that produced nothing says so rather than redrawing the same card',
+      () async {
+        // **Measured in a browser before it was written here.** The request returned 200, the screen
+        // redrew "not read yet", and the tap visibly did nothing: a successful request is not the
+        // same as the user getting an answer, and this is the one path where the two come apart.
+        //
+        // `Lang.get` answers with the key under the plain test binding (nothing loads the catalogues),
+        // which is what the upload tests below assert on too.
+        serve(receipt());
+
+        final String? message = await ReceiptController().extract('r-1');
+
+        expect(message, 'screens.receipt.read_unreadable');
+      },
+    );
+
+    test(
+      'running out of credits is its own sentence, because it is actionable',
+      () async {
+        // Buying more or keying the lines in are both things the user can do. "Could not read it" is
+        // not, and telling them the wrong one wastes the retry they would otherwise not attempt.
+        serve(receipt(outcome: 'no_credit'));
+
+        final String? message = await ReceiptController().extract('r-1');
+
+        expect(message, 'screens.receipt.read_no_credit');
+      },
+    );
+
+    test('a read that produced lines is silent', () async {
+      serve(
+        receipt(
+          lines: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'l-1',
+              'line_number': 1,
+              'raw_name': 'PNR SUT 1LT',
+              'quantity': '2.000',
+              'raw_unit_code': 'AD',
+              'resolved_unit': 'H87',
+              'unit_price': null,
+              'line_total': null,
+              'resolution': 'unresolved',
+              'resolved_by': null,
+              'product_id': null,
+              'product_name': null,
+              'confidence': 92,
+              'confirmed_at': null,
+            },
+          ],
+          outcome: 'succeeded',
+        ),
+      );
+
+      final String? message = await ReceiptController().extract('r-1');
+
+      expect(message, isNull);
     });
   });
 
@@ -145,7 +253,10 @@ void main() {
       );
 
       final ReceiptUploadOutcome outcome = await ReceiptController().upload(
-        XFile.fromData(Uint8List.fromList(const <int>[1, 2, 3]), name: 'receipt.jpg'),
+        XFile.fromData(
+          Uint8List.fromList(const <int>[1, 2, 3]),
+          name: 'receipt.jpg',
+        ),
       );
 
       expect(outcome.succeeded, isTrue);
@@ -160,12 +271,17 @@ void main() {
       Http.fake(
         (MagicRequest request) => MagicResponse(
           statusCode: 422,
-          data: const <String, dynamic>{'message': 'This picture holds too many pixels to process.'},
+          data: const <String, dynamic>{
+            'message': 'This picture holds too many pixels to process.',
+          },
         ),
       );
 
       final ReceiptUploadOutcome outcome = await ReceiptController().upload(
-        XFile.fromData(Uint8List.fromList(const <int>[1, 2, 3]), name: 'receipt.jpg'),
+        XFile.fromData(
+          Uint8List.fromList(const <int>[1, 2, 3]),
+          name: 'receipt.jpg',
+        ),
       );
 
       expect(outcome.succeeded, isFalse);
@@ -173,38 +289,44 @@ void main() {
       expect(outcome.isDuplicate, isFalse);
     });
 
-    test('a 409 is answered rather than treated as a failure, with the existing receipt', () async {
-      // `ReceiptController::duplicate` sends only `data`, no `message` key (see the backend
-      // controller's own docblock), so the sentence is always this app's own rather than a fallback
-      // for one the server withheld. The key exists in both catalogues; nothing LOADS them under the
-      // plain test binding, so `Lang.get` answers with the key itself and that is what to assert on.
-      Http.fake(
-        (MagicRequest request) => MagicResponse(
-          statusCode: 409,
-          data: <String, dynamic>{
-            'data': <String, dynamic>{
-              'id': 'r-existing',
-              'kind': 'fis',
-              'status': 'pending',
-              'issued_on': null,
-              'total_amount': null,
-              'currency': null,
-              'supplier_name': null,
-              'confirmed_at': null,
-              'created_at': '2026-08-10T09:00:00+00:00',
+    test(
+      'a 409 is answered rather than treated as a failure, with the existing receipt',
+      () async {
+        // `ReceiptController::duplicate` sends only `data`, no `message` key (see the backend
+        // controller's own docblock), so the sentence is always this app's own rather than a fallback
+        // for one the server withheld. The key exists in both catalogues; nothing LOADS them under the
+        // plain test binding, so `Lang.get` answers with the key itself and that is what to assert on.
+        Http.fake(
+          (MagicRequest request) => MagicResponse(
+            statusCode: 409,
+            data: <String, dynamic>{
+              'data': <String, dynamic>{
+                'id': 'r-existing',
+                'kind': 'fis',
+                'status': 'pending',
+                'issued_on': null,
+                'total_amount': null,
+                'currency': null,
+                'supplier_name': null,
+                'confirmed_at': null,
+                'created_at': '2026-08-10T09:00:00+00:00',
+              },
             },
-          },
-        ),
-      );
+          ),
+        );
 
-      final ReceiptUploadOutcome outcome = await ReceiptController().upload(
-        XFile.fromData(Uint8List.fromList(const <int>[1, 2, 3]), name: 'receipt.jpg'),
-      );
+        final ReceiptUploadOutcome outcome = await ReceiptController().upload(
+          XFile.fromData(
+            Uint8List.fromList(const <int>[1, 2, 3]),
+            name: 'receipt.jpg',
+          ),
+        );
 
-      expect(outcome.succeeded, isFalse);
-      expect(outcome.message, 'screens.receipt.duplicate');
-      expect(outcome.isDuplicate, isTrue);
-      expect(outcome.duplicate?.id, 'r-existing');
-    });
+        expect(outcome.succeeded, isFalse);
+        expect(outcome.message, 'screens.receipt.duplicate');
+        expect(outcome.isDuplicate, isTrue);
+        expect(outcome.duplicate?.id, 'r-existing');
+      },
+    );
   });
 }

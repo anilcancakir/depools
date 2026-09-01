@@ -863,6 +863,8 @@
       "extract": "Fişi oku",
       "extracting": "Okunuyor",
       "extract_failed": "Fiş okunamadı",
+      "read_no_credit": "AI kredisi kalmadı, fiş okunmadı. Satırlar elle de girilebilir.",
+      "read_unreadable": "Fiş okunamadı. Yeniden denenebilir ya da satırlar elle girilebilir.",
       "committing": "Kaydediliyor",
       "pick_destination_title": "Nereye kaldırıldı?",
       "commit_failed": "Satırlar kaydedilemedi",

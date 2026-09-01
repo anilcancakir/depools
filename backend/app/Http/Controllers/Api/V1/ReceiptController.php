@@ -101,8 +101,13 @@ final class ReceiptController extends Controller
             abort(422, __('This receipt no longer has a document to read.'));
         }
 
+        $read = $this->extractor->extract($model, $image);
+
+        // `extractions` as well as `lines`, so a receipt that came back with nothing can say WHY.
+        // Without it the client redraws the same card after a successful request, which is a tap
+        // that visibly does nothing.
         return response()->json([
-            'data' => new ReceiptResource($this->extractor->extract($model, $image)),
+            'data' => new ReceiptResource($read->load('extractions')),
         ]);
     }
 

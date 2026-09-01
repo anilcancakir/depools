@@ -190,6 +190,17 @@ class Receipt {
   /// endpoint, where [lines] itself is the answer instead.
   final int? linesCount;
 
+  /// Why the last read produced what it produced, or null when nothing has read this receipt.
+  ///
+  /// A receipt with no lines is three situations wearing one shape: never read, out of AI credits,
+  /// or read by a model that could not use what it saw. The screen says something different for each
+  /// and cannot tell them apart from an empty list.
+  ///
+  /// Null also covers a read attempted with the gateway kill switch on, which writes no attempt row.
+  /// The screen treats that as "could not read", which is the honest thing to tell somebody who
+  /// cannot see the switch.
+  final String? lastExtractionOutcome;
+
   /// This receipt's lines, in printed order. Empty on the list endpoint, which does not load the
   /// relation at all (see `ReceiptResource`'s `whenLoaded` gate), and on a freshly photographed
   /// receipt regardless of endpoint, since nothing has been extracted yet.
@@ -198,6 +209,7 @@ class Receipt {
   /// Creates a [Receipt].
   const Receipt({
     required this.id,
+    this.lastExtractionOutcome,
     required this.kind,
     required this.status,
     this.issuedOn,
@@ -214,6 +226,7 @@ class Receipt {
   factory Receipt.fromApi(Map<String, dynamic> json) {
     return Receipt(
       id: json['id'] as String,
+      lastExtractionOutcome: json['last_extraction_outcome'] as String?,
       kind: json['kind'] as String,
       status: json['status'] as String,
       issuedOn: ProductListItem.parseDate(json['issued_on']),
@@ -236,7 +249,8 @@ class Receipt {
 
     return <ReceiptLine>[
       for (final dynamic row in value)
-        if (row is Map<dynamic, dynamic>) ReceiptLine.fromApi(Map<String, dynamic>.from(row)),
+        if (row is Map<dynamic, dynamic>)
+          ReceiptLine.fromApi(Map<String, dynamic>.from(row)),
     ];
   }
 }

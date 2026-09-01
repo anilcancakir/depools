@@ -863,6 +863,8 @@
       "extract": "Read this receipt",
       "extracting": "Reading",
       "extract_failed": "The receipt could not be read",
+      "read_no_credit": "No AI credits left, so this receipt was not read. The lines can still be added by hand.",
+      "read_unreadable": "This receipt could not be read. It can be tried again, or the lines added by hand.",
       "committing": "Saving",
       "pick_destination_title": "Where did this go?",
       "commit_failed": "The lines could not be saved",
