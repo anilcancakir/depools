@@ -7,6 +7,7 @@ use App\Ai\ExtractedLine;
 use App\Ai\ExtractedReceipt;
 use App\Ai\GatewayRunner;
 use App\Ai\ImageInput;
+use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Carbon;
 
@@ -71,7 +72,7 @@ final class LaravelAiReceiptExtractionGateway implements ReceiptExtractionGatewa
 
     public function __construct(private readonly GatewayRunner $runner) {}
 
-    public function extract(ImageInput $image): ?ExtractedReceipt
+    public function extract(ImageInput $image, ?Closure $onAttempt = null): ?ExtractedReceipt
     {
         return $this->runner->run(
             // **Its own category, unlike the icon gateway which reuses `enrichment_text`.** That one
@@ -170,6 +171,7 @@ final class LaravelAiReceiptExtractionGateway implements ReceiptExtractionGatewa
                 );
             },
             image: $image,
+            onAttempt: $onAttempt,
         );
     }
 

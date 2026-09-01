@@ -3,7 +3,9 @@
 namespace App\Ai\Contracts;
 
 use App\Ai\ExtractedReceipt;
+use App\Ai\GatewayAttempt;
 use App\Ai\ImageInput;
+use Closure;
 
 /**
  * Reading a photographed receipt into line items.
@@ -40,6 +42,18 @@ interface ReceiptExtractionGateway
      * A photograph the model could not read is also null rather than an empty result. "Unreadable,
      * retake it" and "this receipt genuinely has no lines" are different screens, and an empty list
      * would collapse them into one.
+     *
+     * ### The observer is how D95's table gets filled
+     *
+     * `receipt_extractions` is one row per ATTEMPT and that table is O2's bake-off evidence, so a
+     * caller has to see the attempts this returns nothing about: the model that failed schema
+     * validation before the one that passed is the interesting row, and it has no result to carry
+     * it. [$onAttempt] is called once per attempt, in order, with the raw payload.
+     *
+     * It is optional because reading a receipt does not depend on recording how it was read: a
+     * caller that only wants the lines passes nothing.
+     *
+     * @param  Closure(GatewayAttempt): void|null  $onAttempt
      */
-    public function extract(ImageInput $image): ?ExtractedReceipt;
+    public function extract(ImageInput $image, ?Closure $onAttempt = null): ?ExtractedReceipt;
 }

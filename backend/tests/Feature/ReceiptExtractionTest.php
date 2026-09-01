@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\Contracts\ModelCaller;
 use App\Ai\Contracts\ReceiptExtractionGateway;
 use App\Ai\CreditLedger;
+use App\Ai\GatewayAttempt;
 use App\Ai\ImageInput;
 use App\Enums\AiOutcome;
 use App\Models\AiCreditGrant;
@@ -144,6 +145,72 @@ final class ReceiptExtractionTest extends TestCase
 
         $this->assertNull($result);
         $this->assertSame([], $caller->calls, 'the credit check comes before the call, never after');
+    }
+
+    public function test_every_attempt_is_reported_so_the_bake_off_has_its_evidence(): void
+    {
+        // **D95 is what this exists for.** `receipt_extractions` is one row per ATTEMPT, and the
+        // decision says out loud that the table IS O2's bake-off data: "the first model failed
+        // schema validation and the second passed" is the fact a single column would lose. The
+        // runner already knows all of it and kept it to itself, so nothing downstream could write
+        // that row.
+        $this->tenant();
+        $this->credits(5);
+
+        // An unreadable first answer, then a good one. The gateway rejects a receipt with no lines,
+        // which reaches the runner as a schema failure, so the second chain entry is asked.
+        $this->model([['lines' => []], $this->answer()]);
+
+        $seen = [];
+
+        $result = app(ReceiptExtractionGateway::class)->extract(
+            $this->image(),
+            static function (GatewayAttempt $attempt) use (&$seen): void {
+                $seen[] = $attempt;
+            },
+        );
+
+        $this->assertNotNull($result, 'the second entry answered, so the action succeeded');
+        $this->assertCount(2, $seen);
+
+        $this->assertSame(1, $seen[0]->attempt);
+        $this->assertSame(AiOutcome::SchemaInvalid, $seen[0]->outcome);
+        $this->assertSame(
+            ['lines' => []],
+            $seen[0]->payload,
+            'the RAW payload, not the validated result: a rejected answer has no validated result '
+            .'and is exactly the row the bake-off wants to read',
+        );
+
+        $this->assertSame(2, $seen[1]->attempt);
+        $this->assertSame(AiOutcome::Succeeded, $seen[1]->outcome);
+        $this->assertNotNull($seen[1]->model);
+        $this->assertCount(
+            2,
+            $seen[1]->payload['lines'],
+            'the line count is read off the payload rather than reported separately: the runner has '
+            .'no idea what any category answers look like',
+        );
+    }
+
+    public function test_a_declined_action_is_reported_too(): void
+    {
+        // No credit means no provider was reached, and that is still an attempt worth a row: it is
+        // the difference between "this tenant is hitting their limit" and "nothing happened", which
+        // is the same argument `GatewayRunner` already makes for writing the usage event.
+        $this->tenant();
+        $seen = [];
+
+        app(ReceiptExtractionGateway::class)->extract(
+            $this->image(),
+            static function (GatewayAttempt $attempt) use (&$seen): void {
+                $seen[] = $attempt;
+            },
+        );
+
+        $this->assertCount(1, $seen);
+        $this->assertSame(AiOutcome::NoCredit, $seen[0]->outcome);
+        $this->assertNull($seen[0]->provider, 'nothing was reached, so nothing is named');
     }
 
     /**
