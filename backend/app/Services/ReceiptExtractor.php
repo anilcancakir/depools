@@ -27,7 +27,7 @@ final class ReceiptExtractor
 {
     public function __construct(
         private readonly ReceiptExtractionGateway $gateway,
-        private readonly ReceiptLineResolver $resolver,
+        private readonly ExtractedNameResolver $resolver,
     ) {}
 
     /**

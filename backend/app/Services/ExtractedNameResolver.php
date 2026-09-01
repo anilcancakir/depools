@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\ProductAlias;
 use App\Models\ReceiptLine;
+use App\Models\ShelfCandidate;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
@@ -36,24 +38,43 @@ use Illuminate\Support\Collection;
  *
  * ### It resolves, it does not commit
  *
- * A resolved line is `matched` and points at a product, and NOTHING has moved in the ledger. Per-line
- * confirmation is mandatory (`receipt-ingestion.md`), so this only ever prepares what the user is
- * about to be asked about.
+ * A resolved row is `matched` and points at a product, and NOTHING has moved in the ledger. Per-line
+ * confirmation is mandatory (`receipt-ingestion.md`) and D60 makes the shelf's accept count the
+ * settled count rather than the region count, so on both paths this only ever prepares what the user
+ * is about to be asked about.
+ *
+ * **Which is exactly why it touches nothing already decided.** Both callers leave earlier rows in
+ * place when a retry fails, and this used to fill `resolution` on any row it was handed: a shelf
+ * candidate the user had REJECTED flipped back to `matched`, and a committed one lost its `manual`
+ * mark and could be re-pointed at a different product than the movement already references. The
+ * filter in [resolve] is the fix, and it closes the same hole on the receipt path's re-extract.
  */
-final class ReceiptLineResolver
+final class ExtractedNameResolver
 {
     /**
-     * Resolves every line of one receipt, in one pass over two lookups.
+     * Resolves every undecided row of one extraction, in one pass over two lookups.
      *
-     * **Two queries for the whole receipt rather than two per line.** A 25-line shop would otherwise
-     * be 50 round trips on a path a person is waiting on, and both lookups answer a set just as
-     * cheaply as they answer one.
+     * **Two queries for the whole set rather than two per row.** A 25-line shop, or a twelve-region
+     * shelf, would otherwise be 50 or 24 round trips on a path a person is waiting on, and both
+     * lookups answer a set just as cheaply as they answer one.
      *
-     * @param  Collection<int, ReceiptLine>  $lines
+     * @param  Collection<int, ReceiptLine|ShelfCandidate>  $rows  already
+     *                                                             scoped to one
+     *                                                             document and
+     *                                                             one tenant
      */
-    public function resolve(Collection $lines): void
+    public function resolve(Collection $rows): void
     {
-        $needles = $lines
+        // **Only the rows nobody has decided yet, which was a real defect before it was a filter.**
+        // A re-extract or a re-read leaves earlier rows in place, and this class fills `product_id`,
+        // `resolution` and `resolved_by` unconditionally: a candidate the user REJECTED flipped back
+        // to `matched`, and a committed one lost its `manual` mark and could be re-pointed at a
+        // different product than the movement already references.
+        $rows = $rows->filter(
+            static fn ($row): bool => (string) $row->resolution === 'unresolved',
+        );
+
+        $needles = $rows
             ->pluck('raw_name_normalized')
             ->filter(static fn (?string $value): bool => $value !== null && $value !== '')
             ->unique()
@@ -84,17 +105,17 @@ final class ReceiptLineResolver
                 ->reject(static fn (Collection $group): bool => $group->count() > 1)
                 ->map(static fn (Collection $group): string => (string) $group->first()->getKey());
 
-        foreach ($lines as $line) {
-            $needle = (string) $line->raw_name_normalized;
+        foreach ($rows as $row) {
+            $needle = (string) $row->raw_name_normalized;
 
             if ($aliases->has($needle)) {
-                $this->match($line, (string) $aliases->get($needle), 'alias');
+                $this->match($row, (string) $aliases->get($needle), 'alias');
 
                 continue;
             }
 
             if ($products->has($needle)) {
-                $this->match($line, (string) $products->get($needle), 'own_product');
+                $this->match($row, (string) $products->get($needle), 'own_product');
             }
 
             // Anything else keeps the column default, `unresolved`, which is what puts the line in
@@ -104,11 +125,11 @@ final class ReceiptLineResolver
     }
 
     /**
-     * Points one line at a product.
+     * Points one extracted row at a product.
      */
-    private function match(ReceiptLine $line, string $productId, string $by): void
+    private function match(Model $row, string $productId, string $by): void
     {
-        $line->fill([
+        $row->fill([
             'product_id' => $productId,
             'resolution' => 'matched',
             'resolved_by' => $by,

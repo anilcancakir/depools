@@ -5,6 +5,7 @@ namespace App\Ai\Contracts;
 use App\Ai\GatewayAttempt;
 use App\Ai\ImageInput;
 use App\Ai\ProductCard;
+use App\Ai\ReadShelf;
 use App\Ai\RecognisedProduct;
 use Closure;
 
@@ -37,6 +38,21 @@ interface ProductEnrichmentGateway
      *                                                         which model answered
      */
     public function recognise(ImageInput $image, ?Closure $onAttempt = null): ?RecognisedProduct;
+
+    /**
+     * What a photograph of a SHELF holds, or null when it could not be read.
+     *
+     * Its own entry point rather than a flag on [recognise], because the two answer different
+     * questions and produce different shapes: one card against many sightings with boxes. It shares
+     * the model chain, since both are a vision read of grocery packaging.
+     *
+     * **An empty [ReadShelf] is a success and null is not.** Empty means the model looked and saw no
+     * product, which a photograph of a wall should produce; null means the read failed. The screen
+     * draws those differently, so a gateway that collapsed them would take that choice away.
+     *
+     * @param  Closure(GatewayAttempt): void|null  $onAttempt  told about each attempt as it lands
+     */
+    public function readShelf(ImageInput $image, ?Closure $onAttempt = null): ?ReadShelf;
 
     /**
      * The same card in another language, or null when it could not be produced.

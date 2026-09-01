@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\ImageInput;
+use App\Enums\DocumentKind;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -10,7 +11,14 @@ use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
- * Where a captured receipt's bytes go, and what is kept of them.
+ * Where a captured document's bytes go, and what is kept of them.
+ *
+ * **It was `ReceiptDocumentStore` until a shelf photograph needed the same sixty lines.** What
+ * differs between the two is the FOLDER, which arrives as a [DocumentKind]; the disk, the decode
+ * bounds, the model-facing edge and D94's retention windows are the same question for both, because
+ * a photograph of somebody's cold room is exactly as personal as one of their receipt. Duplicating
+ * this class would have duplicated two measured traps with it: `putFileAs` answers FALSE rather than
+ * raising, and the temp copy always survives the write and always has to be unlinked.
  *
  * ### The uploaded file is never the stored file
  *
@@ -39,7 +47,7 @@ use RuntimeException;
  * file that lies to everything downstream. It also sidesteps the trailing-dot trap `guessExtension()`
  * has on an unrecognised type. Alpha is flattened onto white, which is what a receipt is anyway.
  */
-final class ReceiptDocumentStore
+final class DocumentStore
 {
     public function __construct(
         private readonly ImagePhash $phash,
@@ -53,7 +61,7 @@ final class ReceiptDocumentStore
      *
      * @throws RuntimeException when GD cannot decode the upload or the disk refuses the write
      */
-    public function store(UploadedFile $file): array
+    public function store(UploadedFile $file, DocumentKind $kind): array
     {
         // 1. Re-encode to a temp file FIRST, so the hash and the disk write read one set of bytes.
         //    Encoding straight onto the disk and hashing back would need a local `path()`, which is
@@ -68,7 +76,7 @@ final class ReceiptDocumentStore
             $phash = $this->phash->hash($encoded);
 
             $path = Storage::disk($this->disk())->putFileAs(
-                (string) config('media.documents.directory'),
+                $this->directory($kind),
                 new File($encoded),
                 // A random name rather than the uploaded one, which carries whatever the user's
                 // phone called it and must not become guessable from one that is already known.
@@ -81,7 +89,9 @@ final class ReceiptDocumentStore
             // explain. Raised rather than refused as a 422: the request was valid and the DISK
             // failed, so the client has nothing to correct.
             if ($path === false) {
-                throw new RuntimeException("Could not write the uploaded receipt to the [{$this->disk()}] disk.");
+                throw new RuntimeException(
+                    "Could not write the uploaded {$kind->value} to the [{$this->disk()}] disk.",
+                );
             }
 
             return ['path' => $path, 'phash' => $phash];
@@ -155,5 +165,10 @@ final class ReceiptDocumentStore
     private function disk(): string
     {
         return (string) config('media.documents.disk');
+    }
+
+    private function directory(DocumentKind $kind): string
+    {
+        return (string) config($kind->directoryKey());
     }
 }

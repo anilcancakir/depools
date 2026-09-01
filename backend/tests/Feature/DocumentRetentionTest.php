@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Receipt;
+use App\Models\ShelfRead;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -109,6 +110,35 @@ final class DocumentRetentionTest extends TestCase
         }
     }
 
+    public function test_a_shelf_photograph_is_swept_on_the_same_windows(): void
+    {
+        // **The same rule over both tables, and a test each.** `shelf_reads` carries the same four
+        // columns and answers to the same D94 window, because a photograph of somebody's cold room
+        // is exactly as personal as one of their receipt. A sweep covering only receipts would leave
+        // the other one accumulating with nothing saying so.
+        $stale = $this->shelfRead(confirmedDaysAgo: 40);
+        $fresh = $this->shelfRead(confirmedDaysAgo: 3);
+
+        $this->artisan('depools:prune-documents')->assertSuccessful();
+
+        $this->assertNotNull($stale->refresh()->document_deleted_at);
+        $this->assertFalse(Storage::disk('local')->exists((string) $stale->document_path));
+
+        $this->assertNull($fresh->refresh()->document_deleted_at);
+        $this->assertTrue(Storage::disk('local')->exists((string) $fresh->document_path));
+    }
+
+    public function test_an_abandoned_shelf_photograph_keeps_the_longer_window(): void
+    {
+        $recent = $this->shelfRead(uploadedDaysAgo: 40);
+        $ancient = $this->shelfRead(uploadedDaysAgo: 120);
+
+        $this->artisan('depools:prune-documents')->assertSuccessful();
+
+        $this->assertNull($recent->refresh()->document_deleted_at);
+        $this->assertNotNull($ancient->refresh()->document_deleted_at);
+    }
+
     public function test_a_document_already_swept_is_not_examined_again(): void
     {
         $receipt = $this->receipt(confirmedDaysAgo: 40);
@@ -149,6 +179,36 @@ final class DocumentRetentionTest extends TestCase
         // point; here a misread would delete a tenant's unharvested receipts.
         $this->assertNull($confirmed->refresh()->document_deleted_at);
         $this->assertNotNull($abandoned->refresh()->document_deleted_at);
+    }
+
+    /**
+     * A shelf read with a photograph on the fake disk, aged as asked.
+     *
+     * Same shape as [receipt] because the two tables carry the same four columns, which is exactly
+     * why the sweep is written once over both.
+     */
+    private function shelfRead(?int $confirmedDaysAgo = null, ?int $uploadedDaysAgo = null): ShelfRead
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $team = Team::create(['name' => 'Shelf '.uniqid(), 'user_id' => $user->getKey()]);
+
+        $path = 'shelves/'.uniqid().'.jpg';
+        Storage::disk('local')->put($path, 'bytes');
+
+        $read = new ShelfRead;
+        $read->setAttribute('team_id', $team->getKey());
+        $read->fill([
+            'document_path' => $path,
+            'confirmed_at' => $confirmedDaysAgo === null ? null : Carbon::now()->subDays($confirmedDaysAgo),
+        ]);
+        $read->save();
+
+        $read->forceFill([
+            'created_at' => Carbon::now()->subDays($uploadedDaysAgo ?? ($confirmedDaysAgo ?? 0) + 1),
+        ])->save();
+
+        return ShelfRead::withoutGlobalScopes()->findOrFail($read->getKey());
     }
 
     /**

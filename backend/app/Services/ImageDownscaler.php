@@ -29,7 +29,7 @@ use RuntimeException;
  *
  * ### It takes its bounds rather than reading them
  *
- * `ReceiptDocumentStore` reads `media.documents.*` and the product photo path reads
+ * `DocumentStore` reads `media.documents.*` and the product photo path reads
  * `media.enrichment.*`, and those are two configuration blocks with two audiences. A service that
  * read the config itself would have to be told which block, which is the same argument with an
  * extra step.

@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\DocumentKind;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReceiptResource;
 use App\Models\Location;
 use App\Models\Receipt;
 use App\Models\ReceiptLine;
+use App\Services\DocumentStore;
 use App\Services\ReceiptCommitter;
-use App\Services\ReceiptDocumentStore;
 use App\Services\ReceiptExtractor;
+use App\Support\IdempotencyKey;
 use Closure;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -58,7 +60,7 @@ use Throwable;
 final class ReceiptController extends Controller
 {
     public function __construct(
-        private readonly ReceiptDocumentStore $documents,
+        private readonly DocumentStore $documents,
         private readonly ReceiptExtractor $extractor,
         private readonly ReceiptCommitter $committer,
     ) {}
@@ -130,7 +132,10 @@ final class ReceiptController extends Controller
             // one reaches PostgreSQL as `22P02`, an unhandled query exception rather than a refusal
             // the client can read. A well-formed id belonging to another tenant still 404s.
             'location_id' => ['required', 'uuid'],
-            'idempotency_key' => ['nullable', 'string', 'max:64'],
+            // The column's own width, which is now safe: [IdempotencyKey] hashes both halves, so the
+            // 37-character row suffix this used to concatenate can no longer push a client's UUID
+            // over the edge.
+            'idempotency_key' => ['nullable', 'string', 'max:'.IdempotencyKey::maxClientLength()],
             'lines' => ['nullable', 'array', 'list'],
             'lines.*.id' => ['required', 'uuid'],
             'lines.*.product_id' => ['required', 'uuid'],
@@ -244,7 +249,7 @@ final class ReceiptController extends Controller
         // re-encode is GD work and `backend.md` keeps a controller to injecting one and returning a
         // resource. The phash comes back with the path because it is computed from the bytes that
         // were actually kept, which is what makes the column describe what is on disk.
-        $stored = $this->documents->store($file);
+        $stored = $this->documents->store($file, DocumentKind::Receipt);
 
         $receipt = new Receipt;
 
