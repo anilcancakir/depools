@@ -129,6 +129,11 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // them.
     Route::post('receipts/{receipt}/extract', [ReceiptController::class, 'extract']);
 
+    // **The one path from a receipt to the ledger.** Per-line confirmation is mandatory, so the
+    // body carries what the user agreed to rather than a "commit everything" flag, and a partial
+    // pass is the normal case: a 22-line shop is worked through and can be left halfway.
+    Route::post('receipts/{receipt}/commit', [ReceiptController::class, 'commit']);
+
     Route::get('receipts', [ReceiptController::class, 'index']);
     Route::post('receipts', [ReceiptController::class, 'store']);
     Route::get('receipts/{receipt}', [ReceiptController::class, 'show']);

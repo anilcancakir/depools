@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReceiptResource;
+use App\Models\Location;
 use App\Models\Receipt;
+use App\Models\ReceiptLine;
+use App\Services\ReceiptCommitter;
 use App\Services\ReceiptDocumentStore;
 use App\Services\ReceiptExtractor;
 use Closure;
@@ -13,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -56,6 +60,7 @@ final class ReceiptController extends Controller
     public function __construct(
         private readonly ReceiptDocumentStore $documents,
         private readonly ReceiptExtractor $extractor,
+        private readonly ReceiptCommitter $committer,
     ) {}
 
     /**
@@ -99,6 +104,90 @@ final class ReceiptController extends Controller
         return response()->json([
             'data' => new ReceiptResource($this->extractor->extract($model, $image)),
         ]);
+    }
+
+    /**
+     * Write the confirmed lines into stock.
+     *
+     * **The only path from a receipt to the ledger**, and it goes through `StockWriter` like every
+     * other write. Per-line confirmation is mandatory (`receipt-ingestion.md`), so the client sends
+     * what the user agreed to: `lines` are the accepted ones, each carrying the product and quantity
+     * as the user left them, and `rejections` are the ones they threw away.
+     *
+     * Partial is normal. A 22-line shop is worked through and the user may leave halfway, so
+     * anything absent from both lists stays `unresolved` and the receipt is marked confirmed only
+     * once nothing is still waiting.
+     */
+    public function commit(Request $request, string $receipt): JsonResponse
+    {
+        $data = $request->validate([
+            // `uuid` on every id for the reason `StockController` records: without it a malformed
+            // one reaches PostgreSQL as `22P02`, an unhandled query exception rather than a refusal
+            // the client can read. A well-formed id belonging to another tenant still 404s.
+            'location_id' => ['required', 'uuid'],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
+            'lines' => ['nullable', 'array', 'list'],
+            'lines.*.id' => ['required', 'uuid'],
+            'lines.*.product_id' => ['required', 'uuid'],
+            'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'rejections' => ['nullable', 'array', 'list'],
+            'rejections.*' => ['required', 'uuid'],
+        ]);
+
+        $model = Receipt::query()->with('lines')->findOrFail($receipt);
+        $location = Location::query()->findOrFail($data['location_id']);
+
+        $accepted = collect($data['lines'] ?? [])->keyBy('id');
+        $rejected = collect($data['rejections'] ?? []);
+
+        // **Every id has to belong to THIS receipt.** Tenancy is already covered, since the lines
+        // were loaded through the receipt that resolved under `TeamScope`, but a line id from
+        // another receipt of the same tenant would otherwise be committed against this one's
+        // location and dated with this one's date.
+        $known = $model->lines->keyBy(static fn (ReceiptLine $line): string => (string) $line->getKey());
+        $unknown = $accepted->keys()->merge($rejected)->reject(static fn (string $id): bool => $known->has($id));
+
+        if ($unknown->isNotEmpty()) {
+            abort(422, __('Some of those lines do not belong to this receipt.'));
+        }
+
+        $this->rejectLines($known, $rejected);
+
+        $this->committer->commit(
+            receipt: $model,
+            location: $location,
+            lines: $model->lines,
+            decisions: $accepted->map(static fn (array $line): array => [
+                'quantity' => (float) $line['quantity'],
+                'product_id' => (string) $line['product_id'],
+            ])->all(),
+            batchKey: $data['idempotency_key'] ?? null,
+            actorId: $request->user()?->getKey(),
+        );
+
+        return response()->json(['data' => new ReceiptResource($model->load('lines'))]);
+    }
+
+    /**
+     * Marks the lines the user threw away.
+     *
+     * A rejected line keeps its text and points at nothing: the CHECK behind `resolution` refuses a
+     * `rejected` row carrying a product, because a user's decision being quietly ignored is exactly
+     * what that constraint exists to stop.
+     *
+     * @param  Collection<string, ReceiptLine>  $known
+     * @param  Collection<int, string>  $rejected
+     */
+    private function rejectLines(Collection $known, Collection $rejected): void
+    {
+        foreach ($rejected as $id) {
+            $known->get($id)?->fill([
+                'resolution' => 'rejected',
+                'product_id' => null,
+                'resolved_by' => 'manual',
+                'confirmed_at' => now(),
+            ])->save();
+        }
     }
 
     /**
