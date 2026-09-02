@@ -126,9 +126,15 @@ final class AiGatewayTest extends TestCase
 
         $this->gateway()->translate($this->card(), 'tr');
 
-        // 100 input tokens at 100_000 micro-USD per million = 10, and 40 output at 250_000 = 10.
-        // Twenty micro-USD, computed rather than sampled.
-        $this->assertSame(20, AiUsageEvent::query()->sole()->cost_micro_usd);
+        // 100 input tokens at 80_000 micro-USD per million = 8, and 40 output at 200_000 = 8.
+        // Sixteen micro-USD, computed rather than sampled.
+        //
+        // **Hardcoded rather than read back from the config, deliberately.** Deriving the
+        // expectation from `ai_gateways.pricing` would make this test agree with whatever the table
+        // says, including a stale figure, which is the thing it is here to notice. It earned that:
+        // the table had drifted 20% on this model and 23% on the configured `deepseek` primary, and
+        // correcting them is what turned this assertion red. A price edit is supposed to land here.
+        $this->assertSame(16, AiUsageEvent::query()->sole()->cost_micro_usd);
     }
 
     public function test_an_unpriced_model_records_a_null_cost_rather_than_a_free_call(): void
