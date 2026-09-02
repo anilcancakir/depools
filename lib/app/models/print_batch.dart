@@ -19,7 +19,12 @@ class PrintBatchLine {
   /// The product name, the label's first line.
   final String name;
 
-  /// The code that will be printed, or null when the server will generate one.
+  /// The code that will be printed.
+  ///
+  /// **Null means the server did not say, not that one will be generated**, and the difference cost a
+  /// whole feature: the resource used to omit this field entirely, so this was always null and every
+  /// consumer ran on a placeholder. What actually gets printed is a policy the server owns (a GTIN, a
+  /// Code 128 row, or a generated `DPL` code), which is why it travels rather than being guessed.
   final String? code;
 
   /// The serial this line prints, when it prints one.
@@ -141,6 +146,17 @@ class PrintBatch {
   /// printed by a jammed printer has a null date and unprinted rows.
   bool get isUnfinished => lines.any((PrintBatchLine line) => !line.isPrinted);
 
+  /// Whether this is the batch to carry on filling.
+  ///
+  /// **Not the same question as [isUnfinished], and conflating them stranded batches.** An EMPTY batch
+  /// has no unprinted lines, so it read as finished and was never resumed; the client never deletes
+  /// one either, so a user who removed their last line got a fresh batch on every visit and the
+  /// abandoned ones piled up at the top of a list ordered nulls-first.
+  ///
+  /// `printedAt` is the server's own answer: it is derived, written only when nothing is left, so a
+  /// null means this batch has never been finished. An empty batch is exactly the one to add to.
+  bool get isResumable => printedAt == null;
+
   /// The lines already printed, which stay visible so a batch is resumable rather than mysterious.
   List<PrintBatchLine> get printed =>
       lines.where((PrintBatchLine line) => line.isPrinted).toList(growable: false);
@@ -150,11 +166,13 @@ class PrintBatch {
 
   /// The codes that will be printed, for the fit check.
   ///
-  /// A null code means the server will generate one, and a generated code is `DPL` plus eight hex
-  /// characters: eleven, which the smallest template cannot carry. So an absent code is not an absent
-  /// question, and this reports the length the server will produce rather than skipping the line.
+  /// **Only the ones the server named.** This used to substitute `DPL00000000` for a null, on the
+  /// premise that null meant "one will be generated"; the resource simply was not sending the field, so
+  /// the fit verdict compared a constant against every template's ceiling and was wrong in both
+  /// directions. A line whose code is genuinely unknown is left out rather than guessed at, because a
+  /// callout naming a code nobody will print is worse than no callout.
   List<String> get codes => <String>[
     for (final PrintBatchLine line in lines)
-      if (line.serial != null) line.serial! else line.code ?? 'DPL00000000',
+      if (line.serial != null) line.serial! else if (line.code != null) line.code!,
   ];
 }

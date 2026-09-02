@@ -7,6 +7,7 @@ use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A saved set of labels to print together.
@@ -73,6 +74,28 @@ final class PrintBatch extends Model
     }
 
     /**
+     * The lines a print would cover, so the render path and the resource agree on what "pending" means.
+     *
+     * **On the model rather than as a public static on a controller**, which is where it started: it
+     * holds no HTTP, it was called from a second controller, and a static on a controller is the shape
+     * that makes that look normal.
+     *
+     * The eager load includes `serial.product` because a serial line's NAME comes from the serial's
+     * product, and loading only `serial` left that as a lazy query per line. Strict mode is off, so it
+     * was silent.
+     *
+     * @return list<PrintBatchItem>
+     */
+    public function pendingItems(): array
+    {
+        return $this->items()
+            ->whereNull('printed_at')
+            ->with(['product', 'serial.product'])
+            ->get()
+            ->all();
+    }
+
+    /**
      * Whether anything in this batch is still waiting.
      */
     public function isUnfinished(): bool
@@ -105,25 +128,38 @@ final class PrintBatch extends Model
      */
     public function settle(array $positions = []): int
     {
-        $query = $this->items()->getQuery();
+        return DB::transaction(function () use ($positions): int {
+            $query = $this->items()->getQuery();
 
-        if ($positions !== []) {
-            $query->whereIn('position', $positions);
-        }
+            if ($positions === []) {
+                // **Only what has not been printed, and the omission destroyed records of paper.** The
+                // render sends the PENDING lines and the client settles with no positions, so an
+                // unfiltered mark hit the already-printed rows too: `print_count + 1` for stickers
+                // that did not come off a printer, and a fresh `printed_at` over the timestamp of the
+                // pass that did. On a feature whose whole point is paper accuracy that is the worst
+                // shape a bug can take.
+                //
+                // A caller naming positions still reaches a printed row on purpose: that is a reprint,
+                // and counting it is what `print_count` is for.
+                $query->whereNull('printed_at');
+            } else {
+                $query->whereIn('position', $positions);
+            }
 
-        $marked = 0;
+            $marked = 0;
 
-        foreach ($query->get() as $item) {
-            $item->markPrinted();
-            $marked++;
-        }
+            foreach ($query->get() as $item) {
+                $item->markPrinted();
+                $marked++;
+            }
 
-        // Read after the writes, because "printed" is a fact about the items. A batch printed in two
-        // passes closes on the second one without anybody having to say so.
-        if ($marked > 0 && ! $this->isUnfinished()) {
-            $this->forceFill(['printed_at' => $this->freshTimestamp()])->save();
-        }
+            // Read after the writes, because "printed" is a fact about the items. A batch printed in
+            // two passes closes on the second one without anybody having to say so.
+            if ($marked > 0 && ! $this->isUnfinished()) {
+                $this->forceFill(['printed_at' => $this->freshTimestamp()])->save();
+            }
 
-        return $marked;
+            return $marked;
+        });
     }
 }

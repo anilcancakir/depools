@@ -96,15 +96,27 @@ Both paths stay, and they are not redundant. A payload render is the route from 
 one product, a template, a file, nothing persisted. A batch render prints what the batch still owes and
 records that it did.
 
-**A render marks nothing.** The server cannot know whether a file reached a printer, so the client
-reports it afterwards through `settle`. A render that marked would make a cancelled print dialog look
-like a finished batch.
+**A render marks nothing, and neither does opening the file.** The server cannot know whether a file
+reached a printer, and the client cannot either: `Launch.url` answers true when a tab opened, so
+settling on that marked the batch whenever a user closed the tab without printing. So the only party
+who knows is asked, with a confirmation after the launch. That is also what a jammed printer needs: no
+leaves the sheet exactly as it was.
 
-**`settle` takes POSITIONS, not ids, and it is deliberately not idempotent.** A jammed printer produces
-"sheets 1 and 2 came out, start again at 25", and the position is the number the row carries on screen;
-ids would make the client hold a mapping it has no reason to have. Printing a label twice IS two
-stickers and a second sheet of paper, so `print_count` increments. What stays idempotent is the resume
-query, which reads `printed_at`.
+**`settle` takes POSITIONS, not ids.** A jammed printer produces "sheets 1 and 2 came out, start again
+at 25", and the position is the number the row carries on screen; ids would make the client hold a
+mapping it has no reason to have.
+
+**Sending no positions means WHAT THE SHEET HELD**, which is the pending lines, because that is what
+the render covers. It used to mean "everything", and on a partly printed batch that counted stickers
+which never came off a printer and overwrote the timestamp of the pass that did. Naming a printed
+position still reprints it, and `print_count` increments, because two runs are two sheets of paper and
+D43 takes paper seriously enough to say so. What stays idempotent is the resume query, which reads
+`printed_at`.
+
+**The cached renders are swept.** `depools:prune-label-renders` drops the PNG and the PDF after
+`labels.keep_render_days`, and the client debounces its re-render, because twelve taps on a copies
+stepper was twelve Chrome processes and twelve files kept forever. A directory nothing deletes is an
+archive with an optimistic comment on it, which is the standard `media.enrichment` already set.
 
 A position the batch does not have is refused rather than ignored: silently marking the ones that do
 exist would leave the client believing the rest printed too, which on this feature means throwing away

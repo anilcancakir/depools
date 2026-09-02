@@ -5,6 +5,7 @@ namespace App\Labels;
 use App\Models\PrintBatchItem;
 use App\Models\Product;
 use Illuminate\Support\Collection;
+use RuntimeException;
 
 /**
  * Product ids and copy counts into the sheet that will be printed.
@@ -102,8 +103,17 @@ final readonly class LabelSheetBuilder
 
             $product = $item->product;
 
+            // **A missing product is a line that would print nothing, and skipping it silently is the
+            // wrong shape.** `Product` uses `SoftDeletes`, so `cascadeOnDelete` never fires for a
+            // trashed one: `$item->product` resolves to null while `stickers()` still counts its
+            // copies, so the screen says twelve labels, the sheet holds none of them, and a settle
+            // then marks the line printed. Nothing can trash a product today (the API exposes only
+            // index, store and show), which is why this is a guard rather than a fix, and why it
+            // refuses rather than continues.
             if ($product === null) {
-                continue;
+                throw new RuntimeException(
+                    "Print batch line {$item->position} points at a product that is no longer readable."
+                );
             }
 
             $line = new LabelLine(

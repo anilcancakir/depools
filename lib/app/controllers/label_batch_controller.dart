@@ -70,10 +70,20 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
   Future<void> open({String template = 'a4_24_up_70x37'}) async {
     setLoading();
 
-    final PrintBatch? existing = await _resume();
+    final ({PrintBatch? batch, bool failed}) resumed = await _resume();
 
-    if (existing != null) {
-      setSuccess(existing);
+    // **A failed list is not an empty one, and treating them alike split the user's work.** A 500, a
+    // timeout or an offline moment used to fall straight through to `_create`, so the afternoon's
+    // labels went into a fresh batch while the real unfinished one still owed stickers, and nothing on
+    // screen said a second batch existed.
+    if (resumed.failed) {
+      setError(_error ?? Lang.get('errors.unexpected'));
+
+      return;
+    }
+
+    if (resumed.batch != null) {
+      setSuccess(resumed.batch!);
     } else {
       final PrintBatch? created = await _create(template);
 
@@ -201,6 +211,15 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
 
     if (current == null || current.id.isEmpty) return null;
 
+    // Respects `_working` rather than only setting it: writing the flag without reading it cleared it
+    // out from under an in-flight `_write` and let a second one start concurrently.
+    if (_working) {
+      _error = Lang.get('screens.labels.busy');
+      refreshUI();
+
+      return null;
+    }
+
     _working = true;
     _error = null;
     refreshUI();
@@ -238,6 +257,10 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
   }
 
   /// Forgets the batch, so a walked-away screen does not outlive itself.
+  ///
+  /// Called from the view's `dispose`. It was written and never wired, which made the docblock a claim
+  /// about behaviour that did not exist: the shelf slice's review found the same shape one screen over,
+  /// where leaving and returning drew an already-written sheet with a live accept button.
   void reset() {
     _pendingProductId = null;
     _previewUrl = null;
@@ -250,19 +273,22 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
 
   String get _id => Uri.encodeComponent(rxState?.id ?? '');
 
-  /// The open batch, or null when there is none.
-  Future<PrintBatch?> _resume() async {
+  /// The batch to carry on filling, and whether the question could be answered at all.
+  ///
+  /// Two facts rather than one nullable, because the caller has to act differently on each: no batch
+  /// means create one, a failed request means say so and stop.
+  Future<({PrintBatch? batch, bool failed})> _resume() async {
     final dynamic response = await Http.get('/labels/batches');
 
     if (!response.successful) {
       _error = _sentence(response, Lang.get('errors.unexpected'));
 
-      return null;
+      return (batch: null, failed: true);
     }
 
     final Object? rows = response['data'];
 
-    if (rows is! List) return null;
+    if (rows is! List) return (batch: null, failed: true);
 
     for (final Object? row in rows) {
       if (row is! Map) continue;
@@ -272,12 +298,15 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
         describing: 'a print batch payload',
       );
 
-      // The server orders unfinished first, so the first one that still owes something is the one to
-      // resume. Checked here anyway rather than trusted, because a list's order is not a contract.
-      if (batch != null && batch.isUnfinished) return batch;
+      // The server orders unfinished first, so the first one that has not been finished is the one to
+      // carry on. Checked here anyway rather than trusted, because a list's order is not a contract.
+      //
+      // `isResumable`, not `isUnfinished`: an empty batch has no unprinted lines and was therefore
+      // skipped forever while never being deleted.
+      if (batch != null && batch.isResumable) return (batch: batch, failed: false);
     }
 
-    return null;
+    return (batch: null, failed: false);
   }
 
   Future<PrintBatch?> _create(String template) async {
@@ -297,7 +326,16 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
 
   /// Runs a write, publishes what it answers with, and re-renders.
   Future<bool> _write(Future<dynamic> Function() call) async {
-    if (_working) return false;
+    // **A refusal has to say so, and this branch was the one that did not.** `settle()` returns
+    // `ok ? null : _error`, and `_error` is null after any successful write, so a write refused because
+    // another was in flight came back as `null` and the screen said "Marked as printed" while nothing
+    // had been settled.
+    if (_working) {
+      _error = Lang.get('screens.labels.busy');
+      refreshUI();
+
+      return false;
+    }
 
     _working = true;
     _error = null;
@@ -325,9 +363,26 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
 
     setSuccess(batch);
 
-    unawaited(render());
+    unawaited(_renderSoon());
 
     return true;
+  }
+
+  /// Renders after a pause, so a run of writes produces one sheet rather than one per write.
+  ///
+  /// **Twelve taps on a copies stepper is twelve distinct signatures**, and each one used to spawn a
+  /// Chrome with a 60-second timeout, keep a PNG forever, and count against `throttle:30,1` until the
+  /// user met "Too Many Attempts". The debounce is on the CLIENT because the server cannot tell a
+  /// deliberate template switch from the middle of a stepper run.
+  Future<void> _renderSoon() async {
+    final int generation = ++_generation;
+
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+
+    // A later write already scheduled its own render, so this one is about a batch that has moved on.
+    if (generation != _generation) return;
+
+    await render();
   }
 
   PrintBatch? _parse(dynamic response) {

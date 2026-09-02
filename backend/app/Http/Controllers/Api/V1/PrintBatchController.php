@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PrintBatchResource;
+use App\Labels\LabelSheetBuilder;
 use App\Labels\SheetTemplate;
 use App\Models\PrintBatch;
-use App\Models\PrintBatchItem;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use Illuminate\Http\JsonResponse;
@@ -36,13 +36,18 @@ use Illuminate\Validation\ValidationException;
  */
 final class PrintBatchController extends Controller
 {
+    public function __construct(private readonly LabelSheetBuilder $builder) {}
+
     /**
      * The batches, unfinished ones first.
      */
     public function index(Request $request): JsonResponse
     {
         $batches = PrintBatch::query()
-            ->with(['items.product', 'items.serial'])
+            // `items.serial.product` because a serial line's NAME comes from the serial's product, and
+            // stopping at `items.serial` left that as a lazy query per line. Strict mode is off, so
+            // nothing said so.
+            ->with(['items.product', 'items.serial.product'])
             // Unfinished first, because a resumable batch is the reason a user opens this list; then
             // newest, because a finished batch is history.
             ->orderByRaw('printed_at IS NOT NULL')
@@ -51,14 +56,14 @@ final class PrintBatchController extends Controller
             ->get();
 
         return response()->json([
-            'data' => PrintBatchResource::collection($batches)->resolve($request),
+            'data' => $batches->map(fn (PrintBatch $batch): array => $this->payload($batch))->all(),
         ]);
     }
 
     public function show(PrintBatch $printBatch): JsonResponse
     {
         return response()->json([
-            'data' => (new PrintBatchResource($printBatch))->resolve(),
+            'data' => $this->payload($printBatch),
         ]);
     }
 
@@ -90,7 +95,7 @@ final class PrintBatchController extends Controller
         });
 
         return response()->json([
-            'data' => (new PrintBatchResource($batch->refresh()))->resolve(),
+            'data' => $this->payload($batch->refresh()),
         ], 201);
     }
 
@@ -104,27 +109,45 @@ final class PrintBatchController extends Controller
             ...$this->itemRules(),
         ]);
 
+        // **`printed_at` is derived, so an insert can break it without touching the column.** The class
+        // docblock said it could never disagree with the rows it summarises because `settle()` is its
+        // only writer; true of the writer, false of the invariant. Appending to a settled batch left a
+        // finished date over pending lines, and `update()` two methods down already refused the same
+        // thing for the same reason.
+        if ($printBatch->printed_at !== null) {
+            throw ValidationException::withMessages([
+                'items' => [__('This batch has been printed. Start a new one for more labels.')],
+            ]);
+        }
+
         DB::transaction(fn () => $this->addItems($printBatch, $data['items']));
 
         return response()->json([
-            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+            'data' => $this->payload($printBatch->refresh()),
         ]);
     }
 
     /**
      * Records that some or all of a batch came off a printer.
      *
-     * **Positions rather than ids, and empty means everything.** A jammed printer produces "sheets 1
-     * and 2 came out", and the position is the number the row carries on screen. Sending nothing is the
-     * ordinary case: the whole batch printed.
+     * **Positions rather than ids, and empty means WHAT THE SHEET HELD.** A jammed printer produces
+     * "sheets 1 and 2 came out", and the position is the number the row carries on screen. Sending
+     * nothing is the ordinary case: the render covers the pending lines, so settling covers the same
+     * set.
      *
-     * Not idempotent by design: printing a label twice IS two stickers, so `print_count` increments and
-     * the paper figure stays honest. What is idempotent is the resume query, which reads `printed_at`.
+     * This docblock used to say empty meant "everything", and the model agreed with it: an unfiltered
+     * mark hit the already-printed rows too, counting stickers that never came off a printer and
+     * overwriting the timestamp of the pass that did.
+     *
+     * A caller NAMING a printed position still reprints it, and `print_count` increments, because two
+     * runs are two sheets of paper and D43 takes paper seriously enough to say so.
      */
     public function settle(Request $request, PrintBatch $printBatch): JsonResponse
     {
         $data = $request->validate([
-            'positions' => ['sometimes', 'array'],
+            // Capped to match `items` two methods up: the members were validated and the size was not,
+            // so an arbitrarily large array reached `array_diff` and a `whereIn`.
+            'positions' => ['sometimes', 'array', 'max:200'],
             'positions.*' => ['integer', 'min:1'],
         ]);
 
@@ -148,7 +171,7 @@ final class PrintBatchController extends Controller
         $marked = $printBatch->settle($positions);
 
         return response()->json([
-            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+            'data' => $this->payload($printBatch->refresh()),
             'meta' => ['marked' => $marked],
         ]);
     }
@@ -181,7 +204,7 @@ final class PrintBatchController extends Controller
         $printBatch->fill($data)->save();
 
         return response()->json([
-            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+            'data' => $this->payload($printBatch->refresh()),
         ]);
     }
 
@@ -217,7 +240,7 @@ final class PrintBatchController extends Controller
         $item->fill(['copies' => $data['copies']])->save();
 
         return response()->json([
-            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+            'data' => $this->payload($printBatch->refresh()),
         ]);
     }
 
@@ -247,7 +270,7 @@ final class PrintBatchController extends Controller
         $item->delete();
 
         return response()->json([
-            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+            'data' => $this->payload($printBatch->refresh()),
         ]);
     }
 
@@ -321,16 +344,17 @@ final class PrintBatchController extends Controller
     }
 
     /**
-     * The lines a print would cover, so the render path and the resource agree on what "pending" means.
+     * One batch on the wire.
      *
-     * @return list<PrintBatchItem>
+     * A helper rather than seven `new PrintBatchResource(...)` calls, because the resource now needs the
+     * builder to compute what each line will print and seven construction sites is seven chances to
+     * forget it. Forgetting it is not a crash: the code comes back null and the screen quietly runs on
+     * a placeholder, which is exactly how the first version shipped.
+     *
+     * @return array<string, mixed>
      */
-    public static function pending(PrintBatch $batch): array
+    private function payload(PrintBatch $batch): array
     {
-        return $batch->items()
-            ->whereNull('printed_at')
-            ->with(['product', 'serial.product'])
-            ->get()
-            ->all();
+        return (new PrintBatchResource($batch, $this->builder))->resolve();
     }
 }

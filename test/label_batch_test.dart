@@ -19,6 +19,9 @@ void main() {
     'product_serial_id': null,
     'name': 'Pınar Süt Tam Yağlı 1 lt',
     'serial': null,
+    // **The wire carries this and the first version of the resource did not send it**, so this fixture
+    // was built without it and the suite recorded the gap rather than catching it.
+    'code': '8690504004073',
     'count': 12,
     'mode': 'free',
     'is_printed': false,
@@ -85,14 +88,36 @@ void main() {
       expect(open.pendingStickerCount, 12);
     });
 
-    test('a line with no code reports the length the server will generate', () {
+    test('the codes are the ones the server named, and a null is left out', () {
       final PrintBatch parsed = PrintBatch.fromApi(batch([
-        line(const <String, dynamic>{'code': null}),
+        line(const <String, dynamic>{'position': 1}),
+        line(const <String, dynamic>{'position': 2, 'code': null}),
+        line(const <String, dynamic>{'position': 3, 'code': null, 'serial': 'MK-1', 'mode': 'per_serial'}),
       ]));
 
-      // An absent code is not an absent question: the server generates `DPL` plus eight hex, which is
-      // eleven characters and does not fit the 38 mm label. Skipping the line would hide that.
-      expect(parsed.codes.single, hasLength(11));
+      // **This used to substitute `DPL00000000` for a null**, on the premise that null meant "the server
+      // will generate one". The resource simply was not sending the field, so the fit verdict compared a
+      // constant against every template's ceiling and was wrong in both directions. A code nobody named
+      // is left out, because a callout naming one nobody will print is worse than no callout.
+      expect(parsed.codes, <String>['8690504004073', 'MK-1']);
+    });
+
+    test('an empty batch is resumable even though nothing in it is unprinted', () {
+      final PrintBatch empty = PrintBatch.fromApi(batch(const <Map<String, dynamic>>[]));
+
+      // **Two different questions, and conflating them stranded batches.** An empty batch has no
+      // unprinted lines, so it read as finished and was never resumed; the client never deletes one
+      // either, so removing the last line meant a fresh batch on every visit and the abandoned ones
+      // piled up at the top of a list ordered nulls-first.
+      expect(empty.isUnfinished, isFalse);
+      expect(empty.isResumable, isTrue);
+
+      final PrintBatch finished = PrintBatch.fromApi(
+        batch([line(const <String, dynamic>{'is_printed': true, 'print_count': 1})],
+            printedAt: '2026-09-01T10:00:00+00:00'),
+      );
+
+      expect(finished.isResumable, isFalse);
     });
   });
 
@@ -199,6 +224,29 @@ void main() {
       // `/labels` takes no parameters, so the product travels through the singleton the way the shelf,
       // receipt and draft paths all do.
       expect(urls, contains('/labels/batches/b1/lines'));
+    });
+
+    test('a failed list does not create a second batch', () async {
+      final List<String> urls = <String>[];
+
+      Http.fake((MagicRequest request) {
+        urls.add(request.url);
+
+        return MagicResponse(
+          statusCode: 500,
+          data: const <String, dynamic>{'message': 'Server Error'},
+        );
+      });
+
+      final LabelBatchController controller = LabelBatchController();
+      await controller.open();
+
+      // **A failed list is not an empty one.** A 500, a timeout or an offline moment used to fall
+      // straight through to `_create`, so the afternoon's labels went into a fresh batch while the real
+      // unfinished one still owed stickers, and nothing on screen said a second batch existed.
+      expect(urls, <String>['/labels/batches']);
+      expect(controller.batch, isNull);
+      expect(controller.error, isNotNull);
     });
 
     test('the preview is a url, because the app cannot fetch bytes', () async {

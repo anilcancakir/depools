@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Barcode;
 use App\Models\PrintBatch;
 use App\Models\PrintBatchItem;
 use App\Models\Product;
@@ -218,7 +219,7 @@ final class PrintBatchApiTest extends TestCase
         $this->assertFalse($batch->fresh()->isUnfinished());
     }
 
-    public function test_reprinting_counts_the_second_sticker(): void
+    public function test_settling_the_sheet_twice_does_not_count_paper_that_did_not_go(): void
     {
         $this->tenant();
 
@@ -227,11 +228,60 @@ final class PrintBatchApiTest extends TestCase
         $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle")->assertOk();
         $response = $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle")->assertOk();
 
-        // Not idempotent by design: a label printed twice IS two stickers and a second sheet of paper,
-        // and D43 takes paper seriously enough to draw the empty cells. The resume query stays
-        // idempotent, because it reads `printed_at`.
-        $this->assertSame(2, $response->json('data.items.0.print_count'));
+        // **Settling with no positions means "what the sheet held", which is the PENDING lines.** The
+        // render sends those and the screen settles with no positions, so an unfiltered mark hit the
+        // already-printed rows too: a second `print_count` for stickers that never came off a printer,
+        // and a fresh `printed_at` over the timestamp of the pass that did.
+        //
+        // This test used to assert the opposite, on the reading that "a label printed twice is two
+        // stickers". That is true, and naming the position is how a caller says it: see below.
+        $this->assertSame(0, $response->json('meta.marked'));
+        $this->assertSame(1, $response->json('data.items.0.print_count'));
         $this->assertTrue($response->json('data.items.0.is_printed'));
+    }
+
+    public function test_naming_a_printed_position_reprints_it_and_counts_the_second_sticker(): void
+    {
+        $this->tenant();
+
+        $batch = $this->batch([['product_id' => $this->product('One')->getKey()]]);
+
+        $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle")->assertOk();
+
+        // A reprint is deliberate and explicit: the caller names the row. Two runs means two sheets of
+        // stickers, and D43 takes paper seriously enough that the count has to say so.
+        $response = $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle", [
+            'positions' => [1],
+        ])->assertOk();
+
+        $this->assertSame(1, $response->json('meta.marked'));
+        $this->assertSame(2, $response->json('data.items.0.print_count'));
+    }
+
+    public function test_a_second_pass_leaves_the_first_passs_record_alone(): void
+    {
+        $this->tenant();
+
+        $batch = $this->batch([
+            ['product_id' => $this->product('One')->getKey()],
+            ['product_id' => $this->product('Two')->getKey()],
+        ]);
+
+        $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle", ['positions' => [1]])
+            ->assertOk();
+
+        $first = $batch->fresh()->items()->where('position', 1)->sole();
+        $printedAt = $first->printed_at;
+
+        // The jam is fixed and the remaining sheet goes through. The line that already printed keeps its
+        // count AND its timestamp: without the pending filter this pass rewrote both.
+        $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle")->assertOk();
+
+        $again = $batch->fresh()->items()->where('position', 1)->sole();
+
+        $this->assertSame(1, $again->print_count);
+        $this->assertTrue($printedAt->equalTo($again->printed_at));
+        $this->assertNotNull($batch->fresh()->printed_at);
     }
 
     public function test_settling_a_position_this_batch_does_not_have_is_refused(): void
@@ -387,6 +437,68 @@ final class PrintBatchApiTest extends TestCase
         $this->putJson("/api/v1/labels/batches/{$theirs->getKey()}/lines/1", ['copies' => 2])
             ->assertNotFound();
         $this->deleteJson("/api/v1/labels/batches/{$theirs->getKey()}/lines/1")->assertNotFound();
+    }
+
+    public function test_the_wire_carries_the_code_each_line_will_print(): void
+    {
+        $this->tenant();
+
+        $withGtin = $this->product('Pınar Süt Tam Yağlı 1 lt');
+        $withGtin->linkBarcode(Barcode::forGtin('8690504004073'));
+
+        $bare = $this->product('Kablo bağı 200 mm');
+
+        $serialised = $this->product('Makita DHP484 Darbeli Matkap');
+        $serial = $this->serial($serialised, 'MK-0009');
+
+        $batch = $this->batch([
+            ['product_id' => $withGtin->getKey()],
+            ['product_id' => $bare->getKey()],
+            ['product_serial_id' => $serial->getKey()],
+        ]);
+
+        $items = $this->getJson("/api/v1/labels/batches/{$batch->getKey()}")->assertOk()->json('data.items');
+
+        // **This field was missing entirely and three consumers ran on a placeholder**: the sample label
+        // the copy calls "real content", the fit verdict `max_code_length` exists for, and the row meta
+        // that told users a code would be generated for products carrying a real barcode.
+        //
+        // A GTIN prints its significant digits, a product with nothing gets the generated form, and a
+        // serial's label identifies one unit so the serial IS the code.
+        $this->assertSame('8690504004073', $items[0]['code']);
+        $this->assertMatchesRegularExpression('/^DPL[0-9A-F]{8}$/', $items[1]['code']);
+        $this->assertSame('MK-0009', $items[2]['code']);
+    }
+
+    public function test_appending_to_a_printed_batch_is_refused(): void
+    {
+        $this->tenant();
+
+        $batch = $this->batch([['product_id' => $this->product('One')->getKey()]]);
+
+        $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle")->assertOk();
+        $this->assertNotNull($batch->fresh()->printed_at);
+
+        // `printed_at` is DERIVED, so an insert breaks it without touching the column: the batch would
+        // carry a finished date over pending lines. `update()` already refused the same thing.
+        $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/lines", [
+            'items' => [['product_id' => $this->product('Two')->getKey()]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('items');
+
+        $this->assertSame(1, $batch->fresh()->items()->count());
+    }
+
+    public function test_a_non_numeric_position_is_not_found_rather_than_a_server_error(): void
+    {
+        $this->tenant();
+
+        $batch = $this->batch([['product_id' => $this->product('One')->getKey()]]);
+
+        // The handlers type `{position}` as `int` and there is no `declare(strict_types=1)`, so without
+        // a route constraint a non-numeric segment is a `TypeError` and a 500.
+        $this->putJson("/api/v1/labels/batches/{$batch->getKey()}/lines/abc", ['copies' => 2])
+            ->assertNotFound();
+        $this->deleteJson("/api/v1/labels/batches/{$batch->getKey()}/lines/abc")->assertNotFound();
     }
 
     /**

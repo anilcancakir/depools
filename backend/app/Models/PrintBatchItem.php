@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToTeam;
 use FlutterSdk\MagicStarter\Support\ConditionallyUsesUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -93,10 +94,23 @@ final class PrintBatchItem extends Model
      */
     public function markPrinted(): void
     {
-        $this->forceFill([
-            'printed_at' => $this->freshTimestamp(),
-            'print_count' => $this->print_count + 1,
-        ])->save();
+        $now = $this->freshTimestamp();
+
+        // **One statement, and the count incremented by the DATABASE.** Reading `print_count` into PHP
+        // and writing back `+ 1` is a read-modify-write: two concurrent settles both read 0 and both
+        // write 1, so a genuine double print records one and the paper figure D43 exists for is short.
+        //
+        // Both columns together because a CHECK requires them to agree: a row with a `printed_at` and a
+        // zero count is refused, and so is the reverse.
+        $this->newQuery()->whereKey($this->getKey())->update([
+            'printed_at' => $now,
+            'print_count' => DB::raw('print_count + 1'),
+            'updated_at' => $now,
+        ]);
+
+        // The in-memory model would otherwise still hold the stale count, and `settle()` reads the
+        // items again straight afterwards.
+        $this->refresh();
     }
 
     /**
