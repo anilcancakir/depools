@@ -41,8 +41,24 @@ class FilterChip extends StatelessWidget {
   /// Apply when idle, remove when [applied].
   final VoidCallback? onTap;
 
+  /// What tapping it does, for a screen reader, when the chip is not narrowing a list.
+  ///
+  /// **The default copy says "filter" and that is wrong wherever the chip is not one.** The label
+  /// screen reuses this to choose what a sticker carries, and a screen reader announced "Apply the
+  /// Team name filter" on a control that filters nothing. Sighted users saw a correct chip; the
+  /// announcement was the only part that lied, which is why it took a `dusk:snap` to notice.
+  ///
+  /// Optional, so every existing caller keeps the filter vocabulary it wants.
+  final String? semanticLabel;
+
   /// Creates a [FilterChip].
-  const FilterChip({super.key, required this.label, this.applied = false, this.onTap});
+  const FilterChip({
+    super.key,
+    required this.label,
+    this.applied = false,
+    this.onTap,
+    this.semanticLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -57,9 +73,10 @@ class FilterChip extends StatelessWidget {
       // which broke two rules on one line: a hardcoded Turkish string, and concatenation instead of
       // a `:placeholder`, so `localization_test` could not have checked it either. It surfaced as
       // "Expired filtresini uygula" on an English screen once the chips themselves were localised.
-      semanticLabel: applied
-          ? Lang.get('components.filter_chip.remove', {'label': label})
-          : Lang.get('components.filter_chip.apply', {'label': label}),
+      semanticLabel: semanticLabel ??
+          (applied
+              ? Lang.get('components.filter_chip.remove', {'label': label})
+              : Lang.get('components.filter_chip.apply', {'label': label})),
       child: WDiv(
         className: slots['root'],
         children: [

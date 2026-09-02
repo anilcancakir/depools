@@ -29,6 +29,7 @@ import 'package:magic_starter/magic_starter.dart'
         MSBottomSheet,
         MSEmptyState;
 
+import '../../../app/controllers/label_batch_controller.dart';
 import '../../../app/controllers/product_detail_controller.dart';
 import '../../../app/support/unit_label.dart';
 import '../../../ui/components/draft_field/draft_field.dart';
@@ -580,7 +581,23 @@ class _ProductShowViewState extends State<ProductShowView> {
             // why `LabelPrintView` had no way in until this line existed.
             MSDropdownMenuItem(
               label: Lang.get('screens.product.action_labels'),
-              onTap: () => MagicRoute.to('/labels'),
+              // **The product travels through the controller, not through the route.** `/labels` takes
+              // no parameters and the batch is a singleton, so the id is handed over and then
+              // navigated to, which is what the shelf, receipt and draft paths all do. Opening the
+              // screen adds this product to the batch already open rather than starting a new one:
+              // that is what a batch is for, and the screen shows the whole thing so an unintended
+              // line is visible and removable.
+              onTap: () {
+                // `ProductListItem.id` is nullable because the same type stands in for a fixture row,
+                // so a batch only gets a product when there is one to name. The screen still opens:
+                // it resumes whatever batch is there, which is the reasonable thing to do from a
+                // preview and from a product whose id has not landed yet.
+                final String? id = _product.id;
+
+                if (id != null) LabelBatchController.instance.addOnOpen(id);
+
+                MagicRoute.to('/labels');
+              },
             ),
             // No `Düzenle` entry. Editing is field by field from the rows below, through
             // `FieldEditorSheet`, which is the pattern `ai-enrichment.md` already describes and the

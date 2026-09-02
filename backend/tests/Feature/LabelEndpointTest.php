@@ -28,6 +28,16 @@ final class LabelEndpointTest extends TestCase
     use NeedsRenderToolchain;
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // **Every test gets an empty render cache**, because several read `files('label-sheets')[0]`
+        // and a shared disk would let one test's PDF answer another's assertion. It also stops the
+        // suite leaving rendered sheets in `storage/`.
+        Storage::fake('local');
+    }
+
     public function test_a_product_from_another_team_is_not_found_rather_than_refused(): void
     {
         $alpha = $this->tenant('Alpha');
@@ -114,13 +124,13 @@ final class LabelEndpointTest extends TestCase
         // is a row in a tenant table and nothing stamps `team_id` on it automatically.
         $product->linkBarcode($barcode);
 
-        $pdf = $this->postJson('/api/v1/labels/pdf', [
+        $this->postJson('/api/v1/labels/pdf', [
             'template' => 'a4_8_up_105x70',
             'fields' => ['name', 'code'],
             'items' => [['product_id' => $product->getKey()]],
-        ])->assertOk()->getContent();
+        ])->assertOk();
 
-        $text = $this->extract($pdf);
+        $text = $this->lastRenderedPdf();
 
         // **The significant digits, not the padding.** A GTIN row carries no `code` column at all, so
         // reading `code` alone would have generated an internal code for a product that has a real
@@ -136,13 +146,13 @@ final class LabelEndpointTest extends TestCase
 
         $product = $this->product('Kablo bağı 200 mm');
 
-        $pdf = $this->postJson('/api/v1/labels/pdf', [
+        $this->postJson('/api/v1/labels/pdf', [
             'template' => 'a4_8_up_105x70',
             'fields' => ['name', 'code'],
             'items' => [['product_id' => $product->getKey()]],
-        ])->assertOk()->getContent();
+        ])->assertOk();
 
-        $text = $this->extract($pdf);
+        $text = $this->lastRenderedPdf();
 
         // Criterion 6: an internal code cannot be confused with a manufacturer EAN-13, and letters are
         // what guarantee that rather than the prefix being recognisable.
@@ -157,13 +167,13 @@ final class LabelEndpointTest extends TestCase
         $product = $this->product('Tornavida Seti PH2');
 
         // 25 copies on a 24-cell sheet: the boundary that decides whether the 25th sticker prints.
-        $pdf = $this->postJson('/api/v1/labels/pdf', [
+        $this->postJson('/api/v1/labels/pdf', [
             'template' => 'a4_24_up_70x37',
             'fields' => ['name'],
             'items' => [['product_id' => $product->getKey(), 'copies' => 25]],
-        ])->assertOk()->getContent();
+        ])->assertOk();
 
-        $path = $this->write($pdf);
+        $path = $this->write(Storage::disk('local')->get(Storage::disk('local')->files('label-sheets')[0]));
 
         $info = new Process(['pdfinfo', $path]);
         $info->run();
@@ -178,8 +188,6 @@ final class LabelEndpointTest extends TestCase
         $this->tenant();
         $this->requireRenderToolchain();
 
-        Storage::fake('local');
-
         $product = $this->product('Şeker (Toz) 1 kg');
 
         $payload = [
@@ -189,7 +197,17 @@ final class LabelEndpointTest extends TestCase
         ];
 
         $first = $this->postJson('/api/v1/labels/preview', $payload)->assertOk();
-        $this->assertSame('image/png', $first->headers->get('Content-Type'));
+
+        // A url rather than the bytes: `Image.network` cannot carry a bearer token and magic's `Http`
+        // facade has no binary response mode, so a streamed PNG is a shape the app cannot use.
+        //
+        // **The signature is deliberately NOT asserted here.** `Storage::fake` mints an unsigned url
+        // (measured: `?expiration=...` with no `signature=`), so the assertion would be about the fake
+        // rather than about the code. Signing is `MediaUrl`'s own concern, with its own measured trap
+        // recorded there: `temporaryUrl`, never `temporarySignedRoute`.
+        $this->assertStringContainsString('label-previews/', $first->json('data.url'));
+        $this->assertStringContainsString('expiration=', $first->json('data.url'));
+        $this->assertNotNull($first->json('data.expires_at'));
 
         $cached = Storage::disk('local')->files('label-previews');
         $this->assertCount(1, $cached);
@@ -205,8 +223,6 @@ final class LabelEndpointTest extends TestCase
     {
         $this->tenant();
         $this->requireRenderToolchain();
-
-        Storage::fake('local');
 
         $product = $this->product('Kablo bağı 200 mm');
 
@@ -243,13 +259,13 @@ final class LabelEndpointTest extends TestCase
         $product->linkBarcode(Barcode::forCode('SHELF-LABEL-1', 'code128'));
         $product->linkBarcode(Barcode::forGtin('8690504004073'));
 
-        $text = $this->extract(
-            $this->postJson('/api/v1/labels/pdf', [
-                'template' => 'a4_8_up_105x70',
-                'fields' => ['name', 'code'],
-                'items' => [['product_id' => $product->getKey()]],
-            ])->assertOk()->getContent()
-        );
+        $this->postJson('/api/v1/labels/pdf', [
+            'template' => 'a4_8_up_105x70',
+            'fields' => ['name', 'code'],
+            'items' => [['product_id' => $product->getKey()]],
+        ])->assertOk();
+
+        $text = $this->lastRenderedPdf();
 
         $this->assertStringContainsString('8690504004073', $text);
         $this->assertStringNotContainsString('SHELF-LABEL-1', $text);
@@ -361,6 +377,22 @@ final class LabelEndpointTest extends TestCase
             'fields' => ['name'],
             'items' => [['product_id' => strtoupper((string) $product->getKey())]],
         ])->assertOk();
+    }
+
+    /**
+     * The text of the PDF the last render wrote.
+     *
+     * The endpoints answer with a signed url now, and the file behind it is on the cache disk. Reading
+     * the disk rather than parsing the url keeps the test independent of how the url is shaped, which
+     * is `MediaUrl`'s business and has its own measured traps.
+     */
+    private function lastRenderedPdf(): string
+    {
+        $files = Storage::disk('local')->files('label-sheets');
+
+        $this->assertNotEmpty($files, 'The render wrote no PDF to the cache disk.');
+
+        return $this->extract(Storage::disk('local')->get($files[0]));
     }
 
     private function extract(string $pdf): string

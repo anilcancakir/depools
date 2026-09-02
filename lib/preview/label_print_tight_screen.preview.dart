@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../resources/views/products/label_fixtures.dart';
 import '../resources/views/products/label_print_view.dart';
 import 'preview_mock_harness.dart';
 import 'responsive_screen_preview.dart';
@@ -23,5 +24,5 @@ class LabelPrintTightScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const LabelPrintView.tight();
+  static Widget _build(BuildContext context) => LabelPrintView.preview(tightBatch, sheetTemplates);
 }

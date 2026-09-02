@@ -59,12 +59,35 @@ final class LabelSheetRenderer
     /**
      * The sheet as PDF bytes.
      *
-     * Returned as a string rather than written to disk: D71 delivers the file inside the request, so
-     * it goes straight to the response and there is nothing to clean up afterwards.
+     * Returned as a string rather than written to disk. [pdfPath] is what a client actually consumes.
      */
     public function pdf(SheetTemplate $template, LabelSheet $sheet): string
     {
         return $this->browsershot($template, $sheet)->pdf();
+    }
+
+    /**
+     * The sheet as a file on the cache disk, returned as its path.
+     *
+     * **The client cannot consume a streamed PDF, which is what forced this.**
+     * `labeling-and-printing.md` asks for the file to open in a tab on web and reach the share sheet on
+     * mobile, and both take a URL. Magic's `Http` facade has no binary response mode at all (checked:
+     * `get`, `post`, `put`, `delete`, `upload`, none carrying a response type), and a browser tab issues
+     * a plain GET that cannot hold a bearer token, which is the same constraint `MediaUrl` already
+     * records for product photographs.
+     *
+     * So it is written to the served disk and handed over as a signed short-lived URL. That still
+     * returns inside the request in D71's sense: nothing is queued and nothing is notified.
+     *
+     * Cached under the same key as the preview, because a user who previews and then prints without
+     * changing anything has asked for the same bytes twice.
+     */
+    public function pdfPath(SheetTemplate $template, LabelSheet $sheet): string
+    {
+        return $this->cached(
+            'label-sheets/'.$this->cacheKey($template, $sheet).'.pdf',
+            fn (): string => $this->pdf($template, $sheet),
+        );
     }
 
     /**
@@ -75,14 +98,6 @@ final class LabelSheetRenderer
      */
     public function previewPath(SheetTemplate $template, LabelSheet $sheet): string
     {
-        $path = 'label-previews/'.$this->cacheKey($template, $sheet).'.png';
-
-        $disk = $this->disk();
-
-        if ($disk->exists($path)) {
-            return $path;
-        }
-
         // **`fullPage()`, because `paperSize` does not reach a screenshot and its absence was a
         // measured defect.** Browsershot's constructor sets `windowSize(800, 600)` unconditionally,
         // the bridge applies it with `page.setViewport`, and puppeteer's `screenshot` defaults to
@@ -90,17 +105,37 @@ final class LabelSheetRenderer
         // cells 1 to 35 of a 65-cell sheet: rows 8 to 13 were simply absent, which is 46% of the
         // paper. That defeats D43 exactly, since the empty cells a user is choosing between are the
         // ones at the bottom.
+        return $this->cached(
+            'label-previews/'.$this->cacheKey($template, $sheet).'.png',
+            fn (): string => $this->browsershot($template, $sheet)->fullPage()->screenshot(),
+        );
+    }
+
+    /**
+     * [$path] on the cache disk, rendered by [$render] if it is not there yet.
+     *
+     * The cache is what makes a preview affordable while a user flips through templates, and the same
+     * key covers the PDF because previewing and then printing unchanged asks for the same bytes twice.
+     */
+    private function cached(string $path, callable $render): string
+    {
+        $disk = $this->disk();
+
+        if ($disk->exists($path)) {
+            return $path;
+        }
+
         // The `local` disk is configured `'throw' => false`, so a failed write returns false rather
         // than raising, and this method would have answered with a path to a file that is not there.
-        if ($disk->put($path, $this->browsershot($template, $sheet)->fullPage()->screenshot()) === false) {
-            throw new RuntimeException("The label preview could not be written to [{$path}].");
+        if ($disk->put($path, $render()) === false) {
+            throw new RuntimeException("A label render could not be written to [{$path}].");
         }
 
         return $path;
     }
 
     /**
-     * The disk the preview cache lives on.
+     * The disk the renders are cached on.
      */
     public function disk(): FilesystemAdapter
     {

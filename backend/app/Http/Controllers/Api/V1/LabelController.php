@@ -9,13 +9,12 @@ use App\Labels\LabelSheetRenderer;
 use App\Labels\SheetLayout;
 use App\Labels\SheetTemplate;
 use App\Models\PrintBatch;
+use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The label sheet: what it would look like, and the file that prints.
@@ -82,58 +81,67 @@ final class LabelController extends Controller
     }
 
     /**
-     * A PNG of the sheet.
+     * A signed url for a PNG of the sheet.
+     *
+     * **A url rather than the bytes, and the client's own limits are what decide that.** `Image.network`
+     * issues a plain GET that cannot carry a bearer token, and magic's `Http` facade has no binary
+     * response mode at all, so a streamed PNG is a shape the app cannot consume. `MediaUrl` already
+     * records this constraint for product photographs and the measured trap that goes with it
+     * (`temporaryUrl`, never `temporarySignedRoute`: the route validates a RELATIVE signature).
      */
-    public function preview(Request $request): StreamedResponse
+    public function preview(Request $request): JsonResponse
     {
         [$template, $sheet] = $this->resolve($request);
 
-        $path = $this->renderer->previewPath($template, $sheet);
-
-        return $this->renderer->disk()->response($path, 'label-preview.png', [
-            'Content-Type' => 'image/png',
-        ]);
+        return $this->rendered($this->renderer->previewPath($template, $sheet));
     }
 
     /**
-     * The printable sheet.
+     * A signed url for the printable sheet.
+     *
+     * Same reasoning as [preview], and here it is the whole flow: the doc asks for the file to open in
+     * a tab on web and reach the share sheet on mobile, and both take a url. A POST that streams bytes
+     * can do neither.
      */
-    public function pdf(Request $request): Response
+    public function pdf(Request $request): JsonResponse
     {
         [$template, $sheet] = $this->resolve($request);
 
-        return response($this->renderer->pdf($template, $sheet), 200, [
-            'Content-Type' => 'application/pdf',
-            // Inline rather than an attachment: on web this opens in a tab and on mobile it reaches
-            // the share sheet, which is where printing, saving and sending already live.
-            'Content-Disposition' => 'inline; filename="labels.pdf"',
-        ]);
+        return $this->rendered($this->renderer->pdfPath($template, $sheet));
     }
 
     /**
-     * A PNG of what a batch still owes.
+     * A signed url for a PNG of what a batch still owes.
      */
-    public function batchPreview(Request $request, PrintBatch $printBatch): StreamedResponse
+    public function batchPreview(Request $request, PrintBatch $printBatch): JsonResponse
     {
         [$template, $sheet] = $this->resolveBatch($request, $printBatch);
 
-        return $this->renderer->disk()->response(
-            $this->renderer->previewPath($template, $sheet),
-            'label-preview.png',
-            ['Content-Type' => 'image/png'],
-        );
+        return $this->rendered($this->renderer->previewPath($template, $sheet));
     }
 
     /**
-     * The printable sheet for what a batch still owes.
+     * A signed url for the printable sheet of what a batch still owes.
      */
-    public function batchPdf(Request $request, PrintBatch $printBatch): Response
+    public function batchPdf(Request $request, PrintBatch $printBatch): JsonResponse
     {
         [$template, $sheet] = $this->resolveBatch($request, $printBatch);
 
-        return response($this->renderer->pdf($template, $sheet), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="labels.pdf"',
+        return $this->rendered($this->renderer->pdfPath($template, $sheet));
+    }
+
+    /**
+     * A rendered file, as the url a client can actually fetch.
+     */
+    private function rendered(string $path): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'url' => MediaUrl::signed((string) config('labels.preview_disk', 'local'), $path),
+                // So a client can decide whether to re-ask rather than discovering a 403 in an
+                // `Image.network` that has no error channel worth reading.
+                'expires_at' => MediaUrl::expiresAt()->toIso8601String(),
+            ],
         ]);
     }
 

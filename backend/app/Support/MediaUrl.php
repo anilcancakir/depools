@@ -74,7 +74,7 @@ final class MediaUrl
      * The whole point is that this is NOT `now()->addHours(2)`: that value moves every second, and a
      * url that changes every second is a cache miss on every render.
      */
-    private static function expiresAt(): Carbon
+    public static function expiresAt(): Carbon
     {
         return Carbon::now()->startOfHour()->addHours(self::HOURS);
     }

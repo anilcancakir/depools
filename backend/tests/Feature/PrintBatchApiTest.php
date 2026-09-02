@@ -9,6 +9,7 @@ use App\Models\ProductSerial;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use Symfony\Component\Process\Process;
 use Tests\Concerns\NeedsRenderToolchain;
@@ -29,6 +30,14 @@ final class PrintBatchApiTest extends TestCase
 {
     use NeedsRenderToolchain;
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // An empty render cache per test, so one test's sheet cannot answer another's assertion.
+        Storage::fake('local');
+    }
 
     public function test_a_batch_from_another_team_is_not_found_rather_than_refused(): void
     {
@@ -253,11 +262,11 @@ final class PrintBatchApiTest extends TestCase
         $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle", ['positions' => [1]])
             ->assertOk();
 
-        $pdf = $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/pdf")
-            ->assertOk()
-            ->getContent();
+        $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/pdf")->assertOk();
 
-        $text = $this->extract($pdf);
+        $text = $this->extract(
+            Storage::disk('local')->get(Storage::disk('local')->files('label-sheets')[0])
+        );
 
         // Rendering the whole batch would reprint stickers that already came out, and paper is what
         // this feature is judged on.
@@ -306,6 +315,78 @@ final class PrintBatchApiTest extends TestCase
 
         // A resumable batch is the reason a user opens this list; a finished one is history.
         $this->assertSame([$open->getKey(), $finished->getKey()], $ids);
+    }
+
+    public function test_a_line_can_change_its_copies_and_be_dropped(): void
+    {
+        $this->tenant();
+
+        $batch = $this->batch([
+            ['product_id' => $this->product('One')->getKey(), 'copies' => 2],
+            ['product_id' => $this->product('Two')->getKey()],
+        ]);
+
+        $this->putJson("/api/v1/labels/batches/{$batch->getKey()}/lines/1", ['copies' => 9])
+            ->assertOk()
+            ->assertJsonPath('data.items.0.count', 9);
+
+        $response = $this->deleteJson("/api/v1/labels/batches/{$batch->getKey()}/lines/2")->assertOk();
+
+        // **Positions are not renumbered.** They are what a person reprinting names, so closing the gap
+        // would renumber lines a half-printed sheet already identified.
+        $this->assertSame([1], array_column($response->json('data.items'), 'position'));
+        $this->assertSame(9, $response->json('data.sticker_count'));
+    }
+
+    public function test_a_printed_line_keeps_its_count_and_stays(): void
+    {
+        $this->tenant();
+
+        $batch = $this->batch([['product_id' => $this->product('One')->getKey(), 'copies' => 4]]);
+
+        $this->postJson("/api/v1/labels/batches/{$batch->getKey()}/settle")->assertOk();
+
+        // A printed line records that stickers exist. Changing its count would make the paper
+        // arithmetic disagree with the sheets that came out, and removing it would claim fewer labels
+        // printed than did.
+        $this->putJson("/api/v1/labels/batches/{$batch->getKey()}/lines/1", ['copies' => 1])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('copies');
+
+        $this->deleteJson("/api/v1/labels/batches/{$batch->getKey()}/lines/1")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('position');
+
+        $this->assertSame(4, $batch->fresh()->items()->first()->copies);
+    }
+
+    public function test_a_serial_line_has_no_copies_to_change(): void
+    {
+        $this->tenant();
+
+        $product = $this->product('Makita DHP484 Darbeli Matkap');
+        $serial = $this->serial($product, 'MK-0003');
+
+        $batch = $this->batch([['product_serial_id' => $serial->getKey()]]);
+
+        // D45's absent stepper, at the boundary: the CHECK would refuse it too, but as a 500.
+        $this->putJson("/api/v1/labels/batches/{$batch->getKey()}/lines/1", ['copies' => 3])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('copies');
+    }
+
+    public function test_a_line_of_another_teams_batch_cannot_be_touched(): void
+    {
+        $alpha = $this->tenant('Alpha');
+
+        $this->tenant('Beta');
+        $theirs = $this->batch([['product_id' => $this->product('Theirs')->getKey()]]);
+
+        $this->actingAs($alpha, 'sanctum');
+
+        $this->putJson("/api/v1/labels/batches/{$theirs->getKey()}/lines/1", ['copies' => 2])
+            ->assertNotFound();
+        $this->deleteJson("/api/v1/labels/batches/{$theirs->getKey()}/lines/1")->assertNotFound();
     }
 
     /**
