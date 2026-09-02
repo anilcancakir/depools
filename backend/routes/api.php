@@ -244,10 +244,15 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
             Route::get('/', [PrintBatchController::class, 'index']);
             Route::post('/', [PrintBatchController::class, 'store']);
             Route::get('{printBatch}', [PrintBatchController::class, 'show']);
+            Route::put('{printBatch}', [PrintBatchController::class, 'update']);
             Route::post('{printBatch}/lines', [PrintBatchController::class, 'addLines']);
             // Not idempotent on purpose: a label printed twice is two stickers, so this increments
             // `print_count`. What IS idempotent is the resume query, which reads `printed_at`.
             Route::post('{printBatch}/settle', [PrintBatchController::class, 'settle']);
+            // Keyed on the POSITION rather than the line's id, matching `settle`: the position is the
+            // number the row carries on screen, and a client holding one already holds the other.
+            Route::put('{printBatch}/lines/{position}', [PrintBatchController::class, 'updateLine']);
+            Route::delete('{printBatch}/lines/{position}', [PrintBatchController::class, 'destroyLine']);
             Route::delete('{printBatch}', [PrintBatchController::class, 'destroy']);
 
             Route::middleware('throttle:30,1')->group(function (): void {

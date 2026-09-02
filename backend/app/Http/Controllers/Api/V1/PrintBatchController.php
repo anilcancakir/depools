@@ -153,6 +153,104 @@ final class PrintBatchController extends Controller
         ]);
     }
 
+    /**
+     * Changes a batch's template or its field selection.
+     *
+     * **The screen needs this and re-creating the batch was the alternative I nearly shipped.** Both
+     * are chosen while the user watches the preview change, so they are edits to an open batch rather
+     * than facts fixed at creation; a re-create would have had to move the pending lines across and
+     * leave the printed ones behind, which is a migration to avoid one small endpoint.
+     */
+    public function update(Request $request, PrintBatch $printBatch): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'template' => ['sometimes', 'string', Rule::in(SheetTemplate::keys())],
+            'fields' => ['sometimes', 'array', 'min:1'],
+            'fields.*' => ['string', Rule::in((array) config('labels.fields'))],
+        ]);
+
+        // A finished batch is a record of paper that went. Re-laying it out would make its own history
+        // describe a sheet nobody printed.
+        if (! $printBatch->isUnfinished() && $printBatch->items()->exists()) {
+            throw ValidationException::withMessages([
+                'template' => [__('This batch has been printed and its layout is now a record.')],
+            ]);
+        }
+
+        $printBatch->fill($data)->save();
+
+        return response()->json([
+            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+        ]);
+    }
+
+    /**
+     * Changes how many copies one line prints.
+     *
+     * **Only a product line, because a serial's count is not a number anybody may choose** (D45): its
+     * label identifies one physical unit, so there is nothing to multiply and the CHECK refuses it
+     * anyway. Refusing here names the rule instead of leaving a 500 to.
+     */
+    public function updateLine(Request $request, PrintBatch $printBatch, int $position): JsonResponse
+    {
+        $data = $request->validate([
+            'copies' => ['required', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $item = $printBatch->items()->where('position', $position)->firstOrFail();
+
+        if ($item->product_serial_id !== null) {
+            throw ValidationException::withMessages([
+                'copies' => [__('A serial prints once, so its count cannot be changed.')],
+            ]);
+        }
+
+        // Printed lines keep their count: it is a record of what came off a printer, and D43 counts
+        // paper. Changing it would make the sheet arithmetic disagree with the sheets that exist.
+        if (! $item->isUnprinted()) {
+            throw ValidationException::withMessages([
+                'copies' => [__('This line has already been printed.')],
+            ]);
+        }
+
+        $item->fill(['copies' => $data['copies']])->save();
+
+        return response()->json([
+            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+        ]);
+    }
+
+    /**
+     * Drops one line from a batch.
+     *
+     * **The screen needs this, and without it a user who landed in the wrong batch had no way out
+     * except deleting the whole thing.** Opening the label screen from a product adds that product to
+     * the open batch, which is the accumulate-over-time behaviour a batch is for; the escape has to
+     * exist for that to be a reasonable default rather than a trap.
+     *
+     * Positions are NOT renumbered afterwards. They are what a person reprinting names, so closing the
+     * gap would renumber the lines a half-printed sheet already identified.
+     */
+    public function destroyLine(PrintBatch $printBatch, int $position): JsonResponse
+    {
+        $item = $printBatch->items()->where('position', $position)->firstOrFail();
+
+        // A printed line is history: it records that stickers exist. Removing it would make the batch
+        // claim fewer labels were printed than were.
+        if (! $item->isUnprinted()) {
+            throw ValidationException::withMessages([
+                'position' => [__('This line has already been printed and stays as a record.')],
+            ]);
+        }
+
+        $item->delete();
+
+        return response()->json([
+            'data' => (new PrintBatchResource($printBatch->refresh()))->resolve(),
+        ]);
+    }
+
     public function destroy(PrintBatch $printBatch): JsonResponse
     {
         $printBatch->delete();

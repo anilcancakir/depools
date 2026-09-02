@@ -229,9 +229,17 @@ void main() {
       // A count placeholder immediately followed by a word ending in `s` is the shape, and it is
       // syntactic rather than grammatical: it cannot tell a plural noun from a participle, so the
       // exemptions below are read by hand rather than pattern-matched.
-      const Set<String> counts = <String>{
-        ':count', ':counted', ':total', ':regions', ':lines', ':ready', ':unresolved', ':written',
-        ':variances', ':skipped', ':unfinished', ':n',
+      // **Any placeholder, not a named list of count words.** The first version enumerated
+      // `:count`, `:counted` and ten others, and missed `:sheets sheets` on the label screen, which
+      // rendered "1 sheets" in front of me. A guard whose coverage depends on my remembering to add a
+      // placeholder name is a guard that fails exactly where a new screen invents one.
+      //
+      // Widening it caught 31 more, most of them real: `:days days`, `:products products`,
+      // `:max characters`. What it also catches is a count followed by a VERB ending in `s`, which
+      // inflects nothing, so those words are exempted by hand and read rather than pattern-matched.
+      const Set<String> verbs = <String>{
+        'is', 'was', 'has', 'says', 'does', 'matches', 'equals', 'goes', 'means',
+        'this', 'its', 'as', 'less', 'plus', 'minus', 'across', 'yes', 'always',
       };
 
       // **These 27 predate the guard and are debt, listed rather than swept.** Each renders a
@@ -246,17 +254,29 @@ void main() {
         'screens.dashboard.count_batches',
         'screens.dashboard.count_changes',
         'screens.dashboard.count_products',
+        'screens.dashboard.counter_within',
         'screens.dashboard.setup_count',
         'screens.dashboard.shopping_count',
-        'screens.labels.label_count',
+        'screens.dashboard.subtitle',
+        'screens.dates.horizon_apply',
+        'screens.dates.horizon_chip',
+        'screens.dates.horizon_selected',
+        'screens.dates.subtitle',
+        'screens.labels.overflow_note',
+        'screens.labels.preview_sheets',
+        'screens.location.subtitle',
+        'screens.location_form.depth_note',
         'screens.locations.filtered_hint',
         'screens.locations.subtitle',
         'screens.mcp.client_count',
+        'screens.plan.meter_credits_value',
+        'screens.plan.meter_products_value',
         'screens.product.activity_count',
         'screens.product.barcode_count',
         'screens.product.locations_count',
         'screens.product.serial_count',
         'screens.product.stat_forecast_progress',
+        'screens.product_draft.shelf_life_value',
         'screens.product_filter.apply',
         'screens.products.filtered_description',
         'screens.products.subtitle',
@@ -264,11 +284,15 @@ void main() {
         'screens.receipt.line_count',
         'screens.receipt.submit',
         'screens.receipt.subtitle',
+        'screens.receipt.will_write',
+        'screens.stock_in.date_with_life',
         'screens.stock_in.suggested_category',
         'screens.stock_move.suggested_count',
+        'validation.max',
+        'validation.min',
       };
 
-      final RegExp shape = RegExp('(${counts.join('|')}) ([a-z]+)');
+      final RegExp shape = RegExp(r'(:[a-z_]+) ([a-z]+)');
 
       final List<String> offenders = <String>[];
 
@@ -276,7 +300,7 @@ void main() {
         if (entry.value.contains('|') || pending.contains(entry.key)) continue;
 
         for (final RegExpMatch match in shape.allMatches(entry.value)) {
-          if (match.group(2)!.endsWith('s')) {
+          if (match.group(2)!.endsWith('s') && !verbs.contains(match.group(2))) {
             offenders.add('${entry.key} = ${entry.value}');
             break;
           }

@@ -1,45 +1,66 @@
-import 'package:flutter/foundation.dart';
-
+import '../../../app/models/print_batch.dart';
 import '../../../ui/components/label_item_row/label_item_row.dart';
 import '../../../ui/components/label_preview/label_preview.dart';
 
-/// One product in a print batch, as the label screen needs it.
-@immutable
-class LabelItemFixture {
-  /// The product name, the label's first line.
-  final String name;
-
-  /// The code that will be printed, or null when one has to be generated.
-  final String? code;
-
-  /// How many labels this line contributes.
-  final int count;
-
-  /// Where the count comes from.
-  final LabelCountMode mode;
-
-  /// Whether this line has already been printed in this batch.
-  final bool isPrinted;
-
-  /// Creates a [LabelItemFixture].
-  const LabelItemFixture({
-    required this.name,
-    required this.count,
-    this.code,
-    this.mode = LabelCountMode.free,
-    this.isPrinted = false,
-  });
-}
-
-/// The sheet catalog, ported in shape from the MVP's `config/labels.php`.
+/// One relabelling run in a workshop, which is the case that put this feature in v1.
 ///
-/// Four of the seventeen, chosen so the arithmetic is visibly different: 8-up wastes a
-/// third of a page on a small batch, 24-up wastes nothing because its grid exactly fills
-/// A4, and 65-up is small enough that a location line stops fitting. The catalog is one of
-/// the open questions in `labeling-and-printing.md`: which sheets Turkish stationery shops
-/// actually stock is unverified, and a catalog nobody can buy makes the feature useless.
+/// **`LabelItemFixture` is gone and `PrintBatchLine` replaced it**, because `flutter-app.md` says to
+/// replace a fixture rather than shadow it: two types for one thing diverge the moment the API
+/// changes. What is left here is the DATA, which is what a preview needs.
+///
+/// The arithmetic went with the move. `pendingLabels`, `sheetsFor`, `wastedCells` and `lastSheetFill`
+/// were computed here against a fixture; the screen computes them from whatever batch it holds, and
+/// the pending count now comes from the server so the two cannot disagree.
+///
+/// **Mixed tracking on purpose.** Two lot-tracked products with free quantities, one serial-tracked
+/// product whose label identifies one physical unit, and one product with no barcode at all. Those are
+/// three different meanings of the word "quantity" and D45 is what separates them; a fixture of four
+/// identical lot products would have let the screen quietly assume one.
+///
+/// One line is already printed, because criterion 5 requires a partially printed batch to be
+/// resumable and a batch with nothing printed cannot demonstrate it.
+const PrintBatch labelBatch = PrintBatch(
+  id: 'batch-1',
+  name: 'Atölye yeniden etiketleme',
+  template: 'a4_8_up_105x70',
+  fields: <String>['name', 'code'],
+  stickerCount: 22,
+  pendingStickerCount: 18,
+  lines: <PrintBatchLine>[
+    PrintBatchLine(position: 1, name: 'Pınar Süt Tam Yağlı 1 lt', code: '8690504004073', count: 12),
+    PrintBatchLine(
+      position: 2,
+      name: 'Makita DHP484 Darbeli Matkap',
+      serial: 'DPL-MK-DHP484',
+      count: 1,
+      mode: LabelCountMode.perSerial,
+    ),
+    // No barcode. Never blocked: the server generates a Code 128 code with a tenant prefix, which is
+    // also why an internal label can never be read as a manufacturer EAN-13.
+    PrintBatchLine(position: 3, name: 'Kablo bağı 200 mm', count: 5),
+    PrintBatchLine(
+      position: 4,
+      name: 'Tornavida Seti PH2',
+      code: '8691234567890',
+      count: 4,
+      isPrinted: true,
+      printCount: 1,
+    ),
+  ],
+);
+
+/// The sheet catalogue, as `labels/templates` sends it.
+///
+/// Four of the four the backend ships, which is the whole catalogue rather than a sample: each matches
+/// a standard A4 die-cut layout and the arithmetic is visibly different between them. 8-up wastes a
+/// third of a page on a small batch, 24-up wastes nothing because its grid exactly fills A4, and 65-up
+/// is small enough that a barcode stops fitting.
+///
+/// `maxCodeLength` is the server's own figure and it is the point of the smallest entry: seven
+/// characters, so a 13-digit GTIN on that sheet is a barcode nothing can read.
 const List<SheetTemplate> sheetTemplates = <SheetTemplate>[
   SheetTemplate(
+    key: 'a4_8_up_105x70',
     label: "A4 · 8'li · 105×70 mm",
     pageWidthMm: 210,
     pageHeightMm: 297,
@@ -47,8 +68,10 @@ const List<SheetTemplate> sheetTemplates = <SheetTemplate>[
     rows: 4,
     labelWidthMm: 105,
     labelHeightMm: 70,
+    maxCodeLength: 32,
   ),
   SheetTemplate(
+    key: 'a4_14_up_99x38',
     label: "A4 · 14'lü · 99×38 mm",
     pageWidthMm: 210,
     pageHeightMm: 297,
@@ -56,8 +79,10 @@ const List<SheetTemplate> sheetTemplates = <SheetTemplate>[
     rows: 7,
     labelWidthMm: 99,
     labelHeightMm: 38,
+    maxCodeLength: 29,
   ),
   SheetTemplate(
+    key: 'a4_24_up_70x37',
     label: "A4 · 24'lü · 70×37 mm",
     pageWidthMm: 210,
     pageHeightMm: 297,
@@ -65,8 +90,10 @@ const List<SheetTemplate> sheetTemplates = <SheetTemplate>[
     rows: 8,
     labelWidthMm: 70,
     labelHeightMm: 37,
+    maxCodeLength: 19,
   ),
   SheetTemplate(
+    key: 'a4_65_up_38x21',
     label: "A4 · 65'li · 38×21 mm",
     pageWidthMm: 210,
     pageHeightMm: 297,
@@ -74,53 +101,21 @@ const List<SheetTemplate> sheetTemplates = <SheetTemplate>[
     rows: 13,
     labelWidthMm: 38,
     labelHeightMm: 21,
+    maxCodeLength: 7,
   ),
 ];
 
-/// What can go on a label, in the order it prints.
-const List<String> labelFieldOptions = <String>['Ürün adı', 'Barkod', 'Konum', 'Ekip adı'];
-
-/// A relabelling run in a workshop, which is the case that put this feature in v1.
+/// The same batch on the smallest sheet, where a barcode stops fitting.
 ///
-/// **Mixed tracking on purpose.** Two lot-tracked products with free quantities, one
-/// serial-tracked product whose three labels are all different, and one product with no
-/// barcode at all. Those are three different meanings of the word "quantity" and D45 is
-/// what separates them; a fixture of four identical lot products would have let the screen
-/// quietly assume one.
-///
-/// One line is already printed, because criterion 5 requires a partially printed batch to
-/// be resumable and a batch with nothing printed cannot demonstrate it.
-const List<LabelItemFixture> labelBatch = <LabelItemFixture>[
-  LabelItemFixture(name: 'Pınar Süt Tam Yağlı 1 lt', code: '8690504004073', count: 12),
-  LabelItemFixture(
-    name: 'Makita DHP484 Darbeli Matkap',
-    code: 'DPL-MK-DHP484',
-    count: 3,
-    mode: LabelCountMode.perSerial,
-  ),
-  // No barcode. Never blocked: a Code128 code with a tenant prefix gets generated, which
-  // is also why an internal label can never be read as a manufacturer EAN-13.
-  LabelItemFixture(name: 'Kablo bağı 200 mm', count: 6),
-  LabelItemFixture(name: 'Tornavida Seti PH2', code: '8691234567890', count: 4, isPrinted: true),
-];
-
-/// The labels still to print.
-int get pendingLabels =>
-    labelBatch.where((i) => !i.isPrinted).fold(0, (sum, item) => sum + item.count);
-
-/// How many sheets [pendingLabels] needs on [template].
-int sheetsFor(SheetTemplate template) =>
-    pendingLabels == 0 ? 0 : (pendingLabels + template.perSheet - 1) ~/ template.perSheet;
-
-/// The cells that get printed blank on [template], across every sheet.
-///
-/// This is the figure that separates the catalog, and the page count is not: 24-up and
-/// 65-up both fit this batch on one sheet, which makes them look identical until you see
-/// that one wastes 3 labels and the other wastes 44.
-int wastedCells(SheetTemplate template) => sheetsFor(template) * template.perSheet - pendingLabels;
-
-/// How many cells the last sheet uses. Equals a full sheet when the batch divides evenly.
-int lastSheetFill(SheetTemplate template) {
-  final int remainder = pendingLabels % template.perSheet;
-  return remainder == 0 ? template.perSheet : remainder;
-}
+/// The 13-digit GTIN needs 49.5 mm at GS1's absolute floor and the label offers 35 mm, so the screen's
+/// callout has something real to name rather than a correlation with the label's height.
+const PrintBatch tightBatch = PrintBatch(
+  id: 'batch-2',
+  template: 'a4_65_up_38x21',
+  fields: <String>['name', 'code'],
+  stickerCount: 12,
+  pendingStickerCount: 12,
+  lines: <PrintBatchLine>[
+    PrintBatchLine(position: 1, name: 'Pınar Süt Tam Yağlı 1 lt', code: '8690504004073', count: 12),
+  ],
+);
