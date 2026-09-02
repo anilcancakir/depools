@@ -758,6 +758,15 @@ Per-image cost spans an order of magnitude: Gemini Flash class around 0.003 to 0
 
 Assumption until answered: run a bake-off on 100 real Turkish receipts before choosing, price an AI credit at 0.05 to 0.10 USD per receipt to hold margin at the expensive end, and make the model a gateway configuration value so it can change without touching callers.
 
+**Narrowed on 2026-09-02, not closed.** Eleven candidates ran against ten SYNTHETIC Turkish receipts through the gateway's own prompt and schema, 120 calls, 0.19 USD billed. The harness is `bin/receipt-bakeoff/` and the result is recorded in `config/ai_gateways.php`, which now runs `gemini-3.1-flash-lite` at minimal reasoning ahead of `gemini-3.5-flash-lite`. Three things it settled and one it did not:
+
+- **The per-receipt cost above was 1.5x too high.** Measured, the Gemini Flash-Lite class costs 0.0017 to 0.0027 USD per receipt, not 0.003 to 0.004. Against a credit priced at 0.05 USD the margin is above 94% for every candidate that scored, so cost is not the binding constraint on this choice and accuracy can be bought freely.
+- **Two candidates are unusable through this gateway at any score.** `qwen3.5-flash-02-23` and `qwen3.6-plus` fail every call: their only OpenRouter provider downgrades `json_schema` to `json_object`. OpenRouter's `structured_outputs` metadata says a provider accepts the parameter, not that it honours it, which is worth knowing before shortlisting from that field again.
+- **The Turkish failure mode inverted.** `ai-design.md` and `enrichment_vision`'s own measurement record the cheap tier DROPPING diacritics on packaging. On receipts the same tier ADDS them: `KASAR PEYNIR` came back as `KAŞAR PEYNIR`. Since a till prints ASCII-folded names and the resolver matches the raw string, a "corrected" name misses its catalogue entry, so this is a rule-1 break rather than an OCR weakness.
+- **What is still open is exactly what O2 asked for.** The receipts were rendered rather than photographed, and five models scored a perfect 100, which means the set does not discriminate at the top. The 100 real photographs remain the deciding test.
+
+Two adjacent benchmarks now exist and the sentence above should be read against them: ReceiptBench (10,000 real receipts, arXiv 2605.22413, May 2026) measures receipt line-item extraction but not Turkish, and OCRTurk (IJDAR, August 2026) measures Turkish OCR but not receipts. Neither covers the intersection, so the claim that nobody publishes Turkish receipt line-item accuracy still holds.
+
 ### O3. Whether cross-border transfer permits our LLM architecture as designed
 
 Two regimes ask the same question of the same architecture, and D116 puts them in this order.
