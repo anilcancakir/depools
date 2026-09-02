@@ -56,11 +56,17 @@ size a person can read. A single zoomable view would have to choose, and at shee
 type is about six pixels: showing it would be noise, and showing it larger would let a user
 approve a name that does not actually fit.
 
-**Empty cells are drawn, and that is the point of the sheet view** (D43). Paper is the
+**The waste is on screen, and that is the point of the sheet view** (D43). Paper is the
 consumable, and choosing a template is choosing how much of it to throw away. Each template
 in the list therefore carries both figures: pages, and cells printed blank. Pages alone
 makes 24-up and 65-up look identical on a 21-label batch, when one wastes 3 labels and the
 other wastes 44.
+
+This heading read "empty cells are drawn" until the label review, and nothing drew them: the
+client's cell grid went when the render moved to the server (that is deliberate, the server
+owns the layout now) and the Blade template iterates only the filled cells. The figure above
+is the implementation, and the preview's own "what to check" was asking a reviewer to look
+for a diagram that has never existed on this side of D18's reversal.
 
 **The sheet is white in dark mode** (D44). It is a picture of paper, and a preview that
 flipped with the app theme would be showing a sheet the printer cannot produce.
@@ -90,7 +96,7 @@ This existed in the MVP (`print_batches`, `print_batch_items`) and the data mode
 **A payload cannot be resumable, which is the whole reason this is a table.** `labels/pdf` renders from
 a request body and forgets it, so a printer jamming on sheet 2 of 4 leaves nothing that knows which
 stickers came out: the user reprints everything and throws away the sheets that were fine. Paper is the
-consumable this feature is judged on, which is the same reason D43 draws the empty cells.
+consumable this feature is judged on, which is the same reason D43 puts the wasted cells on screen.
 
 Both paths stay, and they are not redundant. A payload render is the route from a product's own screen:
 one product, a template, a file, nothing persisted. A batch render prints what the batch still owes and

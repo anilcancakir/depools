@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 
+import '../../../app/support/plural.dart';
 import '../quantity_stepper/quantity_stepper.dart';
 import 'label_item_row.recipe.dart';
 
@@ -81,12 +82,16 @@ class LabelItemRow extends StatelessWidget {
     // a placeholder that is not there. It rendered as `MK-1 · 1 seri` on an English screen, and #79's
     // `mode: per_serial` is what made it reachable with real data for the first time.
     //
-    // No pipe: a serial line's count is always one today (D45 and a CHECK both say so), and no
-    // component reaches into `app/support/plural.dart`, so the English phrasing puts the number after
-    // the noun instead of inflecting it. If a line ever carries several, this is where to notice.
+    // The count goes through `plural` like every other count in the app. The first version of this
+    // line avoided it and gave the reason that no component reaches into `app/support`, which is
+    // false: nine other components do, for `unit_label`, `icon_catalogue` and `location_appearance`.
+    // So the English inflects here rather than being phrased around.
     (final String c?, LabelCountMode.perSerial) => Lang.get(
       'components.label_item_row.serial_meta',
-      {'code': c, 'count': count},
+      {
+        'code': c,
+        'count': plural('components.label_item_row.serial_count', count, {'count': count}),
+      },
     ),
     (final String c?, _) => c,
     (null, _) => Lang.get('components.label_item_row.will_generate'),
@@ -123,8 +128,16 @@ class LabelItemRow extends StatelessWidget {
             onDecrement: onDecrement,
             onIncrement: onIncrement,
           )
+        // **This said `'$count etiket'` and nothing could see it.** `no_hardcoded_copy_test` scans for
+        // Turkish CHARACTERS and `etiket` is pure ASCII, which that test's own comment records as a
+        // permanent hole, so an English user resuming a half-printed batch read "4 etiket". It is the
+        // branch for every PRINTED line as well as for a serial one, and #79's `is_printed` is what
+        // made it reachable with server data.
         else
-          WText('$count etiket', className: slots['fixedCount']),
+          WText(
+            plural('components.label_item_row.fixed_count', count, {'count': count}),
+            className: slots['fixedCount'],
+          ),
       ],
     );
   }

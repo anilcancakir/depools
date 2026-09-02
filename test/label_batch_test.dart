@@ -221,9 +221,17 @@ void main() {
       final LabelBatchController controller = LabelBatchController()..addOnOpen('p9');
       await controller.open();
 
+      // **Drains the render debounce inside the test that started it.** A successful write ends in an
+      // unawaited `Future.delayed(600ms)`, and a plain `test()` does not fail on a pending timer, so
+      // it fired after `tearDown(Http.unfake)`: the render then either hit the real driver or landed
+      // in a later test's fake, one of which asserts an EXACT list of urls. Green by ordering.
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+
       // `/labels` takes no parameters, so the product travels through the singleton the way the shelf,
       // receipt and draft paths all do.
       expect(urls, contains('/labels/batches/b1/lines'));
+      // And the debounce did fire, rather than the wait above being a wait for nothing.
+      expect(urls, contains('/labels/batches/b1/preview'));
     });
 
     test('a failed list does not create a second batch', () async {
@@ -247,6 +255,13 @@ void main() {
       expect(urls, <String>['/labels/batches']);
       expect(controller.batch, isNull);
       expect(controller.error, isNotNull);
+
+      // **The STATUS is the channel, because `setError` nulls the state.** The screen keys its whole
+      // render on the batch, so on a failure it has no batch, no template, and used to sit on
+      // "Loading the sheet catalogue…" for good while this sentence existed and went unread. Pinned
+      // here because the failure card now reads exactly these two.
+      expect(controller.isError, isTrue);
+      expect(controller.rxStatus.message, isNotNull);
     });
 
     test('the preview is a url, because the app cannot fetch bytes', () async {
@@ -278,19 +293,70 @@ void main() {
       expect(controller.rendering, isFalse);
     });
 
-    test('a finished batch renders nothing rather than failing', () async {
-      Http.fake((MagicRequest request) => MagicResponse(
-        statusCode: 200,
-        data: <String, dynamic>{
-          'data': <Map<String, dynamic>>[
-            batch([line(const <String, dynamic>{'is_printed': true, 'print_count': 1})]),
-          ],
-        },
-      ));
+    test('leaving mid-render cannot bring the previous sheet back', () async {
+      Http.fake((MagicRequest request) {
+        if (request.method == 'GET') {
+          return MagicResponse(
+            statusCode: 200,
+            data: <String, dynamic>{
+              'data': <Map<String, dynamic>>[batch([line(const <String, dynamic>{})])],
+            },
+          );
+        }
+
+        return MagicResponse(
+          statusCode: 200,
+          data: const <String, dynamic>{
+            'data': <String, dynamic>{'url': 'https://x/label-previews/stale.png'},
+          },
+        );
+      });
 
       final LabelBatchController controller = LabelBatchController();
-      // Nothing to resume, so it creates; the create response is the same finished batch here, which
-      // is enough to reach the branch under test.
+      await controller.open();
+
+      // The render is genuinely in flight: `render()` runs as far as its POST and yields there, so
+      // the `reset()` below lands before the answer does. That is what leaving the screen does, and
+      // the backend render is a Chrome with a 60-second ceiling, so the window is not theoretical.
+      final Future<void> pending = controller.render();
+      controller.reset();
+      await pending;
+
+      // **`reset()` used to clear the url and leave the generation counter alone**, so the answer
+      // wrote it straight back and the next visit opened on the previous batch's sheet, held there by
+      // `gaplessPlayback` until a fresh render replaced it.
+      expect(controller.previewUrl, isNull);
+    });
+
+    test('a finished batch renders nothing rather than failing', () async {
+      Http.fake((MagicRequest request) {
+        if (request.method == 'GET') {
+          return MagicResponse(
+            statusCode: 200,
+            data: <String, dynamic>{
+              'data': <Map<String, dynamic>>[
+                batch([line(const <String, dynamic>{'is_printed': true, 'print_count': 1})]),
+              ],
+            },
+          );
+        }
+
+        // **A render-shaped answer, so the guard's absence would show.** The first version answered
+        // every request with the list payload, which `_parse` cannot read as a url: deleting the
+        // `isUnfinished` check left `previewUrl` null anyway and both assertions still passed, so the
+        // test could not fail for the reason it claims.
+        return MagicResponse(
+          statusCode: 200,
+          data: const <String, dynamic>{
+            'data': <String, dynamic>{'url': 'https://x/label-previews/finished.png'},
+          },
+        );
+      });
+
+      final LabelBatchController controller = LabelBatchController();
+      // It RESUMES rather than creating, which the first version of this comment had backwards: the
+      // fixture's `printed_at` is null, so `isResumable` is true even with every line printed. That
+      // is also how the screen reaches this branch.
       await controller.open();
       await controller.render();
 

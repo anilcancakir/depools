@@ -7,9 +7,13 @@ import 'label_preview.dart';
 ///
 /// Three sheets, and the point is the arithmetic between them rather than the drawing. The
 /// same 9 labels waste most of an 8-up page, sit comfortably on a 24-up, and barely mark a
-/// 65-up. That comparison is the reason empty cells are drawn at all: a user picking a
-/// template is choosing how much paper to throw away, and no number communicates it as fast
-/// as seeing three quarters of a page outlined and empty.
+/// 65-up.
+///
+/// **This used to say that comparison is why empty cells are drawn, and nothing draws them.**
+/// The cell grid went when the render moved to the server, which owns the layout now, and the
+/// server's template emits only the filled cells. The waste D43 asks about is a figure per
+/// template row on the screen, and here it is three proportion boxes with no render behind
+/// them: no url, so no sheet.
 ///
 /// What to check: the page must be WHITE in dark mode. It is a picture of paper, and a
 /// preview that flipped with the app theme would be showing a sheet the printer cannot

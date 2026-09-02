@@ -517,6 +517,7 @@
     "labels": {
       "already_printed": ":count satır zaten basıldı, yeniden basılmayacak",
       "busy": "Önceki değişiklik sürüyor…",
+      "char_count": ":count karakter",
       "confirm_description": "Evet demek bu etiketleri basıldı olarak işaretler, yeniden basılmazlar. Yazıcı sıkıştıysa hayır denebilir, sayfa olduğu gibi kalır.",
       "confirm_title": "Sayfa basıldı mı?",
       "confirm_yes": "Evet, basıldı",
@@ -533,13 +534,14 @@
       "layout_meta": ":sheets · :wasted boş",
       "nothing_to_print": "Basılacak bir şey yok",
       "nothing_yet": "Bu partide henüz etiket yok",
+      "open_failed": "Sayfa hazır ama açılamadı. Nedeni genellikle engellenen açılır penceredir.",
       "overflow": ":field bu boyuta sığmıyor",
-      "overflow_note": "Etiket :width×:height mm, yani :max karakter alıyor. Bir alan hiç kısaltılmaz, bu yüzden :codes okunabilir basılmaz.",
+      "overflow_note": "Etiket :width×:height mm, yani :chars alıyor. Bir alan hiç kısaltılmaz, bu yüzden :codes okunabilir basılmaz.",
       "pick_layout": ":label yerleşimini seç",
       "preview_group": "Önizleme",
       "preview_nothing": "Basılacak bir şey kalmadı",
       "preview_one_sheet": "1 sayfa · :used / :total kullanılır",
-      "preview_sheets": ":sheets · sonuncuda :used etiket",
+      "preview_sheets": ":sheets · sonuncuda :used",
       "printed": "Basıldı olarak işaretlendi",
       "remove_line": ":name ürününü partiden çıkar",
       "render_failed": "Sayfa oluşturulamadı.",
@@ -676,7 +678,6 @@
       "compare": "Planları karşılaştır"
     },
     "product": {
-      "title": "Ürün",
       "action_archive": "Arşivle",
       "action_barcode": "Barkod ekle",
       "action_label": "Etiket bas",
@@ -714,6 +715,7 @@
       "open_soonest": "Açık · :label",
       "serial_count": ":count adet",
       "serials_group": "Seri numaraları",
+      "sku_meta": "SKU · :sku",
       "soonest_date": "En yakın tarih",
       "stat_forecast": "Tüketim tahmini",
       "stat_forecast_none": "Henüz yok",
@@ -727,10 +729,11 @@
       "stat_waste_window": "son 30 günde",
       "stock_in": "Stok ekle",
       "stock_out": "Stok çıkar",
-      "total_stock": "Toplam stok",
-      "write_failed": "Değişiklik kaydedilemedi",
       "target_field": "Hedef seviye",
-      "target_none": "Belirlenmedi"
+      "target_none": "Belirlenmedi",
+      "title": "Ürün",
+      "total_stock": "Toplam stok",
+      "write_failed": "Değişiklik kaydedilemedi"
     },
     "product_draft": {
       "title": "Yeni ürün",
@@ -1248,7 +1251,9 @@
       "overflow": ":field sığmıyor"
     },
     "label_item_row": {
-      "serial_meta": ":code · :count seri",
+      "fixed_count": ":count etiket",
+      "serial_count": ":count seri",
+      "serial_meta": ":code · :count",
       "will_generate": "Kod üretilecek"
     },
     "list_footer": {
