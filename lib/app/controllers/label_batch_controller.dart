@@ -268,6 +268,13 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
     _working = false;
     _error = null;
 
+    // **Nulling `_previewUrl` is not enough while a render is in flight.** The generation guard is how
+    // `render()` decides whether its answer is still wanted, so leaving the counter alone let a POST
+    // that left before this call write the old sheet's url back afterwards. `gaplessPlayback` then
+    // held that sheet on screen on the next visit until a fresh render replaced it, and the backend
+    // render is a Chrome with a 60-second ceiling, so the window is seconds rather than frames.
+    _generation++;
+
     setEmpty();
   }
 

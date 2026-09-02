@@ -4,7 +4,7 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
-    show MSPageScaffold, MSButton, ButtonIntent, MagicStarterConfirmDialog;
+    show MSButton, ButtonIntent, MagicStarterConfirmDialog;
 
 import '../../../app/controllers/label_batch_controller.dart';
 import '../../../app/models/print_batch.dart';
@@ -16,6 +16,7 @@ import '../../../ui/components/label_item_row/label_item_row.dart';
 import '../../../ui/components/label_preview/label_preview.dart';
 import '../../../ui/components/option_row/option_row.dart';
 import '../../../ui/components/section_card/section_card.dart';
+import '../../../ui/layouts/app_page_scaffold.dart';
 
 /// Printing barcode labels for a batch of products.
 ///
@@ -82,6 +83,13 @@ class _LabelPrintViewState extends State<LabelPrintView> {
   /// so a controller building it would be the dependency pointing the wrong way.
   List<SheetTemplate> _templates = const <SheetTemplate>[];
 
+  /// Why the catalogue could not be fetched, or null.
+  ///
+  /// Held here rather than in the controller because the request is this view's, and the screen cannot
+  /// render without an answer: `_template` gates the whole build, so an empty catalogue and a slow one
+  /// look identical without this.
+  String? _templatesError;
+
   @override
   void initState() {
     super.initState();
@@ -123,11 +131,27 @@ class _LabelPrintViewState extends State<LabelPrintView> {
   Future<void> _loadTemplates() async {
     final dynamic response = await Http.get('/labels/templates');
 
-    if (!mounted || !response.successful) return;
+    if (!mounted) return;
+
+    // **A failure here is not cosmetic, and the shape copied from `BarcodeScanView` assumed it was.**
+    // There the picker list is auxiliary and the screen works without it; here the catalogue carries
+    // the geometry every section reads, so returning silently left the screen on "Loading the sheet
+    // catalogue…" for good with a printable batch behind it.
+    if (!response.successful) {
+      final Object? message = response['message'];
+
+      setState(() {
+        _templatesError =
+            message is String && message.isNotEmpty ? message : Lang.get('errors.unexpected');
+      });
+
+      return;
+    }
 
     final Object? rows = response['data'];
 
     setState(() {
+      _templatesError = null;
       _templates = <SheetTemplate>[
         if (rows is List)
           for (final Object? row in rows)
@@ -191,22 +215,61 @@ class _LabelPrintViewState extends State<LabelPrintView> {
     return over;
   }
 
+  /// The failure that stops this screen rendering at all, or null.
+  ///
+  /// **Two channels, because two requests gate the render and only one of them is the controller's.**
+  /// The batch arrives through `RxStatus`, and `setError` is `setState(null, ...)`: it nulls the state
+  /// this whole build keys on, so a failed open left the screen on "Loading the sheet catalogue…"
+  /// forever while the controller held a sentence nothing rendered. Reading the status is what makes
+  /// the transition the controller already performs visible.
+  String? get _blockingFailure {
+    if (widget.preview != null) return null;
+
+    final LabelBatchController? controller = _controller;
+
+    if (controller != null && controller.isError) {
+      return controller.rxStatus.message ?? Lang.get('errors.unexpected');
+    }
+
+    return _templatesError;
+  }
+
+  /// The header's second line: the wait, or what a print would produce.
+  ///
+  /// Null on a failure, because the card below says what happened and a header reading "Loading the
+  /// sheet catalogue…" over it would contradict it.
+  String? get _subtitle {
+    if (_blockingFailure != null) return null;
+
+    final SheetTemplate? template = _template;
+
+    if (template == null) return Lang.get('screens.labels.subtitle_loading');
+
+    return Lang.get('screens.labels.subtitle', {
+      'labels': plural('screens.labels.label_count', _pending, {'count': _pending}),
+      'sheets': plural('screens.labels.sheet_count', _sheetsFor(template), {
+        'count': _sheetsFor(template),
+      }),
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final SheetTemplate? template = _template;
+    final String? failure = _blockingFailure;
 
-    return MSPageScaffold(
+    return AppPageScaffold(
       title: Lang.get('screens.labels.title'),
-      subtitle: template == null
-          ? Lang.get('screens.labels.subtitle_loading')
-          : Lang.get('screens.labels.subtitle', {
-              'labels': plural('screens.labels.label_count', _pending, {'count': _pending}),
-              'sheets': plural('screens.labels.sheet_count', _sheetsFor(template), {
-                'count': _sheetsFor(template),
-              }),
-            }),
+      subtitle: _subtitle,
+      // **Pinned rather than trailing (D70).** A batch is filled over an afternoon rather than one
+      // sticker at a time, so the two ways out sat under a list whose length the user does not
+      // control: the server caps it at 200 lines. Outside the app shell the scaffold falls back to a
+      // trailing section, so both previews keep rendering it.
+      footer: template == null ? null : _buildActions(template),
       children: [
-        if (template == null)
+        if (failure != null)
+          _buildFailure(failure)
+        else if (template == null)
           _buildLoading()
         else
           WDiv(
@@ -214,6 +277,22 @@ class _LabelPrintViewState extends State<LabelPrintView> {
             children: [_buildPreview(template), _buildControls(template)],
           ),
       ],
+    );
+  }
+
+  /// A request that did not come back, in the card slot every screen here uses for one.
+  Widget _buildFailure(String message) {
+    return SectionCard(
+      error: message,
+      // Both requests, because either one failing leaves the screen unrenderable and nothing on it
+      // tells the user which of the two it was.
+      onRetry: () {
+        setState(() => _templatesError = null);
+
+        unawaited(_loadTemplates());
+        unawaited(_controller?.open() ?? Future<void>.value());
+      },
+      children: const <Widget>[],
     );
   }
 
@@ -256,7 +335,16 @@ class _LabelPrintViewState extends State<LabelPrintView> {
                       })
                     : Lang.get('screens.labels.preview_sheets', {
                         'sheets': plural('screens.labels.sheet_count', sheets, {'count': sheets}),
-                        'used': _lastSheetFill(template),
+                        // **The fill is a count too, and it disagreed at the common case.** The value
+                        // read ":used labels on the last", so 25 labels on the 24-up sheet rendered
+                        // "2 sheets · 1 labels on the last": one left over is what `pending % perSheet`
+                        // gives most of the time. It was added to `localization_test`'s debt list in
+                        // the same commit that widened the guard to catch this exact shape.
+                        'used': plural(
+                          'screens.labels.label_count',
+                          _lastSheetFill(template),
+                          {'count': _lastSheetFill(template)},
+                        ),
                       }),
           ),
         ],
@@ -264,14 +352,13 @@ class _LabelPrintViewState extends State<LabelPrintView> {
     );
   }
 
-  /// What to print, how it is laid out, and the two ways out.
+  /// What to print and how it is laid out. The two ways out are pinned, so they are not here.
   Widget _buildControls(SheetTemplate template) {
     return WDiv(
       className: 'flex flex-col gap-4 w-full lg:flex-1',
       children: [
         _buildItems(),
         _buildLayout(template),
-        _buildActions(template),
       ],
     );
   }
@@ -311,8 +398,14 @@ class _LabelPrintViewState extends State<LabelPrintView> {
               // product adds it to the batch already open, which is what a batch is for; without a
               // per-line removal that default is a trap. A printed line has no remove control at all,
               // because it is a record of paper that already went.
+              //
+              // **The box is INSIDE the anchor, and having it outside made the target the icon.**
+              // `WAnchor` takes no `className`: it wraps its child in a translucent `GestureDetector`,
+              // so the hit region is whatever the child measures. With the 32px box as its parent that
+              // was a `size-4` icon, 16 logical px, against DESIGN.md's 44. `QuantityStepper` puts the
+              // padded box inside for the same reason.
               WDiv(
-                className: 'size-8 shrink-0 flex items-center justify-center',
+                className: 'size-11 shrink-0 flex items-center justify-center',
                 child: line.isPrinted
                     ? null
                     : WAnchor(
@@ -320,7 +413,10 @@ class _LabelPrintViewState extends State<LabelPrintView> {
                           _controller?.removeLine(line.position) ?? Future<void>.value(),
                         ),
                         semanticLabel: Lang.get('screens.labels.remove_line', {'name': line.name}),
-                        child: const WIcon(LabelPrintView._removeIcon, className: 'size-4 text-fg-muted'),
+                        child: const WDiv(
+                          className: 'size-11 flex items-center justify-center',
+                          child: WIcon(LabelPrintView._removeIcon, className: 'size-4 text-fg-muted'),
+                        ),
                       ),
               ),
             ],
@@ -361,12 +457,15 @@ class _LabelPrintViewState extends State<LabelPrintView> {
                 // The default announcement is about a FILTER, and these chips filter nothing: they
                 // choose what the sticker carries. A screen reader said "Apply the Team name filter"
                 // until this line existed.
-                semanticLabel: Lang.get(
-                  (batch?.shows(field.key) ?? false)
-                      ? 'screens.labels.field_off'
-                      : 'screens.labels.field_on',
-                  {'field': field.value},
-                ),
+                //
+                // **Two whole calls rather than one call with the key chosen inside it.**
+                // `lang_keys_exist_test` matches a quoted literal straight after `Lang.get(`, so a
+                // ternary in that position hid both keys from the only gate that can see a key nobody
+                // translated. Seventy lines down `_fields` lectures about exactly this and I did it
+                // here anyway.
+                semanticLabel: (batch?.shows(field.key) ?? false)
+                    ? Lang.get('screens.labels.field_off', {'field': field.value})
+                    : Lang.get('screens.labels.field_on', {'field': field.value}),
                 onTap: () => unawaited(
                   _controller?.toggleField(field.key) ?? Future<void>.value(),
                 ),
@@ -411,7 +510,14 @@ class _LabelPrintViewState extends State<LabelPrintView> {
               'width': chosen.labelWidthMm,
               'height': chosen.labelHeightMm,
               'codes': unscannable.join(', '),
-              'max': chosen.maxCodeLength ?? 0,
+              // Inflected rather than interpolated raw. No template in the catalogue holds one
+              // character, so ":max characters" never actually rendered wrong, but it joined the
+              // debt list whose own contract is that nothing new joins it.
+              'chars': plural(
+                'screens.labels.char_count',
+                chosen.maxCodeLength ?? 0,
+                {'count': chosen.maxCodeLength ?? 0},
+              ),
             }),
           ),
       ],
@@ -579,6 +685,19 @@ class _LabelPrintViewState extends State<LabelPrintView> {
     // `externalApplication`: on web this is a tab and on mobile the system viewer with its own share
     // sheet, which is what `labeling-and-printing.md` asks for rather than an in-app PDF renderer
     // nobody asked us to build.
-    return Launch.url(url, mode: LaunchMode.externalApplication);
+    final bool opened = await Launch.url(url, mode: LaunchMode.externalApplication);
+
+    // **A refusal here was the one silent failure left on this screen.** `pdfUrl` succeeded, so
+    // `_controller.error` is null and the callout above the buttons stays empty; the sheet rendered,
+    // the tab never opened, and both buttons looked like they had done nothing at all. A pop-up
+    // blocker on web and a desktop with no PDF handler are both this path.
+    if (!opened && mounted) {
+      MagicFeedback.error(
+        Lang.get('screens.labels.title'),
+        Lang.get('screens.labels.open_failed'),
+      );
+    }
+
+    return opened;
   }
 }

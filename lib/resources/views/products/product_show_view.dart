@@ -706,8 +706,15 @@ class _ProductShowViewState extends State<ProductShowView> {
                 // compares character by character against a shelf label or an order.
                 // It sits here rather than in the page subtitle: the subtitle is the
                 // brand, and an earlier pass lost the SKU entirely by merging them.
+                // Through the catalogue rather than interpolated, which is the only reason this line
+                // is in the label review's diff: `SKU` stays `SKU` in both languages, so the string
+                // read correctly and was still a sentence assembled in Dart. It was the one offender
+                // the widened copy guard found.
                 if (_product.sku != null)
-                  WText('SKU · ${_product.sku}', className: 'font-mono text-xs text-fg-muted'),
+                  WText(
+                    Lang.get('screens.product.sku_meta', {'sku': _product.sku}),
+                    className: 'font-mono text-xs text-fg-muted',
+                  ),
               ],
             ),
           ],

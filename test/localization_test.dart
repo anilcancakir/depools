@@ -242,10 +242,17 @@ void main() {
         'this', 'its', 'as', 'less', 'plus', 'minus', 'across', 'yes', 'always',
       };
 
-      // **These 27 predate the guard and are debt, listed rather than swept.** Each renders a
-      // disagreeing string at exactly one count (`1 batches`, `Save 1 lines`, `1 programs`), and
-      // fixing them means touching six screens this test's own change is not about. The list is here
-      // so the debt is countable and so nothing new can join it: a new key with this shape fails.
+      // **These 41 are debt, listed rather than swept.** Each renders a disagreeing string at exactly
+      // one count (`1 batches`, `Save 1 lines`, `1 programs`), and fixing them means touching six
+      // screens this test's own change is not about. The list is here so the debt is countable and so
+      // nothing new can join it: a new key with this shape fails.
+      //
+      // **Two label keys did join it, in the same commit that widened the guard**, which is the one
+      // thing this list says cannot happen: `screens.labels.preview_sheets` and
+      // `screens.labels.overflow_note` arrived in #80 and were listed here rather than fixed, so the
+      // screen said "2 sheets · 1 labels on the last" behind a passing gate. The label review took
+      // both back out. The count above is written to be read: it goes down, and a change that raises
+      // it is the change to argue with.
       const Set<String> pending = <String>{
         'screens.assistant.chip_expiring_label',
         'screens.assistant.chip_low_label',
@@ -262,8 +269,6 @@ void main() {
         'screens.dates.horizon_chip',
         'screens.dates.horizon_selected',
         'screens.dates.subtitle',
-        'screens.labels.overflow_note',
-        'screens.labels.preview_sheets',
         'screens.location.subtitle',
         'screens.location_form.depth_note',
         'screens.locations.filtered_hint',

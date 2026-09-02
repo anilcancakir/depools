@@ -17,8 +17,15 @@ import 'responsive_screen_preview.dart';
 /// be resumable and a batch with nothing printed cannot show it.
 ///
 /// What to check: the sheet is white in dark mode, its proportions are A4 whatever the
-/// column width, and the empty cells on the last page are visible. That waste is the thing
-/// a template choice is actually about.
+/// column width, and both ways out are present. They are the LAST SECTION here rather than
+/// pinned, and that is correct: the catalog mounts no `PageChromeHost`, so `AppPageScaffold`
+/// has nothing to publish a footer to and falls back to rendering it in place. Pinning is
+/// checkable in the running app and not here.
+///
+/// **Not the empty cells.** This line used to ask for them and the check was unperformable:
+/// the catalog has no server, so the sheet is the proportion box rather than a render, and
+/// the render iterates only the filled cells anyway. The waste a template choice is about
+/// is the figure on each template row, which is on screen here.
 class LabelPrintScreenPreview extends StatelessWidget {
   /// Creates the label print preview.
   const LabelPrintScreenPreview({super.key});

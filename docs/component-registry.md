@@ -39,7 +39,7 @@ location with a depth.
 | `icon_picker/` | `IconPicker` | - | yes | yes | Search the icon catalogue and pick one, returning the chosen NAME. |
 | `label_card/` | `LabelCard` | LabelCardSize | yes | yes | One label at a size a person can read: what will be printed on it, and what will not |
 | `label_item_row/` | `LabelItemRow` | LabelCountMode | yes | yes | One product in a print batch: what will be printed, how many, and whether it already |
-| `label_preview/` | `LabelPreview` | - | yes | yes | The sheet a print will produce, at the page's real proportion. |
+| `label_preview/` | `LabelPreview` | - | yes | yes | The sheet a print will produce: the server's own render of it, at the page's real proportion. |
 | `list_footer/` | `ListFooter` | ListFooterState | yes | yes | The bottom of a paginated list, in one of three states. |
 | `location_row/` | `LocationRow` | - | yes | yes | One node in the location tree: its own name, what it holds, and how deep it sits. |
 | `location_stock_row/` | `LocationStockRow` | - | yes | yes | How much of one product sits at one location, with the earliest expiry among |

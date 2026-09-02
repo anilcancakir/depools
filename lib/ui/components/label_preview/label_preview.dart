@@ -95,21 +95,24 @@ class SheetTemplate {
 
 /// **LabelPreview**
 ///
-/// The sheet a print will produce, at the page's real proportion.
+/// The sheet a print will produce: the server's own render of it, at the page's real proportion.
 ///
-/// ### It draws a placeholder on purpose (D18, reversed)
+/// ### It shows the render and draws nothing itself (D18, reversed)
 ///
-/// The sheet is an HTML template rendered to PDF on the backend, so drawing an accurate page here
-/// would mean re-implementing the renderer in order to preview the renderer: two layouts of one
-/// thing, drifting apart, which is exactly the duplication that reversing D18 exists to avoid.
+/// The sheet is an HTML template rendered on the backend, so drawing an accurate page here would
+/// mean re-implementing the renderer in order to preview it: two layouts of one thing, drifting
+/// apart, which is exactly the duplication that reversing D18 exists to avoid. So [url] carries the
+/// render and this component is the frame around it, which is what makes the preview and the print
+/// one artefact by construction rather than by care.
 ///
-/// What is kept is the page's proportion, because that is the one thing worth seeing while choosing
-/// a template and it costs nothing to be right about. Once the render endpoint exists this shows the
-/// server's own output, so the preview and the print are the same artefact by construction rather
-/// than by care.
+/// **This heading used to say it drew a placeholder on purpose**, and the paragraph under it argued
+/// against doing the thing [_buildPage] has done since the endpoint landed. Left alone it invites
+/// the next reader to re-add a client-side renderer, which is the duplication above.
 ///
-/// The cell grid this used to draw is gone rather than commented out. It was accurate about a layout
-/// that is no longer ours to decide, which makes it worse than absent: a reader would trust it.
+/// The proportion box is what is left when there is no render: a fixture, a first frame, an expired
+/// link. The cell grid this used to draw inside it is gone rather than commented out, because it was
+/// accurate about a layout that is no longer ours to decide, which makes it worse than absent. The
+/// waste D43 asks about is carried as a figure per template on the screen instead.
 @immutable
 class LabelPreview extends StatelessWidget {
   /// Which sheet template, used for the page proportion and nothing else.
@@ -171,9 +174,13 @@ class LabelPreview extends StatelessWidget {
 
   /// What sits inside the page's proportion box.
   ///
-  /// `BoxFit.contain` rather than `cover`: the sheet is a picture of paper and cropping it would hide
-  /// exactly the cells at the edge that D43 draws the diagram for. The proportions already agree, so
-  /// `contain` costs nothing and survives a template whose page is not A4.
+  /// `BoxFit.contain` rather than `cover`: the sheet is a picture of paper, and cropping it would cut
+  /// the labels at the page's edge, which are the ones worth seeing when the question is whether the
+  /// grid lands where the sheet's own cells are. The proportions already agree, so `contain` costs
+  /// nothing and survives a template whose page is not A4.
+  ///
+  /// This paragraph used to justify itself by D43 "drawing the diagram", which the class docblock
+  /// above now says outright it does not.
   Widget _buildPage() {
     final String? source = url;
 

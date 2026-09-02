@@ -517,6 +517,7 @@
     "labels": {
       "already_printed": ":count line already printed and will not print again|:count lines already printed and will not print again",
       "busy": "Still working on the last change…",
+      "char_count": ":count character|:count characters",
       "confirm_description": "Saying yes marks these labels as printed, so they will not print again. If the printer jammed, say no and the sheet stays as it is.",
       "confirm_title": "Did the sheet print?",
       "confirm_yes": "Yes, it printed",
@@ -533,13 +534,14 @@
       "layout_meta": ":sheets · :wasted empty",
       "nothing_to_print": "Nothing to print yet",
       "nothing_yet": "No labels in this batch yet",
+      "open_failed": "The sheet is ready but could not be opened. A blocked pop-up is the usual reason.",
       "overflow": ":field does not fit this size",
-      "overflow_note": "The label is :width×:height mm, which holds :max characters. A field is never shortened, so :codes will not print readably.",
+      "overflow_note": "The label is :width×:height mm, which holds :chars. A field is never shortened, so :codes will not print readably.",
       "pick_layout": "Choose the :label layout",
       "preview_group": "Preview",
       "preview_nothing": "Nothing left to print",
       "preview_one_sheet": "1 sheet · :used of :total used",
-      "preview_sheets": ":sheets · :used labels on the last",
+      "preview_sheets": ":sheets · :used on the last",
       "printed": "Marked as printed",
       "remove_line": "Remove :name from the batch",
       "render_failed": "The sheet could not be rendered.",
@@ -676,7 +678,6 @@
       "compare": "Compare plans"
     },
     "product": {
-      "title": "Product",
       "action_archive": "Archive",
       "action_barcode": "Add a barcode",
       "action_label": "Print a label",
@@ -714,6 +715,7 @@
       "open_soonest": "Open · :label",
       "serial_count": ":count units",
       "serials_group": "Serial numbers",
+      "sku_meta": "SKU · :sku",
       "soonest_date": "Soonest date",
       "stat_forecast": "Usage forecast",
       "stat_forecast_none": "Not yet",
@@ -727,10 +729,11 @@
       "stat_waste_window": "in the last 30 days",
       "stock_in": "Put stock in",
       "stock_out": "Take stock out",
-      "total_stock": "Total stock",
-      "write_failed": "The change could not be saved",
       "target_field": "Target level",
-      "target_none": "Not set"
+      "target_none": "Not set",
+      "title": "Product",
+      "total_stock": "Total stock",
+      "write_failed": "The change could not be saved"
     },
     "product_draft": {
       "title": "New product",
@@ -1248,7 +1251,9 @@
       "overflow": ":field does not fit"
     },
     "label_item_row": {
-      "serial_meta": ":code · serial :count",
+      "fixed_count": ":count label|:count labels",
+      "serial_count": ":count serial|:count serials",
+      "serial_meta": ":code · :count",
       "will_generate": "A code will be generated"
     },
     "list_footer": {
