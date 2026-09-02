@@ -516,6 +516,10 @@
     },
     "labels": {
       "already_printed": ":count line already printed and will not print again|:count lines already printed and will not print again",
+      "busy": "Still working on the last change…",
+      "confirm_description": "Saying yes marks these labels as printed, so they will not print again. If the printer jammed, say no and the sheet stays as it is.",
+      "confirm_title": "Did the sheet print?",
+      "confirm_yes": "Yes, it printed",
       "download": "Download the PDF",
       "failed": "Something went wrong",
       "field_code": "Barcode",
@@ -1244,6 +1248,7 @@
       "overflow": ":field does not fit"
     },
     "label_item_row": {
+      "serial_meta": ":code · serial :count",
       "will_generate": "A code will be generated"
     },
     "list_footer": {

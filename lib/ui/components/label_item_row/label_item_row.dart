@@ -76,7 +76,18 @@ class LabelItemRow extends StatelessWidget {
   /// EAN-13, so an internal label can never be mistaken for a manufacturer barcode, and
   /// naming it here is what makes criterion 6 visible rather than merely true.
   String get _meta => switch ((code, mode)) {
-    (final String c?, LabelCountMode.perSerial) => '$c · $count seri',
+    // **`'$c · $count seri'` was a hardcoded Turkish word and a concatenation**, which breaks two rules
+    // on one line: the copy test cannot see an interpolated string and `localization_test` cannot check
+    // a placeholder that is not there. It rendered as `MK-1 · 1 seri` on an English screen, and #79's
+    // `mode: per_serial` is what made it reachable with real data for the first time.
+    //
+    // No pipe: a serial line's count is always one today (D45 and a CHECK both say so), and no
+    // component reaches into `app/support/plural.dart`, so the English phrasing puts the number after
+    // the noun instead of inflecting it. If a line ever carries several, this is where to notice.
+    (final String c?, LabelCountMode.perSerial) => Lang.get(
+      'components.label_item_row.serial_meta',
+      {'code': c, 'count': count},
+    ),
     (final String c?, _) => c,
     (null, _) => Lang.get('components.label_item_row.will_generate'),
   };

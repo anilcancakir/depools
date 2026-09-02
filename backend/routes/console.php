@@ -58,3 +58,17 @@ Schedule::command('depools:prune-enrichment-uploads')
 Schedule::command('depools:prune-documents')
     ->dailyAt('03:53')
     ->withoutOverlapping();
+
+/*
+ * The cached label renders, which grow one file per distinct sheet and never shrink.
+ *
+ * A derived artefact rather than a record: the batch keeps its own history in `print_batch_items`, and
+ * the picture of a sheet renders again in seconds. So this sweeps a directory by date and reads no
+ * rows, the same shape as the enrichment sweep above and deliberately not D94's.
+ *
+ * 04:07, after the two above and away from the hour, so four nightly commands do not contend for one
+ * minute on a single-worker box.
+ */
+Schedule::command('depools:prune-label-renders')
+    ->dailyAt('04:07')
+    ->withoutOverlapping();

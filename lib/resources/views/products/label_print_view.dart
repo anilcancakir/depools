@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show MSPageScaffold, MSButton, ButtonIntent;
+import 'package:magic_starter/magic_starter.dart'
+    show MSPageScaffold, MSButton, ButtonIntent, MagicStarterConfirmDialog;
 
 import '../../../app/controllers/label_batch_controller.dart';
 import '../../../app/models/print_batch.dart';
@@ -102,7 +103,15 @@ class _LabelPrintViewState extends State<LabelPrintView> {
 
   @override
   void dispose() {
-    _controller?.removeListener(_onControllerChanged);
+    final LabelBatchController? controller = _controller;
+
+    controller?.removeListener(_onControllerChanged);
+
+    // The batch is a type-keyed singleton, so without this a return visit draws whatever the last visit
+    // held: `reset()` existed for exactly that and was never called. After the listener is dropped, so
+    // the `refreshUI` inside it cannot reach a disposed `setState`.
+    controller?.reset();
+
     super.dispose();
   }
 
@@ -378,11 +387,10 @@ class _LabelPrintViewState extends State<LabelPrintView> {
               child: LabelCard(
                 name: _sampleLine?.name ?? Lang.get('screens.labels.nothing_yet'),
                 meta: null,
-                // `LabelCard.code` is non-nullable, and the placeholder is what the server will
-                // generate rather than an empty string: a product with no barcode gets `DPL` plus
-                // eight hex characters, which is eleven and is exactly the length the 38 mm label
-                // cannot carry. Showing a blank would hide the case the callout below is about.
-                code: _sampleLine?.serial ?? _sampleLine?.code ?? 'DPL00000000',
+                // The code the server says will be printed. It used to fall back to a literal
+                // `DPL00000000`, which the copy beside it calls "real content": the resource was not
+                // sending the field at all, so every product line showed the same invented string.
+                code: _sampleLine?.serial ?? _sampleLine?.code ?? '',
                 overflowField: unscannable.isEmpty ? null : Lang.get('screens.labels.field_code'),
                 size: chosen.labelHeightMm < 30 ? LabelCardSize.sm : LabelCardSize.md,
               ),
@@ -516,14 +524,31 @@ class _LabelPrintViewState extends State<LabelPrintView> {
     );
   }
 
-  /// Opens the sheet, then records that it printed.
+  /// Opens the sheet, then ASKS whether it printed before recording that it did.
   ///
-  /// **Two steps and the second one is the client's word, not the server's.** The server cannot know
-  /// whether the file reached a printer, so `settle` is what the app reports afterwards. A render that
-  /// marked would make a cancelled print dialog look like a finished batch.
+  /// **The client does not know either, and settling on "the file opened" was the same lie one layer
+  /// up.** `Launch.url` answers true when a tab opened or the system viewer launched, so closing that
+  /// tab without printing marked the whole batch and there is no un-settle. Moving the mark from the
+  /// server to the client did not fix that; it moved it to something equally uninformed.
+  ///
+  /// So the only party who knows is asked. It is also what a jammed printer needs: the user says no,
+  /// nothing is marked, and the same sheet is still there to try again.
   Future<void> _print() async {
     if (!await _open()) return;
 
+    if (!mounted) return;
+
+    await MagicStarterConfirmDialog.show(
+      context,
+      title: Lang.get('screens.labels.confirm_title'),
+      description: Lang.get('screens.labels.confirm_description'),
+      confirmLabel: Lang.get('screens.labels.confirm_yes'),
+      onConfirm: _recordPrinted,
+    );
+  }
+
+  /// Records that the sheet came off a printer.
+  Future<void> _recordPrinted() async {
     final String? failure = await _controller?.settle();
 
     if (!mounted) return;

@@ -135,12 +135,18 @@ final class LabelController extends Controller
      */
     private function rendered(string $path): JsonResponse
     {
+        $expiresAt = MediaUrl::expiresAt();
+
         return response()->json([
             'data' => [
                 'url' => MediaUrl::signed((string) config('labels.preview_disk', 'local'), $path),
-                // So a client can decide whether to re-ask rather than discovering a 403 in an
+                // Read once and reused, because `signed()` and `expiresAt()` each call `Carbon::now()`
+                // and an hour boundary between the two makes the reported expiry an hour longer than
+                // the signature's.
+                //
+                // So a client can decide whether to re-ask rather than discovering a 403 inside an
                 // `Image.network` that has no error channel worth reading.
-                'expires_at' => MediaUrl::expiresAt()->toIso8601String(),
+                'expires_at' => $expiresAt->toIso8601String(),
             ],
         ]);
     }
@@ -157,7 +163,7 @@ final class LabelController extends Controller
      */
     private function resolveBatch(Request $request, PrintBatch $printBatch): array
     {
-        $pending = PrintBatchController::pending($printBatch);
+        $pending = $printBatch->pendingItems();
 
         if ($pending === []) {
             throw ValidationException::withMessages([

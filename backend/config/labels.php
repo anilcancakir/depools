@@ -73,6 +73,19 @@ return [
     'timeout_seconds' => (int) env('LABEL_RENDER_TIMEOUT', 60),
 
     /**
+     * How long a cached render is kept.
+     *
+     * These are derived artefacts: the signature that produced one renders again in seconds, so nothing
+     * is lost by dropping it. A week is generous for a cache whose whole job is to survive a user
+     * flipping between four templates in one sitting.
+     *
+     * Zero keeps nothing, so a run clears the lot. `depools:prune-label-renders` is the sweep, and it
+     * ships with the feature for the reason `media.enrichment` records: a directory nothing deletes is
+     * an archive with an optimistic comment on it.
+     */
+    'keep_render_days' => (int) env('LABEL_KEEP_RENDER_DAYS', 7),
+
+    /**
      * The disk the cached preview PNG is written to.
      *
      * Private on purpose: the same reasoning as the receipt and shelf documents, which are served

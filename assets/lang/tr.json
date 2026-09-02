@@ -516,6 +516,10 @@
     },
     "labels": {
       "already_printed": ":count satır zaten basıldı, yeniden basılmayacak",
+      "busy": "Önceki değişiklik sürüyor…",
+      "confirm_description": "Evet demek bu etiketleri basıldı olarak işaretler, yeniden basılmazlar. Yazıcı sıkıştıysa hayır denebilir, sayfa olduğu gibi kalır.",
+      "confirm_title": "Sayfa basıldı mı?",
+      "confirm_yes": "Evet, basıldı",
       "download": "PDF'i indir",
       "failed": "Bir şeyler ters gitti",
       "field_code": "Barkod",
@@ -1244,6 +1248,7 @@
       "overflow": ":field sığmıyor"
     },
     "label_item_row": {
+      "serial_meta": ":code · :count seri",
       "will_generate": "Kod üretilecek"
     },
     "list_footer": {
