@@ -10,6 +10,18 @@
 # `.gitignore` syntax, and only files that match AND are gitignored are copied, so a
 # tracked file can never be duplicated by this list.
 #
+# `pubspec_overrides.yaml` is ALSO copied by `bin/check`, because this file is only
+# consulted when Claude Code creates the worktree and AGENTS.md offers `git worktree
+# add` by hand as an equal option.
+#
+# One thing no file here can fix, because the rule lives in artisan:
+# `sessionOwnershipError` treats a working directory INSIDE `projectRoot` as owning the
+# session (`state_file.dart:262`, `_isWithin` at `:282`), and a worktree under
+# `.claude/worktrees/` is inside the main checkout. So a `dusk:*` call from a worktree
+# with no session of its own drives the app the MAIN checkout started, and reports
+# success. Run `./bin/fsa start` in the worktree, or pass `--state=<path>`, before any
+# dusk command there.
+#
 # NOT processed when a WorktreeCreate hook replaces the default git logic; such a hook
 # has to copy these itself. This project has no such hook, deliberately.
 

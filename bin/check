@@ -87,7 +87,14 @@ bootstrap_ignored_files() {
     [ "$main_root" = "$REPO_ROOT" ] && return 0
     [ -d "$main_root" ] || return 0
 
-    for file in backend/.env .artisan/plugins.json backend/public/build; do
+    # `pubspec_overrides.yaml` is here as well as in `.worktreeinclude`, and the
+    # duplication is deliberate. That file is only consulted when Claude Code creates
+    # the worktree, and `AGENTS.md` offers `git worktree add` by hand as an equal
+    # option; that path got the backend files and no overrides, so the siblings
+    # resolved from pub.dev and the suite passed against the PUBLISHED packages while
+    # the diff under review was of the working trees beside this one. That failure is
+    # silent, which is why it needs a second mechanism rather than a note.
+    for file in pubspec_overrides.yaml backend/.env .artisan/plugins.json backend/public/build; do
         if [ ! -e "$REPO_ROOT/$file" ] && [ -e "$main_root/$file" ]; then
             mkdir -p "$(dirname "$REPO_ROOT/$file")"
             cp -R "$main_root/$file" "$REPO_ROOT/$file"
