@@ -10,12 +10,20 @@ applyTo: "lib/**,test/**"
 
 Applies to `lib/` and `test/`. Colours, the component folder contract and the anti-pattern table live in `.github/instructions/design.instructions.md`.
 
+## The two skills are the standard, and this file is only where we differ
+
+`magic-framework` and `wind-ui` define how code on this stack is written, and copies of both sit at `.github/skills/` so a reviewer with only this checkout has them too. Load them before the first line of Dart rather than working from memory; the surface is pre-1.0 and exact. This file does not restate them. It carries the places depools OVERRIDES a rule of theirs, the places it is measurably behind one, and the checks that catch a violation here.
+
+`fluttersdk:flutter-review` is the review pass for this stack: four gated stages over magic compliance, Wind compliance, correctness and reuse. Nothing else reviews this repository, so run it on a finished feature before opening the PR.
+
 ## Wiring a drawn screen
 
-Every screen here renders fixtures. Wiring one is the common task, and **no controller exists in this app yet**, so the first one sets the pattern for the rest. Copy the shape from `magic_starter`'s own controllers in the sibling package (`lib/src/http/controllers/`) rather than inventing a second one:
+Every screen here renders fixtures, and wiring one is the common task. The controller half is done and compliant: 15 controllers under `lib/app/controllers/` extend `MagicController` and every one carries the canonical `static X get instance => Magic.findOrPut(X.new);`. Match them rather than inventing a second shape.
+
+**The view half is the part that does not exist yet.** No view consumes a controller reactively: `MagicView`, `MagicBuilder` and `renderState` appear nowhere in `lib/`, so every screen is still static. The mechanism is not missing, only unused between a controller and a screen: the layout layer already listens, at `lib/ui/layouts/page_chrome.dart:177` and `assistant_launcher.dart:109`. Wiring the first screen means choosing that shape, so choose the framework's: resolve through the container (the `.instance` accessor already does) and render the four states from one source with `renderState` or `MagicBuilder`, rather than hand-rolling a `FutureBuilder` per section. Passing a controller through a view's constructor is the one shape to avoid, because nothing then resets it between tests.
 
 - A controller is a `ChangeNotifier` resolved from the container, with `MagicStateMixin` carrying `RxStatus` so the view renders loading, empty, error and loaded from one source.
-- Requests go through magic's `Http` facade. Never `package:http` or `dio` directly: the facade carries the base URL, the Sanctum bearer and the telescope interceptor.
+- Requests go through magic's `Http` facade. Never `package:http` or `dio` directly: the facade carries the base URL, the Sanctum bearer and the telescope interceptor. There is no `patch` verb and the payload is `response.data`, never `.body`.
 - A write is validated twice: client-side before the request, and the server's 422 field errors mapped back onto the form. A write that silently does nothing is usually a missing field in the Laravel `FormRequest` `rules()` or in the magic model's `fillable`. Check both before debugging further up.
 - Replace the fixture, do not shadow it. A screen reading both a fixture and an endpoint diverges the moment the API changes.
 
@@ -25,6 +33,9 @@ Every screen here renders fixtures. Wiring one is the common task, and **no cont
 - One cache written by both a list endpoint and a detail endpoint loses the detail-only fields on every list refetch. If a field appears only in `show`, do not let `index` overwrite the same cached model.
 - Models are cast from nested maps, not lazy-loaded relations, and there is no eager loading. A relation is present because the API sent it.
 - `Auth.restore()` after any state-changing call that touches the user or the team; the starter's contract depends on it.
+- Routes are registered in a provider's `register()`, never in `boot()`. The router pre-builds during `Magic.init()`, before any `boot()` runs, so a route added there is registered after the thing that reads it.
+- `fill(validated, strict: true)` after validation, not `fill(raw)`. Strict mode throws `MassAssignmentException` on a key the model does not declare, which is what turns silent schema drift into a failure you can read.
+- Authorisation goes through `authorize('ability')` in the controller rather than a hand-rolled `if (!Gate.allows(...))`. Either way it is ADVISORY: `Gate` runs on the client, and the backend re-authorizes every write.
 - When you rely on a `magic` idiom a plain-Flutter reader would not predict (a facade resolving through the string-keyed container, a model cast from a map), say so in a comment. The framework is the part an outside reader will not have.
 - Flutter web ignores `fsa reload`: it reports success and applies nothing. Hot-restart instead.
 
@@ -80,3 +91,5 @@ Two consequences: do not tell the user to tap, because affordance carries the ac
 - Names describe the behaviour being pinned (`'a perfect count navigates away'`), not the path of the file under test.
 - A test must be able to fail for the reason it claims. Deriving the expectation from the same source the code reads certifies the bug instead of catching it; ask what edit would turn the assertion red before keeping it.
 - A widget test that renders a badge or a status label needs the language keys loaded, otherwise it lays out the raw key and overflows for a reason that has nothing to do with the widget.
+- A test touching a controller or a facade calls `MagicTest.init()` from `package:magic/testing.dart`, which resets the container between tests. Without it the previous test's singleton survives and the suite passes on state it never arranged.
+- Reach for the framework's own fakes before a mock library: `Http.fake` with `assertSent`, plus `Auth.fake`, `Cache.fake`, `Vault.fake`, `Log.fake`. A fake at the only adapter has already blinded this suite once to that adapter being broken, so assert what was SENT rather than only what came back.

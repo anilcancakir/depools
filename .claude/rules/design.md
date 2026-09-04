@@ -9,6 +9,16 @@ paths:
 
 Applies to `lib/`. `DESIGN.md` owns the token VALUES, `docs/component-registry.md` owns what exists, and `.claude/rules/flutter-app.md` owns the copy. This file is the component contract and the defects that keep recurring.
 
+## Three places this app overrides wind-ui
+
+`wind-ui` is the standard for every className written here and a copy of it sits at `.github/skills/wind-ui/SKILL.md`. Three of its rules do not hold in this app, and each is a rule an agent following the skill correctly would apply and be wrong.
+
+- **Do NOT write a `dark:` peer.** The skill's Core Law 2 asks for one on every colour token, and that is right for a raw palette token. Every colour here is a semantic alias that ALREADY expands to a `'<light> dark:<dark>'` pair, so `dark:bg-surface` re-applies the prefix over a value that carries its own and produces nothing. Write `bg-surface` alone.
+- **The touch-target floor is 44, not 48.** The skill says an icon button needs 48 dp; `DESIGN.md` says 44x44, following Apple rather than Material, and `DESIGN.md` wins because it is the source `design:sync` reads. Pad invisibly to reach it rather than growing the visual control.
+- **No raw palette token.** Every example in the skill styles with `bg-gray-800` and `text-blue-600`. Those parse here and are a build failure: `bin/design-tokens` allows only the semantic aliases below. Translate the skill's shape, never its colours.
+
+Everything else in the skill applies unchanged, including the one this app is currently behind: a scrollable root needs `scrollPrimary: true`, and nothing here sets it.
+
 ## Atomic component folder contract
 
 ```
@@ -81,7 +91,7 @@ Each is a blocker and the `component-visual-reviewer` flags it. The numbers are 
 | Selection carried by fill tint alone | Add a non-colour signal: a radio dot, a tick, a glyph. White on `#E3ECFF` is subtle in light and nothing at all to a colour-blind user |
 | Controls sized to their content when the row repeats down a list | Fixed widths. A list of rows is a TABLE even when built from flex boxes. If a control is absent on some rows, reserve its space |
 | An enabled INPUT left on `bg-surface-container-high` | Pass `className: 'bg-surface-container'`. MSInput ships the input tone, `#E5E5EA` on a white card, and its hairline is too close in value to rescue it |
-| A control whose buttons have no callback, previewed that way | Wire the callbacks and sweep EVERY preview, not the reported one. `WAnchor` gives the pointer cursor only with a real gesture, so the catalog showed a dead control for a third of the library. Use `static void _noop() {}` rather than `() {}`, which is not a constant and breaks every `const` in the file |
+| A control whose buttons have no callback, previewed that way | Wire the callbacks and sweep EVERY preview, not the reported one. `WAnchor` gives the pointer cursor only with a real gesture, so the catalog showed a dead control for a third of the library. Since wind 1.5 it emits no `Semantics(button: true)` either without a gesture or a `semanticLabel`, so the control is invisible to a dusk snapshot as well as to a screen reader. Use `static void _noop() {}` rather than `() {}`, which is not a constant and breaks every `const` in the file |
 | A stepper built as separate boxes in a row | ONE border around the whole control with hairline dividers inside, the segmented shape iOS and Material both use. Neutralise `MSInput`'s border and radius from the caller with `border-0 rounded-none`. Do NOT reach for a raw `WInput`: it needs an `Overlay` ancestor and throws a build-phase `setState` from the preview harness |
 | A stepper whose step does not match its unit's granularity | No stepper. `±1` belongs on a countable unit; an opened remainder is a measured amount, so that field stays typed |
 | A generic bar as a loading placeholder | The placeholder is the ROW's shadow: same component, same geometry, so the list cannot jump when content lands (`ProductRow.skeleton()`) |
@@ -99,6 +109,10 @@ Each is a blocker and the `component-visual-reviewer` flags it. The numbers are 
 | A `WDiv` styled to LOOK like a control | Build the control. Two screens carried a magnifier plus a `WText` in an input-toned box: pixel-identical to a search field, with no gesture at all |
 | A second preview file for a second width | `ResponsiveScreenPreview` renders both in ONE preview: the width is a VARIANT. Fourteen `*PhoneScreen` files were added before this was named. Every screen still has to be seen at 390px in the FIXED frame, because the catalog keeps its sidebar and narrowing squeezes the harness instead of the screen |
 | A row of `shrink-0` columns with no narrow arrangement | `flex flex-col md:flex-row` at a group boundary. When every child is `shrink-0`, nothing can give. Reserve the empty columns with `hidden md:flex` |
+| A className that BRANCHES on a value: `'bg-${on ? "primary" : "surface"}'` | `states:` plus prefixed classes: a static className carrying `selected:bg-primary`, and `states: on ? const {'selected'} : const {}`. Branching mints a cache key per value and the prefix system stops applying. Interpolation itself is not the defect and four call sites here do it correctly, composing a `WindSlotRecipe` slot or a token-returning helper (`'${slots['icon']} ${locationGlyphClassName(colour)}'`); that is how a slot recipe is meant to be consumed. Read what is being interpolated before calling it a violation |
+| `overflow-y-auto` with no `scrollPrimary: true` | Add the constructor prop. There is no className for it, so iOS tap-to-top is silently dead. Nothing in this app sets it yet |
+| A `WCheckbox`, `WRadio` or `WSwitch` with a null `onChanged` | Pass a callback, or pass `disabled: true` and mean it. As of wind 1.5 a null callback renders the control display-only exactly like `disabled: true`: no tap, reported as not enabled, `disabled:` styles active. It looks like a live control and reads to dusk as a dead one |
+| `justify-between` on a row that also has a `flex-1` child | Pick one. A grow claim turns off `justify-*`'s shrink wrap, so `flex-1` keeps the whole remainder and the siblings sit at content width against it. The even split you were reaching for never happens |
 | Trusting a clean `dusk:exceptions` after re-navigating | Flutter announces an overflow ONCE per `RenderFlex` instance, so it appears on the first paint after a hot restart and never again. Restart, then navigate, then read. The buffer is cumulative, so clear it between routes with `dusk:exceptions --clear`, which returns everything so far and empties dusk's own buffer; each reading is then a delta instead of a running total |
 
 ## Release boundary
