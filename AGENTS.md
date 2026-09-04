@@ -8,7 +8,11 @@ Depools.ai is an AI-assisted inventory product for small businesses and househol
 
 ## What phase this is
 
-The specification is settled (`docs/depools-system/`, `DESIGN.md`) and the screens under `lib/resources/views/` are drawn. The middle is missing: the client renders fixtures and `backend/routes/api.php` is the entire API surface. So a task here is usually wiring a drawn screen to an endpoint that has to be written. Grep a view for `Http` before starting: no call means its data is a fixture and the job is the whole vertical, backend included. Do not add a second fixture to a screen that already has one.
+The specification is settled (`docs/depools-system/`, `DESIGN.md`), the screens under `lib/resources/views/` are drawn, and the middle is now partly built. All 16 controllers reach the backend, 22 files under `lib/` call `Http`, and 11 `*_fixtures.dart` files remain: they feed the `/preview` catalog and the screens still unwired. So a task here is usually FINISHING a vertical rather than starting one, and the first question is which half of it is missing.
+
+**This section used to say the client renders fixtures and `api.php` is the entire API surface. It was wrong when it was written and it sent every agent to build a vertical that already existed.** Read the code before believing a summary of it, this one included.
+
+Grep a view for `Http` before starting, and then read what you find rather than counting it. A view with no call is no longer evidence of a fixture: a wired screen reaches its controller, and the controller makes the request. `product_form_view.dart` is the worked example, posting nothing itself and reading field errors off `ProductFormController`. Do not add a second fixture to a screen that already has one.
 
 Read `docs/depools-system/open-decisions.md` before proposing anything that looks like a new decision. Every decision there carries the reason behind it and a superseded one is annotated in place rather than deleted, so the argument stays readable.
 
