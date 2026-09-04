@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:magic/magic.dart';
 
 /// One ledger entry, as the API sends it.
 ///
@@ -7,57 +7,103 @@ import 'package:flutter/foundation.dart';
 /// the endpoint: the product screen used to render three invented rows in Turkish on an app whose
 /// default locale is English, and a server that named the reason in words would have moved the
 /// defect rather than fixed it.
-@immutable
-class MovementEntry {
+///
+/// **Read-only, and [fillable] says so.** Stock is a ledger: every change is an append-only row a
+/// server endpoint writes, never a client mass-assignment, so nothing here is ever `save()`d.
+class MovementEntry extends Model {
+  @override
+  String get table => 'movements';
+
+  /// The API resource this ledger row belongs to.
+  ///
+  /// **Nested rather than flat.** There is no top-level `movements` endpoint; every read goes
+  /// through `products/{product}/movements` (`backend/routes/api.php:90`), so this names the entity
+  /// rather than an addressable path. Nothing here calls `save()` or `findById`, so the mismatch
+  /// between this value and the real nested path is never exercised.
+  @override
+  String get resource => 'movements';
+
+  /// Set to false because this app uses string UUIDs as primary keys.
+  @override
+  bool get incrementing => false;
+
+  /// Nothing is fillable: the ledger is append-only and a movement is written by an endpoint, never
+  /// mass-assigned from this client.
+  @override
+  List<String> get fillable => [];
+
+  @override
+  Map<String, dynamic> get casts => <String, dynamic>{
+    'delta': 'double',
+    'entered_quantity': 'double',
+    'occurred_at': 'datetime',
+  };
+
   /// The reason's enum value (`purchase`, `waste`, `stock_take`, ...).
-  final String reason;
+  String get reason => get<String>('reason') ?? '';
 
   /// The signed amount, in the product's base unit. Negative takes stock away.
-  final double delta;
+  double get delta => get<double>('delta') ?? 0;
 
   /// What the person actually typed, when it differs from the base unit (D90).
   ///
   /// A delivery keyed as "2 koli" reads back as "24 adet" without these, which is true and not what
   /// anybody entered.
-  final double? enteredQuantity;
+  double? get enteredQuantity => get<double>('entered_quantity');
 
   /// The code of the unit they typed it in.
-  final String? enteredUnit;
+  String? get enteredUnit => get<String>('entered_unit');
 
   /// `user`, `assistant`, `mcp_client` or `system`.
-  final String? actorType;
+  String? get actorType => get<String>('actor_type');
 
   /// The person's own name, when a person did it. Never translated.
-  final String? actorName;
+  String? get actorName => get<String>('actor_name');
 
   /// Where it happened, already named.
-  final String? locationName;
+  String? get locationName => get<String>('location_name');
 
   /// WHICH product changed, on a feed that spans products.
   ///
   /// Null on a product's own activity card, and correctly so: that card is nested under the product
   /// and the endpoint does not pay for a join to repeat a name already in the header. The dashboard
   /// feed has no such header, so a row without this says only that something moved.
-  final String? productName;
+  String? get productName => get<String>('product_name');
 
   /// When it HAPPENED, which is not when it was written.
   ///
   /// `occurred_at` rather than `created_at`: a receipt entered on Tuesday for a Sunday shop has to
   /// read as Sunday, or the audit trail disagrees with the forecast built on the same rows.
-  final DateTime? at;
+  DateTime? get at => get<Carbon>('occurred_at')?.toDateTime;
 
-  /// Creates a [MovementEntry].
-  const MovementEntry({
-    required this.reason,
-    required this.delta,
-    this.enteredQuantity,
-    this.enteredUnit,
-    this.actorType,
-    this.actorName,
-    this.locationName,
-    this.productName,
-    this.at,
-  });
+  /// Creates a [MovementEntry] for a fixture or a preview, not for hydrating an API payload.
+  ///
+  /// Writes the same wire shape [fromMap] reads, so a getter never has to ask which path built it.
+  MovementEntry({
+    required String reason,
+    required double delta,
+    double? enteredQuantity,
+    String? enteredUnit,
+    String? actorType,
+    String? actorName,
+    String? locationName,
+    String? productName,
+    DateTime? at,
+  }) {
+    setRawAttributes(<String, dynamic>{
+      'reason': reason,
+      'delta': delta,
+      'entered_quantity': enteredQuantity,
+      'entered_unit': enteredUnit,
+      'actor_type': actorType,
+      'actor_name': actorName,
+      'location_name': locationName,
+      'product_name': productName,
+      'occurred_at': at,
+    }, sync: true);
+  }
+
+  MovementEntry._raw();
 
   /// Reads one from the API's shape, or null when it is unreadable.
   ///
@@ -72,18 +118,8 @@ class MovementEntry {
       return null;
     }
 
-    return MovementEntry(
-      reason: reason,
-      delta: delta.toDouble(),
-      enteredQuantity: map['entered_quantity'] is num
-          ? (map['entered_quantity'] as num).toDouble()
-          : null,
-      enteredUnit: map['entered_unit'] is String ? map['entered_unit'] as String : null,
-      actorType: map['actor_type'] is String ? map['actor_type'] as String : null,
-      actorName: map['actor_name'] is String ? map['actor_name'] as String : null,
-      locationName: map['location_name'] is String ? map['location_name'] as String : null,
-      productName: map['product_name'] is String ? map['product_name'] as String : null,
-      at: map['occurred_at'] is String ? DateTime.tryParse(map['occurred_at'] as String) : null,
-    );
+    return MovementEntry._raw()
+      ..setRawAttributes(map, sync: true)
+      ..exists = true;
   }
 }

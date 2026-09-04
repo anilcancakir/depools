@@ -33,9 +33,11 @@ import '../../../ui/components/receipt_line_row/receipt_line_row.dart';
 /// Units are UN/ECE Rec 20 codes (`C62` a piece, `KGM` a kilogram) rather than the words the old
 /// fixture carried, because that is what `resolved_unit` holds and what the row has to turn into a
 /// word: a fixture spelling `'adet'` would have hidden the one screen that forgot to.
-const List<ReceiptLine> receiptLines = <ReceiptLine>[
+// Not `const`: `ReceiptLine` is a magic `Model` now, and a `Model` carries mutable internal
+// state (`_attributes`), so no constructor of it can be `const`.
+final List<ReceiptLine> receiptLines = <ReceiptLine>[
   // Unresolved: abbreviations that need the user.
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-1',
     lineNumber: 1,
     rawName: 'ORG KEM TAV',
@@ -44,7 +46,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'KGM',
     lineTotal: 184.00,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-2',
     lineNumber: 2,
     rawName: 'KSR TAM YAG 400',
@@ -53,7 +55,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'C62',
     lineTotal: 128.50,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-3',
     lineNumber: 3,
     rawName: 'MEY SUY VSN 1L',
@@ -64,7 +66,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
   ),
   // A discount line, which is why one total here is negative: `moneyLabel` renders the sign and the
   // review screen has to show it rather than treat the line as unreadable.
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-4',
     lineNumber: 4,
     rawName: 'IND 1234',
@@ -75,7 +77,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
   ),
   // Settled: matched against the tenant's own products. `productName` is what the row draws beside
   // the printed string, so a settled line without one is a blank where the whole comparison should be.
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-5',
     lineNumber: 5,
     rawName: 'PNR SUT 1LT',
@@ -86,7 +88,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'C62',
     lineTotal: 69.80,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-6',
     lineNumber: 6,
     rawName: 'DURU BULGUR 1K',
@@ -97,7 +99,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'KGM',
     lineTotal: 42.50,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-7',
     lineNumber: 7,
     rawName: 'SOKE UN 2KG',
@@ -108,7 +110,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'KGM',
     lineTotal: 58.00,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-8',
     lineNumber: 8,
     rawName: 'SUTAS YOG 2KG',
@@ -119,7 +121,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'C62',
     lineTotal: 94.90,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-9',
     lineNumber: 9,
     rawName: 'YUDUM AYC 5LT',
@@ -130,7 +132,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'C62',
     lineTotal: 389.00,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-10',
     lineNumber: 10,
     rawName: 'DANA KIYMA',
@@ -142,7 +144,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 312.00,
   ),
   // Created: a product the tenant did not have yet.
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-11',
     lineNumber: 11,
     rawName: 'ZYT YAG 5LT TARIS',
@@ -153,7 +155,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     resolvedUnit: 'C62',
     lineTotal: 1240.00,
   ),
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-12',
     lineNumber: 12,
     rawName: 'CAY DEMLIK 1KG',
@@ -165,7 +167,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
     lineTotal: 214.00,
   ),
   // Rejected: on the receipt, not stock.
-  ReceiptLine(
+  ReceiptLine.of(
     id: 'fixture-line-13',
     lineNumber: 13,
     rawName: 'POSET',
@@ -187,7 +189,7 @@ const List<ReceiptLine> receiptLines = <ReceiptLine>[
 /// The total is DERIVED from the lines rather than typed, including the discount line's negative
 /// total. A header stating one figure above rows summing to another is the disagreement this app has
 /// already shipped once between a list and its detail screen.
-Receipt get receiptFixture => Receipt(
+Receipt get receiptFixture => Receipt.of(
   id: 'fixture-receipt',
   kind: 'fis',
   status: 'matched',

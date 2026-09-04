@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:magic/magic.dart';
 
 import '../../ui/components/receipt_line_row/receipt_line_row.dart' show LineResolution;
 
@@ -12,80 +12,84 @@ import '../../ui/components/receipt_line_row/receipt_line_row.dart' show LineRes
 /// fixture can carry because nothing computes them; a live screen has to, so the view formats the
 /// quantity through `ProductListItem.format` and derives the meta line from [resolution], the same
 /// way `ReceiptReviewView` does for a receipt line.
-@immutable
-class ShelfCandidate {
+///
+/// **Read-only.** A candidate is written by the server's own commit endpoint; nothing here calls
+/// `save()`, so [fillable] stays empty.
+class ShelfCandidate extends Model {
+  @override
+  String get table => 'shelf_candidates';
+
+  @override
+  String get resource => 'shelf-reads';
+
+  /// Set to false because this app uses string UUIDs as primary keys.
+  @override
+  bool get incrementing => false;
+
+  @override
+  List<String> get fillable => [];
+
+  @override
+  Map<String, dynamic> get casts => <String, dynamic>{
+    'region': 'int',
+    'left': 'double',
+    'top': 'double',
+    'width': 'double',
+    'height': 'double',
+    'resolution': EnumCast(LineResolution.values),
+  };
+
   /// The server's id for this region, which is what a commit decision is keyed against.
   ///
   /// Null only for a fixture: the preview catalog builds these without a backend, and nothing it
   /// renders needs an id.
-  final String? id;
+  @override
+  String? get id => get<String>('id');
 
   /// The region's number, drawn on the photograph and repeated on its row (D60).
-  final int region;
+  int get region => get<int>('region') ?? 0;
 
   /// Where the box sits, as fractions of the photo's width and height. Fractions rather than pixels
   /// because the same photo renders at three widths in this app.
-  final double left;
-  final double top;
-  final double width;
-  final double height;
+  ///
+  /// **The four box fields are fractions, so anything outside 0 to 1 is not one.** The server refuses
+  /// an out-of-frame box before it is stored and the column rounds to four decimals, so this clamp is
+  /// a parser's guard against a nonsense OUTLINE rather than against a crash: a `Positioned` child
+  /// whose rect falls outside its `Stack` is clipped, not an error.
+  double get left => _fraction(get<double>('left'));
+  double get top => _fraction(get<double>('top'));
+  double get width => _fraction(get<double>('width'));
+  double get height => _fraction(get<double>('height'));
 
   /// What the app read. Null when it read nothing, which `ai-enrichment.md` requires be presented
   /// rather than invented.
-  final String? productName;
+  String? get productName => get<String>('product_name');
 
   /// The product this resolved to, when the cascade found one.
-  final String? productId;
+  String? get productId => get<String>('product_id');
 
   /// How far the candidate got. Shared with the receipt review, because it is the same concept: an
   /// extracted thing resolving to a product, or failing to.
-  final LineResolution resolution;
+  ///
+  /// Falls back to [LineResolution.unresolved] rather than to `matched`: an unrecognised value would
+  /// otherwise silently write stock for a state this build does not understand.
+  LineResolution get resolution => get<LineResolution>('resolution') ?? LineResolution.unresolved;
 
   /// How many of it were seen, or null when the model could not count them.
   ///
   /// **Nullable, and printing `0` for it would be a lie**, the same one `ReceiptReviewView` names: a
   /// row reading "0" claims the shelf held none rather than that the app could not tell.
-  final num? quantity;
+  ///
+  /// Parsed rather than cast: the wire carries a decimal STRING (PostgreSQL sends `'3.000'`), so a
+  /// declared numeric cast would leave it a string. Parsed here so a null stays a null.
+  num? get quantity {
+    final Object? raw = getAttribute('quantity');
+
+    return raw == null ? null : num.tryParse('$raw');
+  }
 
   /// A Rec 20 code, or null when the label named no unit we recognise.
-  final String? unit;
-
-  /// Creates a [ShelfCandidate].
-  const ShelfCandidate({
-    required this.region,
-    required this.left,
-    required this.top,
-    required this.width,
-    required this.height,
-    this.id,
-    this.productName,
-    this.productId,
-    this.resolution = LineResolution.matched,
-    this.quantity,
-    this.unit,
-    this.isAnswered = false,
-  });
-
-  /// The candidate a `shelf-reads` payload describes.
-  factory ShelfCandidate.fromApi(Map<String, dynamic> json) {
-    return ShelfCandidate(
-      id: json['id'] as String?,
-      region: (json['region'] as num?)?.toInt() ?? 0,
-      left: _fraction(json['left']),
-      top: _fraction(json['top']),
-      width: _fraction(json['width']),
-      height: _fraction(json['height']),
-      productName: json['product_name'] as String?,
-      productId: json['product_id'] as String?,
-      resolution: _resolution(json['resolution'] as String?),
-      // A decimal STRING on the wire, because it reaches the ledger and PostgreSQL sends
-      // `'3.000'`. Parsed here rather than cast, so a null stays a null.
-      quantity: num.tryParse('${json['quantity']}'),
-      unit: json['unit'] as String?,
-      // Presence is the whole signal; the timestamp itself has no reader, so it is not carried.
-      isAnswered: json['confirmed_at'] != null,
-    );
-  }
+  String? get unit => get<String>('unit');
 
   /// Whether a movement has already been written for this region.
   ///
@@ -94,7 +98,7 @@ class ShelfCandidate {
   /// re-commit refusal, so a second submit writes nothing and returns success. A screen that could
   /// not see the column then counted written regions on its accept button and reported them again in
   /// its success message.
-  final bool isAnswered;
+  bool get isAnswered => has('confirmed_at');
 
   /// Whether this candidate will be written as it stands.
   ///
@@ -114,6 +118,50 @@ class ShelfCandidate {
 
   /// Whether the app read nothing for this region.
   bool get isUnresolved => resolution == LineResolution.unresolved;
+
+  /// Creates a [ShelfCandidate] for a fixture or a UI decision, not for hydrating a payload.
+  ///
+  /// Writes the same wire shape [fromApi] reads (`resolution` stores the enum's own name, and
+  /// `confirmed_at` carries a timestamp exactly when [isAnswered] is true), so a getter never has to
+  /// ask which path built the instance.
+  ShelfCandidate({
+    required int region,
+    required double left,
+    required double top,
+    required double width,
+    required double height,
+    String? id,
+    String? productName,
+    String? productId,
+    LineResolution resolution = LineResolution.matched,
+    num? quantity,
+    String? unit,
+    bool isAnswered = false,
+  }) {
+    setRawAttributes(<String, dynamic>{
+      'id': id,
+      'region': region,
+      'left': left,
+      'top': top,
+      'width': width,
+      'height': height,
+      'product_name': productName,
+      'product_id': productId,
+      'resolution': resolution.name,
+      'quantity': quantity,
+      'unit': unit,
+      'confirmed_at': isAnswered ? DateTime.now().toIso8601String() : null,
+    }, sync: true);
+  }
+
+  ShelfCandidate._raw();
+
+  /// The candidate a `shelf-reads` payload describes.
+  static ShelfCandidate fromApi(Map<String, dynamic> json) {
+    return ShelfCandidate._raw()
+      ..setRawAttributes(json, sync: true)
+      ..exists = true;
+  }
 
   /// The same candidate with the user's decision applied.
   ///
@@ -157,82 +205,91 @@ class ShelfCandidate {
     isAnswered: isAnswered,
   );
 
-  /// The four box fields are fractions, so anything outside 0 to 1 is not one.
-  ///
-  /// The server refuses an out-of-frame box before it is stored and the column rounds to four
-  /// decimals, so this is a parser's guard rather than a second rule.
-  ///
-  /// **It is a guard against a nonsense OUTLINE, not against a crash, and the comment here used to
-  /// claim the second.** A `Positioned` child whose rect falls outside its `Stack` is clipped, not an
-  /// error, so a broken value would have drawn a box half off the picture rather than taking the
-  /// screen with it. The clamp is per field for the same reason: `left` and `width` are each held to
-  /// 0..1 so their sum can still reach 2, and what stops that being visible is the `Stack`'s own
-  /// clip. Worth stating plainly, because a recorded wrong reason is what this repository keeps
-  /// paying for.
-  static double _fraction(Object? value) {
-    final double parsed = value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
-
-    return parsed.clamp(0, 1);
-  }
-
-  static LineResolution _resolution(String? value) => switch (value) {
-    'matched' => LineResolution.matched,
-    'created' => LineResolution.created,
-    'rejected' => LineResolution.rejected,
-    _ => LineResolution.unresolved,
-  };
+  static double _fraction(double? value) => (value ?? 0).clamp(0, 1).toDouble();
 }
 
 /// One photograph of a shelf and the review it is waiting for.
-@immutable
-class ShelfRead {
+///
+/// **Read-only.** The read itself is written by `POST /shelf-reads` and its `read`/`commit` actions;
+/// nothing here calls `save()`, so [fillable] stays empty.
+class ShelfRead extends Model {
+  @override
+  String get table => 'shelf_reads';
+
+  @override
+  String get resource => 'shelf-reads';
+
+  /// Set to false because this app uses string UUIDs as primary keys.
+  @override
+  bool get incrementing => false;
+
+  @override
+  List<String> get fillable => [];
+
+  @override
+  Map<String, dynamic> get casts => <String, dynamic>{'has_document': 'bool'};
+
+  /// The nested candidate list. `getRelations` resolves it whether the attribute holds raw maps (a
+  /// `shelf-reads` payload) or already-built [ShelfCandidate] instances (a fixture), since it checks
+  /// `data is List<T>` before reaching for this factory.
+  ///
+  /// **`ShelfCandidate._raw`, not `ShelfCandidate.new`.** `getRelations` invokes the factory with no
+  /// arguments, and the public constructor's `region`/`left`/`top`/`width`/`height` are required for
+  /// the fixture path; the zero-argument private constructor is what a bare hydration needs.
+  @override
+  Map<String, Model Function()> get relations => <String, Model Function()>{
+    'candidates': ShelfCandidate._raw,
+  };
+
   /// The server's id, which the read and the commit are addressed to.
-  final String id;
+  @override
+  String get id => get<String>('id') ?? '';
 
   /// Whether the review has been finished.
-  final bool isConfirmed;
+  bool get isConfirmed => has('confirmed_at');
 
   /// Whether the photograph is still on the server to draw boxes on.
   ///
   /// False once D94's retention window closes. The screen's whole design rests on the picture
   /// staying (D60), so a read that has lost it is a different thing to render.
-  final bool hasDocument;
+  bool get hasDocument => get<bool>('has_document') ?? true;
 
   /// The regions, in the order their numbers read.
-  final List<ShelfCandidate> candidates;
+  List<ShelfCandidate> get candidates => getRelations<ShelfCandidate>('candidates');
 
   /// The `AiOutcome` the last read attempt ended on, or null when none has run.
   ///
   /// The screen branches on `no_credit`, which is the one the user can act on. Everything else is
   /// "we could not read it", and telling those apart would offer a distinction nobody can use.
-  final String? lastReadOutcome;
+  String? get lastReadOutcome => get<String>('last_read_outcome');
 
-  /// Creates a [ShelfRead].
-  const ShelfRead({
-    required this.id,
-    this.isConfirmed = false,
-    this.hasDocument = true,
-    this.candidates = const <ShelfCandidate>[],
-    this.lastReadOutcome,
-  });
+  /// Creates a [ShelfRead] for a fixture or a UI decision, not for hydrating a payload.
+  ///
+  /// Writes the same wire shape [fromApi] reads (`confirmed_at` carries a timestamp exactly when
+  /// [isConfirmed] is true), so a getter never has to ask which path built the instance.
+  ShelfRead({
+    required String id,
+    bool isConfirmed = false,
+    bool hasDocument = true,
+    List<ShelfCandidate> candidates = const <ShelfCandidate>[],
+    String? lastReadOutcome,
+  }) {
+    setRawAttributes(<String, dynamic>{
+      'id': id,
+      'confirmed_at': isConfirmed ? DateTime.now().toIso8601String() : null,
+      'has_document': hasDocument,
+      'candidates': candidates,
+      'last_read_outcome': lastReadOutcome,
+    }, sync: true);
+  }
+
+  ShelfRead._raw();
 
   /// The read a `shelf-reads` payload describes.
-  factory ShelfRead.fromApi(Map<String, dynamic> json) {
-    final Object? rows = json['candidates'];
-
-    return ShelfRead(
-      id: json['id'] as String? ?? '',
-      isConfirmed: json['confirmed_at'] != null,
-      hasDocument: json['has_document'] as bool? ?? true,
-      candidates: rows is! List
-          ? const <ShelfCandidate>[]
-          : <ShelfCandidate>[
-              for (final Object? row in rows)
-                if (row is Map<dynamic, dynamic>)
-                  ShelfCandidate.fromApi(Map<String, dynamic>.from(row)),
-            ],
-      lastReadOutcome: json['last_read_outcome'] as String?,
-    );
+  static ShelfRead fromApi(Map<String, dynamic> json) {
+    return ShelfRead._raw()
+      ..setRawAttributes(json, sync: true)
+      ..exists = true;
   }
 
   /// The candidates that would be written as they stand.

@@ -99,6 +99,11 @@ class LocationController extends MagicController
   /// Returns null on success, or the server's message. The caller decides how to show it, because a
   /// failed write must NOT put this controller into its error state: that would blank a tree the user
   /// is looking at over a write that changed nothing.
+  ///
+  /// **`fill(..., strict: true)` then `await save()`**, not a raw `Http.post`: `save()` returns a
+  /// bool rather than throwing, so a 422 is read off `node.validationErrors` afterwards rather than
+  /// caught. Nothing here nulls `rxState`, unlike the old `handleApiError` path: `rxState` is never
+  /// touched by the failure branch, so the tree the user is looking at stays exactly as it was.
   Future<String?> create({
     required String name,
     String? parentId,
@@ -114,30 +119,36 @@ class LocationController extends MagicController
       return firstError;
     }
 
-    // Held so a refused write can put the tree back exactly as it was.
-    final List<LocationNode>? before = rxState;
+    final LocationNode node = LocationNode()
+      ..fill(<String, dynamic>{
+        'name': name,
+        'parent_id': parentId,
+        'icon': icon,
+        'colour': colour,
+      }, strict: true);
 
-    final dynamic response = await Http.post('/locations', data: <String, dynamic>{
-      'name': name,
-      'parent_id': ?parentId,
-      'icon': ?icon,
-      'colour': ?colour,
-    });
+    if (!await node.save()) {
+      _applyValidationErrors(node.validationErrors);
 
-    if (!response.successful) {
-      // handleApiError nulls rxState via MagicStateMixin.setError/setEmpty for ANY failure, but this
-      // controller's rxState is the cached tree rather than the resource being validated: a failed
-      // create must not blank a tree the user is looking at over a write that changed nothing (see
-      // this method's own docblock). Restore it right after, so only the field errors are new state.
-      handleApiError(response, fallback: Lang.get('screens.location_form.save_failed'));
-      if (before != null) setSuccess(before);
-
-      return response.message ?? Lang.get('screens.location_form.save_failed');
+      return node.validationError('name') ??
+          node.validationError('colour') ??
+          Lang.get('screens.location_form.save_failed');
     }
 
     await load(force: true);
 
     return null;
+  }
+
+  /// Mirrors `ValidatesRequests.setErrorsFromResponse`, for a [LocationNode.save] refusal rather
+  /// than a raw `MagicResponse`: `save()` already parsed the server's 422 into `validationErrors`,
+  /// so this only moves the first message per field into this controller's own error store.
+  void _applyValidationErrors(Map<String, List<String>> errors) {
+    validationErrors = <String, String>{
+      for (final MapEntry<String, List<String>> entry in errors.entries)
+        if (entry.value.isNotEmpty) entry.key: entry.value.first,
+    };
+    refreshUI();
   }
 
   /// The three top-level places a first-run tenant is offered.

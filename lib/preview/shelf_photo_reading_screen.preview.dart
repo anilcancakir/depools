@@ -24,5 +24,5 @@ class ShelfPhotoReadingScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => ShelfPhotoView.preview(const ShelfRead(id: 'shelf-1'), previewState: ShelfReadState.reading);
+  static Widget _build(BuildContext context) => ShelfPhotoView.preview(ShelfRead(id: 'shelf-1'), previewState: ShelfReadState.reading);
 }

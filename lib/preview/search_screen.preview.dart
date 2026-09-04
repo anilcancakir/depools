@@ -15,6 +15,8 @@ class SearchScreenPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveScreenPreview(builder: (BuildContext context) => const SearchView(places: locationTree));
+    // Not `const`: `locationTree` holds `LocationNode` models now, and a magic `Model` carries
+    // mutable attribute state, so no subclass of it can have a const constructor.
+    return ResponsiveScreenPreview(builder: (BuildContext context) => SearchView(places: locationTree));
   }
 }

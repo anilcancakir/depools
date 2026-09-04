@@ -20,5 +20,7 @@ class LocationIndexFilteredScreenPreview extends StatelessWidget {
     return const ResponsiveScreenPreview(state: PreviewState.success, builder: _build);
   }
 
-  static Widget _build(BuildContext context) => const LocationIndexView.filtered(nodes: locationTree);
+  // Not `const`: `locationTree` holds `LocationNode` models now, and a magic `Model` carries
+  // mutable attribute state, so no subclass of it can have a const constructor.
+  static Widget _build(BuildContext context) => LocationIndexView.filtered(nodes: locationTree);
 }

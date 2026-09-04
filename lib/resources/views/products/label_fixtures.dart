@@ -19,7 +19,11 @@ import '../../../ui/components/label_preview/label_preview.dart';
 ///
 /// One line is already printed, because criterion 5 requires a partially printed batch to be
 /// resumable and a batch with nothing printed cannot demonstrate it.
-const PrintBatch labelBatch = PrintBatch(
+///
+/// **`final`, not `const`.** [PrintBatch] and [PrintBatchLine] promoted to magic [Model]s
+/// (`print_batch.dart`), and a `Model` cannot be a compile-time constant: its attribute storage is a
+/// mutable `Map` built at construction time, not a `const` literal.
+final PrintBatch labelBatch = PrintBatch(
   id: 'batch-1',
   name: 'Atölye yeniden etiketleme',
   template: 'a4_8_up_105x70',
@@ -109,7 +113,7 @@ const List<SheetTemplate> sheetTemplates = <SheetTemplate>[
 ///
 /// The 13-digit GTIN needs 49.5 mm at GS1's absolute floor and the label offers 35 mm, so the screen's
 /// callout has something real to name rather than a correlation with the label's height.
-const PrintBatch tightBatch = PrintBatch(
+final PrintBatch tightBatch = PrintBatch(
   id: 'batch-2',
   template: 'a4_65_up_38x21',
   fields: <String>['name', 'code'],

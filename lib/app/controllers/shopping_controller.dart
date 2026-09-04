@@ -105,6 +105,12 @@ class ShoppingController extends MagicController
   ///
   /// It may not be in the catalogue at all, and naming it creates no product (D100). Returns the
   /// server's own sentence on a refusal and null on success.
+  ///
+  /// **`fill(..., strict: true)` then `await save()`**, not a raw `Http.post`: `save()` returns a
+  /// bool rather than throwing, so a 422 is read off `line.validationErrors` afterwards rather than
+  /// caught. Nothing here nulls `rxState`, unlike the old `handleApiError` path: a refused manual add
+  /// must not blank the trolley the user is standing in a shop reading, over a write that changed
+  /// nothing, and `rxState` was never touched to begin with, so there is nothing to restore.
   Future<String?> add(String name, num quantity) async {
     try {
       validate(<String, dynamic>{'name': name, 'quantity': quantity}, _addRules);
@@ -112,27 +118,15 @@ class ShoppingController extends MagicController
       return firstError;
     }
 
-    // Held so a refused write can put the list back exactly as it was.
-    final List<ShoppingLine>? before = rxState;
+    final ShoppingLine line = ShoppingLine()
+      ..fill(<String, dynamic>{'name': name, 'quantity': quantity}, strict: true);
 
-    final dynamic response = await Http.post(
-      '/shopping',
-      data: <String, dynamic>{'name': name, 'quantity': quantity},
-    );
+    if (!await line.save()) {
+      _applyValidationErrors(line.validationErrors);
 
-    if (!response.successful) {
-      // handleApiError nulls rxState via MagicStateMixin for ANY failure, but this controller's
-      // rxState is the cached list rather than the resource being validated, so restore it right
-      // after: a refused manual add must not blank the trolley the user is standing in a shop
-      // reading, over a write that changed nothing.
-      handleApiError(response, fallback: Lang.get('screens.shopping.save_failed'));
-      if (before != null) setSuccess(before);
-
-      final dynamic message = response['message'];
-
-      return message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.shopping.save_failed');
+      return line.validationError('name') ??
+          line.validationError('quantity') ??
+          Lang.get('screens.shopping.save_failed');
     }
 
     // A refetch rather than appending locally: the server decides where a manual line sorts, and
@@ -140,6 +134,17 @@ class ShoppingController extends MagicController
     await load();
 
     return null;
+  }
+
+  /// Mirrors `ValidatesRequests.setErrorsFromResponse`, for a [ShoppingLine.save] refusal rather
+  /// than a raw `MagicResponse`: `save()` already parsed the server's 422 into `validationErrors`,
+  /// so this only moves the first message per field into this controller's own error store.
+  void _applyValidationErrors(Map<String, List<String>> errors) {
+    validationErrors = <String, String>{
+      for (final MapEntry<String, List<String>> entry in errors.entries)
+        if (entry.value.isNotEmpty) entry.key: entry.value.first,
+    };
+    refreshUI();
   }
 
   /// Take a line off the list.
