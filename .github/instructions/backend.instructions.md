@@ -53,11 +53,19 @@ DB::transaction(function (): void {
 
 ## Validation, and the half of it that lives in the app
 
-Validation is inline `$request->validate()` in a thin controller: 33 calls across 20 controllers, and no `FormRequest` class exists. That is fine for a rule set one action uses. Reach for a `FormRequest` when two actions need the same set, or when `authorize()` belongs beside the rules rather than in the controller body.
+**Every rule set lives in a `FormRequest` and there is not one inline `$request->validate()` left.** 34 classes under `app/Http/Requests/`, against zero before. So a new endpoint gets a request class; do not start a rule array in a controller body, however small.
 
-What actually duplicates here is the BOUND, not the rule set. `max:255` on a name appears 14 times, and `IconController::suggest` carries a comment saying it copies `LocationController`'s deliberately (`IconController.php:90`, `LocationController.php:42`). A bound repeated by hand drifts, so when you change one, grep the constant rather than the field name.
+(This section used to say "33 calls across 20 controllers". Both numbers were wrong: the measured figures at the time were 32 calls across 16 of the 19 `Api/V1` controllers. 33 came from grepping all of `app/` and 20 from counting controller FILES. A count in a rule file is a claim like any other.)
 
-**The client currently enforces none of them.** Nothing under `lib/` limits a name's length, so the app accepts 300 characters and the user meets a 422 where a field error belongs. A bound added or changed here gets its counterpart in the same PR; `.github/instructions/flutter-app.instructions.md` carries the client half.
+**`authorize()` is a bare `return true;` in all 34, and that is the design rather than an omission.** `FormRequest::failedAuthorization()` throws `AuthorizationException`, which the handler maps to 403, and this API answers 404 and never 403 for a cross-tenant read: `TeamScope` applies inside the query so the row is not found at all. A 403 would let a tenant enumerate another tenant's identifiers one request at a time. Do not put a `Gate` call in one.
+
+One consequence to know before you add a request class to an endpoint that looks up a row. **A method-injected `FormRequest` is validated when the container resolves it, which is BEFORE the action body runs**, so an endpoint that did `findOrFail` first now answers 422 for an invalid payload whatever the id. That is a disclosure reduction rather than a regression: the status code used to distinguish ownership by itself, a foreign id with a bad file answering 404 while the tenant's own answered 422. A valid payload against a foreign id is still 404, and three tenancy tests pin it.
+
+What duplicates here is the BOUND, not the rule set, and the bounds now carry a name: `app/Support/ValidationBounds.php` holds nine constants. **They are named per field MEANING, not per literal**, because the numbers collide: `max:255` appeared 14 times and only 8 were a name, and `max:16` covered both a unit code and a barcode symbology, which are different columns that happen to share a width. Collapsing those into one constant is the failure the class exists to stop. Change the constant, not the literal, and read which meaning a site carries before assuming the number identifies it.
+
+Two bounds are deliberately NOT unified and a research pass has already called them drift once: `IdempotencyKey::maxClientLength()` is a generous bound for a single movement's key, and `ReceiveStockBatchRequest::MAX_BATCH_KEY` is `64 - strlen(':199')` because a batch appends a per-line suffix. Each carries its arithmetic at its own definition.
+
+**The client now enforces a SUBSET of them**, which is a change from "none". Six controllers under `lib/app/controllers/` mix magic's `ValidatesRequests` and validate before they send; `.github/instructions/flutter-app.instructions.md` carries the client half. The subset is not a shortcut: magic ships ten rules and none of them is `numeric`, `uuid`, `gt`, `boolean` or `different`, so a client map mirrors what it can and omits the rest rather than approximating. A bound added or changed here still gets its counterpart in the same PR, and a client rule must never be STRICTER than the server's: that rejects input the API would have accepted.
 
 ## Controllers
 
