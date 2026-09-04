@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fluttersdk": {
+      "command": "./bin/fsa",
+      "args": [
+        "mcp:serve"
+      ],
+      "cwd": "."
+    }
+  }
+}
