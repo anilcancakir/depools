@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexIconRequest;
+use App\Http\Requests\SuggestIconRequest;
 use App\Models\Icon;
 use App\Services\IconSuggester;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 /**
  * The icon catalogue, in the two shapes a client actually needs.
@@ -41,23 +42,9 @@ final class IconController extends Controller
      */
     private const SEARCH_LIMIT = 50;
 
-    /**
-     * How many names one batch may ask for.
-     *
-     * A location tree is capped at six levels and a screen shows tens of rows, so a client needing
-     * more than this in one request has a bug rather than a big screen. Bounded because the names
-     * come from a query string and an unbounded `whereIn` is a way to ask for the whole table one
-     * request at a time.
-     */
-    private const BATCH_LIMIT = 100;
-
-    public function index(Request $request): JsonResponse
+    public function index(IndexIconRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'q' => ['nullable', 'string', 'max:64'],
-            'names' => ['nullable', 'array', 'max:'.self::BATCH_LIMIT],
-            'names.*' => ['string', 'max:64'],
-        ]);
+        $data = $request->validated();
 
         // **Batch first, because it is the more specific request.** A client sending both means it
         // wants those names; treating `q` as a filter on top would answer a third thing neither
@@ -85,13 +72,9 @@ final class IconController extends Controller
      * neutral icon, with the picker one tap away. A 422 or a 503 for any of them would put a failure
      * on screen for a feature whose whole promise is that the manual path never stopped working.
      */
-    public function suggest(Request $request, IconSuggester $suggester): JsonResponse
+    public function suggest(SuggestIconRequest $request, IconSuggester $suggester): JsonResponse
     {
-        $data = $request->validate([
-            // The same bound `LocationController` puts on a name, so a suggestion cannot be the way
-            // to send a paragraph to a model, and a name the form accepts is never one this refuses.
-            'name' => ['required', 'string', 'max:255'],
-        ]);
+        $data = $request->validated();
 
         $icon = $suggester->forName($data['name']);
 

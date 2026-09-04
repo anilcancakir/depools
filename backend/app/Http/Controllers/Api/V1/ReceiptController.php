@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\DocumentKind;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CommitReceiptRequest;
+use App\Http\Requests\StoreReceiptRequest;
 use App\Http\Resources\ReceiptResource;
 use App\Models\Location;
 use App\Models\Receipt;
@@ -11,11 +13,8 @@ use App\Models\ReceiptLine;
 use App\Services\DocumentStore;
 use App\Services\ReceiptCommitter;
 use App\Services\ReceiptExtractor;
-use App\Support\IdempotencyKey;
-use Closure;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -125,24 +124,9 @@ final class ReceiptController extends Controller
      * anything absent from both lists stays `unresolved` and the receipt is marked confirmed only
      * once nothing is still waiting.
      */
-    public function commit(Request $request, string $receipt): JsonResponse
+    public function commit(CommitReceiptRequest $request, string $receipt): JsonResponse
     {
-        $data = $request->validate([
-            // `uuid` on every id for the reason `StockController` records: without it a malformed
-            // one reaches PostgreSQL as `22P02`, an unhandled query exception rather than a refusal
-            // the client can read. A well-formed id belonging to another tenant still 404s.
-            'location_id' => ['required', 'uuid'],
-            // The column's own width, which is now safe: [IdempotencyKey] hashes both halves, so the
-            // 37-character row suffix this used to concatenate can no longer push a client's UUID
-            // over the edge.
-            'idempotency_key' => ['nullable', 'string', 'max:'.IdempotencyKey::maxClientLength()],
-            'lines' => ['nullable', 'array', 'list'],
-            'lines.*.id' => ['required', 'uuid'],
-            'lines.*.product_id' => ['required', 'uuid'],
-            'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
-            'rejections' => ['nullable', 'array', 'list'],
-            'rejections.*' => ['required', 'uuid'],
-        ]);
+        $data = $request->validated();
 
         $model = Receipt::query()->with('lines')->findOrFail($receipt);
         $location = Location::query()->findOrFail($data['location_id']);
@@ -226,10 +210,8 @@ final class ReceiptController extends Controller
     /**
      * Photograph a receipt.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreReceiptRequest $request): JsonResponse
     {
-        $this->validateStore($request);
-
         // **Before a byte is written, because an authenticated user can have no team.**
         // `UnitController` already documents this state and refuses it explicitly. Without this the
         // null reaches the stamp below, `BelongsToTeam`'s `creating` hook fires precisely because the
@@ -312,47 +294,5 @@ final class ReceiptController extends Controller
         $this->documents->discard($path);
 
         return response()->json(['data' => new ReceiptResource($existing)], 409);
-    }
-
-    /**
-     * The rules for an uploaded receipt.
-     *
-     * **`bail`, so the pixel checks below never run on something that is not an image.** Without it
-     * Laravel runs every rule for the attribute, and a text file would reach a rule that expects to
-     * be able to read an image header.
-     *
-     * The WEIGHT comes from `media.images`, because what an upload may weigh is the same question
-     * for a receipt as for a gallery picture and a second copy would drift. The FORMATS come from
-     * `media.documents`, because they are not the same question: that list is what GD can decode on
-     * the server, and the gallery's is what a client can render. `media.php` carries both arguments
-     * beside the blocks they belong to.
-     */
-    private function validateStore(Request $request): void
-    {
-        $images = config('media.images');
-        $documents = config('media.documents');
-
-        $request->validate([
-            'image' => [
-                'bail',
-                'required',
-                'file',
-                'image',
-                // The formats come from `documents`, not from `images`: this path DECODES, so the
-                // list has to be what GD reads rather than what a client renders. The weight comes
-                // from `images`, which is the same question for both. `media.php` carries both halves.
-                'mimes:'.implode(',', $documents['mimes']),
-                'max:'.$images['max_kilobytes'],
-                // Reads the header rather than the image, so it costs nothing and it runs before
-                // anything decodes. `media.php` carries why an upload path that DECODES needs this
-                // and the image path never did.
-                'dimensions:max_width='.$documents['max_width'].',max_height='.$documents['max_height'],
-                function (string $attribute, mixed $value, Closure $fail): void {
-                    if ($value instanceof UploadedFile && $this->documents->exceedsPixelBudget($value)) {
-                        $fail(__('This picture holds too many pixels to process.'));
-                    }
-                },
-            ],
-        ]);
     }
 }

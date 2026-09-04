@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateTeamSettingsRequest;
 use App\Models\Scopes\TeamScope;
 use App\Models\Team;
 use App\Models\Unit;
-use App\Rules\UnitExists;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 /**
  * The settings that belong to a TEAM rather than to a person or a device.
@@ -32,14 +31,9 @@ final class TeamSettingsController extends Controller
         return response()->json(['data' => $this->payload($this->team())]);
     }
 
-    public function update(Request $request): JsonResponse
+    public function update(UpdateTeamSettingsRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            // **`nullable` is a real value here, not an absent one:** clearing the default is how a
-            // team goes back to the vocabulary's own fallback, so `null` has to be accepted and
-            // written rather than treated as "no change".
-            'default_unit' => ['present', 'nullable', 'string', 'max:16', new UnitExists],
-        ]);
+        $data = $request->validated();
 
         $team = $this->team();
 

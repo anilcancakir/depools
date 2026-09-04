@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexExpiringRequest;
 use App\Http\Resources\DatedThingResource;
 use App\Models\ProductSerial;
 use App\Services\StockLedger;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -62,21 +62,11 @@ final class ExpiringController extends Controller
      */
     private const DEFAULT_HORIZON = 7;
 
-    /**
-     * The furthest a caller may look.
-     *
-     * A year, because the screen's longest offered horizon is far shorter and an unbounded value is
-     * a way to ask for every lot the tenant has ever held in one request.
-     */
-    private const MAX_HORIZON = 365;
-
     public function __construct(private readonly StockLedger $ledger) {}
 
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(IndexExpiringRequest $request): AnonymousResourceCollection
     {
-        $data = $request->validate([
-            'horizon' => ['nullable', 'integer', 'min:0', 'max:'.self::MAX_HORIZON],
-        ]);
+        $data = $request->validated();
 
         $horizon = (int) ($data['horizon'] ?? self::DEFAULT_HORIZON);
         $until = Carbon::today()->addDays($horizon);

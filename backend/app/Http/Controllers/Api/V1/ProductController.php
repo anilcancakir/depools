@@ -3,25 +3,23 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexProductRequest;
+use App\Http\Requests\ProductByBarcodeRequest;
+use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductTargetRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Barcode;
 use App\Models\Product;
 use App\Models\ProductBarcode;
-use App\Models\ProductCategory;
 use App\Models\Scopes\TeamScope;
-use App\Rules\UnitExists;
 use App\Services\BarcodeLinker;
 use App\Services\CatalogueContributor;
 use App\Services\ProductListQuery;
 use App\Services\ProductPhotoReader;
-use App\Support\Gtin;
-use Closure;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 /**
  * Products.
@@ -68,27 +66,9 @@ final class ProductController extends Controller
      * request, over one tenant's catalog, which is what buys a filter that can say what it will do
      * before it does it.
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(IndexProductRequest $request): AnonymousResourceCollection
     {
-        $criteria = $request->validate([
-            // `ProductFilter.toMap()`'s keys, unchanged. That shape is already the one the
-            // assistant's `search_products` tool speaks, so a second spelling here would be a
-            // translation layer between two definitions of one filter.
-            'query' => ['nullable', 'string', 'max:255'],
-            'location_ids' => ['sometimes', 'array'],
-            'location_ids.*' => ['uuid'],
-            'category_ids' => ['sometimes', 'array'],
-            'category_ids.*' => ['uuid'],
-            'tags' => ['sometimes', 'array'],
-            'tags.*' => ['string', 'max:64'],
-            'brands' => ['sometimes', 'array'],
-            'brands.*' => ['string', 'max:255'],
-            'stock_state' => ['nullable', Rule::in(['out_of_stock', 'below_par', 'in_stock'])],
-            'expiry' => ['nullable', Rule::in(['expired', 'expiring_soon'])],
-            'sort' => ['nullable', Rule::in(ProductListQuery::SORTS)],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'cursor' => ['nullable', 'string'],
-        ]);
+        $criteria = $request->validated();
 
         // ONE reference date for the whole request. Two calls either side of midnight would count a
         // product as expired for the page and not for the total, which is the shape of bug that reads
@@ -116,106 +96,9 @@ final class ProductController extends Controller
         ]);
     }
 
-    public function store(Request $request): ProductResource
+    public function store(StoreProductRequest $request): ProductResource
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'brand' => ['nullable', 'string', 'max:255'],
-            // **Absent until the photo path sent one, which meant it was silently dropped.**
-            // `validate()` returns only what it names, so a description the model read off the
-            // packaging reached `store` and went no further: the field is fillable and the column
-            // has been there since the first migration.
-            'description' => ['nullable', 'string', 'max:2000'],
-            // Unique within the tenant only. The reason recorded here used to be that "a partial unique
-            // index is not portable to sqlite", which stopped being true when D72 moved the suite onto
-            // PostgreSQL: `products_team_sku_unique` now exists and is the real guarantee. This rule
-            // stays because it is the only one of the two that can say WHICH product already holds the
-            // code, and a 422 naming the conflict beats a 500 from a constraint.
-            'sku' => ['nullable', 'string', 'max:64', Rule::unique('products', 'sku')
-                ->where('team_id', $request->user()->current_team_id)
-                ->whereNull('deleted_at')],
-            // A CODE from the shared vocabulary or one this tenant added. `max:16` is the column's
-            // shape and [UnitExists] is the vocabulary, which is what replaced this field being free
-            // text: an unknown code is a 422 naming the field rather than a new unit nobody meant.
-            // **Optional, because the fallback chain exists to answer this.** It was required, which
-            // made every caller state a unit even when the team had already said what it counts in.
-            // `Product::creating` resolves what the caller named, then the team's `default_unit_id`,
-            // then `Unit::fallback()`; a required field here would make the first step the only one.
-            // An unknown CODE is still a 422 naming the field: absent and wrong are different.
-            //
-            // **`nullable` was wrong and would have been a 500.** It let `base_unit: null` through
-            // validation, and `Product`'s mutator then ran `Unit::findByCode(null)`, found nothing
-            // and threw. A client that spells "no unit" as an explicit null is common enough that
-            // the null is stripped below rather than refused: omitted and null mean the same thing
-            // here, and neither should be an error.
-            'base_unit' => ['sometimes', 'nullable', 'string', 'max:16', new UnitExists],
-            'tracks_expiry' => ['boolean'],
-            'default_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
-            'opened_shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:365'],
-            'content_amount' => ['nullable', 'numeric', 'min:0'],
-            // **A content unit has to be FINER than the base unit, so it cannot be the same one.**
-            // The base unit is what you count and the content is what one of them holds: a carton is
-            // `piece` holding `1000 ml`. `base_unit: 'l'` with `content_unit: 'l'` says a litre
-            // contains a litre, and the demo seeder shipped six products in exactly that shape. It
-            // made the app look wrong where it was not: a 500 g pack read as "2 g" on the count sheet,
-            // and the split-quantity field cannot work at all, because half of a base unit is then
-            // half of the same unit rather than a count of smaller ones (D26).
-            // **The same vocabulary as `base_unit`, or `different` compares two of them.** This field
-            // stayed free text while the base unit became a code, which made the rule below trivially
-            // satisfiable: `LTR` differs from `l` by spelling rather than by meaning, and the test that
-            // pins "a litre cannot contain a litre" went green while a product declared exactly that.
-            //
-            // Still a string column rather than a second foreign key, which is a deliberate stopping
-            // point: nothing computes with a content unit yet, and the pair `(content_amount,
-            // content_unit)` is already constrained to travel together.
-            'content_unit' => ['nullable', 'string', 'max:16', 'different:base_unit', new UnitExists],
-            'par_level' => ['nullable', 'numeric', 'min:0'],
-
-            // **Stage 6 of the cascade arrives here.** A scan that resolved to nothing sends the
-            // user to type the card, and the code they scanned has to travel with it or the next
-            // scan of the same carton misses again. Absent when a product is added by hand.
-            'barcode' => ['nullable', 'string', 'max:128'],
-            // Part of a non-GTIN label's identity rather than a hint, same rule as the resolve
-            // endpoint: the same characters as Code128 and as a QR are two different labels.
-            'symbology' => ['nullable', 'string', 'max:16'],
-
-            // **Default TRUE, which is Anılcan's call and the one the moat depends on.** Turkish
-            // barcode coverage in commercial databases is weak, so the catalogue is built out of
-            // confirmations, and a contribution model most people never notice contributes nothing.
-            // `barcode-and-catalog.md` used to say opt-in per tenant and off by default; that is
-            // superseded there, with the argument, rather than quietly contradicted here.
-            'contribute' => ['boolean'],
-
-            // **The taxonomy row the photograph resolved to.** Without it the whole resolution
-            // cascade in `ProductPhotoReader` produced a value the draft screen drew as a tag and
-            // then dropped, and `location_category_affinity` never learned anything from a product
-            // created by camera. It also unlocks `Product::creating`'s category-to-unit inference,
-            // which cannot fire on a product with no category.
-            //
-            // Checked through the scope rather than a bare `exists`, because the taxonomy is shared
-            // rows plus this tenant's own: `exists` alone would accept another tenant's category.
-            'product_category_id' => ['nullable', 'uuid', function (string $attribute, mixed $value, Closure $fail): void {
-                $visible = ProductCategory::query()
-                    ->visibleTo(TeamScope::currentTeamId())
-                    ->whereKey($value)
-                    ->exists();
-
-                if (! $visible) {
-                    $fail(__('That category does not exist.'));
-                }
-            }],
-
-            // **The photograph this card was read from, as its perceptual hash.** Present only when
-            // the product arrived through `products/recognise`, and it is what makes the NEXT
-            // photograph of the same thing free: the hash lands on the contributed catalogue row and
-            // the reader looks there before it looks at a model.
-            //
-            // A hash rather than the picture, so this is not the photo-sharing that
-            // `barcode-and-catalog.md` forbids: nothing can be rendered from 64 bits of
-            // low-frequency structure. Validated as 32 hex characters because that is the column's
-            // shape and because an arbitrary string here would end up in a shared table.
-            'image_phash' => ['nullable', 'string', 'size:32', 'regex:/^[0-9a-f]{32}$/'],
-        ]);
+        $data = $request->validated();
 
         $barcode = $this->barcodes->forLine(
             (string) ($data['barcode'] ?? ''),
@@ -312,18 +195,9 @@ final class ProductController extends Controller
      * `product_barcode`, which is a tenant table under the same scope as everything else, and a miss is
      * a 404 rather than a 403 because 403 would confirm the link exists.
      */
-    public function byBarcode(Request $request): ProductResource
+    public function byBarcode(ProductByBarcodeRequest $request): ProductResource
     {
-        $data = $request->validate([
-            // 128 because `barcodes.code` is `string(128)`, so anything longer could never have been
-            // stored and therefore can never resolve. Accepting it would answer a 404 that means
-            // "no such product" when the truth is "this API cannot hold that value", and those are
-            // two different things for a client deciding whether to offer the user a draft product.
-            'code' => ['required', 'string', 'max:128'],
-            // Part of the identity for a non-GTIN label rather than a hint: the same characters as
-            // Code128 and as a QR are two different labels. Absent for a GTIN, which needs no help.
-            'symbology' => ['nullable', 'string', 'max:16'],
-        ]);
+        $data = $request->validated();
 
         $barcode = Barcode::findForScan($data['code'], $data['symbology'] ?? null);
 
@@ -400,16 +274,11 @@ final class ProductController extends Controller
      * true, so it can still reach the out-of-stock group, which is the honest behaviour rather than
      * a hole.
      */
-    public function updateTarget(Request $request, string $id): ProductResource
+    public function updateTarget(UpdateProductTargetRequest $request, string $id): ProductResource
     {
         $product = Product::query()->findOrFail($id);
 
-        $data = $request->validate([
-            // `present` rather than `required`, so a null is a value and not an omission. Laravel's
-            // global `ConvertEmptyStringsToNull` already turns an empty field into null before this
-            // runs, which is exactly the clear the user meant.
-            'par_level' => ['present', 'nullable', 'numeric', 'gt:0', 'max:999999'],
-        ]);
+        $data = $request->validated();
 
         $product->fill($data)->save();
 

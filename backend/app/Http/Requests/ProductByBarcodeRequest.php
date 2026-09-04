@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Http\Requests;
+
+use App\Support\ValidationBounds;
+use Illuminate\Foundation\Http\FormRequest;
+
+/**
+ * `GET api/v1/products/by-barcode`'s rule set.
+ *
+ * **A bare `true`, not a `Gate` call.** A cross-tenant read here answers 404, not 403 (see
+ * `TeamScope`), and `FormRequest::failedAuthorization()` throws `AuthorizationException`, which the
+ * handler maps to 403. There are zero `Gate::`/`$this->authorize()` calls in any controller today,
+ * so an authorization check belongs nowhere in this class.
+ */
+final class ProductByBarcodeRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            // 128 because `barcodes.code` is `string(128)`, so anything longer could never have been
+            // stored and therefore can never resolve. Accepting it would answer a 404 that means
+            // "no such product" when the truth is "this API cannot hold that value", and those are
+            // two different things for a client deciding whether to offer the user a draft product.
+            'code' => ['required', 'string', 'max:'.ValidationBounds::BARCODE_CODE_MAX],
+            // Part of the identity for a non-GTIN label rather than a hint: the same characters as
+            // Code128 and as a QR are two different labels. Absent for a GTIN, which needs no help.
+            'symbology' => ['nullable', 'string', 'max:'.ValidationBounds::SYMBOLOGY_MAX],
+        ];
+    }
+}

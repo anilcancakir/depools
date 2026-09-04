@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SearchRequest;
 use App\Http\Resources\LocationResource;
 use App\Http\Resources\ProductResource;
 use App\Models\Location;
@@ -10,7 +11,6 @@ use App\Models\Product;
 use App\Services\ProductListQuery;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
@@ -46,13 +46,9 @@ final class SearchController extends Controller
      */
     private const LIMIT = 20;
 
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(SearchRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            // The same bound the product list puts on its own query, so a string one screen accepts
-            // is never refused by the other.
-            'q' => ['required', 'string', 'max:255'],
-        ]);
+        $data = $request->validated();
 
         $needle = trim($data['q']);
 

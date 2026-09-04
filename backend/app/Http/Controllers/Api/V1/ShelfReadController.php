@@ -4,16 +4,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\DocumentKind;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CommitShelfReadRequest;
+use App\Http\Requests\StoreShelfReadRequest;
 use App\Http\Resources\ShelfReadResource;
 use App\Models\Location;
 use App\Models\ShelfRead;
 use App\Services\DocumentStore;
 use App\Services\ShelfCommitter;
 use App\Services\ShelfReader;
-use App\Support\IdempotencyKey;
-use Closure;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Throwable;
 
@@ -66,10 +65,8 @@ final class ShelfReadController extends Controller
      * and is the right shape for it. Blocking is not: the ordinary restocked-shelf case is the one
      * that would be refused.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreShelfReadRequest $request): JsonResponse
     {
-        $this->validatePhoto($request);
-
         // **Before the bytes are written, because `BelongsToTeam`'s creating hook fires precisely
         // when this is null** and a 500 two statements later would leave a stored photograph nothing
         // points at. `ReceiptController` added the same guard for the same reason.
@@ -140,24 +137,11 @@ final class ShelfReadController extends Controller
     /**
      * Write the accepted candidates into stock.
      */
-    public function commit(Request $request, string $shelfRead): JsonResponse
+    public function commit(CommitShelfReadRequest $request, string $shelfRead): JsonResponse
     {
         $shelf = ShelfRead::query()->with('candidates')->findOrFail($shelfRead);
 
-        $data = $request->validate([
-            'location_id' => ['required', 'uuid'],
-            // Keyed by REGION rather than by candidate id, because the region is what the screen
-            // shows and what the user points at (D60). A re-read renumbers them, which is why the
-            // idempotency key inside the committer uses the candidate id instead.
-            'accepted' => ['array'],
-            'accepted.*.product_id' => ['required', 'uuid'],
-            'accepted.*.quantity' => ['required', 'numeric', 'gt:0'],
-            'rejected' => ['array'],
-            'rejected.*' => ['integer', 'min:1'],
-            // The bound is the column's, not the column's minus a suffix: [IdempotencyKey] hashes
-            // both halves, so a client sending a UUID no longer overflows `varchar(64)`.
-            'idempotency_key' => ['nullable', 'string', 'max:'.IdempotencyKey::maxClientLength()],
-        ]);
+        $data = $request->validated();
 
         // Through the scope, so another tenant's location is a 404 that wrote nothing. Not a 403, for
         // the reason every other lookup in this API gives.
@@ -203,35 +187,5 @@ final class ShelfReadController extends Controller
         if ($unknown !== []) {
             abort(422, __('This shelf has no region :region.', ['region' => $unknown[0]]));
         }
-    }
-
-    /**
-     * The upload rules, which are `media.documents`' rather than the gallery's.
-     *
-     * This endpoint DECODES the file, so the format list has to be what GD can read rather than what
-     * a client can render, and the pixel budget has to be checked before anything allocates a buffer.
-     * `media.php` carries both arguments beside the block they belong to.
-     */
-    private function validatePhoto(Request $request): void
-    {
-        $documents = config('media.documents');
-        $images = config('media.images');
-
-        $request->validate([
-            'photo' => [
-                'bail',
-                'required',
-                'file',
-                'image',
-                'mimes:'.implode(',', $documents['mimes']),
-                'max:'.$images['max_kilobytes'],
-                'dimensions:max_width='.$documents['max_width'].',max_height='.$documents['max_height'],
-                function (string $attribute, mixed $value, Closure $fail): void {
-                    if ($value instanceof UploadedFile && $this->documents->exceedsPixelBudget($value)) {
-                        $fail(__('This picture holds too many pixels to process.'));
-                    }
-                },
-            ],
-        ]);
     }
 }

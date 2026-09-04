@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreShoppingListItemRequest;
+use App\Http\Requests\UpdateShoppingListItemRequest;
 use App\Http\Resources\ShoppingListItemResource;
 use App\Models\ShoppingListItem;
 use App\Models\Unit;
@@ -10,7 +12,6 @@ use App\Services\ShoppingListGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Validation\Rule;
 
 /**
  * The shopping list: the action half of D57's pair.
@@ -53,25 +54,11 @@ final class ShoppingListController extends Controller
      * meter, so typing a one-off on a shopping list would walk a free-tier tenant toward their limit
      * for something they never intend to stock.
      */
-    public function store(Request $request): ShoppingListItemResource
+    public function store(StoreShoppingListItemRequest $request): ShoppingListItemResource
     {
         $teamId = (string) $request->user()->current_team_id;
 
-        $data = $request->validate([
-            // Scoped to the tenant IN THE RULE, not only by the scope on the model: `Rule::exists`
-            // runs its own query with no global scope, so without the `where` a user could attach a
-            // line to another tenant's product.
-            'product_id' => [
-                'nullable',
-                'uuid',
-                Rule::exists('products', 'id')->where('team_id', $teamId)->whereNull('deleted_at'),
-            ],
-            // Always required, product or not (D100). The line has to render after the product is
-            // deleted, and the user's own wording is worth keeping over the catalogue's.
-            'name' => ['required', 'string', 'max:255'],
-            'quantity' => ['required', 'numeric', 'gt:0', 'max:999999'],
-            'unit' => ['nullable', 'string', 'max:16'],
-        ]);
+        $data = $request->validated();
 
         // The countable answer for something somebody typed. Defaulted here rather than in the
         // column, because the column holds Rec 20 codes and a default belongs where the vocabulary
@@ -88,12 +75,9 @@ final class ShoppingListController extends Controller
      * movement; the receipt does that, which is why the screen puts the receipt action under the
      * ticked group rather than a "mark as bought" button on each line.
      */
-    public function update(Request $request, ShoppingListItem $shopping): ShoppingListItemResource
+    public function update(UpdateShoppingListItemRequest $request, ShoppingListItem $shopping): ShoppingListItemResource
     {
-        $data = $request->validate([
-            'is_checked' => ['sometimes', 'boolean'],
-            'quantity' => ['sometimes', 'numeric', 'gt:0', 'max:999999'],
-        ]);
+        $data = $request->validated();
 
         // The wire carries a boolean and the column carries a timestamp, because WHEN it went in the
         // trolley is what a receipt reconciles against while the client only ever needs the flag.

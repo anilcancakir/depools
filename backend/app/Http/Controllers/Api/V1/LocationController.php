@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreLocationImageRequest;
+use App\Http\Requests\StoreLocationRequest;
 use App\Http\Resources\LocationResource;
 use App\Models\Location;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use RuntimeException;
 
 /**
@@ -36,28 +36,9 @@ final class LocationController extends Controller
         );
     }
 
-    public function store(Request $request): LocationResource
+    public function store(StoreLocationRequest $request): LocationResource
     {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            // `exists` runs through the scoped model, so a parent belonging to another tenant fails
-            // validation as "does not exist", which is the same answer the read path gives.
-            // A uuid, not an integer (D73). The VERSION is the generator's business rather than the
-            // API's: validating `uuid:7` here would reject an id this app itself issued if the
-            // generator ever changed, and the mixed-version risk D73 names is prevented at
-            // generation, not at the boundary.
-            'parent_id' => ['nullable', 'uuid'],
-            // D119. Both are KEYS into a closed set, not renderable values: the client owns the
-            // mapping, because an icon codepoint cannot survive icon tree-shaking and a hex cannot
-            // survive the design-token gate. `Rule::in` against the model's own list, so the
-            // vocabulary is stated once in PHP and once in the CHECK that actually enforces it.
-            // **Against the TABLE, not a constant.** The icon vocabulary used to be sixteen names
-            // in a CHECK; it is 4,185 rows now, and a list that long belongs in neither a constraint
-            // nor a class constant. `exists` is the same authority the picker reads from, so the two
-            // cannot disagree.
-            'icon' => ['nullable', Rule::exists('icons', 'name')],
-            'colour' => ['nullable', Rule::in(Location::COLOURS)],
-        ]);
+        $data = $request->validated();
 
         $parent = $data['parent_id'] ?? null;
 
@@ -92,21 +73,17 @@ final class LocationController extends Controller
      * `image_path` is not fillable, deliberately. A path is written by whatever stored the bytes and
      * never taken from a request, or a caller could aim a location at any file on the disk.
      */
-    public function storeImage(Request $request, string $id): LocationResource
+    public function storeImage(StoreLocationImageRequest $request, string $id): LocationResource
     {
+        // Still the first thing this method does, so a location this tenant cannot see is a 404 that
+        // wrote nothing. The rules now run one step earlier than the lookup, because a `FormRequest`
+        // is validated as it is resolved: a foreign id carrying a VALID picture still answers 404,
+        // and a foreign id carrying an invalid one answers 422 where it used to answer 404. That
+        // direction is the safe one, since 422 is now the answer for every id rather than only for
+        // the tenant's own, which is one less way to tell an id apart from the outside.
         $location = Location::query()->findOrFail($id);
+
         $images = config('media.images');
-
-        $request->validate([
-            'image' => [
-                'required',
-                'file',
-                'image',
-                'mimes:'.implode(',', $images['mimes']),
-                'max:'.$images['max_kilobytes'],
-            ],
-        ]);
-
         $disk = $images['disk'];
         $previous = $location->image_path;
 

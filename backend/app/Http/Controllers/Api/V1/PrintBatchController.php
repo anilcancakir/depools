@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AddPrintBatchLinesRequest;
+use App\Http\Requests\SettlePrintBatchRequest;
+use App\Http\Requests\StorePrintBatchRequest;
+use App\Http\Requests\UpdatePrintBatchLineRequest;
+use App\Http\Requests\UpdatePrintBatchRequest;
 use App\Http\Resources\PrintBatchResource;
 use App\Labels\LabelSheetBuilder;
-use App\Labels\SheetTemplate;
 use App\Models\PrintBatch;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -70,16 +73,9 @@ final class PrintBatchController extends Controller
     /**
      * Opens a batch, optionally with its first lines.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StorePrintBatchRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'template' => ['required', 'string', Rule::in(SheetTemplate::keys())],
-            'fields' => ['sometimes', 'array', 'min:1'],
-            'fields.*' => ['string', Rule::in((array) config('labels.fields'))],
-            'items' => ['sometimes', 'array', 'max:200'],
-            ...$this->itemRules(),
-        ]);
+        $data = $request->validated();
 
         $batch = DB::transaction(function () use ($data, $request): PrintBatch {
             $batch = PrintBatch::create([
@@ -102,12 +98,9 @@ final class PrintBatchController extends Controller
     /**
      * Adds lines to a batch, which is the "over time" half of what a batch is for.
      */
-    public function addLines(Request $request, PrintBatch $printBatch): JsonResponse
+    public function addLines(AddPrintBatchLinesRequest $request, PrintBatch $printBatch): JsonResponse
     {
-        $data = $request->validate([
-            'items' => ['required', 'array', 'min:1', 'max:200'],
-            ...$this->itemRules(),
-        ]);
+        $data = $request->validated();
 
         // **`printed_at` is derived, so an insert can break it without touching the column.** The class
         // docblock said it could never disagree with the rows it summarises because `settle()` is its
@@ -142,14 +135,9 @@ final class PrintBatchController extends Controller
      * A caller NAMING a printed position still reprints it, and `print_count` increments, because two
      * runs are two sheets of paper and D43 takes paper seriously enough to say so.
      */
-    public function settle(Request $request, PrintBatch $printBatch): JsonResponse
+    public function settle(SettlePrintBatchRequest $request, PrintBatch $printBatch): JsonResponse
     {
-        $data = $request->validate([
-            // Capped to match `items` two methods up: the members were validated and the size was not,
-            // so an arbitrarily large array reached `array_diff` and a `whereIn`.
-            'positions' => ['sometimes', 'array', 'max:200'],
-            'positions.*' => ['integer', 'min:1'],
-        ]);
+        $data = $request->validated();
 
         $positions = array_values(array_unique($data['positions'] ?? []));
 
@@ -184,14 +172,9 @@ final class PrintBatchController extends Controller
      * than facts fixed at creation; a re-create would have had to move the pending lines across and
      * leave the printed ones behind, which is a migration to avoid one small endpoint.
      */
-    public function update(Request $request, PrintBatch $printBatch): JsonResponse
+    public function update(UpdatePrintBatchRequest $request, PrintBatch $printBatch): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'template' => ['sometimes', 'string', Rule::in(SheetTemplate::keys())],
-            'fields' => ['sometimes', 'array', 'min:1'],
-            'fields.*' => ['string', Rule::in((array) config('labels.fields'))],
-        ]);
+        $data = $request->validated();
 
         // A finished batch is a record of paper that went. Re-laying it out would make its own history
         // describe a sheet nobody printed.
@@ -215,11 +198,12 @@ final class PrintBatchController extends Controller
      * label identifies one physical unit, so there is nothing to multiply and the CHECK refuses it
      * anyway. Refusing here names the rule instead of leaving a 500 to.
      */
-    public function updateLine(Request $request, PrintBatch $printBatch, int $position): JsonResponse
-    {
-        $data = $request->validate([
-            'copies' => ['required', 'integer', 'min:1', 'max:50'],
-        ]);
+    public function updateLine(
+        UpdatePrintBatchLineRequest $request,
+        PrintBatch $printBatch,
+        int $position,
+    ): JsonResponse {
+        $data = $request->validated();
 
         $item = $printBatch->items()->where('position', $position)->firstOrFail();
 
@@ -279,22 +263,6 @@ final class PrintBatchController extends Controller
         $printBatch->delete();
 
         return response()->json([], 204);
-    }
-
-    /**
-     * The validation both write paths share.
-     *
-     * @return array<string, list<string>>
-     */
-    private function itemRules(): array
-    {
-        return [
-            'items.*.product_id' => ['sometimes', 'nullable', 'uuid'],
-            'items.*.product_serial_id' => ['sometimes', 'nullable', 'uuid'],
-            // D45: a serial's copies are not a number anybody may choose, so the CHECK holds it at one
-            // and this refuses it before the database has to.
-            'items.*.copies' => ['sometimes', 'integer', 'min:1', 'max:50'],
-        ];
     }
 
     /**
