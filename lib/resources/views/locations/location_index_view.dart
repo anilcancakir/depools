@@ -117,6 +117,15 @@ class _LocationIndexViewState extends State<LocationIndexView> {
   /// The controller, or null when the caller supplied its own nodes.
   LocationController? _controller;
 
+  /// The scope the user picked, seeded from the constructor so the previews keep their case.
+  ///
+  /// State rather than a widget field, which is what the segmented control needed to do anything:
+  /// `widget.scope` is set once by a preview constructor and the running app always got `all`.
+  late LocationScope _scope = widget.scope;
+
+  /// What the user typed into the search field.
+  String _query = '';
+
   /// Whether the starter template is being written, so it cannot be started twice.
   ///
   /// Three creates with no unique constraint behind them: a second tap would give the tenant six
@@ -203,15 +212,70 @@ class _LocationIndexViewState extends State<LocationIndexView> {
     LocationScope.empty => Lang.get('screens.locations.scope_empty'),
   };
 
-  /// The nodes the current scope admits.
-  List<LocationNode> get _visible => switch (widget.scope) {
-    LocationScope.all => _all,
-    LocationScope.stocked => _all.where((LocationNode n) => n.productCount > 0).toList(),
-    LocationScope.empty => _all.where((LocationNode n) => n.productCount == 0).toList(),
-  };
+  /// The nodes the current scope and query both admit.
+  ///
+  /// The two INTERSECT rather than replacing each other: picking a scope while a search is typed
+  /// has to narrow the result, not silently throw the search away.
+  List<LocationNode> get _visible {
+    final List<LocationNode> scoped = switch (_scope) {
+      LocationScope.all => _all,
+      LocationScope.stocked => _all.where((LocationNode n) => n.productCount > 0).toList(),
+      LocationScope.empty => _all.where((LocationNode n) => n.productCount == 0).toList(),
+    };
+
+    final String needle = _fold(_query);
+
+    if (needle.isEmpty) return scoped;
+
+    // Name OR path, because the filtered list renders the path in place of the indent, so the path
+    // is what the user can see to search for: `kitchen` should reach the shelves inside it.
+    return scoped
+        .where((LocationNode n) => _fold(n.name).contains(needle) || _fold(n.path).contains(needle))
+        .toList();
+  }
+
+  /// A string reduced to what a search should match, ASCII-folded for the Turkish letters.
+  ///
+  /// **`toLowerCase` is locale-independent in Dart**, which `unit_label.dart` relies on and which
+  /// makes it wrong here: it leaves `ı`, `ş`, `ğ`, `ç`, `ö` and `ü` exactly as they are, so
+  /// `Buzdolabı` is unreachable from a keyboard that types `buzdolabi`. The failure is a shelf the
+  /// user can see on the screen and cannot find, and the demo tenant's own names are Turkish.
+  ///
+  /// Folded in one direction only, source to ASCII, so `ı` and `i` both land on `i` and either
+  /// spelling matches. Kept private and inline rather than extracted: this is the only caller, the
+  /// product search runs on the server against `name_normalized` instead.
+  static String _fold(String value) {
+    const Map<String, String> turkish = <String, String>{
+      'ı': 'i',
+      'İ': 'i',
+      'ş': 's',
+      'Ş': 's',
+      'ğ': 'g',
+      'Ğ': 'g',
+      'ç': 'c',
+      'Ç': 'c',
+      'ö': 'o',
+      'Ö': 'o',
+      'ü': 'u',
+      'Ü': 'u',
+    };
+
+    final StringBuffer folded = StringBuffer();
+
+    // Mapped BEFORE lowercasing, because `'İ'.toLowerCase()` is two code units in Dart (`i` plus a
+    // combining dot), so a table consulted afterwards never sees the letter it was written for.
+    for (final String character in value.trim().split('')) {
+      folded.write(turkish[character] ?? character);
+    }
+
+    return folded.toString().toLowerCase();
+  }
 
   /// Whether the tree is being shown whole, which decides indent versus path.
-  bool get _isWholeTree => widget.scope == LocationScope.all;
+  ///
+  /// A search narrows it just as a scope does, so a typed query switches the rows to paths too: an
+  /// indent measured against a tree that is not on screen points at nothing.
+  bool get _isWholeTree => _scope == LocationScope.all && _fold(_query).isEmpty;
 
   /// The already-localised label for a dial position.
   static String _dialLabel(PlacementAutomation value) => switch (value) {
@@ -292,16 +356,21 @@ class _LocationIndexViewState extends State<LocationIndexView> {
         // a card, so `bg-surface-container-high` is `#E5E5EA` on `#F2F2F7`: slightly recessed,
         // which is what an input well is meant to look like and what iOS search fields do. The
         // rule it would break is on a white CARD, where the same token reads as disabled.
+        //
+        // **And then it did nothing anyway**, which is the same defect one layer in: the field was
+        // real, it took focus, it accepted text, and `onChanged` was `(String _) {}`. Typing
+        // `Fridge` left all six locations on screen. The scope control beneath it was the same, and
+        // worse, because it did not even move its own selection.
         MSInput(
           className: 'bg-surface-container-high',
           placeholder: Lang.get('screens.locations.search'),
           prefix: const WIcon(_searchIcon, className: 'size-4 text-fg-muted'),
-          onChanged: (String _) {},
+          onChanged: (String value) => setState(() => _query = value),
         ),
         MSSegmentedControl<LocationScope>(
           options: _scopes.map(_scopeLabel).toList(),
-          selectedIndex: _scopes.indexOf(widget.scope),
-          onChanged: (_) {},
+          selectedIndex: _scopes.indexOf(_scope),
+          onChanged: (int index) => setState(() => _scope = _scopes[index]),
         ),
       ],
     );
@@ -317,9 +386,12 @@ class _LocationIndexViewState extends State<LocationIndexView> {
           child: MSEmptyState(
             icon: _noMatchIcon,
             title: Lang.get('screens.locations.filtered_empty'),
+            // `_all`, not the `locationTree` FIXTURE this used to count. The hint says how many
+            // locations the filter is hiding, so against a real tenant it quoted the demo file's
+            // total and was wrong for everyone who is not looking at the preview catalog.
             description: Lang.get(
               'screens.locations.filtered_hint',
-              {'total': locationTree.length},
+              {'total': _all.length},
             ),
           ),
         ),
