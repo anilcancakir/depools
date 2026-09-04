@@ -1,5 +1,7 @@
 import 'package:magic/magic.dart';
 
+import '../support/server_message.dart';
+
 /// The manual product form's save, from `ProductFormView`.
 ///
 /// ### Why this exists rather than reusing `ProductDraftController`
@@ -96,8 +98,12 @@ class ProductFormController extends MagicController with ValidatesRequests {
 
       // A message only when the server named no field: the same no-field fallback the view's own
       // `_save` always carried, so a rate limit or a 500 still tells the user something happened.
+      //
+      // Through `serverMessage` rather than `response.errorMessage`, which is the same body field
+      // the label screen printed a Node.js stack trace out of. A 500 is exactly the case this branch
+      // exists for, so reading it raw here was the leak at its most likely.
       if (validationErrors.isEmpty) {
-        _saveError = response.errorMessage as String? ?? Lang.get('screens.product_form.save_failed');
+        _saveError = serverMessage(response, Lang.get('screens.product_form.save_failed'));
       }
 
       return (ok: false, id: null);

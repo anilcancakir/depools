@@ -9,6 +9,7 @@ import 'package:magic_starter/magic_starter.dart'
 import '../../../app/controllers/product_form_controller.dart';
 import '../../../app/models/scan_entry.dart' show ScanEntry;
 import '../../../app/support/merge_unit_codes.dart';
+import '../../../app/support/server_message.dart';
 import '../../../app/support/unit_label.dart';
 import '../../../ui/components/section_card/section_card.dart';
 import '../../../ui/layouts/app_page_scaffold.dart';
@@ -403,14 +404,20 @@ class _ProductFormViewState extends State<ProductFormView> {
     if (!mounted) return;
 
     if (!response.successful) {
-      // `firstError` over `response['message']`: this is the unit sheet's whole write path, and
-      // the sheet has already popped by the time this answers, so there is no field slot left to
-      // put a refusal under. A collision on `code` (this tenant already has it, or it shadows a
-      // standard one) is a field-named 422 from `StoreUnitRequest`, and `firstError` reads that
-      // field's own sentence before falling back to the envelope's `message`.
+      // `firstError` on a 422 over the envelope: this is the unit sheet's whole write path, and the
+      // sheet has already popped by the time this answers, so there is no field slot left to put a
+      // refusal under. A collision on `code` (this tenant already has it, or it shadows a standard
+      // one) is a field-named 422 from `StoreUnitRequest`, and that field's own sentence is better
+      // copy for a toast than the envelope's summary, which carries "(and 1 more error)".
+      //
+      // **Gated on the status, because `firstError` falls back to the envelope and the envelope on a
+      // 500 is the exception.** That fallback is the same field the label screen printed a stack
+      // trace out of, so anything but a 422 goes through `serverMessage` instead.
       MagicFeedback.error(
         Lang.get('screens.product_form.unit_add_title'),
-        response.firstError ?? Lang.get('screens.product_form.unit_add_failed'),
+        response.isValidationError
+            ? response.firstError ?? Lang.get('screens.product_form.unit_add_failed')
+            : serverMessage(response, Lang.get('screens.product_form.unit_add_failed')),
       );
 
       return;

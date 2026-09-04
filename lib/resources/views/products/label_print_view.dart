@@ -9,6 +9,7 @@ import 'package:magic_starter/magic_starter.dart'
 import '../../../app/controllers/label_batch_controller.dart';
 import '../../../app/models/print_batch.dart';
 import '../../../app/support/plural.dart';
+import '../../../app/support/server_message.dart';
 import '../../../ui/components/callout/callout.dart';
 import '../../../ui/components/filter_chip/filter_chip.dart';
 import '../../../ui/components/label_card/label_card.dart';
@@ -138,11 +139,8 @@ class _LabelPrintViewState extends State<LabelPrintView> {
     // the geometry every section reads, so returning silently left the screen on "Loading the sheet
     // catalogue…" for good with a printable batch behind it.
     if (!response.successful) {
-      final Object? message = response['message'];
-
       setState(() {
-        _templatesError =
-            message is String && message.isNotEmpty ? message : Lang.get('errors.unexpected');
+        _templatesError = serverMessage(response, Lang.get('errors.unexpected'));
       });
 
       return;

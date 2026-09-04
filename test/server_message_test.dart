@@ -23,8 +23,10 @@ void main() {
 
   group('a server error never speaks for itself', () {
     test('a 500 carrying a stack trace is replaced by the fallback', () {
+      // A server path rather than a home directory one: `no_personal_paths_test` scans tracked files
+      // for `/Users/...` and cannot tell a fixture from a leak, which is the right way round.
       final MagicResponse failure = response(500, <String, dynamic>{
-        'message': 'The command "PATH=\$PATH node \'/Users/someone/backend/vendor/browser.cjs\'" '
+        'message': 'The command "PATH=\$PATH node \'/srv/app/vendor/spatie/browsershot/browser.cjs\'" '
             'failed.\nExit Code: 1(General error)\nError Output:\nError: Could not find Chrome',
       });
 
@@ -75,27 +77,51 @@ void main() {
     expect(serverMessage(response(500, '<html><body>Whoops</body></html>'), fallback), fallback);
   });
 
-  test('no controller reads the raw message itself', () {
+  test('nothing under lib reads the response body message itself', () {
     // The rule above is only worth having if it is the only door. This was thirteen call sites
     // across nine controllers, each re-deriving the same two lines, and one of them shipped the
-    // stack trace: a helper that a fourteenth site can simply not use has fixed the instance again.
-    final Iterable<File> controllers = Directory('lib/app/controllers')
-        .listSync()
-        .whereType<File>()
-        .where((File f) => f.path.endsWith('.dart'));
-
-    // The guard on the guard: a directory read that finds nothing reports a clean app forever.
-    expect(controllers.length, greaterThanOrEqualTo(9));
-
+    // stack trace. A first pass that looked only for the subscript form then missed two more:
+    // `response.errorMessage` and `response.firstError` reach the SAME field, and one of those was
+    // in a VIEW rather than a controller, which is why this walks all of `lib`.
+    //
     // Comments are skipped, because several of these files EXPLAIN the field they no longer read
     // and one says outright that it deliberately does not. A scanner that cannot tell a comment
     // from a statement reports prose as a violation, which is how a grep count stops being a
     // violation count.
-    final Iterable<File> offenders = controllers.where(
-      (File f) => f
-          .readAsLinesSync()
-          .where((String line) => !line.trimLeft().startsWith('//'))
-          .any((String line) => line.contains("response['message']")),
+    //
+    // A BARE `firstError` is deliberately not matched: that is the `ValidatesRequests` getter over
+    // `validationErrors`, populated only from a 422, and the receiver is what makes it safe.
+    final RegExp raw = RegExp(
+      r"""response\['message'\]|response\.errorMessage|response\.firstError""",
+    );
+
+    final List<File> sources = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))
+        .toList();
+
+    // The guard on the guard: a walk that finds nothing reports a clean app forever.
+    expect(sources.length, greaterThanOrEqualTo(80));
+
+    // **One site, listed rather than pattern-matched.** `product_form_view` prefers the 422 field
+    // sentence over the envelope's "(and 1 more error)" summary and gates it on `isValidationError`
+    // so the 5xx fallback never runs. A regex cannot tell that apart from an ungated read, and a
+    // checker that guesses is worse than a list that gets read.
+    const Set<String> gated = <String>{'lib/resources/views/products/product_form_view.dart'};
+
+    // The helper is the door, so of course it reads the field. Excluded by identity rather than by
+    // pattern, so it cannot cover for anything else.
+    const String helper = 'lib/app/support/server_message.dart';
+
+    final Iterable<File> offenders = sources.where(
+      (File f) =>
+          f.path != helper &&
+          !gated.contains(f.path) &&
+          f
+              .readAsLinesSync()
+              .where((String line) => !line.trimLeft().startsWith('//'))
+              .any(raw.hasMatch),
     );
 
     expect(
@@ -105,5 +131,15 @@ void main() {
           .map((File f) => '${f.path} reads the body message instead of calling serverMessage')
           .join('\n'),
     );
+
+    // The exemption is real, so it has to still be earned: a list naming a file that stopped
+    // gating its read is a list that quietly grants the next leak.
+    for (final String path in gated) {
+      expect(
+        File(path).readAsStringSync().contains('isValidationError'),
+        isTrue,
+        reason: '$path is exempt but no longer gates its read on the status',
+      );
+    }
   });
 }
