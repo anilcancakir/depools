@@ -48,8 +48,21 @@ class _UnitDraftSheetState extends State<UnitDraftSheet> {
   final TextEditingController _code = TextEditingController();
   final TextEditingController _name = TextEditingController();
 
-  /// Which field is empty, so the refusal names it rather than disabling a button silently.
-  String? _missing;
+  /// [_save]'s rule set, mirroring `StoreUnitRequest::rules()` by hand.
+  ///
+  /// This sheet cannot use `ValidatesRequests`: it is a `State`, not a `MagicController`, and the
+  /// mixin only applies to the latter (`magic/lib/src/concerns/validates_requests.dart:86`). So it
+  /// calls `Validator.make` directly and keeps the result in [_errors]. `reference_code` and
+  /// `factor` carry no mirror here: this sheet never asks for either, so a rule for a field never
+  /// sent would check nothing.
+  static final Map<String, List<Rule>> _rules = <String, List<Rule>>{
+    'code': <Rule>[Required(), Max(16)],
+    'name': <Rule>[Required(), Max(255)],
+  };
+
+  /// Field errors from the last [_save] attempt, replacing the hand-rolled "which field is empty"
+  /// check this sheet used to carry.
+  Map<String, String> _errors = <String, String>{};
 
   @override
   void dispose() {
@@ -62,8 +75,13 @@ class _UnitDraftSheetState extends State<UnitDraftSheet> {
     final String code = _code.text.trim();
     final String name = _name.text.trim();
 
-    if (code.isEmpty || name.isEmpty) {
-      setState(() => _missing = code.isEmpty ? 'code' : 'name');
+    final Validator validator = Validator.make(
+      <String, dynamic>{'code': code, 'name': name},
+      _rules,
+    );
+
+    if (validator.fails()) {
+      setState(() => _errors = validator.errors());
 
       return;
     }
@@ -119,18 +137,15 @@ class _UnitDraftSheetState extends State<UnitDraftSheet> {
           className: 'bg-surface-container px-3 py-3.5',
           placeholder: placeholder,
           controller: controller,
-          // Cleared on the first keystroke, because the complaint is about an empty field and it stops
-          // being true the moment they type.
+          // Cleared on the first keystroke, because a complaint about the field stops being true
+          // the moment they type.
           onChanged: (String _) {
-            if (_missing == key) setState(() => _missing = null);
+            if (_errors.containsKey(key)) setState(() => _errors.remove(key));
           },
           onSubmitted: (String _) => _save(),
         ),
-        if (_missing == key)
-          WText(
-            Lang.get('components.unit_draft.required'),
-            className: 'text-xs text-expired',
-          ),
+        if (_errors.containsKey(key))
+          WText(_errors[key]!, className: 'text-xs text-expired'),
       ],
     );
   }

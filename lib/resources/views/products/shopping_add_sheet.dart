@@ -49,6 +49,22 @@ class _ShoppingAddSheetState extends State<ShoppingAddSheet> {
 
   String _name = '';
 
+  /// [_validate]'s rule set, mirroring `StoreShoppingListItemRequest::rules()` by hand.
+  ///
+  /// This sheet cannot use `ValidatesRequests`: it is a `State`, not a `MagicController`, and the
+  /// mixin only applies to the latter (`magic/lib/src/concerns/validates_requests.dart:86`). So it
+  /// calls `Validator.make` directly and keeps the result in [_errors]. `quantity`'s `numeric|gt:0`
+  /// carries no rule here for the same reason `ShoppingController._addRules` leaves it out: magic
+  /// ships neither, and `Min(1)` would refuse a fraction the server accepts. [_parsedQuantity]
+  /// already enforces `> 0` by construction, which is the only piece `gt:0` was doing.
+  static final Map<String, List<Rule>> _rules = <String, List<Rule>>{
+    'name': <Rule>[Required(), Max(255)],
+    'quantity': <Rule>[Required(), Max(999999)],
+  };
+
+  /// Field errors from the last [_validate] run.
+  Map<String, String> _errors = <String, String>{};
+
   /// The quantity as a number, or null when the box does not hold one.
   num? get _parsedQuantity {
     final num? parsed = num.tryParse(_quantity.text.trim().replaceAll(',', '.'));
@@ -59,6 +75,23 @@ class _ShoppingAddSheetState extends State<ShoppingAddSheet> {
   /// A line needs words and a number. Both are checked here rather than at submit, so the button
   /// tells the truth about whether pressing it will do anything.
   bool get _isValid => _name.trim().isNotEmpty && _parsedQuantity != null;
+
+  /// Runs the mirrored rules and keeps the result in [_errors].
+  ///
+  /// Returns whether validation passed, so the caller can gate the pop on it without a second
+  /// lookup. Quantity is validated as the parsed number so `Max(999999)` compares the value rather
+  /// than the digits typed (a `String` would measure character length instead, per `Max`'s own
+  /// contract).
+  bool _validate() {
+    final Validator validator = Validator.make(
+      <String, dynamic>{'name': _name.trim(), 'quantity': _parsedQuantity},
+      _rules,
+    );
+
+    setState(() => _errors = validator.errors());
+
+    return validator.passes();
+  }
 
   @override
   void dispose() {
@@ -90,8 +123,13 @@ class _ShoppingAddSheetState extends State<ShoppingAddSheet> {
           className: 'h-11 bg-surface-container',
           placeholder: Lang.get('screens.shopping.add_name'),
           semanticLabel: Lang.get('screens.shopping.add_name'),
-          onChanged: (String next) => setState(() => _name = next),
+          onChanged: (String next) => setState(() {
+            _name = next;
+            _errors.remove('name');
+          }),
         ),
+        if (_errors.containsKey('name'))
+          WText(_errors['name']!, className: 'text-xs text-expired'),
       ],
     );
   }
@@ -117,10 +155,13 @@ class _ShoppingAddSheetState extends State<ShoppingAddSheet> {
           // to choose the keyboard.
           type: InputType.number,
           semanticLabel: Lang.get('screens.shopping.add_quantity'),
-          // Only to re-evaluate the button. The text itself is the controller's, so nothing here
-          // writes it back and nothing can overwrite what the user is typing.
-          onChanged: (String _) => setState(() {}),
+          // Re-evaluates the button and clears a stale complaint. The text itself is the
+          // controller's, so nothing here writes it back and nothing can overwrite what the user
+          // is typing.
+          onChanged: (String _) => setState(() => _errors.remove('quantity')),
         ),
+        if (_errors.containsKey('quantity'))
+          WText(_errors['quantity']!, className: 'text-xs text-expired'),
       ],
     );
   }
@@ -131,9 +172,16 @@ class _ShoppingAddSheetState extends State<ShoppingAddSheet> {
       children: [
         MSButton(
           onPressed: _isValid
-              ? () => Navigator.of(context).pop(
-                  ShoppingAddDraft(name: _name.trim(), quantity: _parsedQuantity!),
-                )
+              ? () {
+                  // Re-checked against the mirrored server rules, not only `_isValid`: `_isValid`
+                  // gates the button's ENABLED state (non-empty, a positive number) and says
+                  // nothing about `Max(255)`/`Max(999999)`, which only `_validate` knows.
+                  if (!_validate()) return;
+
+                  Navigator.of(context).pop(
+                    ShoppingAddDraft(name: _name.trim(), quantity: _parsedQuantity!),
+                  );
+                }
               : null,
           disabled: !_isValid,
           // The fill carries the disabled state, because MSButton's own disabled styling does not.

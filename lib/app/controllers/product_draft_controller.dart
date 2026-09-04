@@ -22,10 +22,26 @@ import '../support/merge_unit_codes.dart';
 /// fills it in afterwards; a controller that only published on completion would make that criterion
 /// unreachable however fast the model was.
 class ProductDraftController extends MagicController
-    with MagicStateMixin<ProductDraft> {
+    with MagicStateMixin<ProductDraft>, ValidatesRequests {
   /// The shared instance, keyed by type.
   static ProductDraftController get instance =>
       Magic.findOrPut(ProductDraftController.new);
+
+  /// [save]'s rule set, mirroring `StoreProductRequest::rules()` by hand.
+  ///
+  /// Only the fields [ProductDraft.toCreatePayload] actually sends: `sku`'s `Rule::unique` is an
+  /// [AsyncRule] and only runs under `validateAsync()`, which [ValidatesRequests.validate] does not
+  /// call, so it is left off rather than approximated. `base_unit`'s `UnitExists`,
+  /// `product_category_id`'s uuid-plus-closure check and `image_phash`'s `size:32|regex:...` all have
+  /// no magic equivalent either.
+  static final Map<String, List<Rule>> _saveRules = <String, List<Rule>>{
+    'name': <Rule>[Required(), Max(255)],
+    'brand': <Rule>[Max(255)],
+    'description': <Rule>[Max(2000)],
+    'sku': <Rule>[Max(64)],
+    'base_unit': <Rule>[Max(16)],
+    'default_shelf_life_days': <Rule>[Min(1), Max(3650)],
+  };
 
   XFile? _photo;
 
@@ -196,18 +212,35 @@ class ProductDraftController extends MagicController
     // products is not a state a compensating action can tidy.
     if (current == null || (current.name ?? '').isEmpty || _saving) return null;
 
+    final Map<String, dynamic> payload = current.toCreatePayload();
+
+    try {
+      validate(payload, _saveRules);
+    } on ValidationException {
+      // validationErrors is already populated and refreshUI() already fired; the card reads
+      // hasError()/getError() once it is wired (step 8/9), so nothing else has to happen here.
+      return null;
+    }
+
     _saving = true;
     _error = null;
     refreshUI();
 
     final dynamic response = await Http.post(
       '/products',
-      data: current.toCreatePayload(),
+      data: payload,
     );
 
     _saving = false;
 
     if (!response.successful) {
+      // handleApiError nulls rxState via MagicStateMixin.setError/setEmpty for ANY failure, which
+      // would drop the draft the user is still looking at. Restore it right after: only the field
+      // errors (read via hasError()/getError()) are new state from a refused save, not the card
+      // itself, per this method's own docblock ("Returns null... in which case error carries the
+      // sentence").
+      handleApiError(response, fallback: Lang.get('errors.unexpected'));
+      setSuccess(current);
       _error = _sentence(response, Lang.get('errors.unexpected'));
       refreshUI();
 
