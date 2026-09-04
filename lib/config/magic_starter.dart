@@ -28,7 +28,16 @@ Map<String, dynamic> get magicStarterConfig => {
       'login': '/auth/login',
       'auth_prefix': '/auth',
       'teams_prefix': '/teams',
-      'profile_prefix': '/settings',
+      // **`/account`, not the installer's `/settings`, because this app has its own.**
+      // `RouteServiceProvider.boot` registers the starter's routes before this app's, so while both
+      // claimed `/settings` the starter's account hub won and `SettingsView` was never built: the
+      // navigation item labelled Settings opened Profile Information, and `/plan` and `/mcp` went
+      // with it, since that screen is their only entry point. Nothing logged, because both
+      // registrations are legal and the screen that renders is a real one.
+      //
+      // The split this restores is the one `app_service_provider.dart` already describes: this
+      // app's preferences at `/settings`, the account one tap further in.
+      'profile_prefix': '/account',
       'notifications_prefix': '/notifications',
     },
     'legal': {'terms_url': null, 'privacy_url': null},

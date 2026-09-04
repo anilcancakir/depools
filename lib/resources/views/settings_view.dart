@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSPageScaffold, MSSwitch;
+import 'package:magic_starter/magic_starter.dart'
+    show ButtonIntent, MSButton, MSPageScaffold, MSSwitch, MagicStarterConfig;
 
 import '../../app/models/app_preferences.dart';
 import '../../ui/components/option_row/option_row.dart';
@@ -184,7 +185,7 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  /// The two surfaces that are their own screens.
+  /// The three surfaces that are their own screens.
   ///
   /// Settings is where a user looks for anything they can change, so it is where these are found;
   /// each is a screen of its own because each carries a list and actions rather than one value.
@@ -192,6 +193,18 @@ class _SettingsViewState extends State<SettingsView> {
     return SectionCard(
       label: Lang.get('screens.settings.more_group'),
       children: [
+        // **The account, which had no door.** The starter's hub used to BE `/settings` and shadowed
+        // this whole screen; moving its prefix to `/account` gave this screen back and would have
+        // left the account screens unreachable in exchange, which is the same defect facing the
+        // other way. Routed through `settingsHubRoute()` rather than a literal, so the link and the
+        // config cannot drift apart.
+        OptionRow(
+          label: Lang.get('screens.settings.link_account'),
+          description: Lang.get('screens.settings.link_account_note'),
+          isSelected: false,
+          semanticLabel: Lang.get('screens.settings.link_account'),
+          onTap: () => MagicRoute.to(MagicStarterConfig.settingsHubRoute()),
+        ),
         OptionRow(
           label: Lang.get('screens.settings.link_plan'),
           description: Lang.get('screens.settings.link_plan_note'),

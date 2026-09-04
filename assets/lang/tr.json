@@ -1026,6 +1026,8 @@
       "inbox_copy": "Adresi kopyala",
       "inbox_note": "Fişlerinizi ya da e-arşiv faturalarınızı bu adrese ilettiğinizde otomatik okunur ve onayınıza sunulur.",
       "more_group": "Diğer",
+      "link_account": "Hesap",
+      "link_account_note": "Profil, parola, iki adımlı doğrulama ve oturum açılmış cihazlar",
       "link_plan": "Plan ve kullanım",
       "link_plan_note": "Ürün sayısı, AI kredisi ve geçmiş süresi",
       "link_mcp": "Kendi asistanınıza bağlanın",
