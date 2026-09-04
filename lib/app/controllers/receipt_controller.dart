@@ -3,6 +3,7 @@ import 'package:magic/magic.dart';
 
 import '../models/receipt.dart';
 import '../support/mapped_or_null.dart';
+import '../support/server_message.dart';
 
 /// What an upload attempt turned into.
 ///
@@ -230,11 +231,7 @@ class ReceiptController extends MagicController
     if (!response.successful && response.statusCode != 409) {
       refreshUI();
 
-      final dynamic message = response['message'];
-
-      return message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.receipt.extract_failed');
+      return serverMessage(response, Lang.get('screens.receipt.extract_failed'));
     }
 
     final Receipt? receipt = _readReceipt(
@@ -311,11 +308,7 @@ class ReceiptController extends MagicController
     );
 
     if (!response.successful) {
-      final dynamic message = response['message'];
-
-      return message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.receipt.commit_failed');
+      return serverMessage(response, Lang.get('screens.receipt.commit_failed'));
     }
 
     final Receipt? receipt = _readReceipt(
@@ -389,12 +382,8 @@ class ReceiptController extends MagicController
     }
 
     if (!response.successful) {
-      final dynamic message = response['message'];
-
       return ReceiptUploadOutcome.failed(
-        message is String && message.isNotEmpty
-            ? message
-            : Lang.get('screens.receipt.upload_failed'),
+        serverMessage(response, Lang.get('screens.receipt.upload_failed')),
       );
     }
 

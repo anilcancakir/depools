@@ -2,6 +2,7 @@ import 'package:magic/magic.dart';
 
 import '../../resources/views/products/product_fixtures.dart';
 import '../support/mapped_or_null.dart';
+import '../support/server_message.dart';
 import 'product_controller.dart';
 
 /// What is short, from `api/v1/running-low`.
@@ -111,11 +112,7 @@ class RunningLowController extends MagicController with MagicStateMixin<List<Pro
     );
 
     if (!response.successful) {
-      final dynamic message = response['message'];
-
-      return message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.running_low.save_failed');
+      return serverMessage(response, Lang.get('screens.running_low.save_failed'));
     }
 
     await load();

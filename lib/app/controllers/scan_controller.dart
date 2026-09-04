@@ -2,6 +2,7 @@ import 'package:magic/magic.dart';
 
 import '../models/scan_entry.dart';
 import '../models/scan_source.dart';
+import '../support/server_message.dart';
 
 /// The batch a scanning session accumulates, and the cascade call behind each row.
 ///
@@ -329,11 +330,7 @@ class ScanController extends MagicController
         // The server's own sentence, because it names the reason: a barcode already in use, a
         // serial-tracked product, a location that vanished. Replacing it with a generic line throws
         // away the only useful part of a refusal.
-        final dynamic message = response['message'];
-
-        return message is String && message.isNotEmpty
-            ? message
-            : Lang.get('screens.scan.write_failed');
+        return serverMessage(response, Lang.get('screens.scan.write_failed'));
       }
 
       // **Only what was written leaves the batch, and only as much of it as was written.** An

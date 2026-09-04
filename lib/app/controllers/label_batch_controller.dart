@@ -4,6 +4,7 @@ import 'package:magic/magic.dart';
 
 import '../models/print_batch.dart';
 import '../support/mapped_or_null.dart';
+import '../support/server_message.dart';
 
 /// The print batch a label sheet is built from, and the sheet the server renders of it.
 ///
@@ -408,9 +409,9 @@ class LabelBatchController extends MagicController with MagicStateMixin<PrintBat
   /// Laravel puts a validation refusal in the JSON body's `message`; the driver fills
   /// `MagicResponse.message` from the HTTP status line. Reading the wrong one turned "too many pixels"
   /// into "Unprocessable Content" on the product-photo path before its own test caught it.
-  String _sentence(dynamic response, String fallback) {
-    final dynamic message = response['message'];
-
-    return message is String && message.isNotEmpty ? message : fallback;
-  }
+  ///
+  /// **Delegated now, because reading the body was only half the rule.** This screen is where the
+  /// missing half was found: a 500 from the sheet renderer put a Node.js stack trace on screen,
+  /// which `serverMessage` refuses by status.
+  String _sentence(MagicResponse response, String fallback) => serverMessage(response, fallback);
 }

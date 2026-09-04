@@ -6,6 +6,7 @@ import 'package:magic/magic.dart';
 import '../../resources/views/products/product_fixtures.dart';
 import '../models/movement_entry.dart';
 import '../support/mapped_or_null.dart';
+import '../support/server_message.dart';
 
 /// One product with its lots and units, from `api/v1/products/{id}`.
 ///
@@ -217,13 +218,9 @@ class ProductDetailController extends MagicController
   /// The failure is RETURNED rather than set as the controller's error state, which is this class's
   /// existing rule: blanking a screen the user is reading, over a write that changed nothing, is
   /// worse than the failure itself.
-  Future<String?> _afterGalleryWrite(String productId, dynamic response) async {
+  Future<String?> _afterGalleryWrite(String productId, MagicResponse response) async {
     if (!response.successful) {
-      final dynamic message = response['message'];
-
-      return message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.product.write_failed');
+      return serverMessage(response, Lang.get('screens.product.write_failed'));
     }
 
     await load(productId, force: true);
@@ -247,16 +244,11 @@ class ProductDetailController extends MagicController
     });
 
     if (!response.successful) {
-      // The server's own sentence, because it names the reason. Replacing it with a generic line
-      // throws away the only useful part of a refusal.
-      final dynamic message = response['message'];
-
-      // Generic on purpose. This method serves receive, consume and transfer, so naming one of
-      // them made a failed MOVE say "Could not add the stock". The server's own sentence is
-      // preferred above; this is only the case where it sent none.
-      return message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.product.write_failed');
+      // The server's own sentence when it is a refusal, because it names the reason: the writer's
+      // "not enough stock at the source" is the only useful part of that answer. The fallback is
+      // generic on purpose, since this method serves receive, consume and transfer alike, and
+      // naming one of them made a failed MOVE say "Could not add the stock".
+      return serverMessage(response, Lang.get('screens.product.write_failed'));
     }
 
     await load(productId, force: true);
@@ -283,11 +275,7 @@ class ProductDetailController extends MagicController
     );
 
     if (!response.successful) {
-      final dynamic message = response['message'];
-
-      return message is String && message.isNotEmpty
-          ? message
-          : Lang.get('screens.product.write_failed');
+      return serverMessage(response, Lang.get('screens.product.write_failed'));
     }
 
     await load(productId, force: true);

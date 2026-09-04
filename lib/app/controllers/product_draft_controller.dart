@@ -6,6 +6,7 @@ import '../models/product_draft.dart';
 import '../models/scan_entry.dart';
 import '../support/mapped_or_null.dart';
 import '../support/merge_unit_codes.dart';
+import '../support/server_message.dart';
 
 /// The draft card a photograph becomes, from the shutter to the saved product.
 ///
@@ -283,11 +284,10 @@ class ProductDraftController extends MagicController
   /// JSON body's `message`; the driver fills `MagicResponse.message` from the HTTP status line, so
   /// "This picture holds too many pixels to process." arrived as "Unprocessable Content". Every
   /// other write in this app reads the body for the same reason.
-  String _sentence(dynamic response, String fallback) {
-    final dynamic message = response['message'];
-
-    return message is String && message.isNotEmpty ? message : fallback;
-  }
+  ///
+  /// Delegated to `serverMessage`, which adds the half this was missing: the body is trustworthy on
+  /// a 4xx and is the raw exception on a 5xx, so the status decides whether it reaches a screen.
+  String _sentence(MagicResponse response, String fallback) => serverMessage(response, fallback);
 
   /// Put the photograph in the new product's gallery.
   ///
