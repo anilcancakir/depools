@@ -3,6 +3,7 @@ import '../../app/models/movement_entry.dart';
 import 'products/expiring_fixtures.dart';
 import 'products/product_fixtures.dart';
 import 'products/running_low_fixtures.dart';
+import 'products/shopping_fixtures.dart';
 
 /// The dashboard's payload, assembled from the fixtures the other screens already use.
 ///
@@ -31,6 +32,9 @@ DashboardSummary dashboardFixture() {
     // not overlap, so the preview subtracts to match what the server would answer. Getting this
     // wrong would make the catalog show a total the real screen never produces.
     belowTargetCount: runningLow.where((ProductListItem p) => !p.isOut).length,
+    // From the shopping fixture, which is what the card USED to read directly. The number is the
+    // same either way; what changed is that the real screen no longer reaches for this file.
+    shoppingCount: pendingLines.length,
     expired: expired,
     approaching: approaching,
     outOfStock: outOfStock,
@@ -49,6 +53,7 @@ DashboardSummary dashboardFreshFixture() {
     approachingCount: 0,
     outOfStockCount: 0,
     belowTargetCount: 0,
+    shoppingCount: 0,
     expired: <DatedLot>[],
     approaching: <DatedLot>[],
     outOfStock: <ProductListItem>[],

@@ -9,9 +9,11 @@ use App\Http\Resources\ProductResource;
 use App\Models\Location;
 use App\Models\Product;
 use App\Services\ProductListQuery;
+use App\Services\ShoppingListGenerator;
 use App\Services\StockLedger;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
@@ -56,7 +58,7 @@ final class DashboardController extends Controller
      */
     private const HORIZON = 7;
 
-    public function __invoke(StockLedger $ledger): JsonResponse
+    public function __invoke(StockLedger $ledger, ShoppingListGenerator $shoppingList, Request $request): JsonResponse
     {
         // ONE reference date for the whole response, for the reason `ProductController` records: two
         // reads either side of midnight would count a lot as expired for the card and not for the
@@ -76,6 +78,10 @@ final class DashboardController extends Controller
         $out = $this->products(['stock_state' => 'out_of_stock'], $today);
         $low = $this->products(['stock_state' => 'below_par'], $today);
 
+        // The same call `ShoppingListController::index` makes, and the same `$today`: two reads
+        // either side of midnight would regenerate the list for one of them and not the other.
+        $shopping = $shoppingList->forTeam((string) $request->user()->current_team_id, $today);
+
         return response()->json([
             'data' => [
                 // **Whether the tenant has ANY stock, which decides which screen they get.** A fresh
@@ -93,6 +99,16 @@ final class DashboardController extends Controller
                     'approaching' => $approaching->count(),
                     'out_of_stock' => $out['total'],
                     'below_target' => $low['total'],
+                    // **What is left to buy, counted from the generator rather than from a query of
+                    // its own.** `forTeam` regenerates the list when it is stale, so asking it here
+                    // is what makes the counter agree with `/shopping` by construction: a
+                    // `ShoppingListItem` count taken directly would report yesterday's list until
+                    // the user opened the page, and this screen's whole rule is that no figure on it
+                    // disagrees with the page it links to.
+                    //
+                    // The client had no counter and read its own shopping FIXTURE for both the
+                    // card's visibility and its number, so every real tenant saw the demo file.
+                    'shopping' => $shopping->whereNull('checked_at')->count(),
                 ],
 
                 'expired' => DatedThingResource::collection($expired->take(self::PREVIEW)),

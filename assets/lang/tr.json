@@ -502,6 +502,7 @@
       "capture_shelf": "Raf fotoğrafı",
       "dates_failed": "Tarihler yüklenemedi",
       "load_failed": "Panel yüklenemedi",
+      "retry": "Tekrar dene",
       "stock_no_target": "Hedef belirlenmemiş"
     },
     "dates": {

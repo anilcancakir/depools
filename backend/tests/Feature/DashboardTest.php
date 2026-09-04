@@ -227,6 +227,47 @@ final class DashboardTest extends TestCase
             ->assertJsonCount(0, 'data.activity');
     }
 
+    public function test_the_shopping_counter_agrees_with_the_list_it_links_to(): void
+    {
+        // **Derived, not restated.** This screen's rule is that no figure on it may disagree with the
+        // page it links to, so the assertion compares the counter against `GET /shopping` rather
+        // than against a number typed here: a literal would pass while the two drifted apart, which
+        // is the only failure that matters.
+        //
+        // The client had no counter at all and read the `pendingLines` FIXTURE for both the card's
+        // visibility and its count, so every real tenant was shown the demo file's shopping list.
+        $short = $this->product('Kahve', parLevel: 10);
+        $this->writer->receive($short, $this->shelf, 1);
+
+        $lines = $this->getJson('/api/v1/shopping')->assertOk()->json('data');
+
+        // `checked_at` rather than a flag: the resource sends the timestamp because that is what a
+        // receipt reconciles against, and the client derives the boolean. So does this.
+        $unticked = count(array_filter(
+            $lines,
+            static fn (array $line): bool => $line['checked_at'] === null,
+        ));
+
+        $this->assertGreaterThan(0, $unticked, 'the fixture must produce a line, or this proves nothing');
+
+        $this->dashboard()->assertOk()->assertJsonPath('data.counters.shopping', $unticked);
+    }
+
+    public function test_a_ticked_line_leaves_the_shopping_counter(): void
+    {
+        // The counter is what is LEFT to buy, so ticking one off has to move it. Without this the
+        // test above would pass against a counter that counted every line ever generated.
+        $short = $this->product('Kahve', parLevel: 10);
+        $this->writer->receive($short, $this->shelf, 1);
+
+        $lines = $this->getJson('/api/v1/shopping')->assertOk()->json('data');
+        $before = $this->dashboard()->json('data.counters.shopping');
+
+        $this->putJson("/api/v1/shopping/{$lines[0]['id']}", ['is_checked' => true])->assertOk();
+
+        $this->assertSame($before - 1, $this->dashboard()->json('data.counters.shopping'));
+    }
+
     public function test_it_is_behind_the_session_like_everything_else(): void
     {
         $this->app->get('auth')->forgetGuards();

@@ -502,6 +502,7 @@
       "capture_shelf": "Shelf photo",
       "dates_failed": "Could not load dates",
       "load_failed": "The dashboard could not be loaded",
+      "retry": "Try again",
       "stock_no_target": "No target set"
     },
     "dates": {

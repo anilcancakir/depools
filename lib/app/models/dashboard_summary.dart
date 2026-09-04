@@ -40,6 +40,14 @@ class DashboardSummary {
   /// Products below a target somebody actually set.
   final int belowTargetCount;
 
+  /// Shopping lines still to buy.
+  ///
+  /// **A count and no rows, because the card renders none.** The list is a document the user works
+  /// through with a phone in one hand, and a partial copy of it invites ticking items off in the
+  /// wrong place, so the card carries the number and a way in. The server counts it off the same
+  /// generator `/shopping` reads, which is what stops the two disagreeing.
+  final int shoppingCount;
+
   /// The first few expired lots, for the dates card.
   final List<DatedLot> expired;
 
@@ -64,6 +72,7 @@ class DashboardSummary {
     required this.approachingCount,
     required this.outOfStockCount,
     required this.belowTargetCount,
+    required this.shoppingCount,
     required this.expired,
     required this.approaching,
     required this.outOfStock,
@@ -92,6 +101,7 @@ class DashboardSummary {
       approachingCount: _int(counters['approaching']),
       outOfStockCount: _int(counters['out_of_stock']),
       belowTargetCount: _int(counters['below_target']),
+      shoppingCount: _int(counters['shopping']),
       expired: _lots(json['expired']),
       approaching: _lots(json['approaching']),
       outOfStock: _items(json['out_of_stock'], locationLabels),
