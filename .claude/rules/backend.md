@@ -45,6 +45,7 @@ DB::transaction(function (): void {
 });
 ```
 
+- A name is a sentence about the behaviour being pinned, in snake_case after the `test_` prefix: `test_the_sheet_count_rounds_up_and_zero_labels_need_no_paper`, not `test_sheet_count`. It should say what would be lost if the assertion were deleted, which is also what tells a reader whether a failure matters.
 - PHPUnit 12 no longer reads `@dataProvider` doc-comments. Use the `#[DataProvider]` attribute; the doc-comment form fails as "Too few arguments" and points nowhere near the cause.
 - A tenancy isolation test is written before the feature it protects, and it asserts 404 rather than 403.
 - `pint --test` clean is part of the gate, and `bin/check backend` runs the whole backend half.
