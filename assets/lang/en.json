@@ -592,7 +592,9 @@
       "delete_title": "Delete \":name\"?",
       "delete_description": "The location is removed for good. Its name still appears in past movements.",
       "delete_confirm": "Delete",
-      "load_failed": "The products here could not be loaded"
+      "load_failed": "The products here could not be loaded",
+      "missing_title": "Location not found",
+      "missing_description": "This location may have been deleted, or the link may be out of date."
     },
     "location_form": {
       "title": "New location",

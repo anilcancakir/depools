@@ -162,9 +162,9 @@ class _SearchViewState extends State<SearchView> {
             expiryLabel: item.expiryLabel,
             daysUntilExpiry: item.daysUntilExpiry,
             parLevel: item.parLevel,
-            // The server id when there is one. Every tap on a product now reaches an endpoint, so a
-            // route carrying a NAME 404s; the fallback keeps the fixture-only previews navigating.
-            onTap: () => MagicRoute.to('/products/${item.id ?? Uri.encodeComponent(item.name)}'),
+            // The id or nothing, matching the location rows below: a route carrying a NAME resolves
+            // to no product, so the fallback bought the previews a tap that lands on an error state.
+            onTap: item.id == null ? null : () => MagicRoute.to('/products/${item.id}'),
           ),
       ],
     );

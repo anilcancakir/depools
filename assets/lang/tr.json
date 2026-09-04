@@ -592,7 +592,9 @@
       "delete_title": "\":name\" silinsin mi?",
       "delete_description": "Konum kalıcı olarak kaldırılır. Geçmiş hareketlerde adı görünmeye devam eder.",
       "delete_confirm": "Sil",
-      "load_failed": "Bu konumdaki ürünler yüklenemedi"
+      "load_failed": "Bu konumdaki ürünler yüklenemedi",
+      "missing_title": "Konum bulunamadı",
+      "missing_description": "Bu konum silinmiş ya da bağlantı güncelliğini yitirmiş olabilir."
     },
     "location_form": {
       "title": "Yeni konum",

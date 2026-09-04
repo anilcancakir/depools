@@ -537,8 +537,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
           semanticLabel: Lang.get('screens.products.activity'),
           child: const WIcon(_activityIcon),
         ),
+        // The scanner, which this button named and did not open: `onPressed: () {}` against a
+        // `/scan` route that has existed since D61 and is reachable from the dashboard, the empty
+        // state and the bottom navigation. Every other way in worked, so nothing looked broken.
         MSButton(
-          onPressed: () {},
+          onPressed: () => MagicRoute.to('/scan'),
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: Lang.get('screens.products.scan'),
@@ -740,8 +743,11 @@ class _ProductIndexViewState extends State<ProductIndexView> {
                 ),
               ],
             ),
+            // The manual way in, and the last resort on the one screen where a tenant has nothing:
+            // the other three offer a camera or a scanner, so a dead button here left a user with
+            // no keyboard path at all. It goes where the header's add button goes.
             MSButton(
-              onPressed: () {},
+              onPressed: () => MagicRoute.to('/products/new'),
               intent: ButtonIntent.ghost,
               fullWidth: true,
               className: 'justify-center',
@@ -900,11 +906,14 @@ class _ProductIndexViewState extends State<ProductIndexView> {
       // nothing at all. That is D61's defect in its quietest form, because the screen is not
       // missing and the route is not missing, only the one line that joins them.
       //
-      // The name stands in for the id while the app is fixture-backed, the same way the location
-      // tree routes by path. The detail screen ignores the parameter today.
-      // The server id when there is one, the name otherwise. A fixture row has never been
-      // persisted, so the catalog keeps navigating by name exactly as it did.
-      onTap: () => MagicRoute.to('/products/${item.id ?? Uri.encodeComponent(item.name)}'),
+      // **The id or nothing, because a name is not an address.** This used to fall back to the
+      // encoded NAME for a fixture row, on the argument that the catalog should keep navigating.
+      // It navigated to `/products/Ground%20Coffee%20250%20g`, which matches the route and resolves
+      // to no product, so the catalog reached a screen stuck on "Could not load the product".
+      //
+      // A dead tap is the honest outcome for a row that was never persisted, and it is the shape
+      // the location tree already settled on at `location_index_view.dart`.
+      onTap: item.id == null ? null : () => MagicRoute.to('/products/${item.id}'),
     );
   }
 }
