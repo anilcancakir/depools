@@ -17,8 +17,10 @@ import '../../../app/models/location_node.dart';
 /// the appearance columns landed, which made this file the only place in the app holding a glyph
 /// rather than the name of one. Two nodes deliberately carry no colour, because both columns are
 /// nullable and the fallback has to be on screen somewhere to be seen.
-const List<LocationNode> locationTree = <LocationNode>[
-  LocationNode(
+/// Not `const`: `LocationNode` is a magic `Model` now, and a `Model` carries mutable internal state
+/// (`_attributes`), so no constructor of it can be `const`.
+final List<LocationNode> locationTree = <LocationNode>[
+  LocationNode.of(
     name: 'Mutfak',
     path: 'Mutfak',
     depth: 0,
@@ -27,7 +29,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'countertops',
     colour: 'red',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Buzdolabı',
     path: 'Mutfak › Buzdolabı',
     depth: 1,
@@ -36,7 +38,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'kitchen',
     colour: 'blue',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Derin dondurucu',
     path: 'Mutfak › Derin dondurucu',
     depth: 1,
@@ -45,7 +47,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'ac_unit',
     colour: 'teal',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Kiler',
     path: 'Kiler',
     depth: 0,
@@ -54,7 +56,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'dining',
     colour: 'amber',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Raf 1',
     path: 'Kiler › Raf 1',
     depth: 1,
@@ -63,7 +65,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'shelves',
     colour: 'green',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Raf 2',
     path: 'Kiler › Raf 2',
     depth: 1,
@@ -72,7 +74,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'shelves',
     colour: 'green',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Çekmece 2',
     path: 'Kiler › Çekmece 2',
     depth: 1,
@@ -80,7 +82,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     summary: '1 ürün',
     icon: 'inbox',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Depo',
     path: 'Depo',
     depth: 0,
@@ -89,7 +91,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'warehouse',
     colour: 'violet',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Raf A',
     path: 'Depo › Raf A',
     depth: 1,
@@ -98,7 +100,7 @@ const List<LocationNode> locationTree = <LocationNode>[
     icon: 'shelves',
     colour: 'red',
   ),
-  LocationNode(
+  LocationNode.of(
     name: 'Raf B',
     path: 'Depo › Raf B',
     depth: 1,

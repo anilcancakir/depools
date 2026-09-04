@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:magic/magic.dart';
 
 import '../../resources/views/products/product_fixtures.dart';
@@ -7,6 +6,11 @@ import '../support/plural.dart';
 import '../support/unit_label.dart';
 
 /// One line of the shopping list, as `api/v1/shopping` sends it.
+///
+/// A magic [Model] rather than a value class: `add` writes through [ShoppingController], whose
+/// fields mirror `StoreShoppingListItemRequest`/`UpdateShoppingListItemRequest` and are declared
+/// in [fillable], so a schema drift between the two rule sets throws `MassAssignmentException`
+/// (`fill(..., strict: true)`) instead of silently dropping a field.
 ///
 /// ### The sentence is built HERE, from evidence, and that is D98
 ///
@@ -19,31 +23,66 @@ import '../support/unit_label.dart';
 /// point for D46 as much as the rendering one: a line's SHAPE of sentence is decided by what the
 /// payload carries, and a `roughlyDue` line carries no day count at all, so there is nothing a
 /// bucket could accidentally be printed as a measurement from.
-@immutable
-class ShoppingLine {
+class ShoppingLine extends Model with InteractsWithPersistence {
+  /// The table associated with the model.
+  @override
+  String get table => 'shopping_list_items';
+
+  /// The API resource for remote operations, matching `api/v1/shopping`.
+  @override
+  String get resource => 'shopping';
+
+  /// Whether the primary key is auto-incrementing.
+  ///
+  /// Set to false because this app uses string UUIDs as primary keys.
+  @override
+  bool get incrementing => false;
+
+  /// The attributes that are mass assignable.
+  ///
+  /// The union of `StoreShoppingListItemRequest::rules()` and
+  /// `UpdateShoppingListItemRequest::rules()`. Every other attribute here (`id`, the `reason_*`
+  /// columns, `movement_count`) is server-computed and never arrives in a request body; `team_id`
+  /// never appears here either, per this app's own tenancy invariant.
+  @override
+  List<String> get fillable => <String>['product_id', 'name', 'quantity', 'unit', 'is_checked'];
+
+  /// The attributes that should be cast.
+  ///
+  /// Empty: `quantity` arrives as a decimal string PostgreSQL sends, which the built-in `double`
+  /// cast cannot round-trip without loss the way [quantity]'s own read does through
+  /// [ProductListItem.toNumOrNull].
+  @override
+  Map<String, String> get casts => {};
+
+  // ---------------------------------------------------------------------------
+  // Typed Accessors
+  // ---------------------------------------------------------------------------
+
   /// The line's own id, which every mutation addresses.
-  final String id;
+  @override
+  String get id => get<String>('id') ?? '';
 
   /// The product this line is about, or null for something typed that is not in the catalogue.
-  final String? productId;
+  String? get productId => get<String>('product_id');
 
   /// What to buy. Always present, even with a product (D100), so the line survives a deletion.
-  final String name;
+  String get name => get<String>('name') ?? '';
 
   /// How many, in the base unit.
-  final num quantity;
+  num get quantity => ProductListItem.toNumOrNull(getAttribute('quantity')) ?? 1;
 
   /// The unit, already resolved by the server.
-  final String unit;
+  String get unit => get<String>('unit') ?? 'C62';
 
   /// Why the line is here.
-  final ShoppingReason reason;
+  ShoppingReason get reason => _reasonFrom(getAttribute('reason'));
 
   /// The day figure behind the reason, where the tier allows one at all.
   ///
   /// Null is the normal case and it is the gate rather than a gap: only a forecast-backed or a
   /// date-backed line has a number, which a CHECK constraint enforces on the way in.
-  final int? days;
+  int? get days => get<int>('reason_days');
 
   /// The middle tier's bucket, as a code.
   ///
@@ -52,64 +91,88 @@ class ShoppingLine {
   /// tier by a CHECK, so without a code the sentence would collapse to "little history" and lose
   /// the half `forecasting.md` specifies. A code cannot be misread as a measurement, which is the
   /// property the figure fails.
-  final String? bucket;
+  String? get bucket => get<String>('reason_bucket');
 
   /// How much was on hand when the line was generated.
-  final num? onHand;
+  num? get onHand => ProductListItem.toNumOrNull(getAttribute('reason_on_hand'));
 
   /// Whether an expiring line's date is the OPENED clock rather than the printed one (D27).
   ///
   /// Null on every other reason. An opened pot with three days left and a sealed carton with three
   /// days left are two different sentences, and saying the wrong one reads as the app being wrong
   /// about the box.
-  final bool? lotIsOpen;
+  bool? get lotIsOpen => get<bool>('reason_lot_is_open');
 
   /// The target that was in force when the line was generated.
-  final num? target;
+  num? get target => ProductListItem.toNumOrNull(getAttribute('reason_target'));
 
   /// How many DAYS demand happened, which is what the certainty tier was decided on.
-  final int movementCount;
+  int get movementCount => get<int>('reason_movement_count') ?? 0;
 
   /// Whether the thing is in the trolley. Not stock (D47).
-  final bool isChecked;
+  ///
+  /// A timestamp on the wire and a flag here: WHEN it went in the trolley is what a receipt
+  /// reconciles against, and the screen only ever asks whether it did.
+  bool get isChecked => getAttribute('checked_at') != null;
 
-  /// Creates a [ShoppingLine].
-  const ShoppingLine({
-    required this.id,
-    required this.name,
-    required this.quantity,
-    required this.unit,
-    required this.reason,
-    this.productId,
-    this.days,
-    this.bucket,
-    this.onHand,
-    this.lotIsOpen,
-    this.target,
-    this.movementCount = 0,
-    this.isChecked = false,
-  });
+  // ---------------------------------------------------------------------------
+  // Construction
+  // ---------------------------------------------------------------------------
+
+  /// An unfilled line, for `..fill(validated, strict: true)` on a write.
+  ///
+  /// **Declared explicitly, not left implicit.** Once a class declares any other constructor
+  /// (`_raw`, `of`), Dart stops auto-generating the plain unnamed one; a controller's write path
+  /// needs it as the starting point for a mass-assignment guarded fill.
+  ShoppingLine();
 
   /// Builds a line from an `api/v1/shopping` element.
-  factory ShoppingLine.fromApi(Map<String, dynamic> json) {
-    return ShoppingLine(
-      id: json['id'] as String,
-      productId: json['product_id'] as String?,
-      name: json['name'] as String,
-      quantity: ProductListItem.toNumOrNull(json['quantity']) ?? 1,
-      unit: json['unit'] as String? ?? 'C62',
-      reason: _reasonFrom(json['reason']),
-      days: json['reason_days'] as int?,
-      bucket: json['reason_bucket'] as String?,
-      onHand: ProductListItem.toNumOrNull(json['reason_on_hand']),
-      lotIsOpen: json['reason_lot_is_open'] as bool?,
-      target: ProductListItem.toNumOrNull(json['reason_target']),
-      movementCount: json['reason_movement_count'] as int? ?? 0,
-      // A timestamp on the wire and a flag here: WHEN it went in the trolley is what a receipt
-      // reconciles against, and the screen only ever asks whether it did.
-      isChecked: json['checked_at'] != null,
-    );
+  static ShoppingLine fromApi(Map<String, dynamic> json) => ShoppingLine._raw(json);
+
+  /// Builds a line from already-known fields, for a fixture or a test.
+  ///
+  /// Bypasses [fillable] the way `User.fromMap` does: this is not the mass-assignment path, it is
+  /// hydration from data the caller already trusts.
+  factory ShoppingLine.of({
+    required String id,
+    required String name,
+    required num quantity,
+    required String unit,
+    required ShoppingReason reason,
+    String? productId,
+    int? days,
+    String? bucket,
+    num? onHand,
+    bool? lotIsOpen,
+    num? target,
+    int movementCount = 0,
+    bool isChecked = false,
+  }) {
+    return ShoppingLine._raw(<String, dynamic>{
+      'id': id,
+      'product_id': productId,
+      'name': name,
+      'quantity': quantity,
+      'unit': unit,
+      'reason': _reasonToApi(reason),
+      'reason_days': days,
+      'reason_bucket': bucket,
+      'reason_on_hand': onHand,
+      'reason_lot_is_open': lotIsOpen,
+      'reason_target': target,
+      'reason_movement_count': movementCount,
+      'checked_at': isChecked ? DateTime.now().toIso8601String() : null,
+    });
   }
+
+  ShoppingLine._raw(Map<String, dynamic> attributes) {
+    setRawAttributes(attributes, sync: true);
+    exists = true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Behaviour
+  // ---------------------------------------------------------------------------
 
   /// The already-formatted quantity for the row.
   String get formatted => ProductListItem.format(quantity);
@@ -173,20 +236,20 @@ class ShoppingLine {
     _ => ShoppingReason.manual,
   };
 
+  /// The wire code for a reason, the inverse of [_reasonFrom], for [ShoppingLine.of].
+  static String _reasonToApi(ShoppingReason reason) => switch (reason) {
+    ShoppingReason.runningOut => 'running_out',
+    ShoppingReason.roughlyDue => 'roughly_due',
+    ShoppingReason.belowTarget => 'below_target',
+    ShoppingReason.expiring => 'expiring',
+    ShoppingReason.manual => 'manual',
+  };
+
   /// A copy with the tick flipped, for the optimistic update.
-  ShoppingLine toggled() => ShoppingLine(
-    id: id,
-    productId: productId,
-    name: name,
-    quantity: quantity,
-    unit: unit,
-    reason: reason,
-    days: days,
-    bucket: bucket,
-    onHand: onHand,
-    lotIsOpen: lotIsOpen,
-    target: target,
-    movementCount: movementCount,
-    isChecked: !isChecked,
-  );
+  ShoppingLine toggled() {
+    final Map<String, dynamic> next = Map<String, dynamic>.from(attributes);
+    next['checked_at'] = isChecked ? null : DateTime.now().toIso8601String();
+
+    return ShoppingLine._raw(next);
+  }
 }

@@ -208,7 +208,7 @@ class _ShelfPhotoViewState extends State<ShelfPhotoView> {
 
   /// The read being reviewed, or an empty one before the upload answers.
   ShelfRead get _read =>
-      widget.preview ?? _controller?.read ?? const ShelfRead(id: '');
+      widget.preview ?? _controller?.read ?? ShelfRead(id: '');
 
   /// How far the read has got.
   ///

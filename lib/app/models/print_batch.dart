@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:magic/magic.dart';
 
 import '../../ui/components/label_item_row/label_item_row.dart' show LabelCountMode;
 
@@ -8,16 +8,40 @@ import '../../ui/components/label_item_row/label_item_row.dart' show LabelCountM
 /// replace a fixture rather than shadow it, because two types for one thing diverge the moment the API
 /// changes.
 ///
-/// `position` is new and it is the load-bearing addition: it is what `settle`, the copy change and the
-/// removal are all keyed on, because it is the number a person reprinting names off a sheet. Ids exist
-/// on the wire too, and a client holding one already holds the other.
-@immutable
-class PrintBatchLine {
+/// `position` is the load-bearing field: it is what `settle`, the copy change and the removal are all
+/// keyed on, because it is the number a person reprinting names off a sheet. Ids exist on the wire
+/// too, and a client holding one already holds the other.
+///
+/// **Read-only from this client's side of the write path.** Every mutation goes through
+/// `LabelBatchController`'s own endpoints, which answer with the whole batch again; nothing here
+/// calls `save()`, so [fillable] stays empty.
+class PrintBatchLine extends Model {
+  @override
+  String get table => 'print_batch_lines';
+
+  @override
+  String get resource => 'labels/batches';
+
+  /// Set to false because this app uses string UUIDs as primary keys.
+  @override
+  bool get incrementing => false;
+
+  @override
+  List<String> get fillable => [];
+
+  @override
+  Map<String, dynamic> get casts => <String, dynamic>{
+    'position': 'int',
+    'count': 'int',
+    'print_count': 'int',
+    'is_printed': 'bool',
+  };
+
   /// The number this line carries on the sheet's list. Unique within a batch, never renumbered.
-  final int position;
+  int get position => get<int>('position') ?? 0;
 
   /// The product name, the label's first line.
-  final String name;
+  String get name => get<String>('name') ?? '';
 
   /// The code that will be printed.
   ///
@@ -25,120 +49,141 @@ class PrintBatchLine {
   /// whole feature: the resource used to omit this field entirely, so this was always null and every
   /// consumer ran on a placeholder. What actually gets printed is a policy the server owns (a GTIN, a
   /// Code 128 row, or a generated `DPL` code), which is why it travels rather than being guessed.
-  final String? code;
+  String? get code => get<String>('code');
 
   /// The serial this line prints, when it prints one.
-  final String? serial;
+  String? get serial => get<String>('serial');
 
   /// How many stickers this line contributes.
-  final int count;
+  int get count => get<int>('count') ?? 1;
 
   /// Where the count comes from (D45).
-  final LabelCountMode mode;
+  ///
+  /// Read straight off the raw string rather than through an [EnumCast]: the wire spells the second
+  /// mode `per_serial` and the Dart enum spells it `perSerial`, so a name-matching cast would never
+  /// resolve it. The safe fallback is the mode WITHOUT a stepper, matching the server's own default:
+  /// offering to edit how many units exist is the mistake D45 exists to prevent.
+  LabelCountMode get mode => get<String>('mode') == 'free' ? LabelCountMode.free : LabelCountMode.perSerial;
 
   /// Whether this line has already been printed in this batch.
-  final bool isPrinted;
+  bool get isPrinted => get<bool>('is_printed') ?? false;
 
   /// How many times it has been printed. Two means two sheets of paper went.
-  final int printCount;
-
-  /// Creates a [PrintBatchLine].
-  const PrintBatchLine({
-    required this.position,
-    required this.name,
-    required this.count,
-    this.code,
-    this.serial,
-    this.mode = LabelCountMode.free,
-    this.isPrinted = false,
-    this.printCount = 0,
-  });
-
-  /// The line a batch payload describes.
-  factory PrintBatchLine.fromApi(Map<String, dynamic> json) {
-    return PrintBatchLine(
-      position: (json['position'] as num?)?.toInt() ?? 0,
-      name: (json['name'] as String?) ?? '',
-      code: json['code'] as String?,
-      serial: json['serial'] as String?,
-      count: (json['count'] as num?)?.toInt() ?? 1,
-      // The safe default is the one WITHOUT a stepper: offering to edit how many units exist is the
-      // mistake D45 exists to prevent, so an unrecognised mode does not get the control.
-      mode: json['mode'] == 'free' ? LabelCountMode.free : LabelCountMode.perSerial,
-      isPrinted: json['is_printed'] == true,
-      printCount: (json['print_count'] as num?)?.toInt() ?? 0,
-    );
-  }
+  int get printCount => get<int>('print_count') ?? 0;
 
   /// Whether this line's copies may be changed.
   ///
   /// D45 twice over: a serial prints once, and a printed line's count is a record of paper that
   /// already went rather than a number to edit.
   bool get isAdjustable => mode == LabelCountMode.free && !isPrinted;
+
+  /// Creates a [PrintBatchLine] for a fixture or a preview, not for hydrating a payload.
+  ///
+  /// Writes the same wire shape [fromApi] reads, so a getter never has to ask which path built it.
+  PrintBatchLine({
+    required int position,
+    required String name,
+    required int count,
+    String? code,
+    String? serial,
+    LabelCountMode mode = LabelCountMode.free,
+    bool isPrinted = false,
+    int printCount = 0,
+  }) {
+    setRawAttributes(<String, dynamic>{
+      'position': position,
+      'name': name,
+      'code': code,
+      'serial': serial,
+      'count': count,
+      'mode': mode == LabelCountMode.free ? 'free' : 'per_serial',
+      'is_printed': isPrinted,
+      'print_count': printCount,
+    }, sync: true);
+  }
+
+  PrintBatchLine._raw();
+
+  /// The line a batch payload describes.
+  static PrintBatchLine fromApi(Map<String, dynamic> json) {
+    return PrintBatchLine._raw()
+      ..setRawAttributes(json, sync: true)
+      ..exists = true;
+  }
 }
 
 /// A saved set of labels to print together.
-@immutable
-class PrintBatch {
+///
+/// **Read-only from this client's side of the write path.** Every mutation goes through
+/// `LabelBatchController`'s own endpoints, which answer with the whole batch again; nothing here
+/// calls `save()`, so [fillable] stays empty.
+class PrintBatch extends Model {
+  @override
+  String get table => 'print_batches';
+
+  @override
+  String get resource => 'labels/batches';
+
+  /// Set to false because this app uses string UUIDs as primary keys.
+  @override
+  bool get incrementing => false;
+
+  @override
+  List<String> get fillable => [];
+
+  @override
+  Map<String, dynamic> get casts => <String, dynamic>{
+    'sticker_count': 'int',
+    'pending_sticker_count': 'int',
+    'printed_at': 'datetime',
+  };
+
+  /// The nested line list. `getRelations` resolves it whether the attribute holds raw maps (a
+  /// `labels/batches` payload, under its own wire key `items`) or already-built [PrintBatchLine]
+  /// instances (a fixture), since it checks `data is List<T>` before reaching for this factory.
+  ///
+  /// **`PrintBatchLine._raw`, not `PrintBatchLine.new`.** `getRelations` invokes the factory with no
+  /// arguments, and the public constructor's `position`/`name`/`count` are required for the fixture
+  /// path; the zero-argument private constructor is what a bare hydration needs.
+  @override
+  Map<String, Model Function()> get relations => <String, Model Function()>{
+    'items': PrintBatchLine._raw,
+  };
+
   /// The batch id, or empty before one exists.
-  final String id;
+  @override
+  String get id => get<String>('id') ?? '';
 
   /// What the user called it, if anything.
-  final String? name;
+  String? get name => get<String>('name');
 
   /// The sheet template key, for example `a4_8_up_105x70`.
-  final String template;
+  String get template => get<String>('template') ?? '';
 
   /// Which fields the label carries.
-  final List<String> fields;
+  ///
+  /// A stray non-string entry or a missing/malformed `fields` value both fall back to an EMPTY list
+  /// rather than to the constructor's `['name', 'code']` default: an API payload that omitted the
+  /// key never meant "the defaults", and guessing otherwise would show fields the server never chose.
+  List<String> get fields {
+    final Object? raw = getAttribute('fields');
+
+    if (raw is! List) return const <String>[];
+
+    return <String>[for (final Object? field in raw) if (field is String) field];
+  }
 
   /// Every line, in sheet order.
-  final List<PrintBatchLine> lines;
+  List<PrintBatchLine> get lines => getRelations<PrintBatchLine>('items');
 
   /// How many stickers the whole batch is for.
-  final int stickerCount;
+  int get stickerCount => get<int>('sticker_count') ?? 0;
 
   /// How many stickers a print would produce now.
-  final int pendingStickerCount;
+  int get pendingStickerCount => get<int>('pending_sticker_count') ?? 0;
 
   /// When the batch finished, or null while anything is left.
-  final DateTime? printedAt;
-
-  /// Creates a [PrintBatch].
-  const PrintBatch({
-    required this.id,
-    required this.template,
-    this.name,
-    this.fields = const <String>['name', 'code'],
-    this.lines = const <PrintBatchLine>[],
-    this.stickerCount = 0,
-    this.pendingStickerCount = 0,
-    this.printedAt,
-  });
-
-  /// The batch a `labels/batches` payload describes.
-  factory PrintBatch.fromApi(Map<String, dynamic> json) {
-    final Object? lines = json['items'];
-
-    return PrintBatch(
-      id: (json['id'] as String?) ?? '',
-      name: json['name'] as String?,
-      template: (json['template'] as String?) ?? '',
-      fields: <String>[
-        if (json['fields'] is List)
-          for (final Object? field in json['fields'] as List<Object?>)
-            if (field is String) field,
-      ],
-      lines: <PrintBatchLine>[
-        if (lines is List)
-          for (final Object? line in lines)
-            if (line is Map) PrintBatchLine.fromApi(Map<String, dynamic>.from(line)),
-      ],
-      stickerCount: (json['sticker_count'] as num?)?.toInt() ?? 0,
-      pendingStickerCount: (json['pending_sticker_count'] as num?)?.toInt() ?? 0,
-      printedAt: DateTime.tryParse('${json['printed_at']}'),
-    );
-  }
+  DateTime? get printedAt => get<Carbon>('printed_at')?.toDateTime;
 
   /// Whether anything is still waiting for a printer.
   ///
@@ -175,4 +220,39 @@ class PrintBatch {
     for (final PrintBatchLine line in lines)
       if (line.serial != null) line.serial! else if (line.code != null) line.code!,
   ];
+
+  /// Creates a [PrintBatch] for a fixture or a preview, not for hydrating a payload.
+  ///
+  /// Writes the same wire shape [fromApi] reads (`fields` and `items` mirror the server's own keys),
+  /// so a getter never has to ask which path built the instance.
+  PrintBatch({
+    required String id,
+    required String template,
+    String? name,
+    List<String> fields = const <String>['name', 'code'],
+    List<PrintBatchLine> lines = const <PrintBatchLine>[],
+    int stickerCount = 0,
+    int pendingStickerCount = 0,
+    DateTime? printedAt,
+  }) {
+    setRawAttributes(<String, dynamic>{
+      'id': id,
+      'name': name,
+      'template': template,
+      'fields': fields,
+      'items': lines,
+      'sticker_count': stickerCount,
+      'pending_sticker_count': pendingStickerCount,
+      'printed_at': printedAt,
+    }, sync: true);
+  }
+
+  PrintBatch._raw();
+
+  /// The batch a `labels/batches` payload describes.
+  static PrintBatch fromApi(Map<String, dynamic> json) {
+    return PrintBatch._raw()
+      ..setRawAttributes(json, sync: true)
+      ..exists = true;
+  }
 }

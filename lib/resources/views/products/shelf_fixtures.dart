@@ -20,7 +20,11 @@ import '../../../ui/components/receipt_line_row/receipt_line_row.dart' show Line
 /// way a person scans a shelf. That ordering is only a convenience: D60 makes the NUMBER the link
 /// between a row and a box, precisely because rows get filtered and reordered while boxes stay where
 /// the shelf put them.
-const List<ShelfCandidate> shelfCandidates = <ShelfCandidate>[
+///
+/// **`final`, not `const`.** [ShelfCandidate] promoted to a magic [Model] (`shelf_read.dart`), and a
+/// `Model` cannot be a compile-time constant: its attribute storage is a mutable `Map` built at
+/// construction time, not a `const` literal.
+final List<ShelfCandidate> shelfCandidates = <ShelfCandidate>[
   ShelfCandidate(
     id: 'c1',
     region: 1,
@@ -94,7 +98,7 @@ const List<ShelfCandidate> shelfCandidates = <ShelfCandidate>[
 ];
 
 /// The read a preview renders, with every region already in place.
-const ShelfRead shelfRead = ShelfRead(id: 'shelf-1', candidates: shelfCandidates);
+final ShelfRead shelfRead = ShelfRead(id: 'shelf-1', candidates: shelfCandidates);
 
 /// Candidates that will be written as they stand.
 List<ShelfCandidate> get settledCandidates => shelfRead.settled;

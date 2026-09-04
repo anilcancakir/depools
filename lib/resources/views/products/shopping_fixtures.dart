@@ -41,7 +41,7 @@ ShoppingLine _line(
   final ProductListItem product = productFixtures.firstWhere((p) => p.name == productName);
   final num amount = _toBuy(product);
 
-  return ShoppingLine(
+  return ShoppingLine.of(
     id: 'fixture-${product.name}',
     productId: product.id,
     name: product.name,
@@ -64,6 +64,8 @@ ShoppingLine _line(
 /// than a fixture flourish: a line may only make the claim its evidence supports, so the milk gets a
 /// number, the bulgur gets a bucket, and the screwdriver set gets a bare ratio with no time in it.
 List<ShoppingLine> get shoppingLines => <ShoppingLine>[
+  // Not `const`: `ShoppingLine` is a magic `Model` now, and a `Model` carries mutable internal
+  // state (`_attributes`), so no constructor of it can be `const`.
   // Zero on hand, so there is no cover figure to state: `days` is null and the sentence says the
   // stock is gone. Sending a figure here would be a forecast contradicting the amount beside it.
   _line('Kıyma', reason: ShoppingReason.runningOut),
@@ -79,7 +81,7 @@ List<ShoppingLine> get shoppingLines => <ShoppingLine>[
   _line('Tornavida Seti PH2', reason: ShoppingReason.belowTarget),
   _line('USB-C Kablo 2 m', reason: ShoppingReason.belowTarget, isChecked: true),
   // Not derived from a product: the user typed it, and naming it created nothing (D100).
-  const ShoppingLine(
+  ShoppingLine.of(
     id: 'fixture-manual',
     name: 'Bulaşık deterjanı',
     quantity: 1,

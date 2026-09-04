@@ -35,8 +35,8 @@ void main() {
       // returns everything at once, so there are no per-region completions to draw: the honest
       // reading state is the photograph plus skeleton rows, and `resolvedSoFar` (the fixture that
       // stood in for a count nothing produces) went with it.
-      expect(const ShelfRead(id: 'reading').candidates, isEmpty);
-      expect(const ShelfRead(id: 'reading').settled, isEmpty);
+      expect(ShelfRead(id: 'reading').candidates, isEmpty);
+      expect(ShelfRead(id: 'reading').settled, isEmpty);
     });
   });
 }

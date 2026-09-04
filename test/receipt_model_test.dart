@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:depools/app/controllers/receipt_controller.dart';
+import 'package:depools/app/models/location_node.dart';
 import 'package:depools/app/models/receipt.dart';
+import 'package:depools/app/models/shopping_line.dart';
 import 'package:depools/ui/components/receipt_line_row/receipt_line_row.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic/magic.dart';
@@ -14,6 +16,115 @@ import 'package:magic/magic.dart';
 /// null, and a decimal travelling as the STRING PostgreSQL actually sends (`'2.000'`, not `2`).
 void main() {
   tearDown(Http.unfake);
+
+  group('strict fill guards mass assignment', () {
+    // One pair per promoted model (step 12). Each pair pins BOTH halves of the guard, and it takes
+    // both, which a mutation run proved: `fill(strict: true)` throws on the FIRST offending key
+    // (`model.dart:445-452`), so a test that only asserts `throwsA(isA<MassAssignmentException>())`
+    // over a payload carrying one legal and one illegal key still passes after the legal key is
+    // removed from `fillable`. The exception simply fires on a different key and the matcher cannot
+    // tell the two causes apart. So the refusal case names the ATTRIBUTE it expects, and a second
+    // case fills the whole declared list and expects no throw at all. Remove any entry from a
+    // `fillable` below and one of the two goes red.
+
+    test('ShoppingLine refuses a key outside StoreShoppingListItemRequest/UpdateShoppingListItemRequest', () {
+      final ShoppingLine line = ShoppingLine();
+
+      expect(
+        () => line.fill(<String, dynamic>{
+          'name': 'Bulaşık deterjanı',
+          // `reason` is server-computed (D98): no endpoint accepts it from the client.
+          'reason': 'manual',
+        }, strict: true),
+        throwsA(
+          isA<MassAssignmentException>()
+              .having((MassAssignmentException e) => e.attribute, 'attribute', 'reason'),
+        ),
+      );
+    });
+
+    test('ShoppingLine accepts exactly the keys its two FormRequests declare', () {
+      expect(
+        () => ShoppingLine().fill(<String, dynamic>{
+          'product_id': 'p-1',
+          'name': 'Bulaşık deterjanı',
+          'quantity': 2,
+          'unit': 'piece',
+          'is_checked': false,
+        }, strict: true),
+        returnsNormally,
+      );
+    });
+
+    test('LocationNode refuses a key outside StoreLocationRequest', () {
+      final LocationNode node = LocationNode();
+
+      expect(
+        () => node.fill(<String, dynamic>{
+          'name': 'Kiler',
+          // `stock_count` is derived from the ledger, never accepted from a create request.
+          'stock_count': 4,
+        }, strict: true),
+        throwsA(
+          isA<MassAssignmentException>()
+              .having((MassAssignmentException e) => e.attribute, 'attribute', 'stock_count'),
+        ),
+      );
+    });
+
+    test('LocationNode accepts exactly the keys StoreLocationRequest declares', () {
+      expect(
+        () => LocationNode().fill(<String, dynamic>{
+          'name': 'Kiler',
+          'parent_id': 'l-1',
+          'icon': 'kitchen',
+          'colour': 'teal',
+        }, strict: true),
+        returnsNormally,
+      );
+    });
+
+    test('ReceiptLine refuses a key outside CommitReceiptRequest\'s per-line shape', () {
+      final ReceiptLine line = ReceiptLine();
+
+      expect(
+        () => line.fill(<String, dynamic>{
+          'product_id': 'p-1',
+          // `resolution` is the resolver's own answer; a commit never overwrites it directly.
+          'resolution': 'matched',
+        }, strict: true),
+        throwsA(
+          isA<MassAssignmentException>()
+              .having((MassAssignmentException e) => e.attribute, 'attribute', 'resolution'),
+        ),
+      );
+    });
+
+    test('ReceiptLine accepts exactly the keys CommitReceiptRequest declares per line', () {
+      expect(
+        () => ReceiptLine().fill(<String, dynamic>{
+          'product_id': 'p-1',
+          'quantity': 3,
+        }, strict: true),
+        returnsNormally,
+      );
+    });
+
+    test('Receipt refuses every key, because nothing on it is client-writable in this slice', () {
+      final Receipt receipt = Receipt();
+
+      // `fillable` is empty: `StoreReceiptRequest` validates only the multipart `image`, never a
+      // JSON attribute of the receipt itself, so every key is outside it by construction. This one
+      // needs no positive case, because there is no key that would pass.
+      expect(
+        () => receipt.fill(<String, dynamic>{'supplier_name': 'Migros'}, strict: true),
+        throwsA(
+          isA<MassAssignmentException>()
+              .having((MassAssignmentException e) => e.attribute, 'attribute', 'supplier_name'),
+        ),
+      );
+    });
+  });
 
   group('Receipt.fromApi', () {
     test('a detail payload parses every field, in printed line order', () {
