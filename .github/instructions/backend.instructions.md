@@ -51,6 +51,14 @@ DB::transaction(function (): void {
 - A tenancy isolation test is written before the feature it protects, and it asserts 404 rather than 403.
 - `pint --test` clean is part of the gate, and `bin/check backend` runs the whole backend half.
 
+## Validation, and the half of it that lives in the app
+
+Validation is inline `$request->validate()` in a thin controller: 33 calls across 20 controllers, and no `FormRequest` class exists. That is fine for a rule set one action uses. Reach for a `FormRequest` when two actions need the same set, or when `authorize()` belongs beside the rules rather than in the controller body.
+
+What actually duplicates here is the BOUND, not the rule set. `max:255` on a name appears 14 times, and `IconController::suggest` carries a comment saying it copies `LocationController`'s deliberately (`IconController.php:90`, `LocationController.php:42`). A bound repeated by hand drifts, so when you change one, grep the constant rather than the field name.
+
+**The client currently enforces none of them.** Nothing under `lib/` limits a name's length, so the app accepts 300 characters and the user meets a 422 where a field error belongs. A bound added or changed here gets its counterpart in the same PR; `.github/instructions/flutter-app.instructions.md` carries the client half.
+
 ## Controllers
 
 Thin: inject the service or the contract, return an API Resource. Paths under `api/v1` are English and plural.

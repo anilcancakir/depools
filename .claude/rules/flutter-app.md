@@ -29,6 +29,16 @@ Every screen here renders fixtures, and wiring one is the common task. The contr
 - A write is validated twice: client-side before the request, and the server's 422 field errors mapped back onto the form. A write that silently does nothing is usually a missing field in the Laravel `FormRequest` `rules()` or in the magic model's `fillable`. Check both before debugging further up.
 - Replace the fixture, do not shadow it. A screen reading both a fixture and an endpoint diverges the moment the API changes.
 
+## Validation and persistence, neither of which this app uses yet
+
+Nineteen files under `lib/` carry a text field and not one of them validates through magic: `MagicFormData`, `FormRequest`, `Validator` and `ValidatesRequests` appear zero times. `Model.fill` and `Model.save()` are equally unused, so the first screen wired sets both patterns.
+
+- A form's fields belong to a `MagicFormData`, built with the controller and disposed in `onClose()`. It hands out a `TextEditingController` for a String field and a `ValueNotifier<T>` for anything else, and `form.process(cb)` carries the in-flight flag so the button does not need its own.
+- A payload with rules belongs to a `FormRequest` subclass: `rules()`, plus `authorize()` and `prepared()` where they earn it. `Validator.make(data, rules)` is for an ad hoc check that has no form behind it. The rules that exist are `Required`, `Email`, `Min`, `Max`, `Confirmed`, `Same`, `Accepted`, `In`, `InList` and `Unique`; anything else is a rule you write, not one you assume.
+- **There is no `Model.create()` and no `Model.update()`.** The Laravel static does not exist here. A write is `Model()..fill(validated, strict: true)` and then `await save()`, and the instance surface is `save()`, `delete()`, `refresh()` plus the static `findById`. `strict: true` is the load-bearing half: it throws `MassAssignmentException` on a key the model does not declare, which is what turns silent schema drift into a failure with a name.
+- The server's answer is mapped back, not swallowed. `ValidatesRequests` gives `handleApiError(response)`, which reads Laravel's `{"errors": {field: [...]}}` into per-field errors. A write that silently does nothing is usually a missing key in the backend `FormRequest` rules or in the model's `fillable`; check both before looking further up.
+- **The two rule sets are one contract.** The client's rules and `backend/`'s validate the same payload, so a rule added on one side and not the other either rejects what the server would accept or passes what it will refuse. Change both in the same PR.
+
 ## Framework idioms that bite
 
 - Controllers are keyed by TYPE with a once-only `onInit`, so a controller that survives a login or a team switch serves the previous tenant's data. A secondary reader using `.instance` needs BOTH a self-triggered load and a listener; `onInit` alone never fires for a non-backing controller.
