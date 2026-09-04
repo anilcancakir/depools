@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\RenderLabelRequest;
 use App\Labels\LabelSheet;
 use App\Labels\LabelSheetBuilder;
 use App\Labels\LabelSheetRenderer;
@@ -12,7 +13,6 @@ use App\Models\PrintBatch;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
@@ -89,7 +89,7 @@ final class LabelController extends Controller
      * records this constraint for product photographs and the measured trap that goes with it
      * (`temporaryUrl`, never `temporarySignedRoute`: the route validates a RELATIVE signature).
      */
-    public function preview(Request $request): JsonResponse
+    public function preview(RenderLabelRequest $request): JsonResponse
     {
         [$template, $sheet] = $this->resolve($request);
 
@@ -103,7 +103,7 @@ final class LabelController extends Controller
      * a tab on web and reach the share sheet on mobile, and both take a url. A POST that streams bytes
      * can do neither.
      */
-    public function pdf(Request $request): JsonResponse
+    public function pdf(RenderLabelRequest $request): JsonResponse
     {
         [$template, $sheet] = $this->resolve($request);
 
@@ -192,23 +192,9 @@ final class LabelController extends Controller
      *
      * @return array{SheetTemplate, LabelSheet}
      */
-    private function resolve(Request $request): array
+    private function resolve(RenderLabelRequest $request): array
     {
-        $data = $request->validate([
-            'template' => ['required', 'string', Rule::in(SheetTemplate::keys())],
-            // `min:1` matters: an empty array rendered a full sheet of blank labels at full cost.
-            'fields' => ['sometimes', 'array', 'min:1'],
-            'fields.*' => ['string', Rule::in((array) config('labels.fields'))],
-            // **200 lines and 50 copies, down from 500 and 100.** The old ceiling was defended by a
-            // comment saying such a request "would time out instead of printing", and the likelier
-            // outcome is earlier and worse: one seven-character barcode is 1,864 bytes of SVG, so
-            // 50,000 cells is roughly 89 MB of string before Blade renders anything, which is a memory
-            // fatal rather than an actionable message. 10,000 cells is 19 MB and 154 sheets, which is
-            // already more paper than anybody feeds a printer in one go.
-            'items' => ['required', 'array', 'min:1', 'max:200'],
-            'items.*.product_id' => ['required', 'uuid'],
-            'items.*.copies' => ['sometimes', 'integer', 'min:1', 'max:50'],
-        ]);
+        $data = $request->validated();
 
         $template = SheetTemplate::fromKey($data['template']);
 

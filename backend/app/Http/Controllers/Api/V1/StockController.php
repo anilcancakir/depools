@@ -5,10 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\MovementReason;
 use App\Enums\MovementSource;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ConsumeStockRequest;
+use App\Http\Requests\CountStockRequest;
+use App\Http\Requests\ReceiveStockBatchRequest;
+use App\Http\Requests\ReceiveStockRequest;
+use App\Http\Requests\TransferStockRequest;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\Unit;
-use App\Rules\UnitExists;
 use App\Services\BarcodeLinker;
 use App\Services\CatalogueContributor;
 use App\Services\MovementContext;
@@ -17,10 +21,8 @@ use App\Services\StockWriter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use RuntimeException;
 
 /**
@@ -42,21 +44,6 @@ use RuntimeException;
 final class StockController extends Controller
 {
     /**
-     * The longest batch this endpoint accepts.
-     *
-     * Named because [MAX_BATCH_KEY] is derived from it: the per-line suffix is `:` plus an index up
-     * to 199, so the two have to move together or a key overflows its column.
-     */
-    private const MAX_BATCH_LINES = 200;
-
-    /**
-     * The longest batch key, leaving room for the suffix inside `varchar(64)`.
-     *
-     * `64 - strlen(':199')`. A key at the column's full width overflowed on write.
-     */
-    private const MAX_BATCH_KEY = 60;
-
-    /**
      * How close two quantities have to be to count as the same line.
      *
      * Half of `decimal(_, 3)`'s smallest step, so every difference the column can actually hold is a
@@ -71,12 +58,9 @@ final class StockController extends Controller
         private readonly CatalogueContributor $contributor,
     ) {}
 
-    public function receive(Request $request): JsonResponse
+    public function receive(ReceiveStockRequest $request): JsonResponse
     {
-        $data = $this->validateMove($request, [
-            'expires_at' => ['nullable', 'date'],
-            'lot_code' => ['nullable', 'string', 'max:64'],
-        ]);
+        $data = $request->validated();
 
         [$product, $location] = $this->resolve($data);
 
@@ -97,13 +81,9 @@ final class StockController extends Controller
         });
     }
 
-    public function consume(Request $request): JsonResponse
+    public function consume(ConsumeStockRequest $request): JsonResponse
     {
-        $data = $this->validateMove($request, [
-            // Only the outflow reasons. `purchase` here would let a client write an inbound
-            // movement through the outbound endpoint and skip lot creation entirely.
-            'reason' => ['nullable', Rule::enum(MovementReason::class)],
-        ]);
+        $data = $request->validated();
 
         [$product, $location] = $this->resolve($data);
 
@@ -128,21 +108,9 @@ final class StockController extends Controller
         });
     }
 
-    public function transfer(Request $request): JsonResponse
+    public function transfer(TransferStockRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'product_id' => ['required', 'uuid'],
-            'from_location_id' => ['required', 'uuid'],
-            'to_location_id' => ['required', 'uuid', 'different:from_location_id'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
-            'source' => ['nullable', Rule::enum(MovementSource::class)],
-
-            // When it happened, as on `receive` and `consume`. The entered pair is NOT taken here,
-            // for the reason `takeOut` records: a move can cross lots, and a figure that describes
-            // the request rather than the row it sits on either sums to more than the person said
-            // or contradicts its own delta.
-            'occurred_at' => ['nullable', 'date', 'before_or_equal:now'],
-        ]);
+        $data = $request->validated();
 
         $product = Product::query()->findOrFail($data['product_id']);
         $from = Location::query()->findOrFail($data['from_location_id']);
@@ -190,22 +158,9 @@ final class StockController extends Controller
      * varied would invite the client to write `status === 201` and then treat a perfect count as a
      * failure. The body carries what was created.
      */
-    public function count(Request $request): JsonResponse
+    public function count(CountStockRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'location_id' => ['required', 'uuid'],
-            'lines' => ['required', 'array', 'min:1'],
-            // `distinct`, because two lines for one product would have the second one measured against
-            // the balance the first one just wrote: it would come back `matched` and read as though the
-            // count agreed, when nothing about the shelf was ever checked twice.
-            'lines.*.product_id' => ['required', 'uuid', 'distinct'],
-            // Zero is allowed and is the point of the field. An empty field on the count screen means
-            // NOBODY LOOKED and never reaches this endpoint (D58); a zero that arrives here is a
-            // counted empty shelf and writes the balance off. `gt:0` would make that uncountable.
-            'lines.*.counted_quantity' => ['required', 'numeric', 'min:0'],
-            'source' => ['nullable', Rule::enum(MovementSource::class)],
-
-        ]);
+        $data = $request->validated();
 
         $location = Location::query()->findOrFail($data['location_id']);
 
@@ -310,57 +265,9 @@ final class StockController extends Controller
      * A line therefore carries EITHER a `product_id` the tenant owns, or the card to create. Never
      * both, because a line that carries both is a client that has not decided.
      */
-    public function receiveBatch(Request $request): JsonResponse
+    public function receiveBatch(ReceiveStockBatchRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            // **`uuid`, because without it a malformed id is a 500.** Measured: every key here is a
-            // native `uuid` column, so `findOrFail('not-a-uuid')` reaches PostgreSQL and comes back as
-            // `SQLSTATE[22P02] invalid input syntax for type uuid`, which is an unhandled query
-            // exception rather than a refusal the client can read. A well-formed id belonging to
-            // another tenant is untouched by this and still 404s through the scope, which is tenancy
-            // rule 2 and has to stay that way.
-            'location_id' => ['required', 'uuid'],
-            // **`list`, because the per-line key is built from the INDEX.** `array` alone accepts a
-            // JSON object, whose keys are strings, and `lineKey()` would then be handed one and
-            // raise a TypeError: a 500 where the client deserved a 422.
-            'lines' => ['required', 'array', 'list', 'min:1', 'max:'.self::MAX_BATCH_LINES],
-            'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
-
-            // One or the other, enforced in BOTH directions and across the WHOLE card. `required_without`
-            // alone only says "at least one", so a line carrying both was accepted and then silently
-            // took the id path: everything meant for the product it would have created was dropped
-            // without a word, which is the shape of contract drift that costs a day to find from the
-            // client side. Prohibiting only `name` left the same hole for the other five.
-            //
-            // A line with neither is still a 422 naming both fields, which is what the client needs.
-            'lines.*.product_id' => [
-                'nullable',
-                'uuid',
-                'required_without:lines.*.name',
-                'prohibits:lines.*.name,lines.*.brand,lines.*.base_unit,lines.*.barcode,lines.*.symbology,lines.*.contribute',
-            ],
-            'lines.*.name' => ['nullable', 'required_without:lines.*.product_id', 'string', 'max:255'],
-            'lines.*.brand' => ['nullable', 'string', 'max:255'],
-            // The cascade's `unit_hint`, which is a suggestion rather than an answer: a shop counts
-            // cartons and a cafe counts litres of the same milk, so the default is the countable one.
-            'lines.*.base_unit' => ['nullable', 'string', 'max:16', new UnitExists],
-            'lines.*.barcode' => ['nullable', 'string', 'max:128'],
-            'lines.*.symbology' => ['nullable', 'string', 'max:16'],
-            // Same default as the product form: ticked, per D117.
-            'lines.*.contribute' => ['nullable', 'boolean'],
-
-            'source' => ['nullable', Rule::enum(MovementSource::class)],
-            // **A whole batch's key, which is not the same shape as `receive`'s.** The unique index
-            // is `(team_id, idempotency_key)` and it is PER MOVEMENT, so one key cannot go on every
-            // row of a batch. Each line gets `"{key}:{index}"` instead, and the index is the line's
-            // position in the request, so retrying the same payload produces the same keys.
-            //
-            // **60, not 64, and the arithmetic is the reason.** The column is `varchar(64)` and this
-            // endpoint takes at most 200 lines, so the longest suffix is `:199`, four characters. A
-            // 64-character key would have overflowed the column on write, which is a database error
-            // rather than a refusal the client can read.
-            'idempotency_key' => ['nullable', 'string', 'max:'.self::MAX_BATCH_KEY],
-        ]);
+        $data = $request->validated();
 
         $location = Location::query()->findOrFail($data['location_id']);
 
@@ -712,49 +619,6 @@ final class StockController extends Controller
         }
 
         return $product;
-    }
-
-    /**
-     * @param  array<string, mixed>  $extra
-     * @return array<string, mixed>
-     */
-    private function validateMove(Request $request, array $extra = []): array
-    {
-        return $request->validate(array_merge([
-            // **`uuid`, because without it a malformed id is a 500.** Every key in this schema is a
-            // native `uuid` column, so `findOrFail('not-a-uuid')` reaches PostgreSQL and comes back
-            // as `SQLSTATE[22P02] invalid input syntax for type uuid`: an unhandled query exception,
-            // which a client cannot tell apart from the server being broken.
-            //
-            // **`uuid` and NOT `exists`, deliberately.** A well-formed id belonging to another tenant
-            // has to keep answering 404 through `TeamScope`, and `exists` would make it a 422 that
-            // confirms the row exists somewhere. The shape check refuses garbage; the scope refuses
-            // the neighbour's data; neither does the other's job.
-            'product_id' => ['required', 'uuid'],
-            'location_id' => ['required', 'uuid'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
-            'source' => ['nullable', Rule::enum(MovementSource::class)],
-            'idempotency_key' => ['nullable', 'string', 'max:64'],
-
-            // **When it happened, which is not when it was typed.** `StockMovement` carries the case:
-            // a receipt entered on Tuesday for a Sunday shop has to age from Sunday, or every
-            // forecast built on it is two days optimistic. The column and its index existed from the
-            // start and nothing could set them.
-            //
-            // `before_or_equal:now` because stock can be recorded late and cannot be recorded early:
-            // a movement dated tomorrow would make a forecast read a delivery that has not happened.
-            'occurred_at' => ['nullable', 'date', 'before_or_equal:now'],
-
-            // What the person actually typed, beside the base-unit quantity (D90). Without these a
-            // delivery keyed as `2 koli` reads back as `24 adet` on every surface that renders it.
-            //
-            // **The pair travels together**, mirrored from the CHECK constraint that already refuses a
-            // half-filled pair: a quantity with no unit reads as base units and silently contradicts
-            // what the person typed, which is the failure the two columns exist to prevent. Without
-            // these two rules the database's refusal reaches the client as a 422 carrying raw SQL.
-            'entered_quantity' => ['nullable', 'required_with:entered_unit', 'numeric', 'gt:0'],
-            'entered_unit' => ['nullable', 'required_with:entered_quantity', 'string', 'max:16', new UnitExists],
-        ], $extra));
     }
 
     /**

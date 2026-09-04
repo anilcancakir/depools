@@ -92,6 +92,25 @@ final class ShelfReadTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('photo');
     }
 
+    public function test_a_photograph_over_the_pixel_budget_is_refused_before_anything_decodes(): void
+    {
+        $this->tenant();
+
+        // 8000x2001 is 16,008,000 pixels: eight thousand over `media.documents.max_pixels` and
+        // INSIDE both per-axis limits, which is the only shape that reaches the budget closure at
+        // all. A picture that broke an axis would be refused one rule earlier and this test would
+        // then pass with the closure never running, which is exactly the regression it exists for:
+        // a decode of this file allocates 64 MB and takes PHP's default `memory_limit` with it.
+        $this->postJson('/api/v1/shelf-reads', [
+            'photo' => UploadedFile::fake()->image('huge.jpg', 8000, 2001),
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('photo')
+            // The MESSAGE, because the status alone cannot say which rule answered. `dimensions`
+            // writes "invalid image dimensions"; only the budget closure writes this sentence.
+            ->assertJsonPath('errors.photo.0', 'This picture holds too many pixels to process.');
+    }
+
     public function test_the_regions_are_numbered_in_the_order_a_person_scans_a_shelf(): void
     {
         $this->tenant();

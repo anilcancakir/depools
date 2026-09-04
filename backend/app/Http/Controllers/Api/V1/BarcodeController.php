@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ResolveBarcodeRequest;
 use App\Services\BarcodeResolver;
 use App\Support\Gtin;
 use App\Support\ProductCandidate;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -34,17 +34,9 @@ final class BarcodeController extends Controller
      * A code that cannot be IDENTIFIED is 422 rather than 404, because that one is not a weaker
      * answer to the same question: the create flow behind a 404 cannot be completed for it at all.
      */
-    public function resolve(Request $request): JsonResponse
+    public function resolve(ResolveBarcodeRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            // 128 because `barcodes.code` is `string(128)`: anything longer could never have been
-            // stored and so can never resolve, and a 404 there would mean "unknown product" when the
-            // truth is "this API cannot hold that value".
-            'code' => ['required', 'string', 'max:128'],
-            // Part of the identity for a non-GTIN label rather than a hint, since the same characters
-            // as Code128 and as a QR are two different labels. Absent for a GTIN, which needs none.
-            'symbology' => ['nullable', 'string', 'max:16'],
-        ]);
+        $data = $request->validated();
 
         // The `''` arm is belt-and-braces rather than the live path: Laravel's GLOBAL stack runs
         // `TrimStrings` then `ConvertEmptyStringsToNull` (Configuration\Middleware::getGlobalMiddleware,

@@ -3,12 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreUnitRequest;
 use App\Models\Scopes\TeamScope;
 use App\Models\Unit;
-use App\Rules\UnitExists;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -72,29 +70,9 @@ final class UnitController extends Controller
      * genuinely not know or not care, and a unit with no reference is its own root, which the CHECK on
      * the table pins at a factor of exactly 1.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreUnitRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'code' => ['required', 'string', 'max:16'],
-            'name' => ['required', 'string', 'max:255'],
-            // The unit this one is a multiple of, which has to be one this tenant can already see.
-            'reference_code' => ['nullable', 'string', 'max:16', new UnitExists],
-            // Required WITH a reference and refused without one, because a factor against nothing is a
-            // number that cannot be interpreted, and the table's CHECK would refuse the row anyway with
-            // a constraint violation rather than a sentence.
-            //
-            // `Rule::prohibitedIf` rather than a `prohibited_without` string, which does not exist:
-            // Laravel ships `prohibited`, `prohibited_if`, `prohibited_unless` and `prohibits`, and the
-            // invented one fails as `Method validateProhibitedWithout does not exist` at request time
-            // rather than as anything a reader would spot.
-            'factor' => [
-                'nullable',
-                'numeric',
-                'gt:0',
-                'required_with:reference_code',
-                Rule::prohibitedIf(fn (): bool => ! $request->filled('reference_code')),
-            ],
-        ]);
+        $data = $request->validated();
 
         $code = Unit::normaliseCode($data['code']);
         $teamId = TeamScope::currentTeamId();

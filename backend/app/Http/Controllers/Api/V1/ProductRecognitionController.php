@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\RecogniseProductPhotoRequest;
 use App\Http\Resources\PhotoReadResource;
-use App\Services\ImageDownscaler;
 use App\Services\ProductPhotoReader;
-use Closure;
-use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 
 /**
@@ -39,50 +37,13 @@ use Illuminate\Http\UploadedFile;
  */
 final class ProductRecognitionController extends Controller
 {
-    public function __construct(
-        private readonly ProductPhotoReader $reader,
-        private readonly ImageDownscaler $downscaler,
-    ) {}
+    public function __construct(private readonly ProductPhotoReader $reader) {}
 
-    public function __invoke(Request $request): PhotoReadResource
+    public function __invoke(RecogniseProductPhotoRequest $request): PhotoReadResource
     {
-        $this->validatePhoto($request);
-
         /** @var UploadedFile $photo */
         $photo = $request->file('photo');
 
         return new PhotoReadResource($this->reader->read($photo));
-    }
-
-    /**
-     * The upload rules, which are `media.enrichment`'s rather than the gallery's.
-     *
-     * Same shape as the receipt path and for the same reason: this endpoint DECODES the file, so the
-     * format list has to be what GD can read rather than what a client can render, and the pixel
-     * budget has to be checked before anything allocates a buffer. `media.php` carries both
-     * arguments beside the block they belong to.
-     */
-    private function validatePhoto(Request $request): void
-    {
-        $enrichment = config('media.enrichment');
-        $images = config('media.images');
-
-        $request->validate([
-            'photo' => [
-                'bail',
-                'required',
-                'file',
-                'image',
-                'mimes:'.implode(',', $enrichment['mimes']),
-                'max:'.$images['max_kilobytes'],
-                'dimensions:max_width='.$enrichment['max_width'].',max_height='.$enrichment['max_height'],
-                function (string $attribute, mixed $value, Closure $fail) use ($enrichment): void {
-                    if ($value instanceof UploadedFile
-                        && $this->downscaler->exceedsPixelBudget($value, (int) $enrichment['max_pixels'])) {
-                        $fail(__('This picture holds too many pixels to process.'));
-                    }
-                },
-            ],
-        ]);
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreProductImageRequest;
+use App\Http\Requests\UpdateProductImageRequest;
 use App\Http\Resources\ProductImageResource;
 use App\Models\Product;
 use App\Models\ProductImage;
@@ -47,11 +49,17 @@ final class ProductImageController extends Controller
      * as a product with no picture, and asking the user to nominate one when there is only one to
      * nominate is a question with a single answer.
      */
-    public function store(Request $request, string $product): JsonResponse
+    public function store(StoreProductImageRequest $request, string $product): JsonResponse
     {
+        // Still the first thing this method does, so another tenant's product is a 404 that wrote
+        // nothing. The rules now run one step earlier than the lookup, because a `FormRequest` is
+        // validated as it is resolved: a foreign id carrying a valid request still answers 404, and
+        // a foreign id carrying an invalid one answers 422 where it used to answer 404. That
+        // direction is the safe one, since 422 is now the answer for every id rather than only for
+        // the tenant's own, which is one less way to tell an id apart from the outside.
         $model = Product::query()->findOrFail($product);
 
-        $data = $this->validateStore($request);
+        $data = $request->validated();
 
         // Read INSIDE the transaction that writes, so two uploads racing cannot both see seven.
         return DB::transaction(function () use ($request, $model, $data): JsonResponse {
@@ -95,19 +103,12 @@ final class ProductImageController extends Controller
      * Both in one route because both are "where does this picture sit", and a client that has just
      * dragged a thumbnail to the front usually means both at once.
      */
-    public function update(Request $request, string $product, string $image): JsonResponse
+    public function update(UpdateProductImageRequest $request, string $product, string $image): JsonResponse
     {
         $model = Product::query()->findOrFail($product);
         $picture = $model->images()->findOrFail($image);
 
-        $data = $request->validate([
-            'is_primary' => ['sometimes', 'boolean'],
-            // **Bounded by the COLUMN, not by the gallery's size.** `position` is a sort key rather
-            // than an index: it is not renumbered on insert, so a picture appended after one that was
-            // moved to 7 legitimately takes 8, and a `max:MAX_PER_PRODUCT - 1` here would refuse a
-            // value `store` had just written. `unsignedSmallInteger` is what actually constrains it.
-            'position' => ['sometimes', 'integer', 'min:0', 'max:65535'],
-        ]);
+        $data = $request->validated();
 
         if (array_key_exists('position', $data)) {
             $picture->update(['position' => $data['position']]);
@@ -168,53 +169,6 @@ final class ProductImageController extends Controller
         // kernel, because Symfony's `Response::prepare` strips the content on a 204 and drops the
         // content type; this spelling says so at the call site instead of relying on that.
         return response()->noContent();
-    }
-
-    /**
-     * The rules for whichever of the three shapes this request is.
-     *
-     * **Each field is optional and the CHOICE is checked separately**, rather than leaning on
-     * `required_without_all` plus `accepted`. That combination looked right and was not: `accepted`
-     * runs even when its field is absent, so every upload and every link came back
-     * `The from catalogue field must be accepted`. Found by the tests, which is the argument for
-     * writing them against the endpoint rather than against the model.
-     *
-     * Counting the shapes also says something the per-field rules cannot: a request naming TWO of them
-     * is as wrong as one naming none, and the row would otherwise be decided by the order of the
-     * branches below rather than by the client.
-     */
-    private function validateStore(Request $request): array
-    {
-        $images = config('media.images');
-
-        $data = $request->validate([
-            'image' => [
-                'nullable',
-                'file',
-                'image',
-                'mimes:'.implode(',', $images['mimes']),
-                'max:'.$images['max_kilobytes'],
-            ],
-            // `https` only: an http picture is a mixed-content block on the web build, so a url that
-            // would never render is refused at the boundary rather than stored and puzzled over.
-            'url' => ['nullable', 'url:https', 'max:2048'],
-            'from_catalogue' => ['nullable', 'boolean'],
-            'attribution' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $named = array_filter([
-            $request->hasFile('image'),
-            filled($data['url'] ?? null),
-            $request->boolean('from_catalogue'),
-        ]);
-
-        if (count($named) !== 1) {
-            throw ValidationException::withMessages([
-                'image' => __('Name exactly one picture: a file, a link, or the catalogue.'),
-            ]);
-        }
-
-        return $data;
     }
 
     /**
