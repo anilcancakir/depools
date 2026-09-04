@@ -22,9 +22,23 @@ import '../models/scan_source.dart';
 /// Scanning the same carton twice means two cartons, which is the whole reason a receiving bench
 /// scans at all. The row's count increments and the row moves to the front, because a row that
 /// incremented out of sight gives no feedback for a scan that worked (D40).
-class ScanController extends MagicController with MagicStateMixin<List<ScanEntry>> {
+class ScanController extends MagicController
+    with MagicStateMixin<List<ScanEntry>>, ValidatesRequests {
   /// The shared instance, keyed by type.
   static ScanController get instance => Magic.findOrPut(ScanController.new);
+
+  /// [commit]'s rule set, mirroring `ReceiveStockBatchRequest::rules()` by hand.
+  ///
+  /// Only the two TOP-LEVEL fields: magic's `Validator` has no `lines.*.field` dotted-wildcard
+  /// support (checked in `magic/lib/src/validation/validator.dart`), so every `lines.*.*` rule
+  /// (`product_id`, `name`, `brand`, `base_unit`, `barcode`, `symbology`, `contribute`, the
+  /// `required_without`/`prohibits` pair) is left unmirrored rather than invented as a nested shape
+  /// this validator cannot express. `location_id`'s `uuid` has no magic rule. `lines`'s `min:1|max:200`
+  /// mirrors through [Min]/[Max], which both count LIST items for a `List` value.
+  static final Map<String, List<Rule>> _commitRules = <String, List<Rule>>{
+    'location_id': <Rule>[Required()],
+    'lines': <Rule>[Required(), Min(1), Max(200)],
+  };
 
   /// The batch, most recently scanned first.
   final List<ScanEntry> _entries = <ScanEntry>[];
@@ -274,6 +288,14 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
       return Lang.get('screens.scan.nothing_to_write');
     }
 
+    final List<Map<String, dynamic>> lines = settled.map(_lineOf).toList();
+
+    try {
+      validate(<String, dynamic>{'location_id': destination, 'lines': lines}, _commitRules);
+    } on ValidationException {
+      return firstError;
+    }
+
     // **What was posted, keyed and counted, because the batch keeps moving while the request is out.**
     // Sweeping `isSettled` on the way back removed whatever happened to be settled by THEN, which is
     // not the same set: a row still being looked up when the button was pressed becomes settled when
@@ -292,11 +314,18 @@ class ScanController extends MagicController with MagicStateMixin<List<ScanEntry
         '/stock/receive-batch',
         data: <String, dynamic>{
           'location_id': destination,
-          'lines': settled.map(_lineOf).toList(),
+          'lines': lines,
         },
       );
 
       if (!response.successful) {
+        // handleApiError nulls rxState via MagicStateMixin for ANY failure, but this controller's
+        // rxState is the in-progress batch the user built by hand, and losing it over a refused
+        // write would throw away their scanning session (see the class docblock). Republish what is
+        // still held, from `_entries`, right after.
+        handleApiError(response, fallback: Lang.get('screens.scan.write_failed'));
+        _publish();
+
         // The server's own sentence, because it names the reason: a barcode already in use, a
         // serial-tracked product, a location that vanished. Replacing it with a generic line throws
         // away the only useful part of a refusal.

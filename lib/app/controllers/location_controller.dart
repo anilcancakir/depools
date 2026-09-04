@@ -22,9 +22,23 @@ import '../support/plural.dart';
 ///
 /// It is also the reason the summary is not on the model's `fromApi`: the count needs the whole
 /// list, and a model cannot see its siblings.
-class LocationController extends MagicController with MagicStateMixin<List<LocationNode>> {
+class LocationController extends MagicController
+    with MagicStateMixin<List<LocationNode>>, ValidatesRequests {
   /// The shared instance, keyed by type.
   static LocationController get instance => Magic.findOrPut(LocationController.new);
+
+  /// [create]'s rule set, mirroring `StoreLocationRequest::rules()` by hand.
+  ///
+  /// `parent_id` (`nullable|uuid`) and `icon` (`nullable|Rule::exists(...)`) carry no client-side
+  /// mirror: magic ships no `uuid` or `exists` rule, and approximating either would either accept a
+  /// value the server refuses or refuse one it accepts. `colour` mirrors `Rule::in(Location::COLOURS)`
+  /// with the same seven hues (`Location::COLOURS`, `backend/app/Models/Location.php`).
+  static final Map<String, List<Rule>> _createRules = <String, List<Rule>>{
+    'name': <Rule>[Required(), Max(255)],
+    'colour': <Rule>[
+      In<String>(<String>['slate', 'blue', 'teal', 'green', 'amber', 'red', 'violet']),
+    ],
+  };
 
   bool _loaded = false;
 
@@ -91,6 +105,18 @@ class LocationController extends MagicController with MagicStateMixin<List<Locat
     String? icon,
     String? colour,
   }) async {
+    try {
+      validate(<String, dynamic>{'name': name, 'colour': colour}, _createRules);
+    } on ValidationException {
+      // validationErrors is already populated and refreshUI() already fired, so the UI already
+      // shows the refusal once the form reads hasError()/getError(); this return value is only
+      // for the caller's own fallback surface (MagicFeedback.error) until that wiring lands.
+      return firstError;
+    }
+
+    // Held so a refused write can put the tree back exactly as it was.
+    final List<LocationNode>? before = rxState;
+
     final dynamic response = await Http.post('/locations', data: <String, dynamic>{
       'name': name,
       'parent_id': ?parentId,
@@ -99,6 +125,13 @@ class LocationController extends MagicController with MagicStateMixin<List<Locat
     });
 
     if (!response.successful) {
+      // handleApiError nulls rxState via MagicStateMixin.setError/setEmpty for ANY failure, but this
+      // controller's rxState is the cached tree rather than the resource being validated: a failed
+      // create must not blank a tree the user is looking at over a write that changed nothing (see
+      // this method's own docblock). Restore it right after, so only the field errors are new state.
+      handleApiError(response, fallback: Lang.get('screens.location_form.save_failed'));
+      if (before != null) setSuccess(before);
+
       return response.message ?? Lang.get('screens.location_form.save_failed');
     }
 

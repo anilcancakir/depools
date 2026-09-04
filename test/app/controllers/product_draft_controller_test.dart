@@ -191,4 +191,34 @@ void main() {
     expect(controller.saving, isFalse);
     expect(controller.draft!.name, 'Süt Tam Yağlı 1 L');
   });
+
+  test('a server refusal on sku is readable through hasError/getError, and the draft survives', () async {
+    Http.fake(
+      (MagicRequest request) => request.url.contains('recognise')
+          ? MagicResponse(
+              statusCode: 200,
+              data: <String, dynamic>{'data': card(const <String, dynamic>{'sku': 'SKU-1'})},
+            )
+          : MagicResponse(
+              statusCode: 422,
+              data: const <String, dynamic>{
+                'message': 'The given data was invalid.',
+                'errors': <String, dynamic>{
+                  'sku': <String>['That SKU is already taken.'],
+                },
+              },
+            ),
+    );
+
+    final ProductDraftController controller = ProductDraftController()
+      ..begin(photo());
+    await controller.read();
+
+    expect(await controller.save(), isNull);
+    expect(controller.hasError('sku'), isTrue);
+    expect(controller.getError('sku'), isNotNull);
+    // handleApiError nulls rxState on the way in; the draft has to survive that so the user does not
+    // lose what they typed over a refused save.
+    expect(controller.draft!.name, 'Süt Tam Yağlı 1 L');
+  });
 }

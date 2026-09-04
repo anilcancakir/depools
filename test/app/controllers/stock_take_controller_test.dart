@@ -1,6 +1,7 @@
 import 'package:depools/app/controllers/stock_take_controller.dart';
 import 'package:depools/app/models/product_filter.dart';
 import 'package:depools/app/support/scan_outcome.dart';
+import 'package:depools/resources/views/products/count_line.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:magic/magic.dart';
 
@@ -259,6 +260,37 @@ void main() {
     // and on a count the difference decides whether the user believes the shelf is empty.
     expect(controller.failed, isTrue);
     expect(controller.rows, isEmpty);
+  });
+
+  test('a server refusal on lines is readable through hasError/getError', () async {
+    Http.fake((MagicRequest request) {
+      if (request.url.contains('/locations')) return locations();
+      if (request.url.contains('/stock/count')) {
+        return MagicResponse(
+          statusCode: 422,
+          data: const <String, dynamic>{
+            'message': 'The given data was invalid.',
+            'errors': <String, dynamic>{
+              'lines': <String>['The lines field is required.'],
+            },
+          },
+        );
+      }
+
+      return page(<String>['a'], total: 1);
+    });
+
+    final StockTakeController controller = StockTakeController();
+    await controller.open('shelf');
+
+    final CountCommit commit = await controller.commit('shelf', <String, num>{'a': 3});
+
+    expect(commit.error, isNotNull);
+    expect(controller.hasError('lines'), isTrue);
+    expect(controller.getError('lines'), isNotNull);
+    // handleApiError nulls rxState on the way in; the shelf has to survive that so a user mid-walk
+    // through it does not lose what is already on screen.
+    expect(controller.rows, isNotEmpty);
   });
 
   group('resolving a scan', () {

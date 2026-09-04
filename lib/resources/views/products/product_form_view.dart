@@ -6,6 +6,7 @@ import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart'
     show ButtonIntent, MSBottomSheet, MSButton, MSCombobox, MSInput, MSSwitch;
 
+import '../../../app/controllers/product_form_controller.dart';
 import '../../../app/models/scan_entry.dart' show ScanEntry;
 import '../../../app/support/merge_unit_codes.dart';
 import '../../../app/support/unit_label.dart';
@@ -84,12 +85,12 @@ class _ProductFormViewState extends State<ProductFormView> {
   /// Whether a save is in flight, so a second press cannot create a second product.
   bool _saving = false;
 
-  /// The server's field errors, keyed the way it names them.
-  ///
-  /// Both halves of the double validation `flutter-app.md` asks for: the button below refuses an empty
-  /// name before the request, and anything the server refuses is mapped back onto the field that
-  /// caused it rather than shown as one message about the form.
-  Map<String, String> _errors = const <String, String>{};
+  /// Both halves of the double validation `flutter-app.md` asks for: the button below refuses an
+  /// empty name before the request goes out, and [ProductFormController] mirrors the server's own
+  /// rules before sending it and maps back whatever the server still refuses. The four render sites
+  /// below read `hasError`/`getError` off the shared instance rather than a map this view keeps
+  /// itself, so a field's error is whichever half caught it.
+  ProductFormController get _form => ProductFormController.instance;
 
   bool get _isValid => _name.text.trim().isNotEmpty && !_saving;
 
@@ -175,10 +176,10 @@ class _ProductFormViewState extends State<ProductFormView> {
               controller: _name,
               // The button's own enabled state reads this, so the rebuild is the point rather than the
               // stored value: a controller holds the text either way.
-              onChanged: (String _) => setState(() => _errors = _without('name')),
+              onChanged: (String _) => setState(() => _form.clearFieldError('name')),
             ),
-            if (_errors['name'] != null)
-              WText(_errors['name']!, className: 'text-xs text-expired'),
+            if (_form.hasError('name'))
+              WText(_form.getError('name')!, className: 'text-xs text-expired'),
           ],
         ),
         WDiv(
@@ -209,7 +210,7 @@ class _ProductFormViewState extends State<ProductFormView> {
                 if (next != null) {
                   setState(() {
                     _unit = next;
-                    _errors = _without('base_unit');
+                    _form.clearFieldError('base_unit');
                   });
                 }
               },
@@ -232,8 +233,8 @@ class _ProductFormViewState extends State<ProductFormView> {
                 ],
               ),
             ),
-            if (_errors['base_unit'] != null)
-              WText(_errors['base_unit']!, className: 'text-xs text-expired'),
+            if (_form.hasError('base_unit'))
+              WText(_form.getError('base_unit')!, className: 'text-xs text-expired'),
             // Said once, under the chips: stock is stored in this unit and a package unit is a
             // conversion to it, which is the distinction `inventory-core.md` spends a section on.
             WText(
@@ -305,11 +306,11 @@ class _ProductFormViewState extends State<ProductFormView> {
                 type: InputType.number,
                 controller: _shelfLife,
                 onChanged: (String _) =>
-                    setState(() => _errors = _without('default_shelf_life_days')),
+                    setState(() => _form.clearFieldError('default_shelf_life_days')),
               ),
-              if (_errors['default_shelf_life_days'] != null)
+              if (_form.hasError('default_shelf_life_days'))
                 WText(
-                  _errors['default_shelf_life_days']!,
+                  _form.getError('default_shelf_life_days')!,
                   className: 'text-xs text-expired',
                 ),
               WText(
@@ -362,24 +363,14 @@ class _ProductFormViewState extends State<ProductFormView> {
                 // an input that accepts text and discards it is worse than one that does not accept it.
                 // `enabled`, which is what `MSInput` calls it.
                 enabled: controller != null,
-                onChanged: (String _) => setState(() => _errors = _without(key)),
+                onChanged: (String _) => setState(() => _form.clearFieldError(key)),
               ),
-              if (_errors[key] != null)
-                WText(_errors[key]!, className: 'text-xs text-expired'),
+              if (_form.hasError(key))
+                WText(_form.getError(key)!, className: 'text-xs text-expired'),
             ],
           ),
       ],
     );
-  }
-
-  /// The error map without one key, so typing into a field clears its own complaint and nothing else.
-  Map<String, String> _without(String field) {
-    if (!_errors.containsKey(field)) return _errors;
-
-    return <String, String>{
-      for (final MapEntry<String, String> entry in _errors.entries)
-        if (entry.key != field) entry.key: entry.value,
-    };
   }
 
   /// Registers a unit of this tenant's own and selects it.
@@ -403,11 +394,14 @@ class _ProductFormViewState extends State<ProductFormView> {
     if (!mounted) return;
 
     if (!response.successful) {
-      // The server's own sentence, because it names which collision happened: a standard code, or one
-      // this tenant already has.
+      // `firstError` over `response['message']`: this is the unit sheet's whole write path, and
+      // the sheet has already popped by the time this answers, so there is no field slot left to
+      // put a refusal under. A collision on `code` (this tenant already has it, or it shadows a
+      // standard one) is a field-named 422 from `StoreUnitRequest`, and `firstError` reads that
+      // field's own sentence before falling back to the envelope's `message`.
       MagicFeedback.error(
         Lang.get('screens.product_form.unit_add_title'),
-        _messageOf(response) ?? Lang.get('screens.product_form.unit_add_failed'),
+        response.firstError ?? Lang.get('screens.product_form.unit_add_failed'),
       );
 
       return;
@@ -420,7 +414,7 @@ class _ProductFormViewState extends State<ProductFormView> {
     setState(() {
       _units = <String>[..._units, code];
       _unit = code;
-      _errors = _without('base_unit');
+      _form.clearFieldError('base_unit');
     });
   }
 
@@ -433,89 +427,49 @@ class _ProductFormViewState extends State<ProductFormView> {
   Future<void> _save({required bool thenStock}) async {
     if (_saving) return;
 
-    setState(() {
-      _saving = true;
-      _errors = const <String, String>{};
-    });
+    setState(() => _saving = true);
 
-    final dynamic response = await Http.post('/products', data: <String, dynamic>{
-      'name': _name.text.trim(),
-      'base_unit': _unit,
-      'tracks_expiry': _tracksExpiry,
-      if (_tracksExpiry && int.tryParse(_shelfLife.text.trim()) != null)
-        'default_shelf_life_days': int.parse(_shelfLife.text.trim()),
-      if (_brand.text.trim().isNotEmpty) 'brand': _brand.text.trim(),
-      if (_sku.text.trim().isNotEmpty) 'sku': _sku.text.trim(),
-      if (_description.text.trim().isNotEmpty) 'description': _description.text.trim(),
-    });
+    final ({bool ok, String? id}) result = await _form.save(
+      name: _name.text.trim(),
+      baseUnit: _unit,
+      tracksExpiry: _tracksExpiry,
+      defaultShelfLifeDays: _tracksExpiry && int.tryParse(_shelfLife.text.trim()) != null
+          ? int.parse(_shelfLife.text.trim())
+          : null,
+      brand: _brand.text.trim().isNotEmpty ? _brand.text.trim() : null,
+      sku: _sku.text.trim().isNotEmpty ? _sku.text.trim() : null,
+      description: _description.text.trim().isNotEmpty ? _description.text.trim() : null,
+    );
 
     if (!mounted) return;
 
-    if (!response.successful) {
-      setState(() {
-        _saving = false;
-        _errors = _fieldErrorsOf(response);
-      });
+    if (!result.ok) {
+      setState(() => _saving = false);
 
       // A message as well as the field marks, because a refusal with no field (a rate limit, a 500)
-      // would otherwise mark nothing and look like the button doing nothing.
-      if (_errors.isEmpty) {
-        MagicFeedback.error(
-          Lang.get('screens.product_form.title'),
-          _messageOf(response) ?? Lang.get('screens.product_form.save_failed'),
-        );
+      // would otherwise mark nothing and look like the button doing nothing. `_form.saveError` is
+      // null exactly when the refusal named at least one field, which the render sites above show.
+      if (_form.saveError != null) {
+        MagicFeedback.error(Lang.get('screens.product_form.title'), _form.saveError!);
       }
 
       return;
     }
 
-    final dynamic id = response['data'] is Map ? response['data']['id'] : null;
+    setState(() => _saving = false);
 
     MagicFeedback.success(
       Lang.get('screens.product_form.title'),
       Lang.get('screens.product_form.saved', {'name': _name.text.trim()}),
     );
 
-    if (thenStock && id is String) {
-      MagicRoute.to('/products/$id');
+    if (thenStock && result.id != null) {
+      MagicRoute.to('/products/${result.id}');
 
       return;
     }
 
     MagicRoute.to('/products');
-  }
-
-  /// The server's field errors, flattened to one message per field.
-  ///
-  /// Laravel answers `{errors: {name: [..]}}`, and a field with two complaints shows the first: a form
-  /// row has space for one line, and the second is almost always a consequence of the first.
-  Map<String, String> _fieldErrorsOf(dynamic response) {
-    final dynamic errors = response['errors'];
-
-    if (errors is! Map) return const <String, String>{};
-
-    final Map<String, String> mapped = <String, String>{};
-
-    for (final dynamic key in errors.keys) {
-      final dynamic messages = errors[key];
-
-      if (key is! String) continue;
-
-      if (messages is List && messages.isNotEmpty && messages.first is String) {
-        mapped[key] = messages.first as String;
-      } else if (messages is String) {
-        mapped[key] = messages;
-      }
-    }
-
-    return mapped;
-  }
-
-  /// The server's own sentence, when it sent one.
-  String? _messageOf(dynamic response) {
-    final dynamic message = response['message'];
-
-    return message is String && message.isNotEmpty ? message : null;
   }
 
   /// Save and go straight to stock, or just save.

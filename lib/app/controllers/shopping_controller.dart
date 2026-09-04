@@ -14,9 +14,21 @@ import '../support/mapped_or_null.dart';
 /// **The revert re-reads rather than flipping twice.** Flipping back locally assumes nothing else
 /// changed in between, and something did in the case that matters: two taps in flight at once. A
 /// refetch is the only answer that cannot leave the screen holding a state the server never had.
-class ShoppingController extends MagicController with MagicStateMixin<List<ShoppingLine>> {
+class ShoppingController extends MagicController
+    with MagicStateMixin<List<ShoppingLine>>, ValidatesRequests {
   /// The shared instance, keyed by type.
   static ShoppingController get instance => Magic.findOrPut(ShoppingController.new);
+
+  /// [add]'s rule set, mirroring `StoreShoppingListItemRequest::rules()` by hand.
+  ///
+  /// `quantity`'s `numeric|gt:0` carries no client-side mirror: magic ships neither rule, and `Min(1)`
+  /// would refuse a fraction the server accepts, which the PLAN's own Must NOT forbids. `max:999999`
+  /// mirrors exactly, and `unit` is left out because this method never sends it (no unit picker exists
+  /// on the manual-add flow), so a rule for a field never validated would check nothing.
+  static final Map<String, List<Rule>> _addRules = <String, List<Rule>>{
+    'name': <Rule>[Required(), Max(255)],
+    'quantity': <Rule>[Required(), Max(999999)],
+  };
 
   bool _loaded = false;
 
@@ -94,12 +106,28 @@ class ShoppingController extends MagicController with MagicStateMixin<List<Shopp
   /// It may not be in the catalogue at all, and naming it creates no product (D100). Returns the
   /// server's own sentence on a refusal and null on success.
   Future<String?> add(String name, num quantity) async {
+    try {
+      validate(<String, dynamic>{'name': name, 'quantity': quantity}, _addRules);
+    } on ValidationException {
+      return firstError;
+    }
+
+    // Held so a refused write can put the list back exactly as it was.
+    final List<ShoppingLine>? before = rxState;
+
     final dynamic response = await Http.post(
       '/shopping',
       data: <String, dynamic>{'name': name, 'quantity': quantity},
     );
 
     if (!response.successful) {
+      // handleApiError nulls rxState via MagicStateMixin for ANY failure, but this controller's
+      // rxState is the cached list rather than the resource being validated, so restore it right
+      // after: a refused manual add must not blank the trolley the user is standing in a shop
+      // reading, over a write that changed nothing.
+      handleApiError(response, fallback: Lang.get('screens.shopping.save_failed'));
+      if (before != null) setSuccess(before);
+
       final dynamic message = response['message'];
 
       return message is String && message.isNotEmpty

@@ -155,6 +155,10 @@ class _LocationFormViewState extends State<LocationFormView> {
   /// **700ms, which is a pause rather than a gap between letters.** Shorter and a two-word name
   /// buys two answers; longer and the glyph lands after the user has moved on to the parent picker.
   void _onNameChanged(String next) {
+    // Clears the server's own complaint, the same way `product_form_view` does: a refusal about
+    // the name stops being true the moment the user edits it.
+    _controller?.clearFieldError('name');
+
     setState(() {
       _name = next;
 
@@ -291,6 +295,8 @@ class _LocationFormViewState extends State<LocationFormView> {
               placeholder: Lang.get('screens.location_form.name_placeholder'),
               onChanged: _onNameChanged,
             ),
+            if (_controller?.hasError('name') ?? false)
+              WText(_controller!.getError('name')!, className: 'text-xs text-expired'),
           ],
         ),
         _buildIconPicker(),
@@ -389,7 +395,12 @@ class _LocationFormViewState extends State<LocationFormView> {
           children: [
             for (final String hue in locationColours)
               WAnchor(
-                onTap: () => setState(() => _colour = hue),
+                onTap: () => setState(() {
+                  _colour = hue;
+                  // A refusal about the colour stops being true the moment a different one is
+                  // chosen, the same way the name field clears its own.
+                  _controller?.clearFieldError('colour');
+                }),
                 semanticLabel: Lang.get('screens.location_form.colour_pick', {
                   'name': Lang.get('screens.location_form.colours.$hue'),
                 }),
@@ -404,6 +415,8 @@ class _LocationFormViewState extends State<LocationFormView> {
               ),
           ],
         ),
+        if (_controller?.hasError('colour') ?? false)
+          WText(_controller!.getError('colour')!, className: 'text-xs text-expired'),
       ],
     );
   }
@@ -445,9 +458,11 @@ class _LocationFormViewState extends State<LocationFormView> {
 
   /// Write the location, then go back to a tree that shows it.
   ///
-  /// **The failure is a toast, not the screen's error state.** A refused write changed nothing, so
-  /// blanking a form the user has just filled in would cost them the typing as well as the write.
-  /// That is the same contract `ProductDetailController`'s writes have.
+  /// **A field-named refusal is shown inline, not as a toast.** `LocationController.create` already
+  /// mirrors `StoreLocationRequest`'s rules client-side and maps a 422 back through
+  /// `handleApiError`, so `name` and `colour` render their own complaint at the render sites above.
+  /// The toast stays for the one case those sites cannot show: a refusal that named no field (a
+  /// rate limit, a 500), the same split `ProductFormView._save` uses via `saveError`.
   Future<void> _save() async {
     final LocationController? controller = _controller;
 
@@ -469,7 +484,9 @@ class _LocationFormViewState extends State<LocationFormView> {
     setState(() => _saving = false);
 
     if (failure != null) {
-      MagicFeedback.error(Lang.get('screens.location_form.title'), failure);
+      if (!controller.hasErrors) {
+        MagicFeedback.error(Lang.get('screens.location_form.title'), failure);
+      }
 
       return;
     }

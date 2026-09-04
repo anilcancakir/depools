@@ -293,8 +293,14 @@ void main() {
         'screens.stock_in.date_with_life',
         'screens.stock_in.suggested_category',
         'screens.stock_move.suggested_count',
-        'validation.max',
-        'validation.min',
+        // The same two debts under their new names. `Max`/`Min` emit
+        // `validation.max.$_type`, so the flat keys these replaced never resolved and the
+        // user was shown the literal `validation.max.string`. The `.numeric` variants end
+        // on the placeholder itself and carry no noun, so they are not offenders.
+        'validation.max.list',
+        'validation.max.string',
+        'validation.min.list',
+        'validation.min.string',
       };
 
       final RegExp shape = RegExp(r'(:[a-z_]+) ([a-z]+)');

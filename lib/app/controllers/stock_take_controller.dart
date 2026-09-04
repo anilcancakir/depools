@@ -36,7 +36,8 @@ import 'product_controller.dart';
 /// sends what was typed. That is the opposite of the failure this screen had before pagination,
 /// where the sheet was built from the browse list's page and LOOKED complete while being short.
 /// [total] is what keeps it honest: the header states the shelf's real size, not the loaded count.
-class StockTakeController extends MagicController with MagicStateMixin<List<ProductListItem>> {
+class StockTakeController extends MagicController
+    with MagicStateMixin<List<ProductListItem>>, ValidatesRequests {
   /// How many rows a shelf page asks for.
   ///
   /// Larger than the browse list's thirty, because a count is a walk rather than a browse: the user
@@ -45,6 +46,19 @@ class StockTakeController extends MagicController with MagicStateMixin<List<Prod
 
   /// The shared instance, keyed by type.
   static StockTakeController get instance => Magic.findOrPut(StockTakeController.new);
+
+  /// [commit]'s rule set, mirroring `CountStockRequest::rules()` by hand.
+  ///
+  /// Only the two TOP-LEVEL fields: magic's `Validator` has no `lines.*.field` dotted-wildcard
+  /// support (checked in `magic/lib/src/validation/validator.dart`, which only reads flat top-level
+  /// keys), so `lines.*.product_id`'s `required|uuid|distinct` and `lines.*.counted_quantity`'s
+  /// `required|numeric|min:0` are left unmirrored rather than invented as a nested shape this
+  /// validator cannot express. `location_id`'s `uuid` has no magic rule either. `lines`'s `min:1`
+  /// mirrors through [Min], which counts LIST items for a `List` value (see `Min`'s own doc).
+  static final Map<String, List<Rule>> _commitRules = <String, List<Rule>>{
+    'location_id': <Rule>[Required()],
+    'lines': <Rule>[Required(), Min(1)],
+  };
 
   String _locationId = '';
 
@@ -245,18 +259,36 @@ class StockTakeController extends MagicController with MagicStateMixin<List<Prod
   /// A per-line refusal is not a failure. The endpoint commits every writable line and names the
   /// rest, so this returns the whole answer and lets the screen decide what is still unfinished.
   Future<CountCommit> commit(String locationId, Map<String, num> counted) async {
+    final List<Map<String, dynamic>> payloadLines = <Map<String, dynamic>>[
+      for (final MapEntry<String, num> entry in counted.entries)
+        <String, dynamic>{'product_id': entry.key, 'counted_quantity': entry.value},
+    ];
+
+    try {
+      validate(<String, dynamic>{'location_id': locationId, 'lines': payloadLines}, _commitRules);
+    } on ValidationException {
+      return CountCommit.failed(firstError ?? Lang.get('screens.stock_take.commit_failed'));
+    }
+
+    // Held so a refused write can put the shelf back exactly as it was.
+    final List<ProductListItem>? before = rxState;
+
     final dynamic response = await Http.post(
       '/stock/count',
       data: <String, dynamic>{
         'location_id': locationId,
-        'lines': <Map<String, dynamic>>[
-          for (final MapEntry<String, num> entry in counted.entries)
-            <String, dynamic>{'product_id': entry.key, 'counted_quantity': entry.value},
-        ],
+        'lines': payloadLines,
       },
     );
 
     if (!response.successful) {
+      // handleApiError nulls rxState via MagicStateMixin for ANY failure, but this controller's
+      // rxState is the cached shelf rather than the resource being validated: a refused count must
+      // not blank a shelf the user is mid-walk through, over a write the response says landed
+      // nowhere. Restore it right after.
+      handleApiError(response, fallback: Lang.get('screens.stock_take.commit_failed'));
+      if (before != null) setSuccess(before);
+
       final dynamic message = response['message'];
 
       return CountCommit.failed(
