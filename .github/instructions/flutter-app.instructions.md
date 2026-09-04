@@ -10,14 +10,34 @@ applyTo: "lib/**,test/**"
 
 Applies to `lib/` and `test/`. Colours, the component folder contract and the anti-pattern table live in `.github/instructions/design.instructions.md`.
 
+## The two skills are the standard, and this file is only where we differ
+
+`magic-framework` and `wind-ui` define how code on this stack is written, and copies of both sit at `.github/skills/` so a reviewer with only this checkout has them too. Load them before the first line of Dart rather than working from memory; the surface is pre-1.0 and exact. This file does not restate them. It carries the places depools OVERRIDES a rule of theirs, the places it is measurably behind one, and the checks that catch a violation here.
+
+`fluttersdk:flutter-review` is the review pass for this stack: four gated stages over magic compliance, Wind compliance, correctness and reuse. Nothing else reviews this repository, so run it on a finished feature before opening the PR.
+
 ## Wiring a drawn screen
 
-Every screen here renders fixtures. Wiring one is the common task, and **no controller exists in this app yet**, so the first one sets the pattern for the rest. Copy the shape from `magic_starter`'s own controllers in the sibling package (`lib/src/http/controllers/`) rather than inventing a second one:
+Every screen here renders fixtures, and wiring one is the common task. The controller half is done and compliant: 15 controllers under `lib/app/controllers/` extend `MagicController` and every one carries the canonical `static X get instance => Magic.findOrPut(X.new);`. Match them rather than inventing a second shape.
+
+**The model half is a stand-in.** Two of the fourteen files under `lib/app/models/` are magic models: `User` and `Team`, which arrived with `magic_starter` and carry `table`, `resource`, `fillable` and `casts`. The other twelve are immutable value classes with `final` fields and a static `fromMap` (`MovementEntry` is the shape), standing in for API resources that do not exist yet. So wiring a screen usually means PROMOTING one: give it `resource`, `fillable` and `casts`, and let `fetchList(url, X.fromMap)` drive `RxStatus` instead of a decode written by hand. Three things bite on the way, and each fails silently rather than loudly: `useLocal` defaults to FALSE, so a model is API-only until it opts in; a relation is decoded from a nested payload map and there is no lazy load and no `with()`, so a relation the API did not nest is null; and a list screen wants `MagicPaginator` plus `MagicPaginatedListView` (magic 0.0.9) rather than a hand-rolled page counter.
+
+**The view half is the part that does not exist yet.** No view consumes a controller reactively: `MagicView`, `MagicBuilder` and `renderState` appear nowhere in `lib/`, so every screen is still static. The mechanism is not missing, only unused between a controller and a screen: the layout layer already listens, at `lib/ui/layouts/page_chrome.dart:177` and `assistant_launcher.dart:109`. Wiring the first screen means choosing that shape, so choose the framework's: resolve through the container (the `.instance` accessor already does) and render the four states from one source with `renderState` or `MagicBuilder`, rather than hand-rolling a `FutureBuilder` per section. Passing a controller through a view's constructor is the one shape to avoid, because nothing then resets it between tests.
 
 - A controller is a `ChangeNotifier` resolved from the container, with `MagicStateMixin` carrying `RxStatus` so the view renders loading, empty, error and loaded from one source.
-- Requests go through magic's `Http` facade. Never `package:http` or `dio` directly: the facade carries the base URL, the Sanctum bearer and the telescope interceptor.
+- Requests go through magic's `Http` facade. Never `package:http` or `dio` directly: the facade carries the base URL, the Sanctum bearer and the telescope interceptor. There is no `patch` verb and the payload is `response.data`, never `.body`.
 - A write is validated twice: client-side before the request, and the server's 422 field errors mapped back onto the form. A write that silently does nothing is usually a missing field in the Laravel `FormRequest` `rules()` or in the magic model's `fillable`. Check both before debugging further up.
 - Replace the fixture, do not shadow it. A screen reading both a fixture and an endpoint diverges the moment the API changes.
+
+## Validation and persistence, neither of which this app uses yet
+
+Nineteen files under `lib/` carry a text field and not one of them validates through magic: `MagicFormData`, `FormRequest`, `Validator` and `ValidatesRequests` appear zero times. `Model.fill` and `Model.save()` are equally unused, so the first screen wired sets both patterns.
+
+- A form's fields belong to a `MagicFormData`, built with the controller and disposed in `onClose()`. It hands out a `TextEditingController` for a String field and a `ValueNotifier<T>` for anything else, and `form.process(cb)` carries the in-flight flag so the button does not need its own.
+- A payload with rules belongs to a `FormRequest` subclass: `rules()`, plus `authorize()` and `prepared()` where they earn it. `Validator.make(data, rules)` is for an ad hoc check that has no form behind it. The rules that exist are `Required`, `Email`, `Min`, `Max`, `Confirmed`, `Same`, `Accepted`, `In`, `InList` and `Unique`; anything else is a rule you write, not one you assume.
+- **There is no `Model.create()` and no `Model.update()`.** The Laravel static does not exist here. A write is `Model()..fill(validated, strict: true)` and then `await save()`, and the instance surface is `save()`, `delete()`, `refresh()` plus the static `findById`. `strict: true` is the load-bearing half: it throws `MassAssignmentException` on a key the model does not declare, which is what turns silent schema drift into a failure with a name.
+- The server's answer is mapped back, not swallowed. `ValidatesRequests` gives `handleApiError(response)`, which reads Laravel's `{"errors": {field: [...]}}` into per-field errors. A write that silently does nothing is usually a missing key in the backend `FormRequest` rules or in the model's `fillable`; check both before looking further up.
+- **The two rule sets are one contract.** The client's rules and `backend/`'s validate the same payload, so a rule added on one side and not the other either rejects what the server would accept or passes what it will refuse. Change both in the same PR.
 
 ## Framework idioms that bite
 
@@ -25,6 +45,10 @@ Every screen here renders fixtures. Wiring one is the common task, and **no cont
 - One cache written by both a list endpoint and a detail endpoint loses the detail-only fields on every list refetch. If a field appears only in `show`, do not let `index` overwrite the same cached model.
 - Models are cast from nested maps, not lazy-loaded relations, and there is no eager loading. A relation is present because the API sent it.
 - `Auth.restore()` after any state-changing call that touches the user or the team; the starter's contract depends on it.
+- A controller notifies through `refreshUI()`, never `notifyListeners()` directly. It is the single seam every notification passes through, validation included, and `MagicController.onRefreshUI` is what debug tooling hooks to observe them; calling the underlying method bypasses both.
+- Routes are registered in a provider's `register()`, never in `boot()`. The router pre-builds during `Magic.init()`, before any `boot()` runs, so a route added there is registered after the thing that reads it.
+- `fill(validated, strict: true)` after validation, not `fill(raw)`. Strict mode throws `MassAssignmentException` on a key the model does not declare, which is what turns silent schema drift into a failure you can read.
+- Authorisation goes through `authorize('ability')` in the controller rather than a hand-rolled `if (!Gate.allows(...))`. Either way it is ADVISORY: `Gate` runs on the client, and the backend re-authorizes every write.
 - When you rely on a `magic` idiom a plain-Flutter reader would not predict (a facade resolving through the string-keyed container, a model cast from a map), say so in a comment. The framework is the part an outside reader will not have.
 - Flutter web ignores `fsa reload`: it reports success and applies nothing. Hot-restart instead.
 
@@ -80,3 +104,5 @@ Two consequences: do not tell the user to tap, because affordance carries the ac
 - Names describe the behaviour being pinned (`'a perfect count navigates away'`), not the path of the file under test.
 - A test must be able to fail for the reason it claims. Deriving the expectation from the same source the code reads certifies the bug instead of catching it; ask what edit would turn the assertion red before keeping it.
 - A widget test that renders a badge or a status label needs the language keys loaded, otherwise it lays out the raw key and overflows for a reason that has nothing to do with the widget.
+- A test touching a controller or a facade calls `MagicTest.init()` from `package:magic/testing.dart`, which resets the container between tests. Without it the previous test's singleton survives and the suite passes on state it never arranged.
+- Reach for the framework's own fakes before a mock library: `Http.fake` with `assertSent`, plus `Auth.fake`, `Cache.fake`, `Vault.fake`, `Log.fake`. A fake at the only adapter has already blinded this suite once to that adapter being broken, so assert what was SENT rather than only what came back.
