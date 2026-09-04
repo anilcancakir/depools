@@ -276,6 +276,10 @@ final class ProductController extends Controller
      */
     public function updateTarget(UpdateProductTargetRequest $request, string $id): ProductResource
     {
+        // The lookup no longer runs first, whatever this line's position suggests: the request class
+        // is validated as the container resolves it, so an invalid payload answers 422 before this
+        // executes. `UpdateProductTargetRequest`'s docblock carries the consequence and the two
+        // tests that pin it.
         $product = Product::query()->findOrFail($id);
 
         $data = $request->validated();
