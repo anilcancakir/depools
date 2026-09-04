@@ -12,7 +12,7 @@ The specification is settled (`docs/depools-system/`, `DESIGN.md`), the screens 
 
 **This section used to say the client renders fixtures and `api.php` is the entire API surface. It was wrong when it was written and it sent every agent to build a vertical that already existed.** Read the code before believing a summary of it, this one included.
 
-Grep a view for `Http` before starting, and then read what you find rather than counting it. A view with no call is no longer evidence of a fixture: a wired screen reaches its controller, and the controller makes the request. `product_form_view.dart` is the worked example, posting nothing itself and reading field errors off `ProductFormController`. Do not add a second fixture to a screen that already has one.
+Grep a view for `Http` before starting, and then read what you find rather than counting it. A view with no call is no longer evidence of a fixture: a wired screen reaches its controller, and the controller makes the request. `product_form_view.dart` is the worked example and it is a MIXED one: it posts its product create through `ProductFormController` and reads field errors off it, while still calling `/units` inline at `:125` and `:389`. So one `Http` call in a view says nothing about the rest of the screen. Do not add a second fixture to a screen that already has one.
 
 Read `docs/depools-system/open-decisions.md` before proposing anything that looks like a new decision. Every decision there carries the reason behind it and a superseded one is annotated in place rather than deleted, so the argument stays readable.
 

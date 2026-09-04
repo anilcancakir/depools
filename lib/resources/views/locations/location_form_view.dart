@@ -120,6 +120,13 @@ class _LocationFormViewState extends State<LocationFormView> {
   void initState() {
     super.initState();
 
+    // **Before the early return**, because the controller is a container singleton either way and a
+    // refused save leaves its field errors behind for the next visit to this screen. Assigned
+    // directly rather than through `clearErrors()`, which calls `refreshUI()` and would notify
+    // during `initState`; magic's own `MagicView` clears it the same way
+    // (`magic/lib/src/ui/magic_view.dart:150-155`).
+    LocationController.instance.validationErrors = <String, String>{};
+
     if (widget.nodes != null) return;
 
     final LocationController controller = LocationController.instance
@@ -460,7 +467,10 @@ class _LocationFormViewState extends State<LocationFormView> {
   ///
   /// **A field-named refusal is shown inline, not as a toast.** `LocationController.create` already
   /// mirrors `StoreLocationRequest`'s rules client-side and maps a 422 back through
-  /// `handleApiError`, so `name` and `colour` render their own complaint at the render sites above.
+  /// `_applyValidationErrors`, so `name` and `colour` render their own complaint at the render sites
+  /// above. NOT `handleApiError`, which this used to say: the write goes through `Model.save()`, and
+  /// `save()` returns a bool and keeps the `MagicResponse` to itself, so there is no response left to
+  /// hand that method. `create`'s own docblock carries the same note.
   /// The toast stays for the one case those sites cannot show: a refusal that named no field (a
   /// rate limit, a 500), the same split `ProductFormView._save` uses via `saveError`.
   Future<void> _save() async {

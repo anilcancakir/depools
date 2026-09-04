@@ -172,4 +172,28 @@ final class ProductTargetTest extends TestCase
         $this->assertNotSame(403, $response->status());
         $this->assertNull($mine->fresh()->par_level);
     }
+
+    public function test_another_tenants_product_answers_422_when_the_payload_itself_is_invalid(): void
+    {
+        // **The order this pins changed and nothing was watching it.** `updateTarget` used to
+        // `findOrFail` first and validate second, so a foreign id with ANY body answered 404. A
+        // method-injected `FormRequest` validates as the container resolves it, before the method
+        // body, so an empty body now answers 422 whatever the id. `par_level` is `present`, which
+        // makes an empty body the cheapest possible probe of the five endpoints that reordered.
+        //
+        // This is a disclosure REDUCTION and the test exists to keep it one. Previously the status
+        // code told the caller which case they were in: 404 for somebody else's product, 422 for
+        // their own. Now both answer 422 and only a VALID payload separates them, which the test
+        // above pins. If a later change moves validation back behind the lookup, this test goes red
+        // and that pair of assertions is what says why.
+        $mine = $this->product('Şeker');
+
+        $this->signIn('İkinci');
+
+        $this->putJson("/api/v1/products/{$mine->getKey()}/target", [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('par_level');
+
+        $this->assertNull($mine->fresh()->par_level);
+    }
 }

@@ -7,7 +7,9 @@ import 'package:magic/magic.dart';
 /// The name sent here passes the client-side rules (`Required`, `Max(255)`), so the request goes
 /// out and the fake answers as the server would for a rule this client cannot mirror (`icon`'s
 /// `Rule::exists`): the property under test is that a server-side 422 still lands on the field, via
-/// `handleApiError`, not that the client itself refuses anything.
+/// `_applyValidationErrors`, not that the client itself refuses anything. NOT `handleApiError`,
+/// which this used to say: the write goes through `Model.save()`, which returns a bool and keeps the
+/// `MagicResponse` to itself, so the errors are read off `model.validationErrors` instead.
 void main() {
   tearDown(Http.unfake);
 

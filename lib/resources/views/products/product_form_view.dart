@@ -97,6 +97,15 @@ class _ProductFormViewState extends State<ProductFormView> {
   @override
   void initState() {
     super.initState();
+
+    // **The controller is a container singleton, so its field errors outlive this screen.** Fail a
+    // save, navigate away, come back, and the previous attempt's message would render under an
+    // untouched field. The old `_errors` map lived in this State and died with it; a shared
+    // controller does not. Assigned directly rather than through `clearErrors()`, which calls
+    // `refreshUI()` and would notify during `initState`; magic's own `MagicView` clears it the same
+    // way and for the same reason (`magic/lib/src/ui/magic_view.dart:150-155`).
+    _form.validationErrors = <String, String>{};
+
     unawaited(_loadUnits());
   }
 
