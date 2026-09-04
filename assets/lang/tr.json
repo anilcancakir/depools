@@ -749,6 +749,7 @@
       "stat_waste_unknown": "Bilinmiyor",
       "stat_waste_window": "son 30 günde",
       "stock_in": "Stok ekle",
+      "field_saved": "Kaydedildi",
       "stock_out": "Stok çıkar",
       "target_field": "Hedef seviye",
       "target_none": "Belirlenmedi",

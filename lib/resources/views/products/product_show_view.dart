@@ -800,44 +800,49 @@ class _ProductShowViewState extends State<ProductShowView> {
         DraftField(
           label: Lang.get('screens.product_form.name'),
           value: _product.name,
-          onTap: () => FieldEditorSheet.show(
-            context,
-            label: Lang.get('screens.product_form.name'),
-            value: _product.name,
-          ),
+          // Not optional: a product with no name renders as nothing in every list, every search
+          // result and every movement row, so the sheet offers no Clear button for it.
+          onTap: () => _editField('name', Lang.get('screens.product_form.name'), _product.name),
         ),
         DraftField(
           label: Lang.get('screens.product_form.brand'),
           value: _product.brand,
-          onTap: () => FieldEditorSheet.show(
-            context,
-            label: Lang.get('screens.product_form.brand'),
-            value: _product.brand,
+          onTap: () => _editField(
+            'brand',
+            Lang.get('screens.product_form.brand'),
+            _product.brand,
+            isOptional: true,
           ),
         ),
         DraftField(
           label: Lang.get('screens.product_form.sku'),
           value: _product.sku,
-          onTap: () => FieldEditorSheet.show(
-            context,
-            label: Lang.get('screens.product_form.sku'),
-            value: _product.sku,
+          onTap: () => _editField(
+            'sku',
+            Lang.get('screens.product_form.sku'),
+            _product.sku,
+            isOptional: true,
           ),
         ),
-        DraftField(
-          label: Lang.get('screens.product_form.category'),
-          value: _product.categoryLabel,
-          onTap: () => FieldEditorSheet.show(
-            context,
+        // **The category row appears only when there is a category, which in the running app is
+        // never.** `ProductListItem.fromApi` documents `categoryLabel` as one of four fields that
+        // stay null on purpose, and `ProductResource` sends `product_category_id` with no name to
+        // resolve it against, so this row rendered "Category is empty" on every product and opened
+        // an editor that discarded the answer.
+        //
+        // It could not have been wired as it stood: no route exposes the shared taxonomy and
+        // `UpdateProductRequest` accepts no `product_category_id`, so a typed name has nothing to
+        // match. That is a feature (a searchable picker and an endpoint to search) rather than the
+        // wiring gap the three rows above were, and a row that always says "empty" and cannot be
+        // changed is worse than no row. The fixtures set a label, so the preview still shows it.
+        if (_product.categoryLabel != null)
+          DraftField(
             label: Lang.get('screens.product_form.category'),
             value: _product.categoryLabel,
           ),
-        ),
-        // **The one field here that actually saves.** The four above open the editor and discard
-        // what it returns, which predates this change and stays that way: wiring them is a
-        // validator per field and their own PR. This one is here because without it a target can
-        // be set once from a running-low row and never changed, and the natural place to change a
-        // product's own settings is the product.
+        // **The target, which was the ONLY row here that saved.** The three above now do too; this
+        // one is here because without it a target can be set once from a running-low row and never
+        // changed, and the natural place to change a product's own settings is the product.
         DraftField(
           label: Lang.get('screens.product.target_field'),
           value: _product.parLevel == null
@@ -847,6 +852,54 @@ class _ProductShowViewState extends State<ProductShowView> {
         ),
       ],
     );
+  }
+
+  /// Open the editor for one text field, and write what comes back.
+  ///
+  /// **This is what the four rows above used to only look like.** Each opened `FieldEditorSheet` and
+  /// dropped its return value on the floor: the user typed, pressed Save, watched the sheet close,
+  /// and no request was made. The screen's own comment recorded it as debt; there was also no
+  /// endpoint to call, and `PUT api/v1/products/{id}` landed with this.
+  ///
+  /// The sheet's three answers are distinct and all three are used. `null` is a dismissal and writes
+  /// nothing, which is what makes backing out safe. `''` is the Clear button and travels as a clear.
+  /// Anything else is the new value. A value equal to the current one is skipped rather than sent,
+  /// so reopening a sheet and pressing Save costs no request and writes no `updated_at`.
+  Future<void> _editField(
+    String field,
+    String label,
+    String? current, {
+    bool isOptional = false,
+  }) async {
+    final ProductDetailController? controller = _controller;
+    final String? productId = _product.id;
+
+    if (controller == null || productId == null) return;
+
+    final String? answer = await FieldEditorSheet.show(
+      context,
+      label: label,
+      value: current,
+      isOptional: isOptional,
+    );
+
+    if (answer == null || !mounted) return;
+
+    final String? next = answer.trim().isEmpty ? null : answer.trim();
+
+    if (next == current) return;
+
+    final String? failure = await controller.updateField(productId, field, next);
+
+    if (!mounted) return;
+
+    if (failure != null) {
+      MagicFeedback.error(label, failure);
+
+      return;
+    }
+
+    MagicFeedback.success(label, Lang.get('screens.product.field_saved'));
   }
 
   /// Ask how much of this to keep, and write the answer.

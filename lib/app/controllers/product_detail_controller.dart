@@ -256,6 +256,73 @@ class ProductDetailController extends MagicController
     return null;
   }
 
+  /// The rule set for [updateField], mirroring `UpdateProductRequest::rules()` by hand.
+  ///
+  /// Keyed by the field the screen names, which also makes it the list of what the screen is allowed
+  /// to edit: a row wired to anything else is refused here rather than sent. That matters because
+  /// Laravel's `validated()` returns only what its rules name, so an unknown key is DROPPED
+  /// server-side and the write comes back 200 having changed nothing, which is the exact silence
+  /// this whole change exists to end.
+  ///
+  /// `sku`'s `Rule::unique` is an [AsyncRule] and only runs under `validateAsync()`, which
+  /// [ValidatesRequests.validate] does not call, so it is left off rather than approximated: the
+  /// server still refuses a collision and the message comes back through [serverMessage]. The same
+  /// call `ProductFormController._createRules` already made.
+  static final Map<String, List<Rule>> _fieldRules = <String, List<Rule>>{
+    'name': <Rule>[Required(), Max(255)],
+    'brand': <Rule>[Max(255)],
+    'sku': <Rule>[Max(64)],
+    'description': <Rule>[Max(2000)],
+  };
+
+  /// Write one of the product's own text fields, and return the refusal or null.
+  ///
+  /// **The four rows on the product screen opened an editor and discarded what it returned.** A user
+  /// typed a brand, pressed Save, watched the sheet close and nothing changed anywhere: no request,
+  /// no error, no field. This is the write they were offering.
+  ///
+  /// ONE field per call, because the screen edits one row per sheet. That is what makes [value]'s
+  /// null unambiguous: it is the clear. An absent key is what leaves a field alone, and since a
+  /// request from here always names exactly the field that changed, there is no absent key to
+  /// express. A blank or whitespace-only answer IS the clear, so it travels as null.
+  ///
+  /// The failure is RETURNED rather than set as the controller's error state, which is this class's
+  /// existing rule: `handleApiError` routes through `MagicStateMixin.setError`, which is
+  /// `setState(null, ...)`, and blanking a screen the user is reading over a write that changed
+  /// nothing is worse than the failure itself.
+  Future<String?> updateField(String productId, String field, String? value) async {
+    final List<Rule>? rules = _fieldRules[field];
+
+    if (rules == null) return Lang.get('screens.product.write_failed');
+
+    final String? trimmed = value?.trim();
+    final String? cleared = trimmed == null || trimmed.isEmpty ? null : trimmed;
+
+    // Validated as the field's own map rather than as a whole product, so `Required` on `name` sees
+    // the null a cleared field sends and refuses it, which is what `UpdateProductRequest`'s
+    // `sometimes|required` does on the other side.
+    final Map<String, dynamic> payload = <String, dynamic>{field: cleared};
+
+    final Validator validator = Validator.make(payload, <String, List<Rule>>{field: rules});
+
+    if (!validator.passes()) {
+      return validator.errors().values.first;
+    }
+
+    final response = await Http.put(
+      '/products/${Uri.encodeComponent(productId)}',
+      data: payload,
+    );
+
+    if (!response.successful) {
+      return serverMessage(response, Lang.get('screens.product.write_failed'));
+    }
+
+    await load(productId, force: true);
+
+    return null;
+  }
+
   /// Set or clear how much of this product to keep on hand.
   ///
   /// **The one number the app asks a person for.** The creation form deliberately does not ask

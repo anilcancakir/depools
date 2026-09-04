@@ -166,6 +166,19 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function (): void {
     // this one cannot collide with anything the resource generates.
     Route::put('products/{product}/target', [ProductController::class, 'updateTarget']);
 
+    // **The record's own text, which had four editors on the product screen and no endpoint.** The
+    // name, brand and SKU rows each opened a sheet and discarded the answer, because the only
+    // product writes were create, the target above and the gallery below.
+    //
+    // Separate from `target` rather than folded into it: that one is a forecasting input written
+    // from three screens, these are fields a person retypes on one. Partial by construction, so a
+    // request names only the row that changed.
+    //
+    // The category is deliberately still not writable here. `product_categories` holds shared
+    // taxonomy and no route exposes it, so editing one needs a searchable picker rather than a text
+    // field, and offering half of that is what the discarded sheet already was.
+    Route::put('products/{product}', [ProductController::class, 'update']);
+
     // **A photograph in, a draft card out, and no product either way.** Nothing is created here: the
     // answer is what the user is about to edit, and `POST products` is still what writes it. That is
     // what keeps `ai-enrichment.md`'s "always a draft the user confirms, never a silent write" true

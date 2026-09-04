@@ -749,6 +749,7 @@
       "stat_waste_unknown": "Not known",
       "stat_waste_window": "in the last 30 days",
       "stock_in": "Put stock in",
+      "field_saved": "Saved",
       "stock_out": "Take stock out",
       "target_field": "Target level",
       "target_none": "Not set",

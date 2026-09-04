@@ -52,6 +52,20 @@ final class ValidationBounds
     public const int ATTRIBUTION_MAX = 255;
 
     /**
+     * A stock keeping unit: `products.sku`, on create and on edit.
+     *
+     * 64 rather than the 255 the three above share, because a SKU is a code a business types rather
+     * than a sentence, and `products.sku` is declared `string('sku', 64)`. It is named on its SECOND
+     * caller rather than its first: `StoreProductRequest` carried the literal alone, and
+     * `UpdateProductRequest` would have been the copy that lets the two drift.
+     *
+     * **Not the same 64 as `ReceiveStockBatchRequest::MAX_BATCH_KEY`**, which is `64 - strlen(':199')`
+     * for a different column and carries its own arithmetic. That collision is exactly what this
+     * class exists to keep apart.
+     */
+    public const int SKU_MAX = 64;
+
+    /**
      * A unit code: `units.code`, `units.reference_code` and every field that stores or reports one
      * (`base_unit`, `content_unit`, `entered_unit`, `default_unit`, a shopping-list line's `unit`).
      *
