@@ -567,8 +567,12 @@ class _ProductShowViewState extends State<ProductShowView> {
           semanticLabel: Lang.get('screens.product.action_move'),
           child: const WIcon(_moveIcon),
         ),
+        // **The same thing the menu's label entry does, which is what made this one's silence
+        // invisible.** It sat beside a working route to `/labels` and carried `onPressed: () {}`,
+        // so a user who reached for the toolbar icon rather than the overflow menu got nothing and
+        // had no reason to think the feature was there at all.
         MSButton(
-          onPressed: () {},
+          onPressed: _openLabels,
           intent: ButtonIntent.ghost,
           className: 'min-h-11 min-w-11 justify-center',
           semanticLabel: Lang.get('screens.product.action_label'),
@@ -587,17 +591,7 @@ class _ProductShowViewState extends State<ProductShowView> {
               // screen adds this product to the batch already open rather than starting a new one:
               // that is what a batch is for, and the screen shows the whole thing so an unintended
               // line is visible and removable.
-              onTap: () {
-                // `ProductListItem.id` is nullable because the same type stands in for a fixture row,
-                // so a batch only gets a product when there is one to name. The screen still opens:
-                // it resumes whatever batch is there, which is the reasonable thing to do from a
-                // preview and from a product whose id has not landed yet.
-                final String? id = _product.id;
-
-                if (id != null) LabelBatchController.instance.addOnOpen(id);
-
-                MagicRoute.to('/labels');
-              },
+              onTap: _openLabels,
             ),
             // No `Düzenle` entry. Editing is field by field from the rows below, through
             // `FieldEditorSheet`, which is the pattern `ai-enrichment.md` already describes and the
@@ -852,6 +846,28 @@ class _ProductShowViewState extends State<ProductShowView> {
         ),
       ],
     );
+  }
+
+  /// Add this product to the open label batch and go to it.
+  ///
+  /// **The product travels through the controller, not through the route.** `/labels` takes no
+  /// parameters and the batch is a singleton, so the id is handed over and then navigated to, which
+  /// is what the shelf, receipt and draft paths all do. Opening the screen adds this product to the
+  /// batch already open rather than starting a new one: that is what a batch is for, and the screen
+  /// shows the whole thing so an unintended line is visible and removable.
+  ///
+  /// `ProductListItem.id` is nullable because the same type stands in for a fixture row, so a batch
+  /// only gets a product when there is one to name. The screen still opens and resumes whatever
+  /// batch is there, which is the reasonable thing to do from a preview.
+  ///
+  /// Extracted because the toolbar button and the menu entry are the same action, and while they
+  /// were written separately one of them was `onPressed: () {}`.
+  void _openLabels() {
+    final String? id = _product.id;
+
+    if (id != null) LabelBatchController.instance.addOnOpen(id);
+
+    MagicRoute.to('/labels');
   }
 
   /// Open the editor for one text field, and write what comes back.

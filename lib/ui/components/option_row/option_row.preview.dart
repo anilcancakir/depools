@@ -58,6 +58,20 @@ class OptionRowPreview extends StatelessWidget {
             onTap: _noop),
           ],
         ),
+        // The informational state, which is a real variant rather than a disabled one: settings has
+        // a row whose own note says "Always on", and with no `onTap` the component drops its anchor
+        // so the row reads as a statement instead of as a button that swallows a tap.
+        WDiv(
+          className: 'flex flex-col gap-1 p-4 rounded-lg bg-surface-container',
+          children: [
+            OptionRow(
+              label: 'Yaklaşan tarihler',
+              description: 'Her zaman açık. Onsuz özetin söyleyecek bir şeyi kalmaz.',
+              isSelected: true,
+              semanticLabel: 'Yaklaşan tarihler her zaman açık',
+            ),
+          ],
+        ),
       ],
     );
   }

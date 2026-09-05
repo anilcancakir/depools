@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart' show Icons;
+// `Clipboard` lives in the services library rather than in `widgets.dart`.
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
 import 'package:magic_starter/magic_starter.dart' show ButtonIntent, ConfirmDialogVariant, MSButton, MSEmptyState, MagicStarterConfirmDialog;
@@ -69,6 +71,45 @@ class McpAccessView extends StatelessWidget {
     );
   }
 
+  /// The tenant's MCP endpoint.
+  ///
+  /// A constant until the backend mints one per team. Held here so the label and the copy button
+  /// cannot show different strings, which is the failure a second literal invites.
+  // demo-data-start: the tenant address, which the backend will mint per team
+  static const String _address = 'https://mcp.depools.ai/t/8f21c4';
+  // demo-data-end
+
+  /// Put the address on the clipboard and say so.
+  ///
+  /// The confirmation is not decoration: a clipboard write leaves no trace on screen and the user is
+  /// about to paste into another application, so silence would leave them checking.
+  /// **The write does not always answer**, so the wait is bounded and both outcomes are reported.
+  /// On the web the platform channel reaches `navigator.clipboard.writeText`, which the browser
+  /// gates on user activation: measured on the settings screen's identical button, a real click
+  /// resolves and a synthetic pointer event leaves the promise unsettled forever. A bare `await`
+  /// therefore hangs and the button looks dead rather than failed. `settings_view.dart` carries the
+  /// longer version of the same note.
+  ///
+  /// No `mounted` guard, because there is nothing to guard: this is a `StatelessWidget` and
+  /// `MagicFeedback` is context-free by magic's own contract, so the toast does not reach for a tree
+  /// that may have gone.
+  Future<void> _copyAddress() async {
+    final String title = Lang.get('screens.mcp.address_group');
+
+    try {
+      await Clipboard.setData(
+        const ClipboardData(text: _address),
+      ).timeout(const Duration(seconds: 2));
+    } on Object catch (error) {
+      Log.warning('The MCP address could not be copied: $error');
+      MagicFeedback.error(title, Lang.get('screens.mcp.copy_failed'));
+
+      return;
+    }
+
+    MagicFeedback.success(title, Lang.get('screens.mcp.copied'));
+  }
+
   /// The address to paste into the client.
   Widget _buildAddress() {
     return SectionCard(
@@ -77,14 +118,13 @@ class McpAccessView extends StatelessWidget {
         // Mono, because this is a string that has to be copied EXACTLY and a proportional face
         // makes a URL harder to check character by character. DESIGN.md routes barcodes and
         // quantities the same way for the same reason.
-        // demo-data-start: the tenant address, which the backend will mint per team
-        WText(
-          'https://mcp.depools.ai/t/8f21c4',
-          className: 'text-sm font-mono text-fg',
-        ),
-        // demo-data-end
+        WText(_address, className: 'text-sm font-mono text-fg'),
+        // **The row's reason for being, and it was `onPressed: () {}`.** The address exists to be
+        // pasted into a client's configuration, so a dead copy button leaves the user transcribing
+        // a URL by eye, which is what the mono face above was chosen to make survivable rather than
+        // to make unnecessary.
         MSButton(
-          onPressed: () {},
+          onPressed: _copyAddress,
           intent: ButtonIntent.secondary,
           className: 'py-3 axis-min',
           child: WDiv(
