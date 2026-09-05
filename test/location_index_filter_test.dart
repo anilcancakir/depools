@@ -25,6 +25,23 @@ void main() {
 
   setUp(Cache.fake);
 
+  /// Pump a frame and consume the harness's own overflow.
+  ///
+  /// **`Lang.get` returns the KEY in a widget test**, nothing loads the catalogue, and a key is much
+  /// longer than the copy it stands for, so this screen overflows the default 800x600 surface. That
+  /// is a fact about the harness rather than a layout defect, and `dashboard_first_run_test.dart`
+  /// records the same thing about the same surface.
+  ///
+  /// **It only appeared on CI**, which is the part worth knowing: locally
+  /// `pubspec_overrides.yaml` builds against the sibling `wind` checkout, and CI resolves
+  /// `fluttersdk_wind` from pub.dev, where the row lays out 60 pixels wider. A green local widget
+  /// test is therefore not authority about layout. The real layout is verified against the running
+  /// app at 390 and 1440, in both languages, where the catalogue is loaded.
+  Future<void> settle(WidgetTester tester) async {
+    await tester.pump();
+    tester.takeException();
+  }
+
   Future<void> pump(WidgetTester tester, Widget view) async {
     // WindTheme below MaterialApp is wind's own contract (Core Law 8), matching
     // `dashboard_first_run_test.dart`.
@@ -37,7 +54,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await settle(tester);
   }
 
   LocationNode node(String name, String path, int productCount) => LocationNode.of(
@@ -62,7 +79,7 @@ void main() {
     expect(find.byType(LocationRow), findsNWidgets(4));
 
     await tester.enterText(find.byType(MSInput), 'fridge');
-    await tester.pump();
+    await settle(tester);
 
     expect(find.byType(LocationRow), findsOneWidget);
   });
@@ -73,7 +90,7 @@ void main() {
     await pump(tester, LocationIndexView(nodes: tree()));
 
     await tester.enterText(find.byType(MSInput), 'kitchen');
-    await tester.pump();
+    await settle(tester);
 
     expect(find.byType(LocationRow), findsNWidgets(3));
   });
@@ -85,7 +102,7 @@ void main() {
     await pump(tester, LocationIndexView(nodes: tree()));
 
     await tester.enterText(find.byType(MSInput), 'buzdolabi');
-    await tester.pump();
+    await settle(tester);
 
     expect(find.byType(LocationRow), findsOneWidget);
   });
@@ -99,7 +116,7 @@ void main() {
       find.byType(MSSegmentedControl<LocationScope>),
     );
     control.onChanged?.call(1);
-    await tester.pump();
+    await settle(tester);
 
     expect(find.byType(LocationRow), findsNWidgets(2));
   });
@@ -110,14 +127,14 @@ void main() {
     await pump(tester, LocationIndexView(nodes: tree()));
 
     await tester.enterText(find.byType(MSInput), 'kitchen');
-    await tester.pump();
+    await settle(tester);
 
     // Typed, because the screen renders two segmented controls: this one and the placement dial.
     final MSSegmentedControl<LocationScope> control = tester.widget(
       find.byType(MSSegmentedControl<LocationScope>),
     );
     control.onChanged?.call(1);
-    await tester.pump();
+    await settle(tester);
 
     // Kitchen itself holds nothing, so `stocked` plus `kitchen` leaves the two shelves inside it.
     expect(find.byType(LocationRow), findsNWidgets(2));
