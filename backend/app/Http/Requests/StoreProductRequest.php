@@ -43,7 +43,7 @@ final class StoreProductRequest extends FormRequest
             // PostgreSQL: `products_team_sku_unique` now exists and is the real guarantee. This rule
             // stays because it is the only one of the two that can say WHICH product already holds the
             // code, and a 422 naming the conflict beats a 500 from a constraint.
-            'sku' => ['nullable', 'string', 'max:64', Rule::unique('products', 'sku')
+            'sku' => ['nullable', 'string', 'max:'.ValidationBounds::SKU_MAX, Rule::unique('products', 'sku')
                 ->where('team_id', $this->user()->current_team_id)
                 ->whereNull('deleted_at')],
             // A CODE from the shared vocabulary or one this tenant added. `max:16` is the column's

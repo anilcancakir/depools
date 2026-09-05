@@ -6,6 +6,7 @@ import '../../resources/views/products/product_fixtures.dart';
 import '../models/product_filter.dart';
 import '../support/mapped_or_null.dart';
 import '../support/scan_outcome.dart';
+import '../support/server_message.dart';
 import 'product_controller.dart';
 
 /// One shelf being counted, and the commit that turns what was found into ledger entries.
@@ -289,12 +290,8 @@ class StockTakeController extends MagicController
       handleApiError(response, fallback: Lang.get('screens.stock_take.commit_failed'));
       if (before != null) setSuccess(before);
 
-      final dynamic message = response['message'];
-
       return CountCommit.failed(
-        message is String && message.isNotEmpty
-            ? message
-            : Lang.get('screens.stock_take.commit_failed'),
+        serverMessage(response, Lang.get('screens.stock_take.commit_failed')),
       );
     }
 

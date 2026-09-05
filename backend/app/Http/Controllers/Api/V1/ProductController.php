@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexProductRequest;
 use App\Http\Requests\ProductByBarcodeRequest;
 use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
 use App\Http\Requests\UpdateProductTargetRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Barcode;
@@ -274,6 +275,41 @@ final class ProductController extends Controller
      * true, so it can still reach the out-of-stock group, which is the honest behaviour rather than
      * a hole.
      */
+    /**
+     * Change the fields a person edits by hand.
+     *
+     * ### Why this is separate from `updateTarget`
+     *
+     * The target is a forecasting input the app asks for at the moment it becomes useful, and it is
+     * written from three screens (the product, a running-low row, a shortage prompt). These are the
+     * record's own text, edited one row at a time from the product screen. Folding them together
+     * would put a `par_level` rule on a rename and a `name` rule on a threshold.
+     *
+     * ### Partial by construction
+     *
+     * Every rule carries `sometimes`, so the payload names exactly what changed; see
+     * [UpdateProductRequest] for why an absent key has to differ from an empty one. `fill()` then
+     * writes only what `validated()` returned, so an untouched field keeps its value without the
+     * controller listing which fields those are.
+     *
+     * ### An edit is not a movement
+     *
+     * Nothing here reaches `StockWriter`. Renaming a product does not change what is on the shelf,
+     * and `ProductUpdateTest` asserts the ledger stays empty, because a phantom movement is the kind
+     * of thing that is only noticed months later in somebody's history.
+     */
+    public function update(UpdateProductRequest $request, string $id): ProductResource
+    {
+        // Scoped by `TeamScope` inside the query, so another tenant's id is a 404 here rather than a
+        // 403 anywhere else. The request is validated before this line runs, which is the reordering
+        // `UpdateProductTargetRequest` describes for its own endpoint.
+        $product = Product::query()->findOrFail($id);
+
+        $product->fill($request->validated())->save();
+
+        return new ProductResource($product->load(['stock', 'tags', 'unit', 'primaryImage', 'forecast']));
+    }
+
     public function updateTarget(UpdateProductTargetRequest $request, string $id): ProductResource
     {
         // The lookup no longer runs first, whatever this line's position suggests: the request class

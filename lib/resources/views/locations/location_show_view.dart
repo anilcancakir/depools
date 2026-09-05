@@ -80,6 +80,7 @@ class LocationShowView extends StatefulWidget {
 class _LocationShowViewState extends State<LocationShowView> {
   static const IconData _emptyIcon = Icons.inbox_outlined;
   static const IconData _addIcon = Icons.add_outlined;
+  static const IconData _missingIcon = Icons.search_off_outlined;
 
   LocationController? _tree;
   LocationDetailController? _detail;
@@ -106,6 +107,29 @@ class _LocationShowViewState extends State<LocationShowView> {
     _detail = detail;
 
     detail.load(widget.id!);
+  }
+
+  /// Reloads when the ROUTE changes under a reused State.
+  ///
+  /// Flutter matches by widget type, so descending from a location into its child hands this same
+  /// State a new `id` without calling `initState` again. Without this the screen keeps the previous
+  /// location's products: measured on the demo tenant, opening `Storeroom` and then `Shelf A` listed
+  /// Storeroom's two products under Shelf A's name while the subtitle correctly said one. Everything
+  /// renders and nothing errors, which is what makes it the worst shape of stale.
+  ///
+  /// `ProductShowView` has carried this since its own detail screen was wired; this one was left
+  /// behind, and `test/routes/detail_view_reload_test.dart` now pins both.
+  @override
+  void didUpdateWidget(LocationShowView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final String? id = widget.id;
+
+    // The same refusal `initState` makes: a caller-supplied list is the preview saying "draw this",
+    // so no request is issued and the controller stays untouched.
+    if (widget.held != null || id == null || id == oldWidget.id) return;
+
+    _detail?.load(id);
   }
 
   @override
@@ -136,6 +160,14 @@ class _LocationShowViewState extends State<LocationShowView> {
     return null;
   }
 
+  /// Whether the tree this screen resolves against has landed.
+  ///
+  /// The distinction [build] needs is "has the answer arrived", NOT "is the answer empty": a tenant
+  /// with no locations at all and a tenant whose tree is still in flight both read as an empty list,
+  /// and telling the second one their shelf is gone is a worse failure than the blank page this
+  /// replaced. A caller-supplied tree has arrived by definition; a controller-backed one says so.
+  bool get _treeArrived => widget.nodes != null || (_tree?.loaded ?? false);
+
   /// The direct children of this node, one level down only.
   List<LocationNode> _childrenOf(LocationNode node) => _all
       .where((LocationNode n) => n.depth == node.depth + 1 && n.path.startsWith('${node.path} \u203a'))
@@ -155,7 +187,13 @@ class _LocationShowViewState extends State<LocationShowView> {
 
     // Nothing to draw until the tree arrives. The scaffold needs a name for its title, and inventing
     // one would put a placeholder in the one place a user checks they opened the right shelf.
-    if (node == null) return const SizedBox.shrink();
+    //
+    // **Once it HAS arrived, the same silence is a dead end**, and the comment above used to cover
+    // both cases without distinguishing them. `/locations/:id` matches any segment, so an id the
+    // tree does not hold arrives here from a stale bookmark, a typed URL, or (until the child row
+    // above was corrected) an ordinary tap. The user then got an empty page with no header and no
+    // way back, and nothing was logged.
+    if (node == null) return _treeArrived ? _buildMissing(context) : const SizedBox.shrink();
 
     final List<LocationNode> children = _childrenOf(node);
     final List<ProductListItem> held = widget.held ?? _detail?.held ?? const <ProductListItem>[];
@@ -220,9 +258,9 @@ class _LocationShowViewState extends State<LocationShowView> {
             daysUntilExpiry: item.daysUntilExpiry,
             expiryLabel: item.expiryLabel,
             parLevel: item.parLevel,
-            // The server id when there is one. Every tap on a product now reaches an endpoint, so a
-            // route carrying a NAME 404s; the fallback keeps the fixture-only previews navigating.
-            onTap: () => MagicRoute.to('/products/${item.id ?? Uri.encodeComponent(item.name)}'),
+            // The id or nothing, matching the child rows below: a route carrying a NAME resolves to
+            // no product, so the fallback bought the previews a tap that lands on an error state.
+            onTap: item.id == null ? null : () => MagicRoute.to('/products/${item.id}'),
           ),
       ],
     );
@@ -248,9 +286,43 @@ class _LocationShowViewState extends State<LocationShowView> {
             itemSummary: child.summary,
             icon: child.icon,
             colour: child.colour,
-            // Descending into a child is the whole point of a tree screen.
-            onTap: () => MagicRoute.to('/locations/${Uri.encodeComponent(child.path)}'),
+            // **Descending into a child is the whole point of a tree screen, and it was broken.**
+            // This sent the encoded PATH (`Storeroom%20%E2%80%BA%20Shelf%20A`), which `/locations/:id`
+            // matches happily and `_node` can then resolve against nothing, so one ordinary tap
+            // produced a permanently empty page. The index screen had already been corrected to send
+            // the id; this row was left behind, and `test/routes/detail_route_arguments_test.dart`
+            // now pins both.
+            onTap: child.id == null ? null : () => MagicRoute.to('/locations/${child.id}'),
           ),
+      ],
+    );
+  }
+
+  /// A location the tree does not hold, which is a different answer from an empty one.
+  ///
+  /// Rendered inside the full scaffold rather than as a bare panel, because the header is what
+  /// carries the way back: the failure this replaced was not the missing message, it was a page with
+  /// no chrome at all. The title is the generic one the route already registers, since there is no
+  /// node to take a name from.
+  Widget _buildMissing(BuildContext context) {
+    return AppPageScaffold(
+      title: Lang.get('screens.location.title'),
+      backLabel: Lang.get('screens.location.back'),
+      backFallback: '/locations',
+      children: [
+        WDiv(
+          className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
+          children: [
+            WDiv(
+              className: 'w-full',
+              child: MSEmptyState(
+                icon: _missingIcon,
+                title: Lang.get('screens.location.missing_title'),
+                description: Lang.get('screens.location.missing_description'),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

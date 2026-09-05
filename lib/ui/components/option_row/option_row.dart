@@ -68,31 +68,45 @@ class OptionRow extends StatelessWidget {
       variants: {'type': isMono ? 'mono' : 'text', 'state': isSelected ? 'selected' : 'idle'},
     );
 
+    // **No anchor without a gesture, or the row is a button that does nothing.** `WAnchor` emits
+    // `Semantics(button: true)` on the strength of a `semanticLabel` alone, so a null `onTap` used
+    // to produce a row that reads as tappable to a screen reader, reports as a button to a dusk
+    // snapshot, and takes a tap without answering. The settings screen has one genuinely
+    // informational row ("Approaching dates: always on"), and that is what it looked like.
+    //
+    // The label still reaches assistive technology: it is rendered as `WText` inside the body.
+    if (onTap == null) return _buildBody(slots);
+
     return WAnchor(
       onTap: onTap,
       semanticLabel: semanticLabel,
-      child: WDiv(
-        className: slots['root'],
-        states: isSelected ? const {'selected'} : const {},
-        children: [
-          // The radio is what says "pick one of these" in an appearance-independent way.
-          // The fill cannot: raised is lighter in dark and whiter in light, so a single
-          // fill token reads as tappable in one mode and disabled in the other.
-          WDiv(
-            className: slots['radio'],
-            child: WDiv(className: slots['dot']),
-          ),
-          WDiv(
-            className: slots['body'],
-            children: [
-              WText(label, className: slots['label']),
-              if (description != null) WText(description!, className: slots['description']),
-              if (suggestionReason != null) WText(suggestionReason!, className: slots['reason']),
-            ],
-          ),
-          if (trailing != null) WDiv(className: slots['trailing'], child: trailing),
-        ],
-      ),
+      child: _buildBody(slots),
+    );
+  }
+
+  /// The row itself, with or without a gesture wrapped round it.
+  Widget _buildBody(Map<String, String> slots) {
+    return WDiv(
+      className: slots['root'],
+      states: isSelected ? const {'selected'} : const {},
+      children: [
+        // The radio is what says "pick one of these" in an appearance-independent way.
+        // The fill cannot: raised is lighter in dark and whiter in light, so a single
+        // fill token reads as tappable in one mode and disabled in the other.
+        WDiv(
+          className: slots['radio'],
+          child: WDiv(className: slots['dot']),
+        ),
+        WDiv(
+          className: slots['body'],
+          children: [
+            WText(label, className: slots['label']),
+            if (description != null) WText(description!, className: slots['description']),
+            if (suggestionReason != null) WText(suggestionReason!, className: slots['reason']),
+          ],
+        ),
+        if (trailing != null) WDiv(className: slots['trailing'], child: trailing),
+      ],
     );
   }
 }

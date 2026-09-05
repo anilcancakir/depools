@@ -502,6 +502,7 @@
       "capture_shelf": "Shelf photo",
       "dates_failed": "Could not load dates",
       "load_failed": "The dashboard could not be loaded",
+      "retry": "Try again",
       "stock_no_target": "No target set"
     },
     "dates": {
@@ -592,7 +593,9 @@
       "delete_title": "Delete \":name\"?",
       "delete_description": "The location is removed for good. Its name still appears in past movements.",
       "delete_confirm": "Delete",
-      "load_failed": "The products here could not be loaded"
+      "load_failed": "The products here could not be loaded",
+      "missing_title": "Location not found",
+      "missing_description": "This location may have been deleted, or the link may be out of date."
     },
     "location_form": {
       "title": "New location",
@@ -661,6 +664,8 @@
       "scope_description": "A connected program can read stock, locations and dates. It cannot add, change or delete anything.",
       "address_group": "Connection address",
       "copy": "Copy",
+      "copied": "The address is on the clipboard",
+      "copy_failed": "The address could not be copied. Select it and copy it by hand.",
       "address_note": "This address belongs to your team alone. Do not share it.",
       "clients_group": "Connected programs",
       "client_count": ":count programs",
@@ -747,6 +752,7 @@
       "stat_waste_unknown": "Not known",
       "stat_waste_window": "in the last 30 days",
       "stock_in": "Put stock in",
+      "field_saved": "Saved",
       "stock_out": "Take stock out",
       "target_field": "Target level",
       "target_none": "Not set",
@@ -1022,9 +1028,13 @@
       "placement_note": "Who decides where incoming stock goes.",
       "inbox_group": "Receipts by email",
       "inbox_copy": "Copy the address",
+      "inbox_copied": "The address is on the clipboard",
+      "inbox_copy_failed": "The address could not be copied. Select it and copy it by hand.",
       "inbox_note": "Forward your receipts or e-archive invoices to this address and they are read automatically, then put to you for confirmation.",
       "more_group": "More",
-      "link_plan": "Plan and usage",
+      "link_account": "Account",
+      "link_account_note": "Profile, password, two-factor and signed-in devices",
+      "link_plan":"Plan and usage",
       "link_plan_note": "Products, AI credits and how far back history goes",
       "link_mcp": "Connect your own assistant",
       "link_mcp_note": "Open your stock records with read-only access",

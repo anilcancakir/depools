@@ -25,7 +25,6 @@ import '../../ui/components/setup_step/setup_step.dart';
 import '../../ui/components/stat_card/stat_card.dart';
 import 'products/expiring_fixtures.dart';
 import 'products/product_fixtures.dart';
-import 'products/shopping_fixtures.dart';
 
 /// The landing page, and the one screen whose job is a QUESTION rather than a list.
 ///
@@ -115,6 +114,7 @@ class _DashboardViewState extends State<DashboardView> {
   static const IconData _iconReceipt = Icons.receipt_long_outlined;
   static const IconData _iconShelf = Icons.photo_camera_outlined;
   static const IconData _iconCalm = Icons.check_circle_outline;
+  static const IconData _iconLoadFailed = Icons.cloud_off_outlined;
 
   /// How many rows a dashboard card shows before it defers to its own screen.
   static const int _rowCap = 3;
@@ -168,7 +168,14 @@ class _DashboardViewState extends State<DashboardView> {
     // **Nothing until there is an answer, and this screen more than any other.** It has two SHAPES
     // rather than a full and an empty one, so guessing wrong shows a tenant with forty products the
     // setup steps for a brand new account.
-    if (summary == null) return const SizedBox.shrink();
+    //
+    // **A FAILED answer is not a pending one**, and this returned the same blank frame for both.
+    // The controller sets an error with a message and nothing read it, so a 500 on the one request
+    // this screen makes left a user staring at an empty page at the start of every session, with
+    // nothing to retry and nothing to read. That is the same shape the location detail screen had.
+    if (summary == null) {
+      return _controller?.isError == true ? _buildLoadFailed() : const SizedBox.shrink();
+    }
 
     final List<DatedLot> expired = summary.expired;
     final List<DatedLot> approaching = summary.approaching;
@@ -205,8 +212,45 @@ class _DashboardViewState extends State<DashboardView> {
         if (isCalm) _buildCalm(),
         if (expired.isNotEmpty || approaching.isNotEmpty) _buildDates(expired, approaching),
         if (out.isNotEmpty || low.isNotEmpty) _buildStock(out, low),
-        if (pendingLines.isNotEmpty) _buildShopping(),
+        // **The tenant's own count, not the shopping FIXTURE this used to read.** Every other card
+        // here comes off `summary`; this one gated its visibility and its number on
+        // `pendingLines`, so the demo file decided whether a real tenant saw the card at all and
+        // what it said. The server counts it off the same generator `/shopping` reads, which is
+        // what keeps the figure and the page it links to from disagreeing.
+        if (summary.shoppingCount > 0) _buildShopping(summary.shoppingCount),
         _buildActivity(summary.activity),
+      ],
+    );
+  }
+
+  /// The whole screen could not be read, which is different from having nothing to show.
+  ///
+  /// A retry rather than a refresh gesture, because there is no content behind this to pull down
+  /// on: the page is the failure. The controller's own sentence is preferred, since it names the
+  /// reason when the server gave one.
+  Widget _buildLoadFailed() {
+    return MSPageScaffold(
+      title: Lang.get('screens.dashboard.title'),
+      children: [
+        WDiv(
+          className: 'flex flex-col gap-3 p-4 rounded-lg bg-surface-container',
+          children: [
+            WDiv(
+              className: 'w-full',
+              child: MSEmptyState(
+                icon: _iconLoadFailed,
+                title: Lang.get('screens.dashboard.load_failed'),
+                description: _controller?.rxStatus.message ?? Lang.get('errors.unexpected'),
+              ),
+            ),
+            MSButton(
+              onPressed: () => _controller?.load(),
+              fullWidth: true,
+              className: 'justify-center',
+              child: WText(Lang.get('screens.dashboard.retry')),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -487,6 +531,17 @@ class _DashboardViewState extends State<DashboardView> {
     MagicRoute.to('/receipt');
   }
 
+  /// How many dated batches the card stands for, in the singular or the plural.
+  ///
+  /// Extracted so the number reaches `plural` and its own `:count` replacement from ONE expression:
+  /// they were computed twice at the call site, the two disagreed through an operator-precedence
+  /// slip, and nothing could see it because both halves read plausibly on their own line.
+  String _datesCount() {
+    final int total = (_summary?.expiredCount ?? 0) + (_summary?.approachingCount ?? 0);
+
+    return plural('screens.dashboard.count_batches', total, {'count': total});
+  }
+
   /// What is running out of time, expired first.
   ///
   /// Rendered with the same `LotRow` the dates screen uses, so a row here and the row it links to
@@ -498,16 +553,18 @@ class _DashboardViewState extends State<DashboardView> {
       label: Lang.get('screens.dashboard.dates_group'),
       // The count and the "see all" action go with the data: a header claiming five batches above
       // a card that could not read them is the header-contradicts-its-list defect again.
-      count: datesFailed
-          ? null
-          : plural(
-              'screens.dashboard.count_batches',
-              _summary?.expiredCount ?? 0 + (_summary?.approachingCount ?? 0),
-              {'count': (_summary?.expiredCount ?? 0) + (_summary?.approachingCount ?? 0)},
-            ),
+      // **The two arguments have to be the SAME number and they were not.** `??` binds looser than
+      // `+`, so the count that picks the plural FORM parsed as
+      // `expiredCount ?? (0 + approachingCount)` and reduced to the expired count alone, while the
+      // `:count` below correctly summed both. One expired lot beside two approaching ones therefore
+      // chose the singular form and printed three: "3 batch".
+      count: datesFailed ? null : _datesCount(),
       action: datesFailed ? null : _seeAll('/dates', Lang.get('screens.dashboard.dates_action')),
       error: datesFailed ? Lang.get('screens.dashboard.dates_failed') : null,
-      onRetry: datesFailed ? () {} : null,
+      // Reloads, where this was `() {}`. The branch is reachable only from the preview constructor
+      // today, so the button was never seen to do nothing; that is the reason it survived, not a
+      // reason to leave it.
+      onRetry: datesFailed ? () => _controller?.load() : null,
       children: [
         for (final DatedLot row in rows.take(_rowCap))
           LotRow(
@@ -597,10 +654,10 @@ class _DashboardViewState extends State<DashboardView> {
   /// Deliberately NOT three shopping rows. The list is a document the user works through with a
   /// phone in one hand, and a partial copy of it invites ticking items off in the wrong place;
   /// the other three cards are facts, which a partial view of is still useful.
-  Widget _buildShopping() {
+  Widget _buildShopping(int pending) {
     return SectionCard(
       label: Lang.get('screens.dashboard.shopping_group'),
-      count: Lang.get('screens.dashboard.shopping_count', {'count': pendingLines.length}),
+      count: Lang.get('screens.dashboard.shopping_count', {'count': pending}),
       action: _seeAll('/shopping', Lang.get('screens.dashboard.shopping_action')),
       children: [
         WText(

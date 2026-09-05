@@ -502,6 +502,7 @@
       "capture_shelf": "Raf fotoğrafı",
       "dates_failed": "Tarihler yüklenemedi",
       "load_failed": "Panel yüklenemedi",
+      "retry": "Tekrar dene",
       "stock_no_target": "Hedef belirlenmemiş"
     },
     "dates": {
@@ -592,7 +593,9 @@
       "delete_title": "\":name\" silinsin mi?",
       "delete_description": "Konum kalıcı olarak kaldırılır. Geçmiş hareketlerde adı görünmeye devam eder.",
       "delete_confirm": "Sil",
-      "load_failed": "Bu konumdaki ürünler yüklenemedi"
+      "load_failed": "Bu konumdaki ürünler yüklenemedi",
+      "missing_title": "Konum bulunamadı",
+      "missing_description": "Bu konum silinmiş ya da bağlantı güncelliğini yitirmiş olabilir."
     },
     "location_form": {
       "title": "Yeni konum",
@@ -661,6 +664,8 @@
       "scope_description": "Bağlanan program stoğu, konumları ve tarihleri okuyabilir. Hiçbir şey ekleyemez, değiştiremez veya silemez.",
       "address_group": "Bağlantı adresi",
       "copy": "Kopyala",
+      "copied": "Adres panoya kopyalandı",
+      "copy_failed": "Adres kopyalanamadı. Adresi seçip elle kopyalayın.",
       "address_note": "Bu adres yalnızca sizin ekibinize aittir. Paylaşmayın.",
       "clients_group": "Bağlı programlar",
       "client_count": ":count program",
@@ -747,6 +752,7 @@
       "stat_waste_unknown": "Bilinmiyor",
       "stat_waste_window": "son 30 günde",
       "stock_in": "Stok ekle",
+      "field_saved": "Kaydedildi",
       "stock_out": "Stok çıkar",
       "target_field": "Hedef seviye",
       "target_none": "Belirlenmedi",
@@ -1022,8 +1028,12 @@
       "placement_note": "Gelen stoğun konumunu kimin belirleyeceği.",
       "inbox_group": "E-posta ile fiş",
       "inbox_copy": "Adresi kopyala",
+      "inbox_copied": "Adres panoya kopyalandı",
+      "inbox_copy_failed": "Adres kopyalanamadı. Adresi seçip elle kopyalayın.",
       "inbox_note": "Fişlerinizi ya da e-arşiv faturalarınızı bu adrese ilettiğinizde otomatik okunur ve onayınıza sunulur.",
       "more_group": "Diğer",
+      "link_account": "Hesap",
+      "link_account_note": "Profil, parola, iki adımlı doğrulama ve oturum açılmış cihazlar",
       "link_plan": "Plan ve kullanım",
       "link_plan_note": "Ürün sayısı, AI kredisi ve geçmiş süresi",
       "link_mcp": "Kendi asistanınıza bağlanın",

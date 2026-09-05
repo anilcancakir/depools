@@ -5,6 +5,7 @@ import 'package:magic/magic.dart';
 import '../../ui/components/receipt_line_row/receipt_line_row.dart' show LineResolution;
 import '../models/shelf_read.dart';
 import '../support/mapped_or_null.dart';
+import '../support/server_message.dart';
 
 /// A photographed shelf, from the shutter to the stock it becomes.
 ///
@@ -296,9 +297,8 @@ class ShelfController extends MagicController with MagicStateMixin<ShelfRead> {
   /// `MagicResponse.message` from the HTTP status line. Reading the wrong one turned "This picture
   /// holds too many pixels to process." into "Unprocessable Content" on the product-photo path
   /// before its own test caught it.
-  String _sentence(dynamic response, String fallback) {
-    final dynamic message = response['message'];
-
-    return message is String && message.isNotEmpty ? message : fallback;
-  }
+  ///
+  /// Delegated to `serverMessage`, which adds the half this was missing: the body is trustworthy on
+  /// a 4xx and is the raw exception on a 5xx, so the status decides whether it reaches a screen.
+  String _sentence(MagicResponse response, String fallback) => serverMessage(response, fallback);
 }

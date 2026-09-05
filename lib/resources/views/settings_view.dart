@@ -1,6 +1,10 @@
+// `Clipboard` lives in the services library, not in `widgets.dart`. Imported narrowly rather than
+// pulling in `material.dart`, which `.claude/rules/design.md` forbids for a view.
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:magic/magic.dart';
-import 'package:magic_starter/magic_starter.dart' show ButtonIntent, MSButton, MSPageScaffold, MSSwitch;
+import 'package:magic_starter/magic_starter.dart'
+    show ButtonIntent, MSButton, MSPageScaffold, MSSwitch, MagicStarterConfig;
 
 import '../../app/models/app_preferences.dart';
 import '../../ui/components/option_row/option_row.dart';
@@ -124,12 +128,15 @@ class _SettingsViewState extends State<SettingsView> {
         ),
         if (on) ...[
           WText(Lang.get('screens.settings.alerts_what'), className: 'text-xs text-fg-muted'),
+          // **No `onTap`, because this one genuinely is not a choice.** Its own note says "Always
+          // on. Without it the summary has nothing to say", and it carried `onTap: () {}`, so the
+          // row read as a toggle, took a tap and answered nothing. `OptionRow` now skips its anchor
+          // when there is no gesture, so it reads as the statement it is.
           OptionRow(
             label: Lang.get('screens.settings.alert_dates'),
             description: Lang.get('screens.settings.alert_dates_note'),
             isSelected: true,
             semanticLabel: Lang.get('screens.settings.alert_dates'),
-            onTap: () {},
           ),
           OptionRow(
             label: Lang.get('screens.settings.alert_low'),
@@ -166,16 +173,75 @@ class _SettingsViewState extends State<SettingsView> {
   /// Mono for the address itself: it has to be typed into a mail client's forwarding rule, and a
   /// proportional face makes a character-by-character check harder. DESIGN.md routes barcodes and
   /// quantities the same way.
+  /// The tenant's inbound address.
+  ///
+  /// A constant until the backend mints one per team, which is why it carries the demo-data marker
+  /// at its render site. Held here so the copy button and the label cannot show different strings.
+  // demo-data-start: the tenant's inbound address, minted by the backend per team
+  static const String _inboxAddress = 'fis-8f21c4@in.depools.ai';
+  // demo-data-end
+
+  /// How long to wait for the clipboard before calling it a failure.
+  ///
+  /// Two seconds is far longer than a clipboard write takes and far shorter than a person will
+  /// stare at a button. See [_copyInbox] for why a bound is needed at all.
+  static const Duration _clipboardTimeout = Duration(seconds: 2);
+
+  /// Put the inbound address on the clipboard and say so, either way.
+  ///
+  /// The confirmation matters more than usual here: a clipboard write is invisible, and the user is
+  /// about to paste into another application, so silence would leave them checking.
+  ///
+  /// **And the write does not always answer.** On the web the platform channel reaches
+  /// `navigator.clipboard.writeText`, which the browser gates on user activation. Measured on this
+  /// screen: under a real click it resolves and the toast appears, and under a synthetic pointer
+  /// event (a `fluttersdk_dusk` tap, which injects into the Flutter engine and never reaches the
+  /// browser) the promise never settles at all. A bare `await` therefore hung forever and NEITHER
+  /// branch below ran, which is why the button looked dead rather than failed.
+  ///
+  /// So the wait is bounded and both outcomes are reported. The timeout is not there to please a
+  /// test harness: a promise that never settles is a button that never answers, and a browser can
+  /// withhold the clipboard for reasons other than automation (a permissions policy inside an
+  /// iframe is the ordinary one).
+  Future<void> _copyInbox() async {
+    bool copied = true;
+
+    try {
+      await Clipboard.setData(
+        const ClipboardData(text: _inboxAddress),
+      ).timeout(_clipboardTimeout);
+    } on Object catch (error) {
+      copied = false;
+      Log.warning('The inbound address could not be copied: $error');
+    }
+
+    if (!mounted) return;
+
+    final String title = Lang.get('screens.settings.inbox_group');
+
+    if (copied) {
+      MagicFeedback.success(title, Lang.get('screens.settings.inbox_copied'));
+
+      return;
+    }
+
+    MagicFeedback.error(title, Lang.get('screens.settings.inbox_copy_failed'));
+  }
+
   Widget _buildInbox() {
     return SectionCard(
       label: Lang.get('screens.settings.inbox_group'),
       children: [
         WText(Lang.get('screens.settings.inbox_note'), className: 'text-xs text-fg-muted'),
         // demo-data-start: the tenant's inbound address, minted by the backend per team
-        WText('fis-8f21c4@in.depools.ai', className: 'text-sm font-mono text-fg'),
+        WText(_inboxAddress, className: 'text-sm font-mono text-fg'),
         // demo-data-end
+        // **The whole point of the row, and it was `onPressed: () {}`.** The address exists to be
+        // typed into a mail client's forwarding rule, so the copy button is the row's reason for
+        // being: without it the user is transcribing a hash by eye, which is exactly what the mono
+        // face above was chosen to make survivable.
         MSButton(
-          onPressed: () {},
+          onPressed: _copyInbox,
           intent: ButtonIntent.secondary,
           className: 'py-3 axis-min',
           child: WText(Lang.get('screens.settings.inbox_copy')),
@@ -184,7 +250,7 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  /// The two surfaces that are their own screens.
+  /// The three surfaces that are their own screens.
   ///
   /// Settings is where a user looks for anything they can change, so it is where these are found;
   /// each is a screen of its own because each carries a list and actions rather than one value.
@@ -192,6 +258,18 @@ class _SettingsViewState extends State<SettingsView> {
     return SectionCard(
       label: Lang.get('screens.settings.more_group'),
       children: [
+        // **The account, which had no door.** The starter's hub used to BE `/settings` and shadowed
+        // this whole screen; moving its prefix to `/account` gave this screen back and would have
+        // left the account screens unreachable in exchange, which is the same defect facing the
+        // other way. Routed through `settingsHubRoute()` rather than a literal, so the link and the
+        // config cannot drift apart.
+        OptionRow(
+          label: Lang.get('screens.settings.link_account'),
+          description: Lang.get('screens.settings.link_account_note'),
+          isSelected: false,
+          semanticLabel: Lang.get('screens.settings.link_account'),
+          onTap: () => MagicRoute.to(MagicStarterConfig.settingsHubRoute()),
+        ),
         OptionRow(
           label: Lang.get('screens.settings.link_plan'),
           description: Lang.get('screens.settings.link_plan_note'),
